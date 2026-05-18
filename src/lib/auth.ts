@@ -243,7 +243,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async signIn({ user, account }) {
       // Auto-create user record for OAuth sign-ins
-      if (account?.provider && account.provider !== "seeker-credentials" && account.provider !== "company-credentials") {
+      if (
+        account?.provider &&
+        account.provider !== "seeker-credentials" &&
+        account.provider !== "company-credentials" &&
+        account.provider !== "admin-credentials"
+      ) {
         if (user.email) {
           const existing = await prisma.user.findUnique({
             where: { email: user.email },
