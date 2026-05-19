@@ -47,6 +47,8 @@ export interface JobForRank {
   // 時間軸シグナル (compute 時点での新着 / 期限切れ間近を反映)
   publishedAt?: Date | null
   expiresAt?: Date | null
+  // 閲覧数シグナル (人気度。鮮度と組み合わせて compute)
+  viewCount?: number | null
 }
 
 /**
@@ -141,6 +143,19 @@ export function computeRankScore(
       (job.expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
     if (daysUntilExpire >= 0 && daysUntilExpire <= 3) score -= 20
     else if (daysUntilExpire >= 0 && daysUntilExpire <= 7) score -= 10
+  }
+
+  // 人気度: viewCount を鮮度補正付きで加点。
+  // 50 閲覧 = +1、1000 閲覧 = +20 で頭打ち。
+  // 古い求人ほど閲覧数が稼げる構造なので、publishedAt が 30 日超なら半減。
+  if (typeof job.viewCount === "number" && job.viewCount > 0) {
+    let popularity = Math.min(20, Math.floor(job.viewCount / 50))
+    if (job.publishedAt) {
+      const ageDays =
+        (now.getTime() - job.publishedAt.getTime()) / (1000 * 60 * 60 * 24)
+      if (ageDays > 30) popularity = Math.floor(popularity / 2)
+    }
+    score += popularity
   }
 
   return score
