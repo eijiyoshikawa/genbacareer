@@ -22,7 +22,8 @@
     "db:seed-articles": "tsx prisma/seed-data/seed-articles.ts",
     "db:seed-help": "tsx prisma/seed-data/seed-help-articles.ts",
     "db:seed-companies": "tsx prisma/seed-data/seed-direct-companies.ts",
-    "db:seed-jobs": "tsx prisma/seed-data/seed-direct-jobs.ts"
+    "db:seed-jobs": "tsx prisma/seed-data/seed-direct-jobs.ts",
+    "cleanup:hw-blocked": "tsx scripts/cleanup-hellowork-blocked.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.2",
