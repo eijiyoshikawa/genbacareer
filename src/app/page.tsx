@@ -37,7 +37,7 @@ import type { Metadata } from "next"
 export const revalidate = 300
 
 export const metadata: Metadata = {
-  title: "ゲンバキャリア | 建築・土木・電気・内装の求人サイト",
+  title: "ゲンバキャリア | 建設業界特化型求人サイト",
   description:
     "20〜30 代の若手も活躍中。建築・土木・電気・内装・解体・ドライバー・施工管理・測量の求人を探せる建設業特化型求人サイト。LINE で気軽に応募。",
   alternates: { canonical: "/" },
