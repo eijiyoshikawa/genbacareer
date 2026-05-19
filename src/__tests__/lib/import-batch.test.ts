@@ -77,4 +77,69 @@ describe("inferCategory", () => {
     expect(inferCategory("土木作業員", undefined)).toBe("civil")
     expect(inferCategory("土木作業員", "")).toBe("civil")
   })
+
+  describe("excludes blocked occupations even if construction keywords appear", () => {
+    it("blocks 配送・タクシー・バス drivers", () => {
+      expect(inferCategory("配送ドライバー", null)).toBe(null)
+      expect(inferCategory("宅配スタッフ", null)).toBe(null)
+      expect(inferCategory("ルート配送員", null)).toBe(null)
+      expect(inferCategory("軽貨物ドライバー", null)).toBe(null)
+      expect(inferCategory("タクシードライバー", null)).toBe(null)
+      expect(inferCategory("タクシー運転手", null)).toBe(null)
+      expect(inferCategory("路線バス運転手", null)).toBe(null)
+      expect(inferCategory("観光バスドライバー", null)).toBe(null)
+      expect(inferCategory("スクールバス運転手", null)).toBe(null)
+    })
+
+    it("blocks 消防士 but keeps 消防設備工事", () => {
+      expect(inferCategory("消防士募集", null)).toBe(null)
+      expect(inferCategory("消防職員", null)).toBe(null)
+      expect(inferCategory("救急救命士", null)).toBe(null)
+      // 消防「設備」工事は electrical で取り込む
+      expect(inferCategory("消防設備工事スタッフ", null)).toBe("electrical")
+      expect(inferCategory("消防設備士", null)).toBe("electrical")
+    })
+
+    it("blocks コールセンター系", () => {
+      expect(inferCategory("コールセンタースタッフ", null)).toBe(null)
+      expect(inferCategory("電話オペレーター", null)).toBe(null)
+      expect(inferCategory("テレマーケティング担当", null)).toBe(null)
+      expect(inferCategory("カスタマーサポート", null)).toBe(null)
+      expect(inferCategory("受電業務スタッフ", null)).toBe(null)
+    })
+
+    it("blocks 介護送迎・送迎ドライバー", () => {
+      expect(inferCategory("介護送迎ドライバー", null)).toBe(null)
+      expect(inferCategory("福祉送迎運転手", null)).toBe(null)
+      expect(inferCategory("送迎ドライバー", null)).toBe(null)
+      expect(inferCategory("送迎スタッフ", null)).toBe(null)
+    })
+
+    it("blocks 食品衛生・衛生管理者 but keeps 衛生設備配管", () => {
+      expect(inferCategory("食品工場スタッフ", null)).toBe(null)
+      expect(inferCategory("食品衛生管理者", null)).toBe(null)
+      expect(inferCategory("調理補助", null)).toBe(null)
+      expect(inferCategory("厨房スタッフ", null)).toBe(null)
+      expect(inferCategory("衛生管理者", null)).toBe(null)
+      // 衛生「設備」配管工事は electrical で取り込む
+      expect(inferCategory("衛生設備配管工事", null)).toBe("electrical")
+    })
+
+    it("blocks 保育士・幼稚園教諭", () => {
+      expect(inferCategory("保育士", null)).toBe(null)
+      expect(inferCategory("保育補助スタッフ", null)).toBe(null)
+      expect(inferCategory("幼稚園教諭", null)).toBe(null)
+      expect(inferCategory("保育教諭", null)).toBe(null)
+      expect(inferCategory("学童指導員", null)).toBe(null)
+      expect(inferCategory("ベビーシッター", null)).toBe(null)
+    })
+
+    it("keeps construction-related drivers (重機/ダンプ/クレーン)", () => {
+      // 除外パターンと衝突しないことを確認
+      expect(inferCategory("重機ドライバー", null)).toBe("driver")
+      expect(inferCategory("ダンプドライバー", null)).toBe("driver")
+      expect(inferCategory("クレーンオペレーター", null)).toBe("driver")
+      expect(inferCategory("重機オペレーター", null)).toBe("driver")
+    })
+  })
 })
