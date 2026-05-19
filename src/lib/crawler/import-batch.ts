@@ -237,7 +237,7 @@ function truncate<T extends string | null | undefined>(
  * 「消防設備士」「衛生設備配管」のような建設文脈と衝突する語は意図的に外しており、
  * 「消防士」「衛生管理者」など独立した職名のみを列挙する。
  */
-const BLOCKED_OCCUPATION_PATTERN = new RegExp(
+export const BLOCKED_OCCUPATION_PATTERN = new RegExp(
   [
     // 配送・運送 (重機・ダンプの建設ドライバーは対象内のため、ここでは個別職種を指定)
     "配送ドライバ",
