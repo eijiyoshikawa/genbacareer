@@ -103,9 +103,17 @@ export default async function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(siteSchema) }}
         />
+        {/* Skip link — Tab キー押下時のみ表示。
+            キーボード/SR ユーザーが Header を飛ばして本文へ直接遷移できる */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-ink-900 focus:text-white focus:px-4 focus:py-2 focus:text-sm focus:font-bold"
+        >
+          本文へスキップ
+        </a>
         <NavigationProgress />
         <Header />
-        <main className="flex-1">{children}</main>
+        <main id="main-content" className="flex-1">{children}</main>
         <Footer />
         <CookieConsentBanner />
         <VercelAnalytics />

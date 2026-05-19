@@ -37,7 +37,7 @@ export function Header() {
             </Link>
             <Link
               href="/for-employers"
-              className="px-3 py-2 text-xs text-gray-500 hover:text-primary-600 transition"
+              className="px-3 py-2 text-xs text-gray-600 hover:text-primary-600 transition"
             >
               企業の方
             </Link>

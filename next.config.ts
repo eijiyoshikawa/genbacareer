@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import bundleAnalyzer from "@next/bundle-analyzer";
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
 
 const nextConfig: NextConfig = {
   // アイコンライブラリ (lucide-react / @phosphor-icons/react) の named import を
@@ -112,7 +117,9 @@ const nextConfig: NextConfig = {
 
 // SENTRY_DSN が未設定なら sentry config は完全に no-op で動作する
 // authToken 未設定時は source maps アップロードがスキップされ警告のみ
-export default withSentryConfig(nextConfig, {
+// ANALYZE=true で実行すると .next/analyze にバンドル可視化 HTML が出力される
+// 例: pnpm analyze
+export default withSentryConfig(withBundleAnalyzer(nextConfig), {
   silent: true,
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
