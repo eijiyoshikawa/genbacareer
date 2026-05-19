@@ -50,8 +50,8 @@ export default async function JobPerformancePage({
     prisma.application.count({ where: { jobId: id, createdAt: { gte: d7 } } }),
     prisma.application.count({ where: { jobId: id, createdAt: { gte: d28 } } }),
     prisma.application.count({ where: { jobId: id } }),
-    prisma.applicationClick.count({ where: { jobId: id, createdAt: { gte: d7 } } }).catch(() => 0),
-    prisma.applicationClick.count({ where: { jobId: id, createdAt: { gte: d28 } } }).catch(() => 0),
+    prisma.applicationClick.count({ where: { jobId: id, clickedAt: { gte: d7 } } }).catch(() => 0),
+    prisma.applicationClick.count({ where: { jobId: id, clickedAt: { gte: d28 } } }).catch(() => 0),
     // viewCount は累計値のみ DB に保存しているため、期間別は別途 view event テーブル必要 (未実装)
     Promise.resolve(0),
     Promise.resolve(0),
