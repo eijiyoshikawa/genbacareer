@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { publishedArticleFilter } from "@/lib/articles"
 import { withTimeout } from "@/lib/with-timeout"
+import { diversifyByCompany } from "@/lib/job-diversify"
 import {
   Search,
   HardHat,
@@ -149,11 +150,13 @@ export default async function HomePage() {
     // materialized view から件数を取得（未作成時は groupBy にフォールバック）
     withTimeout(getCategoryCounts(), DB_DEADLINE_MS, [], "getCategoryCounts"),
     withTimeout(
+      // 同一企業の連続表示を抑制するため candidate を 3 倍 (18 件) 取り、
+      // diversifyByCompany で再配置 → 上位 6 件に絞る
       prisma.job
       .findMany({
         where: baseConstructionFilter,
         orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
-        take: 6,
+        take: 18,
         select: {
           id: true,
           title: true,
@@ -164,6 +167,7 @@ export default async function HomePage() {
           salaryMax: true,
           salaryType: true,
           tags: true,
+          companyId: true,
           company: { select: { name: true } },
         },
       })
@@ -173,7 +177,7 @@ export default async function HomePage() {
           .findMany({
             where: baseConstructionFilter,
             orderBy: { publishedAt: "desc" },
-            take: 6,
+            take: 18,
             select: {
               id: true,
               title: true,
@@ -184,6 +188,7 @@ export default async function HomePage() {
               salaryMax: true,
               salaryType: true,
               tags: true,
+              companyId: true,
               company: { select: { name: true } },
             },
           })
@@ -220,6 +225,9 @@ export default async function HomePage() {
       "interviewArticles"
     ),
   ])
+
+  // A4: 同一企業の連続表示を抑制した上で、表示用 6 件に絞る
+  const diversifiedRecommendedJobs = diversifyByCompany(recommendedJobs).slice(0, 6)
 
   const totalJobs = categoryCounts.reduce((sum, c) => sum + c.count, 0)
   const categoriesWithCounts = categories.map((c) => ({
@@ -409,7 +417,7 @@ export default async function HomePage() {
       </Section>
 
       {/* === 注目の求人ランキング ============================================== */}
-      {recommendedJobs.length > 0 && (
+      {diversifiedRecommendedJobs.length > 0 && (
         <Section variant="warm" bordered>
           <div className="flex items-end justify-between mb-6">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 section-bar">
@@ -425,7 +433,7 @@ export default async function HomePage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {recommendedJobs.map((job, i) => (
+              {diversifiedRecommendedJobs.map((job, i) => (
                 <Link
                   key={job.id}
                   href={`/jobs/${job.id}`}

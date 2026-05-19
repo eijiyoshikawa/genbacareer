@@ -325,6 +325,37 @@ describe("computeRankScore", () => {
         computeRankScore({ ...emptyJob, expiresAt: expPast }, null, now)
       ).toBe(0)
     })
+
+    it("adds popularity score from viewCount (cap 20)", () => {
+      // 50 views = +1, 1000 views = +20
+      expect(computeRankScore({ ...emptyJob, viewCount: 50 }, null)).toBe(1)
+      expect(computeRankScore({ ...emptyJob, viewCount: 1000 }, null)).toBe(20)
+      expect(computeRankScore({ ...emptyJob, viewCount: 5000 }, null)).toBe(20) // cap
+    })
+
+    it("halves popularity for jobs older than 30 days", () => {
+      const now = new Date("2026-05-19")
+      const old = new Date("2026-03-01") // ~80 days ago
+      // 1000 views, but old → popularity halved (20 → 10)
+      const score = computeRankScore(
+        { ...emptyJob, viewCount: 1000, publishedAt: old },
+        null,
+        now
+      )
+      expect(score).toBe(10)
+    })
+
+    it("does not halve popularity for jobs within 30 days", () => {
+      const now = new Date("2026-05-19")
+      const recent = new Date("2026-05-05") // 14 日前
+      // 1000 views, recent → publishedAt boost (3-7日範囲外なので 0) + popularity full
+      const score = computeRankScore(
+        { ...emptyJob, viewCount: 1000, publishedAt: recent },
+        null,
+        now
+      )
+      expect(score).toBe(20)
+    })
   })
 })
 

@@ -71,6 +71,7 @@ async function main() {
         businessContent: true,
         publishedAt: true,
         expiresAt: true,
+        viewCount: true,
         company: {
           select: {
             tagline: true,
