@@ -29,6 +29,21 @@ export interface CompanyForRank {
 export interface JobForRank {
   description: string | null
   requirements: string | null
+  // ========================================
+  // 品質シグナル（オプション。未指定なら加点なし）
+  // HelloWork 取込求人を含むすべての求人で「情報の充実度」を評価する。
+  // 給与なし／極端に短い説明文／詳細欄空白 のような低品質求人を下位に押し下げる。
+  // ========================================
+  salaryMin?: number | null
+  salaryMax?: number | null
+  employmentType?: string | null
+  workHours?: string | null
+  holidays?: string | null
+  insurance?: string | null
+  bonus?: string | null
+  commuteAllowance?: string | null
+  companyFeatures?: string | null
+  businessContent?: string | null
 }
 
 /**
@@ -78,6 +93,36 @@ export function computeRankScore(
   const jobText =
     (job.description ?? "").length + (job.requirements ?? "").length
   score += Math.min(15, Math.floor(jobText / 100))
+
+  // ========================================
+  // 品質シグナル: 求人レコード自体の充実度
+  // 値が未指定（undefined）のフィールドは加点対象外なので、
+  // 既存の呼び出し（JobForRank = {description, requirements} のみ）は影響を受けない。
+  // ========================================
+
+  // 給与情報: 上限・下限が両方あれば +20、片方だけなら +10
+  const hasMin = typeof job.salaryMin === "number" && job.salaryMin > 0
+  const hasMax = typeof job.salaryMax === "number" && job.salaryMax > 0
+  if (hasMin && hasMax) score += 20
+  else if (hasMin || hasMax) score += 10
+
+  // 雇用形態: 正社員は最も求められる品質シグナル
+  if (job.employmentType === "full_time") score += 5
+
+  // 詳細項目の充実度（各 +3）
+  if (isNonEmpty(job.workHours)) score += 3
+  if (isNonEmpty(job.holidays)) score += 3
+  if (isNonEmpty(job.insurance)) score += 3
+  if (isNonEmpty(job.bonus)) score += 3
+  if (isNonEmpty(job.commuteAllowance)) score += 3
+
+  // 企業情報（各 +5）
+  if (isNonEmpty(job.companyFeatures)) score += 5
+  if (isNonEmpty(job.businessContent)) score += 5
+
+  // 説明文が極端に短い場合のペナルティ（30 文字未満かつ空でない）
+  const descLen = (job.description ?? "").length
+  if (descLen > 0 && descLen < 30) score -= 10
 
   return score
 }

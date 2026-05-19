@@ -155,6 +155,121 @@ describe("computeRankScore", () => {
       })
     ).toBe(0)
   })
+
+  // ========================================
+  // 品質シグナル (低品質求人を下位に押し下げる)
+  // ========================================
+  describe("quality signals", () => {
+    it("adds 20 points when both salary min and max are present", () => {
+      const score = computeRankScore(
+        { ...emptyJob, salaryMin: 200000, salaryMax: 300000 },
+        null
+      )
+      expect(score).toBe(20)
+    })
+
+    it("adds 10 points when only one of salary min/max is present", () => {
+      expect(
+        computeRankScore({ ...emptyJob, salaryMin: 200000, salaryMax: null }, null)
+      ).toBe(10)
+      expect(
+        computeRankScore({ ...emptyJob, salaryMin: null, salaryMax: 300000 }, null)
+      ).toBe(10)
+    })
+
+    it("adds 0 points when salary min/max are 0 or undefined", () => {
+      expect(
+        computeRankScore({ ...emptyJob, salaryMin: 0, salaryMax: 0 }, null)
+      ).toBe(0)
+      expect(computeRankScore({ ...emptyJob }, null)).toBe(0)
+    })
+
+    it("adds 5 points for employmentType=full_time", () => {
+      expect(
+        computeRankScore({ ...emptyJob, employmentType: "full_time" }, null)
+      ).toBe(5)
+      expect(
+        computeRankScore({ ...emptyJob, employmentType: "part_time" }, null)
+      ).toBe(0)
+    })
+
+    it("adds 3 points each for detail fields", () => {
+      const score = computeRankScore(
+        {
+          ...emptyJob,
+          workHours: "8:00-17:00",
+          holidays: "土日祝",
+          insurance: "雇用・労災・健康・厚生",
+          bonus: "年 2 回",
+          commuteAllowance: "全額支給",
+        },
+        null
+      )
+      expect(score).toBe(15) // 3 * 5
+    })
+
+    it("adds 5 points each for companyFeatures and businessContent", () => {
+      const score = computeRankScore(
+        {
+          ...emptyJob,
+          companyFeatures: "若手活躍中",
+          businessContent: "総合建設業",
+        },
+        null
+      )
+      expect(score).toBe(10) // 5 * 2
+    })
+
+    it("applies penalty for description shorter than 30 chars", () => {
+      // 説明文 20 文字 → ペナルティ -10、description 文字量加点は 20/100 = 0
+      const score = computeRankScore(
+        { description: "短い説明", requirements: null },
+        null
+      )
+      expect(score).toBe(-10)
+    })
+
+    it("does not penalize when description is empty (handled by absence)", () => {
+      const score = computeRankScore({ description: "", requirements: null }, null)
+      expect(score).toBe(0)
+    })
+
+    it("composite: fully filled HelloWork-like job scores high", () => {
+      const score = computeRankScore(
+        {
+          description: "x".repeat(500),
+          requirements: "y".repeat(200),
+          salaryMin: 200000,
+          salaryMax: 350000,
+          employmentType: "full_time",
+          workHours: "8:00-17:00",
+          holidays: "土日祝",
+          insurance: "完備",
+          bonus: "年 2 回",
+          commuteAllowance: "全額支給",
+          companyFeatures: "若手活躍中",
+          businessContent: "総合建設業",
+        },
+        null
+      )
+      // description+requirements 700 chars / 100 = 7
+      // salary both: 20
+      // employmentType full_time: 5
+      // 5 detail fields × 3 = 15
+      // 2 company fields × 5 = 10
+      // total = 7 + 20 + 5 + 15 + 10 = 57
+      expect(score).toBe(57)
+    })
+
+    it("composite: minimal HelloWork job scores near zero", () => {
+      // 給与なし、雇用形態なし、詳細欄なし、説明 100 文字
+      const score = computeRankScore(
+        { description: "x".repeat(100), requirements: null },
+        null
+      )
+      expect(score).toBe(1) // 100/100 = 1
+    })
+  })
 })
 
 describe("computeScoreBreakdown", () => {
