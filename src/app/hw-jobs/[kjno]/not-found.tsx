@@ -7,7 +7,7 @@ export default function HwJobNotFound() {
       <CalendarX className="mx-auto h-12 w-12 text-gray-300" />
       <h1 className="mt-4 text-xl font-bold text-gray-900">この求人は終了しました</h1>
       <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-        紹介期限を過ぎた、または採用が決まったため、ハローワーク側で公開が終了している可能性があります。
+        紹介期限を過ぎた、または採用が決まったため、公開元側で公開が終了している可能性があります。
         最新の求人は一覧からお探しください。
       </p>
       <Link

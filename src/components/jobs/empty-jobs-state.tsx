@@ -149,9 +149,9 @@ export async function EmptyJobsState({ params, favoriteIds, loggedIn }: Props) {
           </div>
         )}
 
-        <p className="mt-6 text-xs text-gray-400">
-          ハローワーク求人もあわせて{" "}
-          <Link href="/hw-jobs" className="text-primary-600 hover:underline">
+        <p className="mt-6 text-xs text-gray-500">
+          全国の公共求人もあわせて{" "}
+          <Link href="/hw-jobs" className="text-primary-700 underline underline-offset-2 hover:no-underline">
             こちら
           </Link>{" "}
           から検索できます

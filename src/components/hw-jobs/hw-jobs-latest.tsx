@@ -21,7 +21,7 @@ export async function HwJobsLatest({ limit = 6 }: { limit?: number }) {
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-1.5 text-lg font-bold text-gray-900">
             <Briefcase className="h-5 w-5 text-primary-600" />
-            ハローワーク 新着求人
+            公共求人 新着
           </h2>
           <Link
             href="/hw-jobs"
@@ -42,8 +42,8 @@ export async function HwJobsLatest({ limit = 6 }: { limit?: number }) {
                 className="group  border bg-white p-4 shadow-sm transition hover:border-primary-300 hover:shadow-md"
               >
                 <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                  <span className=" bg-brand-yellow-500 px-1.5 py-0.5 font-bold text-ink-900">
-                    HW
+                  <span className="bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                    公共
                   </span>
                   {job.jobType && (
                     <span className=" bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600">

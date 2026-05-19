@@ -66,8 +66,8 @@ export default async function HwJobDetailPage({ params }: PageProps) {
 
       <header className="mt-4">
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className=" bg-brand-yellow-500 px-2 py-0.5 font-bold text-ink-900">
-            ハローワーク
+          <span className="bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+            公共求人
           </span>
           {job.jobType && (
             <span className=" bg-gray-100 px-2 py-0.5 font-medium text-gray-700">
@@ -181,7 +181,7 @@ export default async function HwJobDetailPage({ params }: PageProps) {
 
       <p className="mt-8 flex items-start gap-2  border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />
-        この求人はハローワークインターネットサービスより転載しています。応募方法・最新情報はハローワーク窓口でもご確認ください。
+        この求人は公共職業安定所の公開情報より転載しています。応募方法・最新情報は公共職業安定所窓口でもご確認ください。
       </p>
     </article>
   )

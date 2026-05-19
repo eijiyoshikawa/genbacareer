@@ -31,13 +31,13 @@ export const metadata: Metadata = {
     template: "%s | ゲンバキャリア",
   },
   description:
-    "建築・土木・設備・解体に特化した求人サイト。ハローワーク求人も掲載。株式会社LET運営。",
+    "建築・土木・設備・解体に特化した求人サイト。公共求人も掲載。株式会社LET運営。",
   openGraph: {
     type: "website",
     locale: "ja_JP",
     siteName: "ゲンバキャリア",
     title: "ゲンバキャリア | 建設業界特化型求人サイト",
-    description: "建築・土木・設備・解体に特化した求人サイト。ハローワーク求人も掲載。",
+    description: "建築・土木・設備・解体に特化した求人サイト。公共求人も掲載。",
     url: siteUrl,
     images: [{ url: "/logo-demo.jpg" }],
   },

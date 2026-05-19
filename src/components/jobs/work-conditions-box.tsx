@@ -77,8 +77,8 @@ export function WorkConditionsBox({
           <Item icon={<ShieldCheck weight="duotone" className="h-4 w-4 text-primary-500" />} label="保険" value={insurance} />
         )}
       </dl>
-      <p className="mt-3 text-xs text-gray-400">
-        ※ ハローワーク掲載情報をもとに表示しています。最終的な条件は応募先にご確認ください。
+      <p className="mt-3 text-xs text-gray-500">
+        ※ 公共求人掲載情報をもとに表示しています。最終的な条件は応募先にご確認ください。
       </p>
     </div>
   )

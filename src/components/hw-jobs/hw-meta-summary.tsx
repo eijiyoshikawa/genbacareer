@@ -24,7 +24,7 @@ export async function HwMetaSummary() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <h2 className="flex items-center gap-1.5 text-base font-bold text-gray-900">
           <Database className="h-4 w-4 text-primary-600" />
-          ハローワーク掲載中
+          全国の公共求人
           <span className="ml-2 text-primary-600">{result.data.total.toLocaleString()} 件</span>
         </h2>
         <div className="mt-3 flex flex-wrap gap-2">

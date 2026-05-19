@@ -114,7 +114,7 @@ export default async function JobPrintPage({ params, searchParams }: Props) {
             </Field>
             <Field label="社会保険">{job.insurance ?? "—"}</Field>
             <Field label="出典">
-              {job.source === "direct" ? "認定企業" : "ハローワーク"}
+              {job.source === "direct" ? "認定企業" : "公共求人"}
             </Field>
           </section>
 
