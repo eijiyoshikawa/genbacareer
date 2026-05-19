@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { Plus, Pencil } from "lucide-react"
+import { Plus, Pencil, BarChart3 } from "lucide-react"
 import { Pagination } from "@/components/pagination"
 import { DuplicateJobButton } from "@/components/company/duplicate-job-button"
 import type { Metadata } from "next"
@@ -147,6 +147,13 @@ export default async function CompanyJobsPage({
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-4">
+                      <Link
+                        href={`/company/jobs/${job.id}/performance`}
+                        className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
+                      >
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        成果
+                      </Link>
                       <DuplicateJobButton jobId={job.id} />
                       <Link
                         href={`/company/jobs/${job.id}/edit`}
