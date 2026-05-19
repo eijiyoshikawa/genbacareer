@@ -3,9 +3,25 @@ import { prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { publishedArticleFilter } from "@/lib/articles"
 
-export const dynamic = "force-dynamic"
+// 60 秒ごとに再生成（クロール頻度が高くてもラムダコストを抑える）
+export const revalidate = 60
+
+// Google の sitemap 上限は 50,000 URL / 50 MB。
+// 求人系の URL は更新頻度の高い直近分のみ載せ、それ以外は静的 LP に任せる。
+const MAX_JOBS = 5000
+const MAX_SEO_COMBOS = 5000
+const MAX_COMPANIES = 2000
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
+
+async function safeFindMany<T>(label: string, fn: () => Promise<T[]>): Promise<T[]> {
+  try {
+    return await fn()
+  } catch (e) {
+    console.error(`[sitemap] ${label} failed:`, e instanceof Error ? e.message : e)
+    return []
+  }
+}
 
 const journalSlugs = [
   "construction-career-guide",
@@ -120,15 +136,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }))
 
-  // Active job detail pages（建設業カテゴリのみ）
-  const jobs = await prisma.job.findMany({
-    where: {
-      status: "active",
-      category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
-    },
-    select: { id: true, updatedAt: true },
-    orderBy: { updatedAt: "desc" },
-  })
+  // Active job detail pages（建設業カテゴリのみ、更新順 上位 5,000 件）
+  const jobs = await safeFindMany("jobs", () =>
+    prisma.job.findMany({
+      where: {
+        status: "active",
+        category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
+      },
+      select: { id: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+      take: MAX_JOBS,
+    })
+  )
 
   const jobPages: MetadataRoute.Sitemap = jobs.map((job) => ({
     url: `${BASE_URL}/jobs/${job.id}`,
@@ -157,10 +176,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
   )
 
-  // Prefecture x category SEO landing pages
-  const seoPages = await prisma.seoPage.findMany({
-    select: { prefecture: true, category: true, updatedAt: true },
-  })
+  // Prefecture x category SEO landing pages (上限あり)
+  const seoPages = await safeFindMany("seoPages", () =>
+    prisma.seoPage.findMany({
+      select: { prefecture: true, category: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+      take: MAX_SEO_COMBOS,
+    })
+  )
 
   const seoCombos: MetadataRoute.Sitemap = seoPages.map((page) => ({
     url: `${BASE_URL}/${page.prefecture}/${page.category}`,
@@ -169,11 +192,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
   }))
 
-  // 公開されている直接掲載企業の詳細ページ
-  const companies = await prisma.company.findMany({
-    where: { status: "approved", source: "direct" },
-    select: { id: true, createdAt: true },
-  })
+  // 公開されている直接掲載企業の詳細ページ (上限あり)
+  const companies = await safeFindMany("companies", () =>
+    prisma.company.findMany({
+      where: { status: "approved", source: "direct" },
+      select: { id: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: MAX_COMPANIES,
+    })
+  )
 
   const companyPages: MetadataRoute.Sitemap = companies.map((c) => ({
     url: `${BASE_URL}/companies/${c.id}`,
@@ -183,13 +210,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }))
 
   // 公開済みヘルプ記事を sitemap に追加（未来日付の記事は除外）
-  const helpArticles = await prisma.article.findMany({
-    where: {
-      ...publishedArticleFilter(),
-      category: { in: ["help-seeker", "help-employer"] },
-    },
-    select: { slug: true, category: true, updatedAt: true },
-  })
+  const helpArticles = await safeFindMany("helpArticles", () =>
+    prisma.article.findMany({
+      where: {
+        ...publishedArticleFilter(),
+        category: { in: ["help-seeker", "help-employer"] },
+      },
+      select: { slug: true, category: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+      take: 2000,
+    })
+  )
 
   const helpPages: MetadataRoute.Sitemap = helpArticles.map((a) => {
     const audience = a.category === "help-seeker" ? "seeker" : "employer"
