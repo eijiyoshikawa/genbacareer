@@ -120,7 +120,21 @@ export async function PATCH(request: NextRequest) {
   // - 企業の SNS / 文字量 / 写真 / 更新フレッシュ度 が変わったので求人ごとに再評価
   const companyJobs = await prisma.job.findMany({
     where: { companyId: ctx.companyId },
-    select: { id: true, description: true, requirements: true },
+    select: {
+      id: true,
+      description: true,
+      requirements: true,
+      salaryMin: true,
+      salaryMax: true,
+      employmentType: true,
+      workHours: true,
+      holidays: true,
+      insurance: true,
+      bonus: true,
+      commuteAllowance: true,
+      companyFeatures: true,
+      businessContent: true,
+    },
   })
 
   await Promise.all(
@@ -128,10 +142,7 @@ export async function PATCH(request: NextRequest) {
       prisma.job.update({
         where: { id: job.id },
         data: {
-          rankScore: computeRankScore(
-            { description: job.description, requirements: job.requirements },
-            updated
-          ),
+          rankScore: computeRankScore(job, updated),
         },
       })
     )
