@@ -644,6 +644,22 @@ model ScoutTemplate {
   @@map("scout_templates")
 }
 
+/// 検索ログ。/jobs での検索クエリと結果件数を記録し、
+/// admin が「人気キーワード」「ゼロヒットクエリ」を可視化する。
+model SearchLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  query        String?  @db.VarChar(200)
+  prefecture   String?  @db.VarChar(20)
+  category     String?  @db.VarChar(50)
+  resultCount  Int      @map("result_count")
+  sessionId    String?  @map("session_id") @db.VarChar(50)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([createdAt(sort: Desc)], name: "idx_search_logs_time")
+  @@index([query, createdAt(sort: Desc)], name: "idx_search_logs_query")
+  @@map("search_logs")
+}
+
 // ========================================
 // 成果報酬課金
 // ========================================

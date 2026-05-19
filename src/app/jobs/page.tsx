@@ -20,6 +20,7 @@ import {
   GuestTrialBanner,
 } from "@/components/jobs/guest-signup-cta"
 import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import { logSearch } from "@/lib/search-log"
 import type { Metadata } from "next"
 
 type Props = {
@@ -205,6 +206,15 @@ export default async function JobsPage({ searchParams }: Props) {
     : new Set<string>()
 
   const totalPages = Math.ceil(total / limit)
+
+  // C3: 検索クエリと結果件数をログに記録 (fire-and-forget)
+  logSearch({
+    query: params.q,
+    prefecture: params.prefecture,
+    category: params.category,
+    resultCount: total,
+  })
+
   const cities = params.prefecture ? AREAS[params.prefecture] ?? [] : []
   const hasFilters = !!(
     params.prefecture ||
