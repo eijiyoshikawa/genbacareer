@@ -74,8 +74,34 @@ function generateSessionId(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
+// 本番として公開する正規ホスト名。これ以外で本番デプロイへ到達した場合は
+// SEO 統合のため 301 で集約する。プレビュー / ブランチデプロイはこの集合に
+// 含めない（VERCEL_ENV !== "production" の場合は noindex のみ）。
+const CANONICAL_HOSTS = new Set(["genbacareer.jp", "www.genbacareer.jp"])
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const host = (request.headers.get("host") ?? "").toLowerCase()
+
+  // ============================================================
+  // 0a) Canonical host へのリダイレクト
+  //     本番デプロイは genbacareer.jp / www.genbacareer.jp のみで配信したい。
+  //     let-kyujin.vercel.app などへ到達したアクセスは 301 で本番ドメインへ。
+  //     プレビュー (VERCEL_ENV=preview) は QA 用にアクセス可能にする代わり
+  //     後段の withTrackingCookie で noindex ヘッダを必ず付ける。
+  // ============================================================
+  const isVercelHost = host.endsWith(".vercel.app")
+  if (
+    process.env.VERCEL_ENV === "production" &&
+    isVercelHost &&
+    !CANONICAL_HOSTS.has(host)
+  ) {
+    const canonicalUrl = new URL(request.nextUrl)
+    canonicalUrl.host = "genbacareer.jp"
+    canonicalUrl.protocol = "https:"
+    canonicalUrl.port = ""
+    return NextResponse.redirect(canonicalUrl, 301)
+  }
 
   // ============================================================
   // 0) スクレイピング防止: 公開コンテンツに対する明らかな bot UA を 403。
@@ -152,9 +178,10 @@ export function middleware(request: NextRequest) {
         maxAge: SESSION_MAX_AGE,
       })
     }
-    // 認証必須エリア / プレビュー / API は検索エンジンインデックス対象外。
+    // 認証必須エリア / プレビュー / API / *.vercel.app は検索エンジンインデックス対象外。
     // <meta name="robots"> より速く確実なので CDN レベルで X-Robots-Tag を出す。
     if (
+      isVercelHost ||
       pathname.startsWith("/mypage") ||
       pathname.startsWith("/company") ||
       pathname.startsWith("/admin") ||
