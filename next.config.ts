@@ -2,6 +2,12 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
+  // アイコンライブラリ (lucide-react / @phosphor-icons/react) の named import を
+  // ビルド時に individual imports へ変換し、未使用アイコンをバンドルから完全除去する。
+  // 数百 KB 単位の JS 削減につながり、初期ロードの「未使用 JS」を縮める。
+  experimental: {
+    optimizePackageImports: ["lucide-react", "@phosphor-icons/react"],
+  },
   images: {
     remotePatterns: [
       {

@@ -43,8 +43,10 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 }
 
+// Hero は opacity:0.55 で重ねるため高解像度は不要。
+// w=2000 → 1600, q=80 → 70 で見た目維持・データ削減。
 const HERO_IMAGE =
-  "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=2000&q=80"
+  "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1600&q=70"
 
 const FEATURE_BANNERS: Array<{
   href: string
@@ -59,7 +61,7 @@ const FEATURE_BANNERS: Array<{
     title: "未経験から始める建設キャリア",
     desc: "20〜30 代の若手が活躍中。研修・資格支援が充実した会社を厳選。",
     image:
-      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=75",
+      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1000&q=70",
   },
   {
     href: "/jobs?q=資格",
@@ -67,7 +69,7 @@ const FEATURE_BANNERS: Array<{
     title: "国家資格を取りながら働く",
     desc: "施工管理技士・電気工事士・玉掛けなど、会社負担で取れる求人を厳選。",
     image:
-      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1200&q=75",
+      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1000&q=70",
   },
   {
     href: "/jobs",
@@ -75,7 +77,7 @@ const FEATURE_BANNERS: Array<{
     title: "地元の現場で長く働く",
     desc: "全国の建設業求人を網羅。あなたの街の現場と出会えます。",
     image:
-      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1200&q=75",
+      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1000&q=70",
   },
 ]
 
@@ -462,9 +464,9 @@ export default async function HomePage() {
             </Link>
           ))}
         </div>
-        <p className="mt-3 text-xs text-gray-400">
+        <p className="mt-3 text-xs text-gray-600">
           全 47 都道府県の求人ページがあります。
-          <Link href="/jobs" className="ml-1 text-primary-600 hover:underline">
+          <Link href="/jobs" className="ml-1 text-primary-700 underline underline-offset-2 hover:no-underline">
             検索ページから他県も見る →
           </Link>
         </p>
@@ -492,7 +494,7 @@ export default async function HomePage() {
               </div>
               <ul className="space-y-2">
                 {magazineArticles.length === 0 ? (
-                  <li className="text-sm text-gray-400">準備中です。</li>
+                  <li className="text-sm text-gray-500">準備中です。</li>
                 ) : (
                   magazineArticles.map((a) => (
                     <li key={a.slug}>
@@ -542,7 +544,7 @@ export default async function HomePage() {
               </div>
               <ul className="space-y-2">
                 {interviewArticles.length === 0 ? (
-                  <li className="text-sm text-gray-400">準備中です。</li>
+                  <li className="text-sm text-gray-500">準備中です。</li>
                 ) : (
                   interviewArticles.map((a) => (
                     <li key={a.slug}>

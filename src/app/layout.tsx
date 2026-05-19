@@ -14,9 +14,12 @@ import {
 import { ensureSchema } from "@/lib/ensure-schema";
 import "./globals.css";
 
+// Latin subset のみ。日本語本体はシステムフォント (Hiragino / Yu Gothic) が
+// 引き取るため、Noto Sans JP は ASCII (数字・英単語) 用の最小構成。
+// 900 (font-black) は利用が少ないため除外し、700 で合成させる。
 const notoSansJP = Noto_Sans_JP({
   subsets: ["latin"],
-  weight: ["400", "500", "700", "900"],
+  weight: ["400", "500", "700"],
   display: "swap",
   variable: "--font-noto-jp",
 });

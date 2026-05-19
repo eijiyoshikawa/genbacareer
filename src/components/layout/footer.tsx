@@ -76,7 +76,7 @@ export function Footer() {
               <p>大阪府大阪市中央区南久宝寺町</p>
               <p>4-4-12 IB CENTERビル8F</p>
               <p>TEL: 06-6786-8320</p>
-              <p className="mt-2 text-gray-500">有料職業紹介事業</p>
+              <p className="mt-2 text-gray-400">有料職業紹介事業</p>
               <p>許可番号: 27-ユ-304693</p>
             </div>
           </div>
@@ -86,7 +86,7 @@ export function Footer() {
         <div className="mt-8 border-t border-stone-700 pt-6">
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-500">公式SNS</span>
+              <span className="text-xs font-medium text-gray-400">公式SNS</span>
               <a
                 href="https://youtube.com/@let-kensetsu"
                 target="_blank"
@@ -107,7 +107,7 @@ export function Footer() {
               </a>
             </div>
             <div className="text-center sm:text-right">
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-400">
                 有料職業紹介事業許可番号 27-ユ-304693
               </p>
               <p className="mt-1 text-xs text-gray-500">

@@ -98,22 +98,6 @@ body {
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Hero soft gradient overlay (replaces hard triangular cut) */
-.hero-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(
-      105deg,
-      transparent 0%,
-      transparent 38%,
-      rgba(20, 24, 27, 0.55) 55%,
-      rgba(20, 24, 27, 0.92) 78%,
-      rgba(20, 24, 27, 0.96) 100%
-    );
-}
-
 /* Hero yellow accent stripes (top + bottom edges) */
 .hero-stripe-top,
 .hero-stripe-bottom {
@@ -126,40 +110,6 @@ body {
 }
 .hero-stripe-top { top: 0; }
 .hero-stripe-bottom { bottom: 0; }
-
-/* Hero side accent rail (vertical brand-yellow column) */
-.hero-rail-right {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 0;
-  width: 6px;
-  background: var(--color-brand-yellow-500);
-  pointer-events: none;
-}
-
-/* Subtle dotted background for alternating sections */
-.section-dots {
-  background-color: #ffffff;
-  background-image: radial-gradient(rgba(20, 24, 27, 0.06) 1px, transparent 1px);
-  background-size: 18px 18px;
-}
-
-/* Subtle warm strip background (replaces flat warm-50) */
-.section-warm {
-  background: #faf8f5;
-}
-
-/* Theme grid yellow band */
-.theme-band-yellow {
-  background: var(--color-brand-yellow-500);
-}
-
-/* Search box yellow band (full bleed) */
-.search-band-yellow {
-  background: var(--color-brand-yellow-500);
-}
-
 
 /* Hover lift effect for cards */
 .hover-lift {
