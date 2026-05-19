@@ -15,12 +15,15 @@ import {
   FileStack,
   History,
   Activity,
+  Users,
+  BookOpen,
 } from "lucide-react"
 
 const navItems = [
   { href: "/admin", label: "ダッシュボード", icon: LayoutDashboard, exact: true },
   { href: "/admin/status", label: "システム状態", icon: Activity },
   { href: "/admin/analytics", label: "分析", icon: BarChart3 },
+  { href: "/admin/users", label: "求職者管理", icon: Users },
   { href: "/admin/line-leads", label: "LINE リード", icon: MessageCircle },
   { href: "/admin/segments", label: "セグメント配信", icon: Send },
   { href: "/admin/companies", label: "企業管理", icon: Building2 },
@@ -29,6 +32,7 @@ const navItems = [
   { href: "/admin/billing", label: "課金管理", icon: CreditCard },
   { href: "/admin/audit-log", label: "監査ログ", icon: History },
   { href: "/admin/crawler", label: "クローラー", icon: Bot },
+  { href: "/admin/manual", label: "運用マニュアル", icon: BookOpen },
 ]
 
 export function AdminSidebar({ userName }: { userName: string }) {

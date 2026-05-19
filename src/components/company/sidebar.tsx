@@ -12,6 +12,7 @@ import {
   Building2,
   Settings,
   Shield,
+  BookOpen,
 } from "lucide-react"
 
 const navItems = [
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/company/profile", label: "企業情報・SNS", icon: Settings },
   { href: "/company/gbizinfo", label: "法人番号・建設業許可", icon: Building2 },
   { href: "/company/security", label: "セキュリティ", icon: Shield },
+  { href: "/company/help", label: "使い方ガイド", icon: BookOpen },
 ]
 
 export function CompanySidebar({
