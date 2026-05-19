@@ -1,11 +1,51 @@
-# セッション引き継ぎノート (2026-05-13)
+# セッション引き継ぎノート (最終更新 2026-05-19)
 
 新しい Claude Code セッションを開始するときに、このファイルを最初に読むよう指示してください。
 プロジェクト全体の経緯と、未完了の作業が把握できます。
 
 ---
 
-## このセッションで完了したこと
+## 2026-05-19 セッションで完了したこと
+
+### PageSpeed Insights 改善 (PR #123 / branch claude/pending-content-G2KNe)
+モバイル計測値: Performance **61** / Acc **93** / BP **100** / SEO **100** から改善着手。
+FCP 6.0s / LCP 8.0s / TBT 0ms / CLS 0 → 主犯はレンダリングブロック (推定 6,600ms)。
+
+#### Phase 1 — レンダリングブロック軽減
+- `src/app/layout.tsx`: Noto Sans JP のウェイトを `["400","500","700","900"]` → `["400","500","700"]` に削減
+  - 900 (font-black) は 700 で合成。font-extrabold/black の使用は 29 箇所のみ
+- `next.config.ts`: `experimental.optimizePackageImports` に `lucide-react` と `@phosphor-icons/react` を追加
+  - 名前付き import から個別 import への自動変換でツリーシェイク強化
+
+#### Phase 2 — 画像配信改善 (推定 -120 KiB)
+- Hero 画像: `w=2000&q=80` → `w=1600&q=70` (opacity:0.55 で重ねるため劣化なし)
+- Feature Banner 3 枚: `w=1200&q=75` → `w=1000&q=70`
+
+#### Phase 3 — 未使用 CSS 削除
+- `src/app/globals.css` から 6 クラス (約 50 行) 削除:
+  `hero-overlay` / `hero-rail-right` / `section-dots` / `section-warm` /
+  `theme-band-yellow` / `search-band-yellow`
+
+#### Phase 4 — アクセシビリティ
+- `src/app/layout.tsx`: Skip-to-main-content リンク追加 (`#main-content` へ)
+- `src/app/page.tsx`: `text-gray-400` の本文を 500/600 に。インライン link に underline 追加
+- `src/components/layout/header.tsx`: 「企業の方」リンクを `text-gray-500` → `gray-600` (AA 余裕)
+- `src/components/layout/footer.tsx`: dark bg 上の小さな文字を `gray-500` → `gray-400`
+- `src/components/contact-form.tsx`: `<label>` を input ラップ型に変更 (SR の関連付け)、charcount 色補正
+
+### バンドル分析の準備
+- `@next/bundle-analyzer` を devDependencies に追加
+- `pnpm analyze` (= `ANALYZE=true next build`) で `.next/analyze` に可視化 HTML 出力
+- `next.config.ts` を `withBundleAnalyzer(...)` でラップ済み
+
+### PR #121 / #122 (2026-05-13 以降)
+- #121: SESSION_HANDOVER.md 初版
+- #122: 企業ログイン情報発行フロー + /admin/login 分離 + 未登録ゲート
+  - ハンドオーバー旧版 🟡-6 の「企業 ID/PASS admin 発行フロー」は完了
+
+---
+
+## 2026-05-13 セッションで完了したこと
 
 ### 1. ブランド / デザイン整備（PR #95–#96）
 - 共通 UI コンポーネント `<Section>` `<Button>` 作成（`src/components/ui/`）
@@ -140,21 +180,27 @@
 1. **`SENTRY_ORG` 値をユーザーから取得 → Vercel に登録**
 2. **GSC: サイトマップ `https://genbacareer.jp/sitemap.xml` を送信**
 3. **Vercel デプロイ後 `pnpm smoke` でセキュリティヘッダ等を最終確認**
+4. **PageSpeed 再計測** (`https://pagespeed.web.dev/analysis/...?form_factor=mobile`)
+   - 目標: Performance 61 → 80+ / Acc 93 → 98+
+   - 期待効果: フォントウェイト削減 + 画像最適化 + 未使用 CSS 削除 + optimizePackageImports
 
 ### 🟠 会議後に方針確定したら
-4. **メール送信 (SMTP)** の方針確定後、Gmail Workspace アプリパスワードを Vercel に
-5. **Stripe Invoicing** の方針確定後、Stripe Dashboard 設定 + `STRIPE_*` env vars 登録
+5. **メール送信 (SMTP)** の方針確定後、Gmail Workspace アプリパスワードを Vercel に
+6. **Stripe Invoicing** の方針確定後、Stripe Dashboard 設定 + `STRIPE_*` env vars 登録
 
 ### 🟡 リリース後早めに
-6. **企業 ID/PASS の admin 発行フロー** 実装
-   - **質問への回答済み**: 現状は CompanyUser 自己登録のみ。admin から発行する機能は未実装
-   - 提案: メール送信実装後に **招待メール方式** で実装するのが自然
-   - 触る予定ファイル: `/admin/companies/[id]/page.tsx`, 新規 `/admin/companies/[id]/invite/page.tsx`, 新規 `src/app/api/admin/companies/[id]/invite/route.ts`
+7. ~~企業 ID/PASS の admin 発行フロー~~ → **PR #122 で完了**
+8. **`pnpm install` を回せる環境ができたら**:
+   - `pnpm analyze` でバンドル可視化 → 重い import を特定
+   - `pnpm test` / `pnpm lint` で今回の変更が壊していないか確認
 
 ### 🟢 リリース後ゆっくり
-7. **法務最終確認**: terms / privacy / legal を顧問弁護士チェック
-8. **Lighthouse 実機計測** (LAUNCH_CHECKLIST.md セクション 9)
-9. **本番企業データ投入** + サンプル企業（example.com URL）の `--reset` 削除
+9. **法務最終確認**: terms / privacy / legal を顧問弁護士チェック
+10. **本番企業データ投入** + サンプル企業（example.com URL）の `--reset` 削除
+11. **Core Web Vitals 継続改善**:
+    - DOM サイズ最適化 (PageSpeed 指摘)
+    - 「強制リフロー」「メインスレッド長時間タスク 3 件」の特定 (DevTools Performance)
+    - 残り「使用していない JS −27 KiB / CSS −33 KiB / レガシー JS −14 KiB」
 
 ---
 
@@ -178,6 +224,7 @@ pnpm preflight              # 統合事前チェック
 pnpm smoke                  # 本番 smoke test
 pnpm db:seed-companies      # サンプル企業投入
 pnpm db:seed-jobs           # サンプル求人投入
+pnpm analyze                # バンドル可視化 (ANALYZE=true)
 ```
 
 ### 重要 endpoints
@@ -233,4 +280,4 @@ pnpm db:seed-jobs           # サンプル求人投入
 
 ---
 
-最終更新: 2026-05-13 / 直近 PR: #120 (LAUNCH_CHECKLIST + LINE 署名検証テスト)
+最終更新: 2026-05-19 / 直近 PR: #122 (admin 企業ログイン情報発行フロー) + 作業ブランチ claude/pending-content-G2KNe (perf+a11y)

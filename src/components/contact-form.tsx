@@ -68,10 +68,10 @@ export function ContactForm() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
+        <label className="block">
+          <span className="block text-sm font-medium text-gray-700">
             お名前 <span className="text-red-500">*</span>
-          </label>
+          </span>
           <input
             type="text"
             required
@@ -80,12 +80,12 @@ export function ContactForm() {
             onChange={(e) => update("name", e.target.value)}
             className="mt-1 block w-full border px-3 py-2 text-sm shadow-sm"
           />
-        </div>
+        </label>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
+        <label className="block">
+          <span className="block text-sm font-medium text-gray-700">
             メールアドレス <span className="text-red-500">*</span>
-          </label>
+          </span>
           <input
             type="email"
             required
@@ -93,13 +93,13 @@ export function ContactForm() {
             onChange={(e) => update("email", e.target.value)}
             className="mt-1 block w-full border px-3 py-2 text-sm shadow-sm"
           />
-        </div>
+        </label>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">
+      <label className="block">
+        <span className="block text-sm font-medium text-gray-700">
           件名 <span className="text-red-500">*</span>
-        </label>
+        </span>
         <input
           type="text"
           required
@@ -108,12 +108,12 @@ export function ContactForm() {
           onChange={(e) => update("subject", e.target.value)}
           className="mt-1 block w-full border px-3 py-2 text-sm shadow-sm"
         />
-      </div>
+      </label>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">
+      <label className="block">
+        <span className="block text-sm font-medium text-gray-700">
           お問い合わせ内容 <span className="text-red-500">*</span>
-        </label>
+        </span>
         <textarea
           required
           rows={6}
@@ -122,10 +122,10 @@ export function ContactForm() {
           onChange={(e) => update("message", e.target.value)}
           className="mt-1 block w-full border px-3 py-2 text-sm shadow-sm"
         />
-        <p className="mt-1 text-xs text-gray-400">
+        <span className="mt-1 block text-xs text-gray-600">
           {form.message.length} / 5000 文字
-        </p>
-      </div>
+        </span>
+      </label>
 
       {/*
         Honeypot — 画面外に配置し、bot のみが埋める想定。

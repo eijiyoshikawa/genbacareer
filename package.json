@@ -18,6 +18,7 @@
     "gen:secret": "tsx scripts/generate-secrets.ts",
     "preflight": "tsx scripts/preflight.ts",
     "smoke": "bash scripts/smoke.sh",
+    "analyze": "ANALYZE=true next build",
     "db:seed-articles": "tsx prisma/seed-data/seed-articles.ts",
     "db:seed-help": "tsx prisma/seed-data/seed-help-articles.ts",
     "db:seed-companies": "tsx prisma/seed-data/seed-direct-companies.ts",
@@ -49,6 +50,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.2.2",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
