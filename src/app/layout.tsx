@@ -3,10 +3,8 @@ import { Noto_Sans_JP } from "next/font/google";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { NavigationProgress } from "@/components/navigation-progress";
-import { GoogleAnalytics } from "@/components/analytics";
+import { GoogleAnalytics, DeferredVercelTelemetry } from "@/components/analytics";
 import { CookieConsentBanner } from "@/components/cookie-consent";
-import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import {
   generateOrganizationSchema,
   generateWebSiteSchema,
@@ -78,7 +76,10 @@ export default async function RootLayout({
 }>) {
   // 起動時に追加カラム（rank_score / Company SNS など）を冪等に追加。
   // 本番 DB が `prisma db push` 未反映でも 500 を防ぐためのセルフヒーリング。
-  await ensureSchema()
+  // クリティカルパスを塞がないため fire-and-forget。
+  // ensureSchema 内部は inflight 変数で memoize されており、複数同時呼び出しでも 1 回だけ実行される。
+  // 本番は db push 済みなので通常運用では no-op。
+  void ensureSchema()
 
   // サイト全体に効く Organization + WebSite の構造化データ。
   // Google 検索結果のサイトリンクや「サイト内検索」表示の元となる。
@@ -116,8 +117,7 @@ export default async function RootLayout({
         <main id="main-content" className="flex-1">{children}</main>
         <Footer />
         <CookieConsentBanner />
-        <VercelAnalytics />
-        <SpeedInsights />
+        <DeferredVercelTelemetry />
       </body>
     </html>
   );
