@@ -1,11 +1,51 @@
-# セッション引き継ぎノート (最終更新 2026-05-19)
+# セッション引き継ぎノート (最終更新 2026-05-19 午後)
 
 新しい Claude Code セッションを開始するときに、このファイルを最初に読むよう指示してください。
 プロジェクト全体の経緯と、未完了の作業が把握できます。
 
 ---
 
-## 2026-05-19 セッションで完了したこと
+## 2026-05-19 午後セッションで完了したこと (PR #124〜#128 + 直 push 1 件)
+
+### サマリー
+| PR | テーマ | 本番反映 |
+|---|---|---|
+| #124 | PageSpeed mobile 改善 4 Phase (font / 画像 / 未使用 CSS / a11y) | ✅ |
+| #125 | ensureSchema fire-and-forget + hnd1 region + analytics consent gate | ✅ |
+| #126 | ホーム ISR 24h + /api/cron/warmup (5 分おき) で常時ホット化 | ✅ |
+| #127 | logo-demo.jpg を favicon / OG / Organization に統一 | ✅ |
+| #128 | sitemap GSC 修正 (件数上限 + try/catch + ISR) + *.vercel.app canonical 集約 | ✅ |
+| (直 push) | Supabase statement_timeout 対策 (withTimeout 8s) | ⏸ 次回 push 時に反映 |
+
+### PageSpeed の変化
+| 指標 | 開始時 | 1 回目計測 | 備考 |
+|---|---|---|---|
+| Performance | 61 | **75** (Best) / 59 (Worst) | 振れ幅は cold lambda 起因 |
+| Accessibility | 93 | **97** | a11y 強化が効いた |
+| FCP | 6.0s | **1.8s** (warm) | warmup cron 後は安定するはず |
+| LCP | 8.0s | 6.8s | 改善余地あり |
+
+### 検索ロゴ反映
+- favicon (logo-demo.jpg) を全エンドポイントに統一済 ✅
+- ブラウザタブ即時、SNS 数日、Google 検索 1〜2 週後に反映予定
+- GSC で URL 再インデックスリクエスト済
+
+### let-kyujin.vercel.app の検索結果排除
+- middleware で 301 redirect → genbacareer.jp に集約 ✅
+- 自然 de-index は 2〜4 週間
+- 加速したい場合: Google「古いコンテンツの削除ツール」
+  https://search.google.com/search-console/remove-outdated-content
+
+### 既知の運用ポイント
+- **Vercel ビルドは Supabase が一時的に遅いと失敗する**
+  → withTimeout (8s) 対策で次回 push 以降は耐性あり
+  → 万一またコケたら **空 commit を main に push** して再ビルドが最速
+- **Promote はユーザー操作必須** (自動 promote が未設定)
+  → 設定手順は本ファイル末尾の「Vercel 自動 promote 化」セクション参照
+
+---
+
+## 2026-05-19 午前セッション (旧記録、参考)
 
 ### PageSpeed Insights 改善 (PR #123 / branch claude/pending-content-G2KNe)
 モバイル計測値: Performance **61** / Acc **93** / BP **100** / SEO **100** から改善着手。
@@ -280,4 +320,43 @@ pnpm analyze                # バンドル可視化 (ANALYZE=true)
 
 ---
 
-最終更新: 2026-05-19 / 直近 PR: #122 (admin 企業ログイン情報発行フロー) + 作業ブランチ claude/pending-content-G2KNe (perf+a11y)
+---
+
+## Vercel 自動 promote 化（手動 Promote の手間をなくす）
+
+毎回 main マージ後に「Promote to Production」をクリックしている状態を解消したい場合:
+
+1. Vercel ダッシュボード → `let-kyujin` プロジェクトを開く
+2. **Settings** → **Git** タブ
+3. **Production Branch** が `main` になっていることを確認
+4. **Deploy Hooks** の下にある **Ignored Build Step** を **Don't ignore**（デフォルト）に
+5. **Settings** → **Domains** で `genbacareer.jp` が Production deployment にエイリアスされていることを確認
+6. もし「Deployment Suspension」や「Skip Build Step」「Require Approval」が有効なら **無効化**
+
+通常の Vercel プロジェクトはデフォルトで「main push → 自動 production deploy」になります。
+現状そうなっていない理由が **Project Settings に「Require Approval for Production」のような承認制 ON が掛かっている** 可能性が高いので、その設定を OFF にする。
+
+検証: 試しに main に空コミットを push → Vercel ダッシュボードで「Production」がそのまま走るか確認。
+
+---
+
+## トラブルシューティング
+
+### ビルドが Supabase statement_timeout で失敗する
+1. `chore: rebuild trigger` の空コミットを main に push (`git commit --allow-empty -m ... && git push origin main`)
+2. それでも失敗するなら Supabase Dashboard → Settings → Database → statement_timeout を 120s に引き上げる
+3. 根本対策は withTimeout (上記 PR で適用済) だが、データ系ページ (`/categories/[category]`, `/[prefecture]` 等) はまだ未対応
+
+### サイトマップが GSC で「取得できませんでした」
+1. `https://genbacareer.jp/sitemap.xml` をブラウザで開いて XML が出るか確認
+2. 出るなら GSC 側のキャッシュ問題。一覧から削除 → 再送信
+3. 出ないなら Supabase 遅延 — 数分待って再試行
+
+### Lighthouse スコアが安定しない
+- Lighthouse は `Cache-Control: no-cache` で計測するため CDN キャッシュをバイパス
+- ホームの ISR 24h + warmup cron で常時ホット化済 (PR #126)
+- 2-3 回測って中央値を見るのが正確
+
+---
+
+最終更新: 2026-05-19 午後 / 直近 PR: #128 (sitemap 修正 + canonical 集約) / 作業ブランチ: `claude/pending-content-G2KNe`
