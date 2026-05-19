@@ -39,7 +39,7 @@ export function HwJobStructuredData({ job }: { job: HwJob }) {
     directApply: true,
     identifier: {
       "@type": "PropertyValue",
-      name: "ハローワーク求人番号",
+      name: "公共求人番号",
       value: job.kjno,
     },
   }

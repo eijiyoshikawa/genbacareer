@@ -1,9 +1,8 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
-import Link from "next/link"
 import type { Metadata } from "next"
-import { ApplicationStatusSelect } from "@/components/company/application-status-select"
+import { ApplicationsBulkTable } from "@/components/company/applications-bulk-table"
 import { Pagination } from "@/components/pagination"
 
 export const metadata: Metadata = {
@@ -138,82 +137,16 @@ export default async function CompanyApplicationsPage({
           <p className="text-gray-500">応募はまだありません。</p>
         </div>
       ) : (
-        <div className="mt-4 overflow-hidden border bg-white shadow-sm">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  応募者
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  連絡先
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  求人
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  ステータス
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  メッセージ
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  応募日
-                </th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {applications.map((app) => (
-                <tr key={app.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <p className="text-sm font-medium text-gray-900">
-                      {app.user.name ?? "名前未設定"}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {app.user.prefecture ?? ""}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="text-sm text-gray-600">{app.user.email}</p>
-                    {app.user.phone && (
-                      <p className="text-xs text-gray-500">{app.user.phone}</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {app.job.title}
-                  </td>
-                  <td className="px-4 py-3">
-                    <ApplicationStatusSelect
-                      applicationId={app.id}
-                      currentStatus={app.status}
-                    />
-                  </td>
-                  <td className="max-w-48 px-4 py-3">
-                    {app.message ? (
-                      <p className="text-xs text-gray-600 line-clamp-2" title={app.message}>
-                        {app.message}
-                      </p>
-                    ) : (
-                      <span className="text-xs text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                    {app.createdAt.toLocaleDateString("ja-JP")}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-right">
-                    <Link
-                      href={`/company/applications/${app.id}`}
-                      className="text-sm font-bold text-primary-700 hover:underline"
-                    >
-                      詳細 →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ApplicationsBulkTable
+          applications={applications.map((app) => ({
+            id: app.id,
+            status: app.status,
+            message: app.message,
+            createdAt: app.createdAt.toISOString(),
+            job: app.job,
+            user: app.user,
+          }))}
+        />
       )}
 
       {/* Pagination */}
