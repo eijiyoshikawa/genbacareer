@@ -9,7 +9,7 @@ export function generateOrganizationSchema(): Record<string, unknown> {
     name: "ゲンバキャリア",
     alternateName: "Genba Career",
     url: BASE_URL,
-    logo: `${BASE_URL}/icon.png`,
+    logo: `${BASE_URL}/logo-demo.jpg`,
     sameAs: [
       "https://youtube.com/@let-kensetsu",
       "https://instagram.com/let_kensetsu",

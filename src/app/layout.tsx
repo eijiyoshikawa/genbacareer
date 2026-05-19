@@ -39,13 +39,13 @@ export const metadata: Metadata = {
     title: "ゲンバキャリア | 建設業界特化型求人サイト",
     description: "建築・土木・設備・解体に特化した求人サイト。ハローワーク求人も掲載。",
     url: siteUrl,
-    images: [{ url: "/opengraph-image", width: 1200, height: 630 }],
+    images: [{ url: "/logo-demo.jpg" }],
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
     title: "ゲンバキャリア",
     description: "建築・土木・設備・解体に特化した求人サイト",
-    images: ["/opengraph-image"],
+    images: ["/logo-demo.jpg"],
   },
   robots: {
     index: true,
@@ -59,6 +59,15 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "ゲンバキャリア",
+  },
+  // /logo-demo.jpg を全アイコン用途に統一。
+  // - ブラウザタブ favicon (icon)
+  // - iOS ホーム画面 (apple)
+  // - 検索結果 / SNS の OG 画像は openGraph.images で指定済み
+  icons: {
+    icon: [{ url: "/logo-demo.jpg", type: "image/jpeg" }],
+    apple: [{ url: "/logo-demo.jpg" }],
+    shortcut: ["/logo-demo.jpg"],
   },
 };
 
