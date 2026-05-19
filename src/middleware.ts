@@ -74,8 +74,58 @@ function generateSessionId(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
+/**
+ * 脆弱性スキャナの典型プローブパス。サーバーレス関数の cold start と
+ * DB 接続プール枯渇を引き起こすため、middleware (Edge) レイヤで即 404 返却。
+ */
+const SCANNER_PATHS = [
+  /^\/\.env(\.|$)/,
+  /^\/\.git\//,
+  /^\/\.ssh\//,
+  /^\/\.aws\//,
+  /^\/\.docker\//,
+  /^\/\.vscode\//,
+  /^\/backend\//,
+  /^\/wp-admin\//,
+  /^\/wp-login/,
+  /^\/wordpress\//,
+  /^\/phpmyadmin/,
+  /^\/admin\.php/,
+  /^\/swagger(\.json|\.yaml|\/)/,
+  /^\/api\/swagger/,
+  /^\/api\/openapi/,
+  /^\/openapi\.(json|yaml)$/,
+  /^\/firebase-config\.json$/,
+  /^\/app-config\.json$/,
+  /^\/config\.json$/,
+  /^\/settings\.json$/,
+  /^\/env\.(json|js)$/,
+  /^\/api\/config$/,
+  /^\/api\/settings$/,
+  /^\/api\/account$/,
+  /^\/server-status/,
+  /\.(php|jsp|asp|aspx|cgi)$/,
+]
+
+function isScannerProbe(pathname: string): boolean {
+  return SCANNER_PATHS.some((re) => re.test(pathname))
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // ============================================================
+  // -1) スキャナ probe の即時 404。サーバーレス関数を起動させない。
+  // ============================================================
+  if (isScannerProbe(pathname)) {
+    return new NextResponse(null, {
+      status: 404,
+      headers: {
+        "X-Robots-Tag": "noindex, nofollow",
+        "Cache-Control": "public, max-age=86400, immutable",
+      },
+    })
+  }
 
   // ============================================================
   // 0) スクレイピング防止: 公開コンテンツに対する明らかな bot UA を 403。

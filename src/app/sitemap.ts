@@ -121,14 +121,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }))
 
   // Active job detail pages（建設業カテゴリのみ）
-  const jobs = await prisma.job.findMany({
-    where: {
-      status: "active",
-      category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
-    },
-    select: { id: true, updatedAt: true },
-    orderBy: { updatedAt: "desc" },
-  })
+  // 102k+ 件全件を取得すると 500 タイムアウトするため、直近更新 5000 件に制限。
+  // 完全な sitemap は sitemap-index 化が必要だが、まずは主要 SEO 対象を確実に配信。
+  const jobs = await prisma.job
+    .findMany({
+      where: {
+        status: "active",
+        category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
+      },
+      select: { id: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+      take: 5000,
+    })
+    .catch(() => [] as Array<{ id: string; updatedAt: Date }>)
 
   const jobPages: MetadataRoute.Sitemap = jobs.map((job) => ({
     url: `${BASE_URL}/jobs/${job.id}`,
@@ -158,9 +163,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   )
 
   // Prefecture x category SEO landing pages
-  const seoPages = await prisma.seoPage.findMany({
-    select: { prefecture: true, category: true, updatedAt: true },
-  })
+  const seoPages = await prisma.seoPage
+    .findMany({
+      select: { prefecture: true, category: true, updatedAt: true },
+      take: 5000,
+    })
+    .catch(
+      () =>
+        [] as Array<{ prefecture: string; category: string; updatedAt: Date }>
+    )
 
   const seoCombos: MetadataRoute.Sitemap = seoPages.map((page) => ({
     url: `${BASE_URL}/${page.prefecture}/${page.category}`,
@@ -170,10 +181,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }))
 
   // 公開されている直接掲載企業の詳細ページ
-  const companies = await prisma.company.findMany({
-    where: { status: "approved", source: "direct" },
-    select: { id: true, createdAt: true },
-  })
+  const companies = await prisma.company
+    .findMany({
+      where: { status: "approved", source: "direct" },
+      select: { id: true, createdAt: true },
+      take: 5000,
+    })
+    .catch(() => [] as Array<{ id: string; createdAt: Date }>)
 
   const companyPages: MetadataRoute.Sitemap = companies.map((c) => ({
     url: `${BASE_URL}/companies/${c.id}`,
@@ -183,13 +197,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }))
 
   // 公開済みヘルプ記事を sitemap に追加（未来日付の記事は除外）
-  const helpArticles = await prisma.article.findMany({
-    where: {
-      ...publishedArticleFilter(),
-      category: { in: ["help-seeker", "help-employer"] },
-    },
-    select: { slug: true, category: true, updatedAt: true },
-  })
+  const helpArticles = await prisma.article
+    .findMany({
+      where: {
+        ...publishedArticleFilter(),
+        category: { in: ["help-seeker", "help-employer"] },
+      },
+      select: { slug: true, category: true, updatedAt: true },
+      take: 2000,
+    })
+    .catch(
+      () =>
+        [] as Array<{ slug: string; category: string; updatedAt: Date }>
+    )
 
   const helpPages: MetadataRoute.Sitemap = helpArticles.map((a) => {
     const audience = a.category === "help-seeker" ? "seeker" : "employer"

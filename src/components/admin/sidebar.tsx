@@ -17,6 +17,7 @@ import {
   Activity,
   Users,
   BookOpen,
+  ShieldCheck,
 } from "lucide-react"
 
 const navItems = [
@@ -32,6 +33,7 @@ const navItems = [
   { href: "/admin/billing", label: "課金管理", icon: CreditCard },
   { href: "/admin/audit-log", label: "監査ログ", icon: History },
   { href: "/admin/crawler", label: "クローラー", icon: Bot },
+  { href: "/admin/admins", label: "管理者管理", icon: ShieldCheck },
   { href: "/admin/manual", label: "運用マニュアル", icon: BookOpen },
 ]
 

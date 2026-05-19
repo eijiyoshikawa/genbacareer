@@ -76,36 +76,71 @@ if (process.env.LINE_CLIENT_ID && process.env.LINE_CLIENT_SECRET) {
 }
 
 // Admin credentials
-if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD_HASH) {
-  providers.push(
-    Credentials({
-      id: "admin-credentials",
-      name: "管理者ログイン",
-      credentials: {
-        email: { label: "メールアドレス", type: "email" },
-        password: { label: "パスワード", type: "password" },
-      },
-      async authorize(credentials, req) {
-        assertAuthRateLimit(req, "admin")
-        if (!credentials?.email || !credentials?.password) return null
-        if (credentials.email !== process.env.ADMIN_EMAIL) return null
+// ENV (ADMIN_EMAIL/ADMIN_PASSWORD_HASH) と DB の AdminUser 両方を照合。
+// ENV が無くても DB に管理者がいれば provider は有効。
+providers.push(
+  Credentials({
+    id: "admin-credentials",
+    name: "管理者ログイン",
+    credentials: {
+      email: { label: "メールアドレス", type: "email" },
+      password: { label: "パスワード", type: "password" },
+    },
+    async authorize(credentials, req) {
+      assertAuthRateLimit(req, "admin")
+      if (!credentials?.email || !credentials?.password) return null
 
-        const isValid = await compare(
-          credentials.password as string,
-          process.env.ADMIN_PASSWORD_HASH!
-        )
-        if (!isValid) return null
+      const email = String(credentials.email).trim().toLowerCase()
+      const password = String(credentials.password)
 
-        return {
-          id: "admin",
-          email: process.env.ADMIN_EMAIL,
-          name: "管理者",
-          role: "admin" as const,
+      // 1) ENV ベース（オーナー固定）
+      if (
+        process.env.ADMIN_EMAIL &&
+        process.env.ADMIN_PASSWORD_HASH &&
+        email === process.env.ADMIN_EMAIL.trim().toLowerCase()
+      ) {
+        const ok = await compare(password, process.env.ADMIN_PASSWORD_HASH)
+        if (ok) {
+          return {
+            id: "admin",
+            email: process.env.ADMIN_EMAIL,
+            name: "管理者",
+            role: "admin" as const,
+          }
         }
-      },
-    })
-  )
-}
+      }
+
+      // 2) DB ベース（追加された管理者）
+      try {
+        const admin = await prisma.adminUser.findUnique({
+          where: { email },
+        })
+        if (admin && admin.isActive) {
+          const ok = await compare(password, admin.passwordHash)
+          if (ok) {
+            // last login 更新（失敗しても認証は通す）
+            prisma.adminUser
+              .update({
+                where: { id: admin.id },
+                data: { lastLoginAt: new Date() },
+              })
+              .catch(() => undefined)
+            return {
+              id: admin.id,
+              email: admin.email,
+              name: admin.name ?? "管理者",
+              role: "admin" as const,
+            }
+          }
+        }
+      } catch {
+        // AdminUser テーブル未マイグレーション時などはスキップ
+      }
+
+      return null
+    },
+  })
+)
 
 // Credential providers (always available)
 providers.push(
