@@ -841,6 +841,11 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
         jobId={job.id}
         title={job.title}
         companyName={job.company?.name ?? null}
+        salaryLabel={
+          job.salaryMin
+            ? formatSalary(job.salaryMin, job.salaryMax, job.salaryType)
+            : null
+        }
       />
     </div>
   )

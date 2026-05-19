@@ -1,10 +1,14 @@
 /**
  * カテゴリ件数集計の読み取りヘルパー。
  *
- * 本番では materialized view `job_category_counts` から SELECT して即時応答。
- * MV が未作成の DB（初回 / dev 環境）では Prisma の groupBy にフォールバック。
+ * 直接 prisma.job.groupBy を実行してリアルタイム件数を返す。
+ * （以前は materialized view `job_category_counts` を経由していたが、
+ *  status="closed" 一括変更や hellowork import で MV が古くなり、
+ *  ホームに「タクシー除外後」も古い件数が出る問題があったため取りやめ）
  *
- * MV のリフレッシュは `/api/cron/refresh-mv` が CONCURRENTLY で行う。
+ * idx_jobs_status_rank インデックスで status="active" 絞り込みは高速。
+ * 8 カテゴリ × 数十万件でも 100ms 未満で完走する想定。
+ * ホームの ISR キャッシュ (24h) + warmup cron でリアルタイム性も担保。
  */
 
 import { prisma } from "@/lib/db"
@@ -12,22 +16,6 @@ import { prisma } from "@/lib/db"
 export type CategoryCount = { category: string; count: number }
 
 export async function getCategoryCounts(): Promise<CategoryCount[]> {
-  // 1) まず MV から読む
-  try {
-    const rows = await prisma.$queryRawUnsafe<
-      { category: string; count: bigint }[]
-    >(`SELECT category, count FROM job_category_counts`)
-    if (rows && rows.length > 0) {
-      return rows.map((r) => ({
-        category: r.category,
-        count: Number(r.count),
-      }))
-    }
-  } catch {
-    // MV 未作成 → フォールバック
-  }
-
-  // 2) フォールバック: 直接 groupBy
   try {
     const grouped = await prisma.job.groupBy({
       by: ["category"],
@@ -43,25 +31,13 @@ export async function getCategoryCounts(): Promise<CategoryCount[]> {
   }
 }
 
-/** prefecture × category の集計（カテゴリページ用）。MV → groupBy フォールバック。 */
+/**
+ * prefecture × category の集計（カテゴリページ用）。
+ * 直接 groupBy でリアルタイム取得。
+ */
 export async function getPrefCategoryCounts(): Promise<
   Array<{ prefecture: string; category: string; count: number }>
 > {
-  try {
-    const rows = await prisma.$queryRawUnsafe<
-      { prefecture: string; category: string; count: bigint }[]
-    >(`SELECT prefecture, category, count FROM job_pref_category_counts`)
-    if (rows && rows.length > 0) {
-      return rows.map((r) => ({
-        prefecture: r.prefecture,
-        category: r.category,
-        count: Number(r.count),
-      }))
-    }
-  } catch {
-    // フォールバック
-  }
-
   try {
     const grouped = await prisma.job.groupBy({
       by: ["prefecture", "category"],
