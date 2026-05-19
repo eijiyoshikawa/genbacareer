@@ -629,6 +629,21 @@ model Scout {
   @@map("scouts")
 }
 
+/// 企業がよく使うスカウト文章のテンプレート。
+/// /company/scout-templates から CRUD し、スカウト送信時に選択して挿入する想定。
+model ScoutTemplate {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String   @db.VarChar(80)
+  body      String
+  sortOrder Int      @default(100) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@index([companyId, sortOrder], name: "idx_scout_template_company")
+  @@map("scout_templates")
+}
+
 // ========================================
 // 成果報酬課金
 // ========================================

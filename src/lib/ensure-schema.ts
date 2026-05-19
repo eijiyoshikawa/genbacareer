@@ -120,6 +120,20 @@ const STATEMENTS: ReadonlyArray<string> = [
     ADD COLUMN IF NOT EXISTS "gbiz_data" JSONB`,
  `CREATE UNIQUE INDEX IF NOT EXISTS "idx_companies_corporate_number"
     ON "companies" ("corporate_number") WHERE "corporate_number" IS NOT NULL`,
+ // スカウト文章テンプレート (企業ダッシュボード D1)
+ `CREATE TABLE IF NOT EXISTS "scout_templates" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "company_id" UUID NOT NULL,
+   "name" VARCHAR(80) NOT NULL,
+   "body" TEXT NOT NULL,
+   "sort_order" INTEGER NOT NULL DEFAULT 100,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   CONSTRAINT "scout_templates_company_fkey" FOREIGN KEY ("company_id")
+     REFERENCES "companies"("id") ON DELETE CASCADE
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_scout_template_company"
+    ON "scout_templates" ("company_id", "sort_order")`,
 ]
 
 let inflight: Promise<boolean> | null = null
