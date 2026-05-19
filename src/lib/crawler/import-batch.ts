@@ -101,8 +101,9 @@ function toJobRecord(
   })
 
   // 取り込み時のランキングスコアは company 情報を引かない簡易計算。
-  // 求人レコード自体の充実度（給与情報の有無、各種詳細欄、雇用形態 等）を
-  // 評価して低品質求人を下位に押し下げる。企業プロフィール保存時に再計算される。
+  // 求人レコード自体の充実度（給与情報の有無、各種詳細欄、雇用形態 等）と
+  // 時間軸シグナル（新着 / 期限切れ間近）を評価して低品質求人を下位に押し下げる。
+  // 企業プロフィール保存時に再計算される。新着/期限の鮮度は日次 cron で再計算推奨。
   const rankScore = computeRankScore(
     {
       description: job.description,
@@ -117,6 +118,8 @@ function toJobRecord(
       commuteAllowance: job.commuteAllowance,
       companyFeatures: job.companyFeatures,
       businessContent: job.businessContent,
+      publishedAt: new Date(),
+      expiresAt: job.validUntil,
     },
     null
   )

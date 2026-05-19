@@ -69,6 +69,8 @@ async function main() {
         commuteAllowance: true,
         companyFeatures: true,
         businessContent: true,
+        publishedAt: true,
+        expiresAt: true,
         company: {
           select: {
             tagline: true,

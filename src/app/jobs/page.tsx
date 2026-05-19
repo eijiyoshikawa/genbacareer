@@ -42,7 +42,7 @@ const SORT_OPTIONS = [
 
 const SOURCE_OPTIONS = [
   { value: "direct", label: "認定企業のみ" },
-  { value: "hellowork", label: "ハローワークのみ" },
+  { value: "hellowork", label: "公共求人のみ" },
 ] as const
 
 const DATE_WITHIN_OPTIONS = [
@@ -232,7 +232,7 @@ export default async function JobsPage({ searchParams }: Props) {
               className="inline-flex items-center gap-1 bg-white/10 px-3 py-1 text-xs text-white/90 hover:bg-white/20 transition"
             >
               <Briefcase className="h-3.5 w-3.5" />
-              ハローワーク求人を見る
+              公共求人を見る
             </Link>
           </div>
           <form action="/jobs" className="mt-4">

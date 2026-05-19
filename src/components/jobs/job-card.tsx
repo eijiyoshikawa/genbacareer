@@ -82,11 +82,11 @@ export function JobCard({
             </span>
           ) : (
             <span
-              className="inline-flex items-center gap-1 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
-              title="ハローワーク公開求人。応募は当社経由でハローワークの手続き案内が届きます。"
+              className="inline-flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-500"
+              title="公共職業安定所が公開している公共求人。応募は当社経由で手続き案内が届きます。"
             >
-              <Bank weight="duotone" className="h-3.5 w-3.5" />
-              ハローワーク
+              <Bank weight="duotone" className="h-3 w-3" />
+              公共求人
             </span>
           )}
           <span className="inline-flex items-center gap-1 bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700">
@@ -107,17 +107,17 @@ export function JobCard({
         {/* 給与・勤務地（重要情報を 1 行で目立たせる） */}
         <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
           {job.salaryMin ? (
-            <span className="inline-flex items-center gap-1 text-base font-bold text-primary-600">
-              <Money weight="duotone" className="h-4 w-4" />
+            <span className="inline-flex items-center gap-1 text-lg font-extrabold text-primary-700 tracking-tight">
+              <Money weight="fill" className="h-5 w-5 text-primary-500" />
               {formatSalary(job.salaryMin, job.salaryMax, job.salaryType)}
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-sm text-gray-400">
+            <span className="inline-flex items-center gap-1 text-sm text-gray-500">
               <Money weight="duotone" className="h-4 w-4" />
               給与応相談
             </span>
           )}
-          <span className="inline-flex items-center gap-1 text-sm text-gray-600">
+          <span className="inline-flex items-center gap-1 text-sm text-gray-700">
             <MapPin weight="duotone" className="h-4 w-4 text-gray-400" />
             {job.prefecture}
             {job.city && ` ${job.city}`}

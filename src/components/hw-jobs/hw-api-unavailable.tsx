@@ -8,8 +8,8 @@ interface HwApiUnavailableProps {
 export function HwApiUnavailable({ reason, message }: HwApiUnavailableProps) {
   const headline =
     reason === "not-configured"
-      ? "ハローワーク求人サービスは現在準備中です"
-      : "ハローワーク求人を一時的に取得できません"
+      ? "公共求人サービスは現在準備中です"
+      : "公共求人を一時的に取得できません"
   const body =
     reason === "not-configured"
       ? "サイト管理者が連携APIの設定を行ったあと、こちらに求人が表示されます。"

@@ -342,8 +342,8 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                       認定企業
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                      ハローワーク
+                    <span className="inline-flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                      公共求人
                     </span>
                   )}
                   <TagChip size="sm">{getCategoryLabel(job.category)}</TagChip>
@@ -815,7 +815,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
             {/* HW notice */}
             {job.source === "hellowork" && (
               <p className="text-xs text-gray-400 leading-relaxed">
-                この求人はハローワークインターネットサービスより転載しています。最新の情報はハローワークでご確認ください。
+                この求人は公共職業安定所の公開情報より転載しています。最新の情報は公共職業安定所窓口でご確認ください。
               </p>
             )}
 

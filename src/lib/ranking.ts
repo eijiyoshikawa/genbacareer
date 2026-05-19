@@ -44,6 +44,9 @@ export interface JobForRank {
   commuteAllowance?: string | null
   companyFeatures?: string | null
   businessContent?: string | null
+  // 時間軸シグナル (compute 時点での新着 / 期限切れ間近を反映)
+  publishedAt?: Date | null
+  expiresAt?: Date | null
 }
 
 /**
@@ -123,6 +126,22 @@ export function computeRankScore(
   // 説明文が極端に短い場合のペナルティ（30 文字未満かつ空でない）
   const descLen = (job.description ?? "").length
   if (descLen > 0 && descLen < 30) score -= 10
+
+  // 新着加点: publishedAt が 3 日以内なら +15、7 日以内なら +8
+  if (job.publishedAt) {
+    const ageDays =
+      (now.getTime() - job.publishedAt.getTime()) / (1000 * 60 * 60 * 24)
+    if (ageDays >= 0 && ageDays <= 3) score += 15
+    else if (ageDays >= 0 && ageDays <= 7) score += 8
+  }
+
+  // 期限切れ間近ペナルティ: expiresAt が 7 日以内なら -10、3 日以内なら -20
+  if (job.expiresAt) {
+    const daysUntilExpire =
+      (job.expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    if (daysUntilExpire >= 0 && daysUntilExpire <= 3) score -= 20
+    else if (daysUntilExpire >= 0 && daysUntilExpire <= 7) score -= 10
+  }
 
   return score
 }

@@ -269,6 +269,62 @@ describe("computeRankScore", () => {
       )
       expect(score).toBe(1) // 100/100 = 1
     })
+
+    it("adds 15 points for jobs published within 3 days", () => {
+      const now = new Date("2026-05-19")
+      const recent = new Date("2026-05-17") // 2 日前
+      expect(
+        computeRankScore({ ...emptyJob, publishedAt: recent }, null, now)
+      ).toBe(15)
+    })
+
+    it("adds 8 points for jobs published 3-7 days ago", () => {
+      const now = new Date("2026-05-19")
+      const week = new Date("2026-05-13") // 6 日前
+      expect(
+        computeRankScore({ ...emptyJob, publishedAt: week }, null, now)
+      ).toBe(8)
+    })
+
+    it("adds 0 points for jobs published more than 7 days ago", () => {
+      const now = new Date("2026-05-19")
+      const old = new Date("2026-05-05") // 14 日前
+      expect(
+        computeRankScore({ ...emptyJob, publishedAt: old }, null, now)
+      ).toBe(0)
+    })
+
+    it("subtracts 20 points for jobs expiring within 3 days", () => {
+      const now = new Date("2026-05-19")
+      const expSoon = new Date("2026-05-21") // 2 日後
+      expect(
+        computeRankScore({ ...emptyJob, expiresAt: expSoon }, null, now)
+      ).toBe(-20)
+    })
+
+    it("subtracts 10 points for jobs expiring 3-7 days from now", () => {
+      const now = new Date("2026-05-19")
+      const expLater = new Date("2026-05-25") // 6 日後
+      expect(
+        computeRankScore({ ...emptyJob, expiresAt: expLater }, null, now)
+      ).toBe(-10)
+    })
+
+    it("no penalty for jobs expiring more than 7 days from now", () => {
+      const now = new Date("2026-05-19")
+      const expFuture = new Date("2026-06-19") // 31 日後
+      expect(
+        computeRankScore({ ...emptyJob, expiresAt: expFuture }, null, now)
+      ).toBe(0)
+    })
+
+    it("no penalty for already-expired jobs (handled by status filter elsewhere)", () => {
+      const now = new Date("2026-05-19")
+      const expPast = new Date("2026-05-10") // 過去
+      expect(
+        computeRankScore({ ...emptyJob, expiresAt: expPast }, null, now)
+      ).toBe(0)
+    })
   })
 })
 

@@ -16,8 +16,8 @@ export function HwJobCard({ job }: { job: HwJob }) {
     >
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <span className=" bg-brand-yellow-500 px-2 py-0.5 text-xs font-bold text-ink-900">
-            ハローワーク
+          <span className="bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+            公共求人
           </span>
           {job.jobType && (
             <span className=" bg-warm-100 px-2 py-0.5 text-xs font-medium text-gray-600">

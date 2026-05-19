@@ -133,7 +133,7 @@ export default async function CompareJobsPage({ searchParams }: Props) {
             <Row label="出典">
               {jobs.map((job) => (
                 <td key={job.id} className="px-3 py-2 border-b text-xs text-gray-700">
-                  {job.source === "direct" ? "認定企業" : "ハローワーク"}
+                  {job.source === "direct" ? "認定企業" : "公共求人"}
                 </td>
               ))}
             </Row>

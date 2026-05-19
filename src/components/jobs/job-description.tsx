@@ -14,7 +14,7 @@ export function JobDescription({
   if (sections.length === 0) {
     return (
       <p className="text-sm text-gray-500">
-        詳細な仕事内容はハローワークの掲載ページでご確認ください。
+        詳細な仕事内容は公共求人の掲載ページでご確認ください。
       </p>
     )
   }

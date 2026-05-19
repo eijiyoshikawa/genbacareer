@@ -7,9 +7,9 @@ export function HwLastSynced({ isoDatetime }: { isoDatetime: string | null | und
   return (
     <p className="mt-6 flex items-center gap-1 text-xs text-gray-500">
       <Clock className="h-3 w-3" />
-      ハローワーク求人の最終同期: {formatted}
+      公共求人の最終同期: {formatted}
       <span className="text-gray-400">
-        （ハローワークインターネットサービスより転載・原文ママ）
+        （公共職業安定所の公開情報より転載・原文ママ）
       </span>
     </p>
   )

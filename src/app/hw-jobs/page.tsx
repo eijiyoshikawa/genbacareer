@@ -26,12 +26,12 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   if (params.jobType) parts.push(params.jobType)
   if (params.q) parts.push(`「${params.q}」`)
   const title = parts.length
-    ? `${parts.join(" / ")}のハローワーク求人`
-    : "ハローワーク求人検索"
+    ? `${parts.join(" / ")}の公共求人`
+    : "公共求人検索"
   return {
     title,
     description:
-      "全国のハローワーク求人をまとめて検索。建築・土木・設備・解体・製造・運転など現場系職種を網羅。最終更新日時を併記し、原文を改変せず転載しています。",
+      "全国の公共求人をまとめて検索。建築・土木・設備・解体・製造・運転など現場系職種を網羅。最終更新日時を併記し、原文を改変せず転載しています。",
   }
 }
 
@@ -56,7 +56,7 @@ export default async function HwJobsPage({ searchParams }: PageProps) {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-baseline gap-2">
-          <h1 className="text-2xl font-bold text-gray-900">ハローワーク求人</h1>
+          <h1 className="text-2xl font-bold text-gray-900">公共求人</h1>
           {result.ok && (
             <p className="text-sm text-gray-500">全 {result.data.pagination.total.toLocaleString()} 件</p>
           )}
@@ -69,7 +69,7 @@ export default async function HwJobsPage({ searchParams }: PageProps) {
         </Link>
       </header>
       <p className="mt-1 text-xs text-gray-500">
-        ハローワークインターネットサービスより転載しています。原文を改変せず掲載しています。
+        公共職業安定所の公開情報より転載しています。原文を改変せず掲載しています。
       </p>
 
       <div className="mt-6">
