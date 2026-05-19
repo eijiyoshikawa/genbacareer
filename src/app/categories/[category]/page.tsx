@@ -72,8 +72,10 @@ type Props = {
   params: Promise<{ category: string }>
 }
 
+// ビルド時の DB 接続枯渇を避けるため、初回リクエスト時に動的生成する。
+// ISR (revalidate=21600) でユーザー体感は維持される。
 export async function generateStaticParams() {
-  return CONSTRUCTION_CATEGORY_VALUES.map((value) => ({ category: value }))
+  return []
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
