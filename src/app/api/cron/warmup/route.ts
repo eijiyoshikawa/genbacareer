@@ -1,0 +1,48 @@
+/**
+ * ホームページ + 主要ページの CDN キャッシュとラムダをウォームに保つ。
+ *
+ * Vercel Cron Jobs から GET で 5 分おきに呼び出す。
+ * Authorization ヘッダーで CRON_SECRET を検証。
+ *
+ * 動作:
+ *   各 URL を順に fetch して ISR キャッシュを生成・延長する。
+ *   PageSpeed や初回訪問のユーザーが必ずホット lambda の応答を受けられるようにする。
+ */
+
+const TARGETS = ["/", "/jobs", "/journal"] as const
+
+export async function GET(request: Request) {
+  const authHeader = request.headers.get("authorization")
+  const cronSecret = process.env.CRON_SECRET
+
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const baseUrl =
+    process.env.NEXT_PUBLIC_BASE_URL ??
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "https://genbacareer.jp")
+
+  const results = await Promise.all(
+    TARGETS.map(async (path) => {
+      const start = Date.now()
+      try {
+        const res = await fetch(`${baseUrl}${path}`, {
+          headers: { "User-Agent": "genbacareer-warmup-cron/1.0" },
+          cache: "no-store",
+        })
+        return { path, status: res.status, ms: Date.now() - start }
+      } catch (e) {
+        return {
+          path,
+          error: e instanceof Error ? e.message : String(e),
+          ms: Date.now() - start,
+        }
+      }
+    })
+  )
+
+  return Response.json({ ok: true, results })
+}
