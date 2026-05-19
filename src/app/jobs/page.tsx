@@ -617,17 +617,18 @@ function SortLink({
     return sp.toString() ? `/jobs?${sp.toString()}` : "/jobs"
   }
   return (
-    <div className="flex items-center gap-1 text-xs">
-      <span className="text-gray-400">並び順:</span>
+    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+      <span className="text-gray-600 font-medium mr-1">並び順:</span>
       {SORT_OPTIONS.map((opt) => (
         <a
           key={opt.value}
           href={buildHref(opt.value)}
-          className={` px-2 py-0.5 ${
+          className={`inline-flex items-center px-3 py-1.5 text-xs font-medium border transition ${
             opt.value === sort
-              ? "bg-primary-500 text-white"
-              : "text-gray-600 hover:bg-gray-100"
+              ? "bg-primary-600 text-white border-primary-600 shadow-sm"
+              : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
           }`}
+          aria-current={opt.value === sort ? "true" : undefined}
         >
           {opt.label}
         </a>
