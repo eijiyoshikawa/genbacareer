@@ -134,6 +134,21 @@ const STATEMENTS: ReadonlyArray<string> = [
  )`,
  `CREATE INDEX IF NOT EXISTS "idx_scout_template_company"
     ON "scout_templates" ("company_id", "sort_order")`,
+ // 検索ログ (C3: /admin/search-logs で可視化)
+ `CREATE TABLE IF NOT EXISTS "search_logs" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "query" VARCHAR(200),
+   "prefecture" VARCHAR(20),
+   "category" VARCHAR(50),
+   "result_count" INTEGER NOT NULL,
+   "session_id" VARCHAR(50),
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_search_logs_time"
+    ON "search_logs" ("created_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_search_logs_query"
+    ON "search_logs" ("query", "created_at" DESC)
+    WHERE "query" IS NOT NULL`,
 ]
 
 let inflight: Promise<boolean> | null = null

@@ -17,6 +17,7 @@ import {
   Activity,
   ShieldCheck,
   Database,
+  Search,
 } from "lucide-react"
 
 const navItems = [
@@ -30,6 +31,7 @@ const navItems = [
   { href: "/admin/job-templates", label: "求人テンプレ", icon: FileStack },
   { href: "/admin/job-quality", label: "求人精査", icon: ShieldCheck },
   { href: "/admin/hellowork-stats", label: "HW 取込統計", icon: Database },
+  { href: "/admin/search-logs", label: "検索ログ", icon: Search },
   { href: "/admin/billing", label: "課金管理", icon: CreditCard },
   { href: "/admin/audit-log", label: "監査ログ", icon: History },
   { href: "/admin/crawler", label: "クローラー", icon: Bot },
