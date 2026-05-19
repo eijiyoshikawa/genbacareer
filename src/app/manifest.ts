@@ -21,12 +21,12 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "ja-JP",
     categories: ["business", "productivity"],
     icons: [
-      { src: "/icon", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/icon", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/logo-demo.jpg", sizes: "192x192", type: "image/jpeg", purpose: "any" },
+      { src: "/logo-demo.jpg", sizes: "512x512", type: "image/jpeg", purpose: "any" },
       {
-        src: "/apple-icon",
+        src: "/logo-demo.jpg",
         sizes: "180x180",
-        type: "image/png",
+        type: "image/jpeg",
         purpose: "maskable",
       },
     ],

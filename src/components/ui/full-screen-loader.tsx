@@ -1,3 +1,5 @@
+import Image from "next/image"
+
 /**
  * 全画面ローディングオーバーレイ。
  * loading.tsx に置くと Suspense fallback として全画面を覆う。
@@ -5,8 +7,8 @@
  * デザイン:
  * - z-50 fixed で header/footer も覆う
  * - ブランドオレンジの円が外側からフェードイン
- * - 中央に G ロゴ（pulse）
- * - 下部に走るプログレスバー（無限ループ）
+ * - 中央にロゴ画像 (pulse)
+ * - 下部に走るプログレスバー (無限ループ)
  */
 export function FullScreenLoader({
   label = "読み込み中...",
@@ -27,15 +29,20 @@ export function FullScreenLoader({
         </div>
 
         {/* 中央ロゴ円 */}
-        <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-primary-600 shadow-lg shadow-primary-600/30">
-          <span className="text-3xl font-black tracking-tight text-white">
-            G
-          </span>
+        <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-white shadow-lg shadow-primary-600/30 ring-2 ring-primary-600">
+          <Image
+            src="/logo-demo.jpg"
+            alt="ゲンバキャリア"
+            width={80}
+            height={80}
+            className="h-16 w-16 object-contain"
+            priority
+          />
           {/* ping パルス */}
-          <span className="absolute inset-0 animate-ping rounded-full bg-primary-600 opacity-20" />
+          <span className="absolute inset-0 animate-ping rounded-full bg-primary-600 opacity-15" />
         </div>
 
-        {/* ブランド名 (フェードイン+アップ) */}
+        {/* ブランド名 */}
         <p className="mt-6 text-sm font-semibold text-gray-700 [animation:fadeUp_0.6s_ease-out]">
           ゲンバキャリア
         </p>
@@ -52,7 +59,6 @@ export function FullScreenLoader({
         />
       </div>
 
-      {/* 全画面ロード時の keyframes をインライン定義 */}
       <style>{`
         @keyframes slide {
           0% { transform: translateX(-100%); }

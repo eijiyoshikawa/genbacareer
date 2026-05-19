@@ -38,13 +38,18 @@ export const metadata: Metadata = {
     title: "ゲンバキャリア | 建設業界特化型求人サイト",
     description: "建築・土木・設備・解体に特化した求人サイト。ハローワーク求人も掲載。",
     url: siteUrl,
-    images: [{ url: "/opengraph-image", width: 1200, height: 630 }],
+    images: [{ url: "/logo-demo.jpg", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "ゲンバキャリア",
     description: "建築・土木・設備・解体に特化した求人サイト",
-    images: ["/opengraph-image"],
+    images: ["/logo-demo.jpg"],
+  },
+  icons: {
+    icon: "/logo-demo.jpg",
+    shortcut: "/logo-demo.jpg",
+    apple: "/logo-demo.jpg",
   },
   robots: {
     index: true,
