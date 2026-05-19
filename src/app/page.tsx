@@ -32,9 +32,12 @@ import { Section } from "@/components/ui/section"
 import { getCategoryCounts } from "@/lib/job-stats"
 import type { Metadata } from "next"
 
-// トップページは特集記事 + おすすめ求人など、5 分単位のフレッシュさで十分。
-// ISR でレンダリング結果をキャッシュし、初回表示までの TTFB を削減。
-export const revalidate = 300
+// ホームは ISR で 24 時間キャッシュ。/api/cron/warmup が 5 分おきに叩いて
+// CDN キャッシュとラムダをウォームに保つため、PageSpeed や初回訪問でも
+// コールド lambda の 5 秒待ちが発生しない。
+// 新着求人や記事の反映が遅れる場合は、管理画面側で revalidatePath('/') を
+// 叩く運用にする（公開直後の即時反映が必要なケース）。
+export const revalidate = 86400
 
 export const metadata: Metadata = {
   title: "ゲンバキャリア | 建築・土木・電気・内装の求人サイト",

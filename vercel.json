@@ -3,6 +3,10 @@
   "regions": ["hnd1"],
   "crons": [
     {
+      "path": "/api/cron/warmup",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/expire-jobs",
       "schedule": "0 3 * * *"
     },
