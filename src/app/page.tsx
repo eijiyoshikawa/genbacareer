@@ -3,6 +3,7 @@ import Image from "next/image"
 import { prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { publishedArticleFilter } from "@/lib/articles"
+import { withTimeout } from "@/lib/with-timeout"
 import {
   Search,
   HardHat,
@@ -133,6 +134,12 @@ export default async function HomePage() {
     category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
   }
 
+  // ビルド時 / SSR 時に Supabase が一時的に遅い（statement_timeout が
+  // 効くケース）でもビルドが落ちないよう、各クエリに 8 秒上限を被せる。
+  // ホームは ISR 24h でキャッシュされるため、warmup cron による次回再生成で
+  // 正しい値に上書きされる。
+  const DB_DEADLINE_MS = 8000
+
   const [
     categoryCounts,
     recommendedJobs,
@@ -140,8 +147,9 @@ export default async function HomePage() {
     interviewArticles,
   ] = await Promise.all([
     // materialized view から件数を取得（未作成時は groupBy にフォールバック）
-    getCategoryCounts(),
-    prisma.job
+    withTimeout(getCategoryCounts(), DB_DEADLINE_MS, [], "getCategoryCounts"),
+    withTimeout(
+      prisma.job
       .findMany({
         where: baseConstructionFilter,
         orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
@@ -181,22 +189,36 @@ export default async function HomePage() {
           })
           .catch(() => [])
       ),
-    prisma.article
-      .findMany({
-        where: { ...publishedArticleFilter(), category: { not: "interview" } },
-        orderBy: { publishedAt: "desc" },
-        take: 4,
-        select: { slug: true, title: true, category: true, publishedAt: true, imageUrl: true },
-      })
-      .catch(() => []),
-    prisma.article
-      .findMany({
-        where: { ...publishedArticleFilter(), category: "interview" },
-        orderBy: { publishedAt: "desc" },
-        take: 4,
-        select: { slug: true, title: true, publishedAt: true, imageUrl: true },
-      })
-      .catch(() => []),
+      DB_DEADLINE_MS,
+      [],
+      "recommendedJobs"
+    ),
+    withTimeout(
+      prisma.article
+        .findMany({
+          where: { ...publishedArticleFilter(), category: { not: "interview" } },
+          orderBy: { publishedAt: "desc" },
+          take: 4,
+          select: { slug: true, title: true, category: true, publishedAt: true, imageUrl: true },
+        })
+        .catch(() => []),
+      DB_DEADLINE_MS,
+      [],
+      "magazineArticles"
+    ),
+    withTimeout(
+      prisma.article
+        .findMany({
+          where: { ...publishedArticleFilter(), category: "interview" },
+          orderBy: { publishedAt: "desc" },
+          take: 4,
+          select: { slug: true, title: true, publishedAt: true, imageUrl: true },
+        })
+        .catch(() => []),
+      DB_DEADLINE_MS,
+      [],
+      "interviewArticles"
+    ),
   ])
 
   const totalJobs = categoryCounts.reduce((sum, c) => sum + c.count, 0)
