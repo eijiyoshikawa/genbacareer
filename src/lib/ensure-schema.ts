@@ -15,6 +15,20 @@ const STATEMENTS: ReadonlyArray<string> = [
  // User 通知頻度・時間帯設定 (3.4)
  `ALTER TABLE "users"
    ADD COLUMN IF NOT EXISTS "notification_prefs" JSONB NOT NULL DEFAULT '{}'::jsonb`,
+ // 除外キーワード (8.1)
+ `CREATE TABLE IF NOT EXISTS "blocklists" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "keyword" VARCHAR(100) NOT NULL,
+   "scope" VARCHAR(20) NOT NULL DEFAULT 'any',
+   "note" VARCHAR(500),
+   "enabled" BOOLEAN NOT NULL DEFAULT true,
+   "hit_count" INTEGER NOT NULL DEFAULT 0,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   "created_by" UUID
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_blocklist_enabled_scope"
+    ON "blocklists" ("enabled", "scope")`,
  // Company リッチコンテンツ + SNS
  `ALTER TABLE "companies"
  ADD COLUMN IF NOT EXISTS "tagline" VARCHAR(200),
