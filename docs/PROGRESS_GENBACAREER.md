@@ -104,40 +104,52 @@ Phase 1 MVP リスト 32 機能のうち **約 85% (27/32) は既に実装済み
 
 ---
 
-## Phase 2 着手プラン（次セッション以降）
+## Phase 2 進捗（着手中）
 
-優先度順：
+### Phase 2-A: データ層拡張 ✅ 完了 (`0d9c0ca`)
+新規 6 モデルを Prisma + ensure-schema に追加:
+- ✅ Report (6.2 通報・レポート)
+- ✅ JobCategoryClassification (7.1 タグ付け)
+- ✅ CrawlerSyncCheckpoint (7.2 差分同期)
+- ✅ SearchConsoleSnapshot (9.6 検索データ可視化)
+- ✅ AiGeneratedArticle (9.7 AI コンテンツ生成)
+- ✅ AnalyticsEvent (13.4 独自イベントトラッキング)
 
-### Phase 2-A: データ層拡張（Prisma スキーマ追加）
-新規モデル（architecture_genbacareer.md に設計済み）：
-- `Report` (6.2 通報・レポート)
-- `JobCategoryClassification` (7.1 タグ付け)
-- `CrawlerSyncCheckpoint` (7.2 差分同期)
-- `SearchConsoleSnapshot` (9.6 検索データ可視化)
-- `AiGeneratedArticle` (9.7 AI コンテンツ生成)
-- `AnalyticsEvent` (13.4 独自イベントトラッキング)
-
-これらは ensure-schema にも SQL 追記。
-
-### Phase 2-B: 集客系機能
-- 12.1 企業ページの強化
-- 12.5 企業フォロー UI 強化（model はある）
-- 12.6 企業ランキング（業界別 / 地域別）
-- 13.1 ブログ・お役立ち記事（model: Article は既存）
-- 13.2 地域 × 職種 LP 自動生成
+### Phase 2-B: 集客系機能（一部完了）
+- ⏳ 12.1 企業ページの強化
+- ✅ 12.5 企業フォロー UI（既存実装で十分）
+- ✅ 12.6 企業ランキング (業界別 / 地域別) (`36d199f`)
+- ⏳ 13.1 ブログ・お役立ち記事（Article model 既存、UI は別途）
+- ✅ 13.2 地域 × 職種 LP（**既存** `/[prefecture]/[category]` で達成済み、追加実装した `/jobs/lp` は重複のため revert `a852bcb`）
 
 ### Phase 2-C: 通知 / Push
-- 3.3 + 16.2 Web Push 通知（Service Worker 含む）
-- 3.4 通知頻度・時間帯設定 UI
+- ⏳ 3.3 + 16.2 Web Push 通知（Service Worker 含む）
+- ⏳ 3.4 通知頻度・時間帯設定 UI
 
 ### Phase 2-D: 検索拡張
-- 11.2 マップ検索（Google Maps）
-- 11.5 縦スワイプ求人フィード（TikTok 風）
-- 11.6 / 11.7 レコメンド強化
+- ⏳ 11.2 マップ検索（Google Maps）
+- ⏳ 11.5 縦スワイプ求人フィード（TikTok 風）
+- ⏳ 11.6 / 11.7 レコメンド強化
 
 ### Phase 2-E: 運営強化
-- 6.2 通報機能（Report model + 通報 UI + admin 解決画面）
-- 6.4 BAN 機能 UI 強化
+- ✅ 6.2 通報機能（Report model + 通報 UI + admin 解決画面）(`563e5d2`)
+- ⏳ 6.4 BAN 機能 UI 強化
+
+### Phase 2-F: アナリティクス
+- ✅ 13.4 独自イベントトラッキング基盤 (`bac8b9f`)
+  - `src/lib/track.ts` (trackEvent / getEventCounts)
+  - admin /analytics に「独自イベント」セクション追加
+  - 埋め込み済: /api/reports, /api/users/me/company-follows
+  - 未埋め込み: view_job / search / apply_start / favorite_* など → 各所追加 TODO
+- ⏳ 13.5 求人成果レポート（企業向け）
+- ⏳ 9.6 Search Console 連携バッチ
+
+### Phase 2-G: クローラ系
+- ⏳ 7.1 タグ付け・カテゴリ分類（model 既存）
+- ⏳ 7.2 差分同期・自動更新（model 既存）
+
+### Phase 2-H: AI コンテンツ
+- ⏳ 9.7 AI コンテンツ生成（model 既存）
 
 ---
 
@@ -166,6 +178,13 @@ Phase 1 MVP リスト 32 機能のうち **約 85% (27/32) は既に実装済み
 ## コミット履歴（このブランチで追加した分）
 
 ```
+bac8b9f feat(track): 13.4 独自イベントトラッキング基盤
+a852bcb revert(seo): 重複した /jobs/lp/[slug] LP を削除
+33baa97 feat(seo): 13.2 地域 × 職種 LP 自動生成 (後に revert)
+36d199f feat(companies): 12.6 企業ランキング (業界別 / 地域別)
+563e5d2 feat(reports): 6.2 通報・レポート機能 を実装
+0d9c0ca feat(schema): Phase 2-A データ層拡張 — 新規 6 モデル追加
+f7337e1 docs(progress): Phase 1 実質完了宣言 + Phase 2 着手プラン
 f0a0eac feat(theme): 16.6 ダーク / ライト テーマ切り替え
 f7a66af feat(profile): 2.6 求職ステータス機能を追加
 2c22e4d docs(progress): Phase 1 監査結果 — 27/32 実装済み、未着手 5 件のみ
