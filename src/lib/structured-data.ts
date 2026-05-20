@@ -338,6 +338,257 @@ export function generateJobPostingSchema(job: JobInput): Record<string, unknown>
 }
 
 // ============================================================
+// ItemList (検索結果一覧 / 関連記事一覧)
+// ============================================================
+
+/**
+ * ItemList 構造化データ。一覧ページに含まれる主要 URL を列挙して、
+ * 検索エンジンに「このページは N 件のアイテムを並べたコレクション」と
+ * 明示する。Carousel / Sitelinks Search Box の補強にも効く。
+ */
+export function generateItemListSchema(
+  items: Array<{ url: string; name?: string }>,
+  options: { itemListName?: string } = {},
+): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    ...(options.itemListName && { name: options.itemListName }),
+    itemListElement: items.map((item, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      url: item.url.startsWith("http") ? item.url : `${BASE_URL}${item.url}`,
+      ...(item.name && { name: item.name }),
+    })),
+    numberOfItems: items.length,
+  }
+}
+
+/**
+ * CollectionPage 構造化データ。マガジンのカテゴリ一覧やタグ一覧など、
+ * 「コレクションを集めたページ」であることを明示する。
+ */
+export function generateCollectionPageSchema(params: {
+  url: string
+  name: string
+  description?: string
+  numberOfItems?: number
+}): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": params.url,
+    name: params.name,
+    ...(params.description && { description: params.description }),
+    url: params.url.startsWith("http") ? params.url : `${BASE_URL}${params.url}`,
+    isPartOf: { "@id": `${BASE_URL}/#website` },
+    ...(params.numberOfItems != null && {
+      mainEntity: {
+        "@type": "ItemList",
+        numberOfItems: params.numberOfItems,
+      },
+    }),
+  }
+}
+
+// ============================================================
+// Article (マガジン記事用 強化版)
+// ============================================================
+
+type ArticleSchemaInput = {
+  slug: string
+  title: string
+  description: string | null
+  authorName: string
+  category: string
+  /** カテゴリのラベル (例: "転職・キャリア") */
+  categoryLabel?: string
+  publishedAt: Date | null
+  updatedAt: Date
+  imageUrl: string | null
+  /** 本文 (wordCount 算出用 — Markdown 想定だが超過は無害) */
+  body?: string | null
+  /** タグ配列 */
+  tags?: string[]
+}
+
+/**
+ * Article 構造化データ強化版。
+ *
+ * Google が記事リッチリザルトを表示するために推奨する項目を網羅:
+ *   - headline / description / image
+ *   - datePublished / dateModified
+ *   - author (Person 型)
+ *   - publisher (Organization)
+ *   - mainEntityOfPage / @id
+ *   - articleSection / keywords / wordCount
+ */
+export function generateArticleSchema(
+  article: ArticleSchemaInput,
+): Record<string, unknown> {
+  const url = `${BASE_URL}/journal/${article.slug}`
+  const wordCount = article.body
+    ? // Markdown / HTML を簡易に剥がして文字数換算
+      article.body
+        .replace(/<[^>]+>/g, "")
+        .replace(/[#*_`>~\-\[\]()!]/g, "")
+        .replace(/\s+/g, "")
+        .length
+    : undefined
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: article.title,
+    ...(article.description && { description: article.description }),
+    ...(article.imageUrl && {
+      image: [
+        article.imageUrl.startsWith("http")
+          ? article.imageUrl
+          : `${BASE_URL}${article.imageUrl}`,
+      ],
+    }),
+    datePublished: article.publishedAt?.toISOString(),
+    dateModified: article.updatedAt.toISOString(),
+    author: {
+      "@type": "Person",
+      name: article.authorName,
+      url: `${BASE_URL}/about`,
+      worksFor: { "@id": `${BASE_URL}/#organization` },
+    },
+    publisher: { "@id": `${BASE_URL}/#organization` },
+    mainEntityOfPage: { "@type": "WebPage", "@id": url },
+    ...(article.categoryLabel && {
+      articleSection: article.categoryLabel,
+    }),
+    ...(article.tags && article.tags.length > 0 && {
+      keywords: article.tags.join(", "),
+    }),
+    ...(wordCount && wordCount > 0 && { wordCount }),
+    inLanguage: "ja-JP",
+    isAccessibleForFree: true,
+  }
+}
+
+// ============================================================
+// LocalBusiness (企業ページ用)
+// ============================================================
+
+type LocalBusinessInput = {
+  id: string
+  name: string
+  description: string | null
+  logoUrl: string | null
+  websiteUrl: string | null
+  industry: string | null
+  prefecture: string | null
+  city: string | null
+  address: string | null
+  /** SNS リンクなどの sameAs */
+  sameAs?: string[]
+  /** 求人数 (numberOfEmployees 等の補助に) */
+  jobCount?: number
+  /** レビュー集約値 (任意) */
+  rating?: { average: number; count: number } | null
+}
+
+/**
+ * 企業詳細ページ用の LocalBusiness 構造化データ。
+ *
+ * 建設業の企業は Place 性が強いため、汎用 Organization よりも
+ * LocalBusiness を採用したほうが「近くの建設会社」検索で拾われやすい。
+ */
+export function generateLocalBusinessSchema(
+  company: LocalBusinessInput,
+): Record<string, unknown> {
+  const url = `${BASE_URL}/companies/${company.id}`
+  const postalCode = company.address
+    ? extractJpPostalCode(company.address)
+    : null
+
+  const schema: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "@id": url,
+    name: company.name,
+    url,
+    ...(company.description && { description: company.description }),
+    ...(company.logoUrl && {
+      image: [
+        company.logoUrl.startsWith("http")
+          ? company.logoUrl
+          : `${BASE_URL}${company.logoUrl}`,
+      ],
+      logo: company.logoUrl,
+    }),
+    address: {
+      "@type": "PostalAddress",
+      ...(company.prefecture && { addressRegion: company.prefecture }),
+      ...(company.city && { addressLocality: company.city }),
+      ...(company.address && { streetAddress: company.address }),
+      ...(postalCode && { postalCode }),
+      addressCountry: "JP",
+    },
+    ...(company.websiteUrl && {
+      sameAs: [
+        company.websiteUrl,
+        ...(company.sameAs ?? []),
+      ].filter(Boolean),
+    }),
+    ...(!company.websiteUrl && company.sameAs && company.sameAs.length > 0 && {
+      sameAs: company.sameAs,
+    }),
+    ...(company.industry && {
+      naics: company.industry, // 一般的な業種名 (検索に効くキーワード)
+    }),
+    areaServed: company.prefecture
+      ? { "@type": "AdministrativeArea", name: company.prefecture }
+      : { "@type": "Country", name: "JP" },
+  }
+
+  if (company.rating && company.rating.count > 0) {
+    schema.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: company.rating.average,
+      reviewCount: company.rating.count,
+      bestRating: 5,
+      worstRating: 1,
+    }
+  }
+
+  return schema
+}
+
+// ============================================================
+// VideoObject (動画求人用)
+// ============================================================
+
+/**
+ * 求人ページに動画 URL があるとき、Google で「動画あり」表示を取るための
+ * 構造化データ。YouTube / TikTok / Vimeo の埋め込み URL から
+ * thumbnailUrl は推測できないため、求人の OG 画像を流用する。
+ */
+export function generateVideoObjectSchema(params: {
+  jobId: string
+  jobTitle: string
+  videoUrl: string
+  uploadDate: Date
+  description: string
+}): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "VideoObject",
+    name: `${params.jobTitle} の紹介動画`,
+    description: params.description,
+    thumbnailUrl: [`${BASE_URL}/jobs/${params.jobId}/opengraph-image`],
+    uploadDate: params.uploadDate.toISOString(),
+    contentUrl: params.videoUrl,
+    embedUrl: params.videoUrl,
+    publisher: { "@id": `${BASE_URL}/#organization` },
+  }
+}
+
+// ============================================================
 // 構造化データ用パーサ
 // ============================================================
 

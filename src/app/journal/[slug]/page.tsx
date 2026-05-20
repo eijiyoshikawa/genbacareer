@@ -8,6 +8,11 @@ import { trackEvent } from "@/lib/track"
 import { ShareButtons } from "@/components/journal/share-buttons"
 import { JobCard } from "@/components/jobs/job-card"
 import { CATEGORIES } from "@/lib/categories"
+import {
+  generateArticleSchema,
+  generateBreadcrumbSchema,
+} from "@/lib/structured-data"
+import { CATEGORY_LABELS } from "@/lib/article-categories"
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
@@ -22,13 +27,59 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const article = await prisma.article.findFirst({
     where: { slug, ...publishedArticleFilter() },
-    select: { title: true, metaDescription: true, excerpt: true },
+    select: {
+      title: true,
+      metaDescription: true,
+      excerpt: true,
+      authorName: true,
+      category: true,
+      tags: true,
+      imageUrl: true,
+      publishedAt: true,
+      updatedAt: true,
+    },
   })
   if (!article) return { title: "記事が見つかりません" }
+
+  const description =
+    article.metaDescription ?? article.excerpt ?? undefined
+  const ogImage = article.imageUrl
+    ? [
+        {
+          url: article.imageUrl,
+          width: 1200,
+          height: 630,
+          alt: article.title,
+        },
+      ]
+    : undefined
+
   return {
     title: article.title,
-    description: article.metaDescription ?? article.excerpt ?? undefined,
+    description,
+    keywords: article.tags ?? undefined,
+    authors: article.authorName
+      ? [{ name: article.authorName }]
+      : undefined,
     alternates: { canonical: `/journal/${slug}` },
+    openGraph: {
+      type: "article",
+      title: article.title,
+      description,
+      url: `/journal/${slug}`,
+      images: ogImage,
+      authors: article.authorName ? [article.authorName] : undefined,
+      publishedTime: article.publishedAt?.toISOString(),
+      modifiedTime: article.updatedAt.toISOString(),
+      section: article.category,
+      tags: article.tags ?? undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: article.title,
+      description,
+      images: ogImage?.map((img) => img.url),
+    },
   }
 }
 
@@ -92,38 +143,43 @@ export default async function ArticlePage({ params }: Props) {
     take: 5,
   })
 
-  // JSON-LD: Article schema for SEO (13.1)
-  const articleJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Article",
-    headline: article.title,
-    description: article.excerpt ?? article.metaDescription ?? undefined,
-    image: article.imageUrl ? [article.imageUrl] : undefined,
-    datePublished: article.publishedAt?.toISOString(),
-    dateModified: article.updatedAt.toISOString(),
-    author: { "@type": "Organization", name: article.authorName },
-    publisher: {
-      "@type": "Organization",
-      name: "ゲンバキャリア",
-      logo: { "@type": "ImageObject", url: `${SITE_URL}/logo-demo.jpg` },
-    },
-    mainEntityOfPage: { "@type": "WebPage", "@id": `${SITE_URL}/journal/${article.slug}` },
-  }
+  // JSON-LD: 強化版 Article schema (wordCount / articleSection / Person author 等)
+  const articleJsonLd = generateArticleSchema({
+    slug: article.slug,
+    title: article.title,
+    description: article.excerpt ?? article.metaDescription ?? null,
+    authorName: article.authorName,
+    category: article.category,
+    categoryLabel: CATEGORY_LABELS[article.category] ?? article.category,
+    publishedAt: article.publishedAt,
+    updatedAt: article.updatedAt,
+    imageUrl: article.imageUrl,
+    body: article.body,
+    tags: article.tags ?? [],
+  })
 
-  const categoryLabels: Record<string, string> = {
-    career: "転職・キャリア",
-    salary: "年収・給与",
-    license: "資格・免許",
-    "job-type": "職種解説",
-    industry: "業界知識",
-    interview: "体験談",
-  }
+  // BreadcrumbList も併せて出す (検索結果のパンくず表示用)
+  const breadcrumbJsonLd = generateBreadcrumbSchema([
+    { name: "トップ", url: "/" },
+    { name: "マガジン", url: "/journal" },
+    {
+      name: CATEGORY_LABELS[article.category] ?? article.category,
+      url: `/journal?category=${article.category}`,
+    },
+    { name: article.title, url: `/journal/${article.slug}` },
+  ])
+
+  const categoryLabels = CATEGORY_LABELS
 
   return (
     <div className="bg-white">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
       {/* Breadcrumb */}
