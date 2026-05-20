@@ -48,6 +48,7 @@ import { SectionHeading } from "@/components/jobs/section-heading"
 import { JobInfoTable } from "@/components/jobs/job-info-table"
 import { RightTocNav } from "@/components/jobs/right-toc-nav"
 import { StickyActionBar } from "@/components/jobs/sticky-action-bar"
+import { ReportButton } from "@/components/reports/report-button"
 import { HeroBanner } from "@/components/jobs/hero-banner"
 import { SnsLinks } from "@/components/jobs/sns-links"
 import { PhotoGallery } from "@/components/jobs/photo-gallery"
@@ -819,8 +820,8 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
               </p>
             )}
 
-            {/* Back link */}
-            <div>
+            {/* Back link + Report */}
+            <div className="flex items-center justify-between">
               <Link
                 href="/jobs"
                 className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-primary-600"
@@ -828,6 +829,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                 <ArrowLeft weight="duotone" className="h-4 w-4" />
                 求人一覧に戻る
               </Link>
+              <ReportButton targetType="job" targetId={job.id} label="この求人を通報" />
             </div>
           </div>
 

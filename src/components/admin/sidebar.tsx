@@ -18,12 +18,14 @@ import {
   ShieldCheck,
   Database,
   Search,
+  Flag,
 } from "lucide-react"
 
 const navItems = [
   { href: "/admin", label: "ダッシュボード", icon: LayoutDashboard, exact: true },
   { href: "/admin/status", label: "システム状態", icon: Activity },
   { href: "/admin/analytics", label: "分析", icon: BarChart3 },
+  { href: "/admin/reports", label: "通報", icon: Flag },
   { href: "/admin/line-leads", label: "LINE リード", icon: MessageCircle },
   { href: "/admin/segments", label: "セグメント配信", icon: Send },
   { href: "/admin/companies", label: "企業管理", icon: Building2 },
