@@ -34,18 +34,35 @@ export default async function JobPrintPage({ params, searchParams }: Props) {
   const sp = (await searchParams) ?? {}
   const auto = sp.auto === "1"
 
+  // 印刷ページで実際に使うカラムのみ select する。
+  // rawData (Json 丸ごと格納) など印刷に不要な重カラムは含めない。
   const job = await prisma.job
     .findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        employmentType: true,
+        salaryMin: true,
+        salaryMax: true,
+        salaryType: true,
+        prefecture: true,
+        city: true,
+        address: true,
+        workHours: true,
+        annualHolidays: true,
+        insurance: true,
+        source: true,
+        description: true,
+        requirements: true,
+        benefits: true,
+        tags: true,
         company: {
           select: {
             name: true,
             logoUrl: true,
             websiteUrl: true,
-            address: true,
-            prefecture: true,
-            city: true,
           },
         },
       },

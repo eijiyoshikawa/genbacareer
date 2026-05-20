@@ -2,12 +2,14 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import Link from "next/link"
+import { Suspense } from "react"
 import { Building2, MapPin } from "lucide-react"
 import { Pagination } from "@/components/pagination"
 import { ApplicationProgressBar } from "@/components/applications/progress-bar"
 import { WithdrawButton } from "@/components/applications/withdraw-button"
 import { HiringBonusRequestButton } from "@/components/mypage/hiring-bonus-request-button"
 import { StopPropagationWrapper } from "@/components/mypage/stop-propagation-wrapper"
+import { Skeleton } from "@/components/ui/skeleton"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -55,43 +57,6 @@ export default async function ApplicationsPage({ searchParams }: Props) {
 
   const params = await searchParams
   const page = Math.max(1, Number(params.page ?? "1"))
-  const limit = 20
-
-  const where = { userId: session.user.id }
-
-  const [applications, total, bonusApplicationIds] = await Promise.all([
-    prisma.application.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
-      include: {
-        job: {
-          select: {
-            id: true,
-            title: true,
-            prefecture: true,
-            city: true,
-            category: true,
-            company: {
-              select: { name: true },
-            },
-          },
-        },
-      },
-    }),
-    prisma.application.count({ where }),
-    // 15.6 hiring-bonuses 申請済みの applicationId を取得 (重複申請防止)
-    prisma.hiringBonus
-      .findMany({
-        where: { userId: session.user.id },
-        select: { applicationId: true },
-      })
-      .then((rows) => new Set(rows.map((r) => r.applicationId)))
-      .catch(() => new Set<string>()),
-  ])
-
-  const totalPages = Math.ceil(total / limit)
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
@@ -105,6 +70,63 @@ export default async function ApplicationsPage({ searchParams }: Props) {
         </Link>
       </div>
 
+      <Suspense key={page} fallback={<ApplicationsListSkeleton />}>
+        <ApplicationsList userId={session.user.id} page={page} />
+      </Suspense>
+    </div>
+  )
+}
+
+async function ApplicationsList({
+  userId,
+  page,
+}: {
+  userId: string
+  page: number
+}) {
+  const limit = 20
+  const where = { userId }
+
+  // ApplicationsList で実際に使うカラムだけ select する。
+  // status_history (Json) など本一覧で使わないカラムは含めない。
+  const [applications, total, bonusApplicationIds] = await Promise.all([
+    prisma.application.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        job: {
+          select: {
+            id: true,
+            title: true,
+            prefecture: true,
+            city: true,
+            company: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+    }),
+    prisma.application.count({ where }),
+    // 15.6 hiring-bonuses 申請済みの applicationId を取得 (重複申請防止)
+    prisma.hiringBonus
+      .findMany({
+        where: { userId },
+        select: { applicationId: true },
+      })
+      .then((rows) => new Set(rows.map((r) => r.applicationId)))
+      .catch(() => new Set<string>()),
+  ])
+
+  const totalPages = Math.ceil(total / limit)
+
+  return (
+    <>
       <p className="mt-2 text-sm text-gray-500">{total} 件の応募</p>
 
       {applications.length === 0 ? (
@@ -188,8 +210,37 @@ export default async function ApplicationsPage({ searchParams }: Props) {
 
       {/* Pagination */}
       <div className="mt-8">
-        <Pagination currentPage={page} totalPages={totalPages} basePath="/mypage/applications" />
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          basePath="/mypage/applications"
+        />
       </div>
-    </div>
+    </>
+  )
+}
+
+function ApplicationsListSkeleton() {
+  return (
+    <>
+      <Skeleton className="mt-2 h-4 w-24" />
+      <div className="mt-6 space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="border bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-5 w-2/3" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-4 w-1/3" />
+              </div>
+              <Skeleton className="h-5 w-16 shrink-0" />
+            </div>
+            <div className="mt-4 border-t pt-3">
+              <Skeleton className="h-3 w-full" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   )
 }
