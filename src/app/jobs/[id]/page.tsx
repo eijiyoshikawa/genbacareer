@@ -49,6 +49,7 @@ import { JobInfoTable } from "@/components/jobs/job-info-table"
 import { RightTocNav } from "@/components/jobs/right-toc-nav"
 import { StickyActionBar } from "@/components/jobs/sticky-action-bar"
 import { ReportButton } from "@/components/reports/report-button"
+import { findRelatedJobs } from "@/lib/job-matching"
 import { HeroBanner } from "@/components/jobs/hero-banner"
 import { SnsLinks } from "@/components/jobs/sns-links"
 import { PhotoGallery } from "@/components/jobs/photo-gallery"
@@ -268,6 +269,10 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
     },
     { name: job.title, url: `/jobs/${job.id}` },
   ])
+
+  // 11.7 類似求人レコメンド: findRelatedJobs ヘルパーで 4 件取得
+  // (同カテゴリ × 同県 → 同カテゴリ → 同県 → 全国 のフォールバック)
+  const relatedJobs = await findRelatedJobs(job.id, 4).catch(() => [])
 
   return (
     <div className="bg-gray-50 min-h-screen pb-24 sm:pb-28">
@@ -818,6 +823,49 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
               <p className="text-xs text-gray-400 leading-relaxed">
                 この求人は公共職業安定所の公開情報より転載しています。最新の情報は公共職業安定所窓口でご確認ください。
               </p>
+            )}
+
+            {/* 11.7 関連求人 (類似求人レコメンド) */}
+            {relatedJobs.length > 0 && (
+              <section className="border-t pt-6">
+                <h2 className="text-base font-bold text-gray-900">
+                  この求人を見た人におすすめ
+                </h2>
+                <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {relatedJobs.map((r) => (
+                    <li key={r.id}>
+                      <Link
+                        href={`/jobs/${r.id}`}
+                        className="block border bg-white p-3 transition hover:border-primary-400 hover:shadow-sm"
+                      >
+                        <p className="text-sm font-bold text-gray-900 line-clamp-2">
+                          {r.title}
+                        </p>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500">
+                          <span>{getCategoryLabel(r.category)}</span>
+                          <span>
+                            {r.prefecture}
+                            {r.city ? ` / ${r.city}` : ""}
+                          </span>
+                          {r.companyName && (
+                            <span className="truncate max-w-[150px]">
+                              {r.companyName}
+                            </span>
+                          )}
+                        </div>
+                        {r.salaryMin && (
+                          <p className="mt-1 text-sm font-semibold text-primary-600">
+                            {r.salaryMin.toLocaleString()}円〜
+                            {r.salaryMax
+                              ? `${r.salaryMax.toLocaleString()}円`
+                              : ""}
+                          </p>
+                        )}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
 
             {/* Back link + Report */}

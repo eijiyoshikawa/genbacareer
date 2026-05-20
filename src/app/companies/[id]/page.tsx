@@ -8,6 +8,7 @@ import { JobCard } from "@/components/jobs/job-card"
 import { CompanyFollowButton } from "@/components/companies/follow-button"
 import { CompanyGbizSection } from "@/components/companies/gbiz-section"
 import { ReportButton } from "@/components/reports/report-button"
+import { CompanyBlockButton } from "@/components/companies/block-button"
 import { isValidUuid } from "@/lib/uuid"
 import { trackEvent } from "@/lib/track"
 import {
@@ -113,22 +114,32 @@ export default async function CompanyDetailPage({ params }: Props) {
     notFound()
   }
 
-  // ログイン中のユーザーがこの企業をフォローしているか
+  // ログイン中のユーザーがこの企業をフォロー / ブロックしているか
   const session = await auth().catch(() => null)
   const loggedIn = !!session?.user?.id
-  const isFollowing = loggedIn
-    ? !!(await prisma.companyFollow
-        .findUnique({
-          where: {
-            userId_companyId: {
-              userId: session!.user!.id!,
-              companyId: company.id,
+  const [isFollowing, isBlocked] = loggedIn
+    ? await Promise.all([
+        prisma.companyFollow
+          .findUnique({
+            where: {
+              userId_companyId: {
+                userId: session!.user!.id!,
+                companyId: company.id,
+              },
             },
-          },
-          select: { userId: true },
-        })
-        .catch(() => null))
-    : false
+            select: { userId: true },
+          })
+          .then((r) => !!r)
+          .catch(() => false),
+        prisma.user
+          .findUnique({
+            where: { id: session!.user!.id! },
+            select: { blockedCompanyIds: true },
+          })
+          .then((u) => u?.blockedCompanyIds.includes(company.id) ?? false)
+          .catch(() => false),
+      ])
+    : [false, false]
 
   const [jobs, followerCount, applicationCount, hiredCount, relatedCompanies] =
     await Promise.all([
@@ -511,8 +522,14 @@ export default async function CompanyDetailPage({ params }: Props) {
         </section>
       )}
 
-      {/* フッタ: 通報リンク (6.2) */}
-      <div className="mt-10 flex justify-end">
+      {/* フッタ: ブロック (17.3) + 通報 (6.2) */}
+      <div className="mt-10 flex items-center justify-between gap-4 flex-wrap">
+        <CompanyBlockButton
+          companyId={company.id}
+          companyName={company.name}
+          initialBlocked={isBlocked}
+          loggedIn={loggedIn}
+        />
         <ReportButton
           targetType="company"
           targetId={company.id}

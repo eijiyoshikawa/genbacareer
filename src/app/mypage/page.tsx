@@ -11,6 +11,7 @@ import {
   BookmarkCheck,
   Star,
   Sparkles,
+  Shield,
 } from "lucide-react"
 import { Suspense } from "react"
 import type { Metadata } from "next"
@@ -225,6 +226,19 @@ export default async function MyPage() {
           <div>
             <p className="font-semibold text-gray-900">履歴書・職務経歴書</p>
             <p className="text-sm text-gray-500">作成・アップロード</p>
+          </div>
+        </Link>
+
+        <Link
+          href="/mypage/blocks"
+          className="flex items-center gap-4  border bg-white p-5 shadow-sm transition hover:shadow-md"
+        >
+          <div className="flex h-10 w-10 items-center justify-center  bg-red-100">
+            <Shield className="h-5 w-5 text-red-600" />
+          </div>
+          <div>
+            <p className="font-semibold text-gray-900">ブロック企業 / NG KW</p>
+            <p className="text-sm text-gray-500">現職バレ防止に</p>
           </div>
         </Link>
 

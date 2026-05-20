@@ -18,6 +18,13 @@ ALTER TABLE "users"
   ADD COLUMN IF NOT EXISTS "job_search_status" VARCHAR(20) NOT NULL DEFAULT 'searching';
 
 -- ----------------------------------------------------------------
+-- 17.3 ブロック企業 / NG キーワード設定
+-- ----------------------------------------------------------------
+ALTER TABLE "users"
+  ADD COLUMN IF NOT EXISTS "blocked_company_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  ADD COLUMN IF NOT EXISTS "blocked_keywords" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+
+-- ----------------------------------------------------------------
 -- 6.2 通報・レポート
 -- ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS "reports" (
