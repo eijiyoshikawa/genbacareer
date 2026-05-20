@@ -6,6 +6,8 @@ import { Building2, MapPin } from "lucide-react"
 import { Pagination } from "@/components/pagination"
 import { ApplicationProgressBar } from "@/components/applications/progress-bar"
 import { WithdrawButton } from "@/components/applications/withdraw-button"
+import { HiringBonusRequestButton } from "@/components/mypage/hiring-bonus-request-button"
+import { StopPropagationWrapper } from "@/components/mypage/stop-propagation-wrapper"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -57,7 +59,7 @@ export default async function ApplicationsPage({ searchParams }: Props) {
 
   const where = { userId: session.user.id }
 
-  const [applications, total] = await Promise.all([
+  const [applications, total, bonusApplicationIds] = await Promise.all([
     prisma.application.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -79,6 +81,14 @@ export default async function ApplicationsPage({ searchParams }: Props) {
       },
     }),
     prisma.application.count({ where }),
+    // 15.6 hiring-bonuses 申請済みの applicationId を取得 (重複申請防止)
+    prisma.hiringBonus
+      .findMany({
+        where: { userId: session.user.id },
+        select: { applicationId: true },
+      })
+      .then((rows) => new Set(rows.map((r) => r.applicationId)))
+      .catch(() => new Set<string>()),
   ])
 
   const totalPages = Math.ceil(total / limit)
@@ -154,11 +164,21 @@ export default async function ApplicationsPage({ searchParams }: Props) {
                   <p className="text-xs text-gray-400">
                     応募日: {app.createdAt.toLocaleDateString("ja-JP")}
                   </p>
-                  <WithdrawButton
-                    applicationId={app.id}
-                    status={app.status}
-                    createdAt={app.createdAt.toISOString()}
-                  />
+                  <div className="flex items-center gap-2">
+                    {app.status === "hired" && (
+                      <StopPropagationWrapper>
+                        <HiringBonusRequestButton
+                          applicationId={app.id}
+                          alreadyRequested={bonusApplicationIds.has(app.id)}
+                        />
+                      </StopPropagationWrapper>
+                    )}
+                    <WithdrawButton
+                      applicationId={app.id}
+                      status={app.status}
+                      createdAt={app.createdAt.toISOString()}
+                    />
+                  </div>
                 </div>
               </Link>
             )
