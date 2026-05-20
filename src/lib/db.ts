@@ -22,13 +22,12 @@ function buildDatabaseUrl(): string | undefined {
   if (!original) return undefined
   let url = original
   // Lambda 単位の connection_limit。
-  // 1 だと Promise.all で 5〜7 並列クエリのページが pool_timeout で詰まる。
-  // 3 にすれば各 Lambda が 3 接続まで持ち、並列度が上がる。
-  // Supabase pgbouncer Transaction mode の上限 (Free 60 / Pro 200) を
-  // 想定 Lambda 同時数 ~20 で割って安全側に。
+  // 3 だと admin dashboard の 17 並列クエリ + ensureSchema が同時稼働した時に
+  // P2024 が発生していた。Supabase pgbouncer Transaction mode の上限
+  // (Pro 200) を想定 Lambda 同時数 ~20 で割って 10 が安全側。
   if (!/[?&]connection_limit=/.test(url)) {
     const sep = url.includes("?") ? "&" : "?"
-    url = `${url}${sep}connection_limit=3`
+    url = `${url}${sep}connection_limit=10`
   }
   // pool_timeout を 30 秒に伸ばす (デフォルト 10s は Promise.all で並列度高いと足りない)
   if (!/[?&]pool_timeout=/.test(url)) {
