@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { CATEGORIES } from "@/lib/categories"
+import { PREFECTURES_LIST } from "@/lib/prefectures"
 
 /**
  * Footer に乗せる SEO ハブ。
@@ -14,55 +15,11 @@ import { CATEGORIES } from "@/lib/categories"
  * する。Google は details 内のリンクもクロールするので SEO 効果は変わらない。
  */
 
-const PREFECTURES_HUB: Array<{ slug: string; label: string }> = [
-  { slug: "hokkaido", label: "北海道" },
-  { slug: "aomori", label: "青森" },
-  { slug: "iwate", label: "岩手" },
-  { slug: "miyagi", label: "宮城" },
-  { slug: "akita", label: "秋田" },
-  { slug: "yamagata", label: "山形" },
-  { slug: "fukushima", label: "福島" },
-  { slug: "ibaraki", label: "茨城" },
-  { slug: "tochigi", label: "栃木" },
-  { slug: "gunma", label: "群馬" },
-  { slug: "saitama", label: "埼玉" },
-  { slug: "chiba", label: "千葉" },
-  { slug: "tokyo", label: "東京" },
-  { slug: "kanagawa", label: "神奈川" },
-  { slug: "niigata", label: "新潟" },
-  { slug: "toyama", label: "富山" },
-  { slug: "ishikawa", label: "石川" },
-  { slug: "fukui", label: "福井" },
-  { slug: "yamanashi", label: "山梨" },
-  { slug: "nagano", label: "長野" },
-  { slug: "gifu", label: "岐阜" },
-  { slug: "shizuoka", label: "静岡" },
-  { slug: "aichi", label: "愛知" },
-  { slug: "mie", label: "三重" },
-  { slug: "shiga", label: "滋賀" },
-  { slug: "kyoto", label: "京都" },
-  { slug: "osaka", label: "大阪" },
-  { slug: "hyogo", label: "兵庫" },
-  { slug: "nara", label: "奈良" },
-  { slug: "wakayama", label: "和歌山" },
-  { slug: "tottori", label: "鳥取" },
-  { slug: "shimane", label: "島根" },
-  { slug: "okayama", label: "岡山" },
-  { slug: "hiroshima", label: "広島" },
-  { slug: "yamaguchi", label: "山口" },
-  { slug: "tokushima", label: "徳島" },
-  { slug: "kagawa", label: "香川" },
-  { slug: "ehime", label: "愛媛" },
-  { slug: "kochi", label: "高知" },
-  { slug: "fukuoka", label: "福岡" },
-  { slug: "saga", label: "佐賀" },
-  { slug: "nagasaki", label: "長崎" },
-  { slug: "kumamoto", label: "熊本" },
-  { slug: "oita", label: "大分" },
-  { slug: "miyazaki", label: "宮崎" },
-  { slug: "kagoshima", label: "鹿児島" },
-  { slug: "okinawa", label: "沖縄" },
-]
+// 県/府/都/道 を取り除いた短縮表示を使う (Footer の限られた幅向け)
+const PREFECTURES_HUB = PREFECTURES_LIST.map((p) => ({
+  slug: p.slug,
+  label: p.label.replace(/[県府都道]$/, ""),
+}))
 
 // 主要な 都道府県 × 職種 のクロスリンク (求人ボリュームが大きく取れる組み合わせ)。
 // Footer に詰め込みすぎないように主要 10 件のみ。残りは prefecture / category ページ経由でクロールされる。
