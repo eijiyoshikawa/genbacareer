@@ -51,6 +51,7 @@ export default async function ApplicationDetailPage({
       internalNotes: true,
       interviewAt: true,
       interviewVenue: true,
+      interviewUrl: true,
       interviewSlots: true,
       statusHistory: true,
       createdAt: true,
@@ -219,6 +220,7 @@ export default async function ApplicationDetailPage({
             internalNotes={app.internalNotes ?? ""}
             interviewAt={app.interviewAt ? app.interviewAt.toISOString() : null}
             interviewVenue={app.interviewVenue ?? ""}
+            interviewUrl={app.interviewUrl ?? ""}
           />
           <SchedulingUrlsPanel urls={schedulingUrls} />
         </aside>

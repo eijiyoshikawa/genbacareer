@@ -484,8 +484,11 @@ model Application {
   interviewSlots DateTime[] @default([]) @map("interview_slots") @db.Timestamptz()
   // 最終的に確定した面接日時。1 つだけ。
   interviewAt   DateTime? @map("interview_at") @db.Timestamptz()
-  // 面接場所 / 案内（オンライン URL でも OK）
+  // 面接場所 / 案内
   interviewVenue String? @map("interview_venue") @db.VarChar(500)
+  // 14.5 オンライン面接 URL (Zoom / Google Meet 等)。
+  // 既存の interviewVenue とは別に持ち、企業ダッシュボードで明示的に管理。
+  interviewUrl   String? @map("interview_url") @db.VarChar(500)
   // ステータス遷移履歴（{ from, to, at, by, note }[]）
   statusHistory Json @default("[]") @map("status_history")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()

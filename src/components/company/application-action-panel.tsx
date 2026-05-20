@@ -53,12 +53,14 @@ export function ApplicationActionPanel({
   internalNotes: initialNotes,
   interviewAt: initialInterviewAt,
   interviewVenue: initialVenue,
+  interviewUrl: initialInterviewUrl = "",
 }: {
   applicationId: string
   currentStatus: string
   internalNotes: string
   interviewAt: string | null
   interviewVenue: string
+  interviewUrl?: string
 }) {
   const router = useRouter()
   const flow = STATUS_FLOW[currentStatus] ?? { label: currentStatus, next: [] }
@@ -68,6 +70,7 @@ export function ApplicationActionPanel({
     initialInterviewAt ? toLocalInputValue(new Date(initialInterviewAt)) : ""
   )
   const [venue, setVenue] = useState(initialVenue)
+  const [interviewUrl, setInterviewUrl] = useState(initialInterviewUrl)
   const [statusNote, setStatusNote] = useState("")
   const [pendingAction, setPendingAction] = useState<string | null>(null)
   const [notesSaving, setNotesSaving] = useState(false)
@@ -135,6 +138,7 @@ export function ApplicationActionPanel({
         body: JSON.stringify({
           interviewAt: interviewLocal ? fromLocalInputValue(interviewLocal) : null,
           interviewVenue: venue || null,
+          interviewUrl: interviewUrl || null,
         }),
       })
       if (!res.ok) {
@@ -227,15 +231,30 @@ export function ApplicationActionPanel({
           <div>
             <label className="block text-xs font-bold text-gray-600">
               <MapPin className="inline h-3 w-3 mr-0.5" />
-              場所 / オンライン URL
+              場所 / 会場
             </label>
             <input
               type="text"
               value={venue}
               onChange={(e) => setVenue(e.target.value)}
-              placeholder="本社 / Zoom URL など"
+              placeholder="本社 / 現場事務所 など"
               className="mt-1 block w-full border px-3 py-2 text-sm shadow-sm"
             />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-600">
+              オンライン面接 URL (14.5)
+            </label>
+            <input
+              type="url"
+              value={interviewUrl}
+              onChange={(e) => setInterviewUrl(e.target.value)}
+              placeholder="https://us05web.zoom.us/j/..."
+              className="mt-1 block w-full border px-3 py-2 text-sm shadow-sm"
+            />
+            <p className="mt-0.5 text-[10px] text-gray-400">
+              Zoom / Google Meet / Teams 等の参加 URL。求職者の応募詳細にも表示されます。
+            </p>
           </div>
           <button
             type="button"
