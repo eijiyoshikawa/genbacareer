@@ -19,6 +19,8 @@ const updateProfileSchema = z.object({
   desiredSalaryMin: z.number().int().min(0).nullable().optional(),
   profilePublic: z.boolean().optional(),
   jobSearchStatus: z.enum(JOB_SEARCH_STATUS_VALUES).optional(),
+  blockedCompanyIds: z.array(z.string().uuid()).max(200).optional(),
+  blockedKeywords: z.array(z.string().min(1).max(50)).max(50).optional(),
 })
 
 export async function GET() {
@@ -42,6 +44,8 @@ export async function GET() {
       resumeUrl: true,
       profilePublic: true,
       jobSearchStatus: true,
+      blockedCompanyIds: true,
+      blockedKeywords: true,
       createdAt: true,
     },
   })
@@ -98,6 +102,12 @@ export async function PUT(request: NextRequest) {
       ...(data.jobSearchStatus !== undefined
         ? { jobSearchStatus: data.jobSearchStatus }
         : {}),
+      ...(data.blockedCompanyIds !== undefined
+        ? { blockedCompanyIds: data.blockedCompanyIds }
+        : {}),
+      ...(data.blockedKeywords !== undefined
+        ? { blockedKeywords: data.blockedKeywords }
+        : {}),
     },
     select: {
       id: true,
@@ -111,6 +121,8 @@ export async function PUT(request: NextRequest) {
       desiredSalaryMin: true,
       profilePublic: true,
       jobSearchStatus: true,
+      blockedCompanyIds: true,
+      blockedKeywords: true,
     },
   })
 

@@ -8,6 +8,10 @@ const STATEMENTS: ReadonlyArray<string> = [
  // User 求職ステータス (2.6): searching / employed_open / hired
  `ALTER TABLE "users"
    ADD COLUMN IF NOT EXISTS "job_search_status" VARCHAR(20) NOT NULL DEFAULT 'searching'`,
+ // User ブロック企業 / NG キーワード (17.3)
+ `ALTER TABLE "users"
+   ADD COLUMN IF NOT EXISTS "blocked_company_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+   ADD COLUMN IF NOT EXISTS "blocked_keywords" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`,
  // Company リッチコンテンツ + SNS
  `ALTER TABLE "companies"
  ADD COLUMN IF NOT EXISTS "tagline" VARCHAR(200),

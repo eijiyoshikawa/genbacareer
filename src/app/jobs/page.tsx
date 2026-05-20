@@ -88,6 +88,18 @@ export default async function JobsPage({ searchParams }: Props) {
   const session = await auth().catch(() => null)
   const loggedIn = !!session?.user?.id
 
+  // 17.3 ブロック企業 / NG キーワード: ログイン中の求職者だけ反映
+  const blockSettings = loggedIn
+    ? await prisma.user
+        .findUnique({
+          where: { id: session!.user!.id! },
+          select: { blockedCompanyIds: true, blockedKeywords: true },
+        })
+        .catch(() => null)
+    : null
+  const blockedCompanyIds = blockSettings?.blockedCompanyIds ?? []
+  const blockedKeywords = blockSettings?.blockedKeywords ?? []
+
   // 未登録ユーザーには「お試し検索」として上位 GUEST_LIMIT 件のみ。
   // ページネーションも無効化し、`page` パラメータは無視する。
   const rawPage = Math.max(1, Number(params.page ?? "1"))
@@ -129,6 +141,17 @@ export default async function JobsPage({ searchParams }: Props) {
         { title: { contains: params.q, mode: "insensitive" as const } },
         { description: { contains: params.q, mode: "insensitive" as const } },
       ],
+    }),
+    // 17.3 ブロック企業除外
+    ...(blockedCompanyIds.length > 0 && {
+      companyId: { notIn: blockedCompanyIds },
+    }),
+    // 17.3 NG キーワード除外: title/description のいずれにも含まれない
+    ...(blockedKeywords.length > 0 && {
+      AND: blockedKeywords.map((kw) => ({
+        title: { not: { contains: kw, mode: "insensitive" as const } },
+        description: { not: { contains: kw, mode: "insensitive" as const } },
+      })),
     }),
   }
 
