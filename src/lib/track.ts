@@ -19,6 +19,7 @@ import { prisma } from "@/lib/db"
 export type TrackEventName =
   | "view_job"
   | "view_company"
+  | "view_article"
   | "search"
   | "apply_start"
   | "apply_submit"
@@ -30,6 +31,7 @@ export type TrackEventName =
   | "register_complete"
   | "login_complete"
   | "lp_view"
+  | "share_article"
 
 interface TrackEventInput {
   name: TrackEventName | (string & {}) // 拡張可能

@@ -4,6 +4,12 @@ import { prisma } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
 import { ChevronRight } from "lucide-react"
 import type { Metadata } from "next"
+import { trackEvent } from "@/lib/track"
+import { ShareButtons } from "@/components/journal/share-buttons"
+import { JobCard } from "@/components/jobs/job-card"
+import { CATEGORIES } from "@/lib/categories"
+
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
 
 // 記事詳細は 1 時間単位の ISR で十分（更新頻度低）。
 export const revalidate = 3600
@@ -37,6 +43,43 @@ export default async function ArticlePage({ params }: Props) {
   // Increment view count (non-blocking)
   prisma.article.update({ where: { id: article.id }, data: { viewCount: { increment: 1 } } }).catch(() => {})
 
+  // 13.4 trackEvent("view_article")
+  void trackEvent({
+    name: "view_article",
+    payload: {
+      articleId: article.id,
+      slug: article.slug,
+      category: article.category,
+      subcategory: article.subcategory,
+    },
+  })
+
+  // 関連求人 CTA: subcategory が CATEGORIES.value に該当すればその category の active 求人 3 件
+  const subcategoryIsCategory = CATEGORIES.some((c) => c.value === article.subcategory)
+  const relatedJobs = subcategoryIsCategory
+    ? await prisma.job
+        .findMany({
+          where: { status: "active", category: article.subcategory! },
+          orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+          take: 3,
+          select: {
+            id: true,
+            title: true,
+            category: true,
+            employmentType: true,
+            salaryMin: true,
+            salaryMax: true,
+            salaryType: true,
+            prefecture: true,
+            city: true,
+            source: true,
+            tags: true,
+            company: { select: { name: true, logoUrl: true, gbizData: true } },
+          },
+        })
+        .catch(() => [])
+    : []
+
   // Fetch related articles (same category, excluding current)
   const related = await prisma.article.findMany({
     where: {
@@ -49,6 +92,24 @@ export default async function ArticlePage({ params }: Props) {
     take: 5,
   })
 
+  // JSON-LD: Article schema for SEO (13.1)
+  const articleJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: article.title,
+    description: article.excerpt ?? article.metaDescription ?? undefined,
+    image: article.imageUrl ? [article.imageUrl] : undefined,
+    datePublished: article.publishedAt?.toISOString(),
+    dateModified: article.updatedAt.toISOString(),
+    author: { "@type": "Organization", name: article.authorName },
+    publisher: {
+      "@type": "Organization",
+      name: "ゲンバキャリア",
+      logo: { "@type": "ImageObject", url: `${SITE_URL}/logo-demo.jpg` },
+    },
+    mainEntityOfPage: { "@type": "WebPage", "@id": `${SITE_URL}/journal/${article.slug}` },
+  }
+
   const categoryLabels: Record<string, string> = {
     career: "転職・キャリア",
     salary: "年収・給与",
@@ -60,6 +121,11 @@ export default async function ArticlePage({ params }: Props) {
 
   return (
     <div className="bg-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+      />
+
       {/* Breadcrumb */}
       <div className="border-b">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-3">
@@ -92,9 +158,16 @@ export default async function ArticlePage({ params }: Props) {
           {article.title}
         </h1>
 
-        <p className="mt-2 text-xs text-gray-500">
-          {article.authorName}
-        </p>
+        <div className="mt-2 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-xs text-gray-500">
+            {article.authorName}
+          </p>
+          <ShareButtons
+            url={`${SITE_URL}/journal/${article.slug}`}
+            title={article.title}
+            articleId={article.id}
+          />
+        </div>
 
         {/* Top CTA */}
         <div className="mt-6">
@@ -121,6 +194,29 @@ export default async function ArticlePage({ params }: Props) {
               </span>
             ))}
           </div>
+        )}
+
+        {/* Bottom share */}
+        <div className="mt-8 flex justify-end">
+          <ShareButtons
+            url={`${SITE_URL}/journal/${article.slug}`}
+            title={article.title}
+            articleId={article.id}
+          />
+        </div>
+
+        {/* 関連求人 CTA (13.1 ブログ → 求人へ回遊) */}
+        {relatedJobs.length > 0 && (
+          <section className="mt-10">
+            <h2 className="text-base font-bold text-gray-900 border-b pb-2">
+              この記事に関連する求人
+            </h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {relatedJobs.map((job) => (
+                <JobCard key={job.id} job={job} />
+              ))}
+            </div>
+          </section>
         )}
 
         {/* Bottom CTA */}
