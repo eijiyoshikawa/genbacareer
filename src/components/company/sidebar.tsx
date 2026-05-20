@@ -11,12 +11,14 @@ import {
   Building2,
   Settings,
   Shield,
+  Eye,
 } from "lucide-react"
 
 const navItems = [
   { href: "/company/dashboard", label: "ダッシュボード", icon: LayoutDashboard },
   { href: "/company/jobs", label: "求人管理", icon: Briefcase },
   { href: "/company/applications", label: "応募者管理", icon: Users },
+  { href: "/company/interests", label: "気になる候補", icon: Eye },
   { href: "/company/line-leads", label: "LINE 応募", icon: MessageCircle },
   { href: "/company/billing", label: "課金履歴", icon: CreditCard },
   { href: "/company/profile", label: "企業情報・SNS", icon: Settings },

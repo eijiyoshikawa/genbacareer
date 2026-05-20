@@ -60,6 +60,7 @@ model User {
   savedSearches     SavedSearch[]
   messageTemplates  ApplicationMessageTemplate[]
   jobFavorites      JobFavorite[]
+  jobInterests      JobInterest[]
   companyFollows    CompanyFollow[]
   reportsSubmitted  Report[] @relation("ReportReporter")
 
@@ -449,6 +450,7 @@ model Job {
   lineLeads         LineLead[]
   jobViews          JobView[]
   favorites         JobFavorite[]
+  interests         JobInterest[]
 
   @@index([prefecture, category, employmentType, status], name: "idx_jobs_search")
   @@index([salaryMin, salaryMax], name: "idx_jobs_salary")
@@ -885,6 +887,28 @@ model AiGeneratedArticle {
 
   @@index([status, publishedAt(sort: Desc)], name: "idx_ai_articles_status")
   @@map("ai_generated_articles")
+}
+
+// ========================================
+// 気になる (ライト応募 12.3)
+// ========================================
+/// JobFavorite (お気に入り) より軽い意思表示。
+/// 「気になる」と押すと企業側で「気になられた」リストに表示され、
+/// 企業から「会いたい」アプローチを受けられる可能性がある。
+model JobInterest {
+  userId    String   @map("user_id") @db.Uuid
+  jobId     String   @map("job_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  // 企業が見たかどうか (既読フラグ)
+  seenByCompanyAt DateTime? @map("seen_by_company_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@id([userId, jobId])
+  @@index([jobId, createdAt(sort: Desc)], name: "idx_job_interests_by_job")
+  @@index([userId, createdAt(sort: Desc)], name: "idx_job_interests_by_user")
+  @@map("job_interests")
 }
 
 // ========================================

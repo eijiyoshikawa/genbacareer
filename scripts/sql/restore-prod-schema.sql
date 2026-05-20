@@ -31,6 +31,25 @@ ALTER TABLE "users"
   ADD COLUMN IF NOT EXISTS "notification_prefs" JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 -- ----------------------------------------------------------------
+-- 12.3 気になる (ライト応募)
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS "job_interests" (
+  "user_id" UUID NOT NULL,
+  "job_id" UUID NOT NULL,
+  "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "seen_by_company_at" TIMESTAMPTZ,
+  PRIMARY KEY ("user_id", "job_id"),
+  CONSTRAINT "job_interests_user_fkey" FOREIGN KEY ("user_id")
+    REFERENCES "users"("id") ON DELETE CASCADE,
+  CONSTRAINT "job_interests_job_fkey" FOREIGN KEY ("job_id")
+    REFERENCES "jobs"("id") ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS "idx_job_interests_by_job"
+  ON "job_interests" ("job_id", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "idx_job_interests_by_user"
+  ON "job_interests" ("user_id", "created_at" DESC);
+
+-- ----------------------------------------------------------------
 -- 8.1 除外キーワード GUI 管理
 -- ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS "blocklists" (
