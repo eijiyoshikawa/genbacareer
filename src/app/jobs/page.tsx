@@ -21,6 +21,7 @@ import {
 } from "@/components/jobs/guest-signup-cta"
 import { GUEST_LIMIT } from "@/lib/guest-job-access"
 import { logSearch } from "@/lib/search-log"
+import { trackEvent } from "@/lib/track"
 import type { Metadata } from "next"
 
 type Props = {
@@ -213,6 +214,19 @@ export default async function JobsPage({ searchParams }: Props) {
     prefecture: params.prefecture,
     category: params.category,
     resultCount: total,
+  })
+
+  // 13.4 独自イベントトラッキング（同じデータを AnalyticsEvent にも記録）
+  void trackEvent({
+    name: "search",
+    payload: {
+      query: params.q ?? null,
+      prefecture: params.prefecture ?? null,
+      category: params.category ?? null,
+      employmentType: params.employmentType ?? null,
+      salaryMin: params.salaryMin ?? null,
+      resultCount: total,
+    },
   })
 
   const cities = params.prefecture ? AREAS[params.prefecture] ?? [] : []

@@ -17,6 +17,7 @@ import { notifyNewLead } from "@/lib/lead-notifications"
 import { findRelatedJobs } from "@/lib/job-matching"
 import { getSessionIdIfExists } from "@/lib/session-id"
 import { extractUtmFromUrl } from "@/lib/tracking"
+import { trackEvent } from "@/lib/track"
 
 export const dynamic = "force-dynamic"
 
@@ -68,6 +69,7 @@ export async function POST(request: NextRequest) {
     select: {
       id: true,
       title: true,
+      category: true,
       prefecture: true,
       city: true,
       helloworkId: true,
@@ -139,6 +141,21 @@ export async function POST(request: NextRequest) {
 
   // 「あなたへのおすすめ求人」を 3 件抽出。エラーは無視（フォーム完了体験を阻害しない）。
   const recommendedJobs = await findRelatedJobs(job.id, 3).catch(() => [])
+
+  // 13.4 独自イベントトラッキング
+  if (leadId) {
+    void trackEvent({
+      name: "apply_submit",
+      sessionId,
+      payload: {
+        jobId: job.id,
+        leadId,
+        category: job.category,
+        prefecture: job.prefecture,
+        utmSource: utm.source,
+      },
+    })
+  }
 
   return Response.json({
     success: true,
