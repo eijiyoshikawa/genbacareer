@@ -14,7 +14,6 @@
  * 期間は from/to で絞り込む。各テーブルは別カラム名なので個別にクエリする。
  */
 
-import { unstable_cache } from "next/cache"
 import { prisma } from "@/lib/db"
 
 export type FunnelStage = {

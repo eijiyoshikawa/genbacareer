@@ -44,18 +44,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [resolved, setResolved] = useState<"light" | "dark">("light")
 
   // 初回マウント: localStorage から読み込み
+  // localStorage は React 外の永続化なので effect 内 setState は意図的。
   useEffect(() => {
     const stored = (typeof window !== "undefined"
       ? window.localStorage.getItem(STORAGE_KEY)
       : null) as ThemeChoice | null
     const initial: ThemeChoice =
       stored === "light" || stored === "dark" || stored === "system" ? stored : "system"
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setThemeState(initial)
   }, [])
 
   // theme 変更 → resolved 計算 → DOM 反映
+  // resolved は DOM 同期用の派生状態なので effect 内 setState が必要。
   useEffect(() => {
     const r = theme === "system" ? getSystemPref() : theme
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setResolved(r)
     applyHtmlClass(r)
   }, [theme])

@@ -2,6 +2,7 @@ import Link from "next/link"
 import { Suspense } from "react"
 import { prisma } from "@/lib/db"
 import { approximateCount } from "@/lib/db-stats"
+import { daysAgo } from "@/lib/date-range"
 import {
   Briefcase,
   Users,
@@ -145,8 +146,8 @@ async function UrgentAlertsSection() {
 // 運営サマリー (各種総数)
 // =================================================================
 async function SummaryStatsSection() {
-  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-  const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const since7d = daysAgo(7)
+  const since30d = daysAgo(30)
   // 大きいテーブルの「総数」は pg_class.reltuples で近似値を返す。
   // 「ステータス別」「期間別」は WHERE に index が効くので prisma.count() のまま。
   const [
@@ -228,8 +229,8 @@ async function SummaryStatsSection() {
 // 応募トレンド
 // =================================================================
 async function TrendsSection() {
-  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-  const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const since7d = daysAgo(7)
+  const since30d = daysAgo(30)
   // 累計は近似値で十分。期間別は index で速い
   const [totalApplicationsApprox, newApplications7d, newApplications30d] =
     await Promise.all([
