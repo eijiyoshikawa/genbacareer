@@ -50,6 +50,7 @@ import { RightTocNav } from "@/components/jobs/right-toc-nav"
 import { StickyActionBar } from "@/components/jobs/sticky-action-bar"
 import { ReportButton } from "@/components/reports/report-button"
 import { findRelatedJobs } from "@/lib/job-matching"
+import { RelatedAreaCategoryLinks } from "@/components/jobs/related-area-category-links"
 import { HeroBanner } from "@/components/jobs/hero-banner"
 import { SnsLinks } from "@/components/jobs/sns-links"
 import { PhotoGallery } from "@/components/jobs/photo-gallery"
@@ -929,6 +930,13 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                 </ul>
               </section>
             )}
+
+            {/* 内部リンク強化: 関連エリア × 同職種、同エリア × 他職種 */}
+            <RelatedAreaCategoryLinks
+              category={job.category}
+              categoryLabel={getCategoryLabel(job.category)}
+              prefecture={job.prefecture}
+            />
 
             {/* Back link + Report */}
             <div className="flex items-center justify-between">

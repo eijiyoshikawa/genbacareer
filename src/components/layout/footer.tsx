@@ -2,10 +2,14 @@ import Link from "next/link"
 import { CirclePlay, Camera } from "lucide-react"
 import { BrandLogo } from "./brand-logo"
 import { LinkButton } from "@/components/ui/button"
+import { FooterSeoHub } from "./footer-seo-hub"
 
 export function Footer() {
   return (
     <footer className="mt-auto border-t bg-stone-900 text-gray-300">
+      {/* SEO ハブ: 47 都道府県 × 職種の内部リンク (details で折り畳み、 default は閉) */}
+      <FooterSeoHub />
+
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {/* Top section */}
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
@@ -63,6 +67,8 @@ export function Footer() {
             <h3 className="text-sm font-semibold text-white">コンテンツ</h3>
             <ul className="mt-3 space-y-2">
               <li><Link href="/journal" className="text-xs text-gray-400 hover:text-primary-300 transition">マガジン</Link></li>
+              <li><Link href="/authors" prefetch={false} className="text-xs text-gray-400 hover:text-primary-300 transition">編集部・著者紹介</Link></li>
+              <li><Link href="/editorial-policy" prefetch={false} className="text-xs text-gray-400 hover:text-primary-300 transition">編集ポリシー</Link></li>
               <li><Link href="/about" prefetch={false} className="text-xs text-gray-400 hover:text-primary-300 transition">サイトについて</Link></li>
               <li><Link href="/terms" prefetch={false} className="text-xs text-gray-400 hover:text-primary-300 transition">利用規約</Link></li>
               <li><Link href="/privacy" prefetch={false} className="text-xs text-gray-400 hover:text-primary-300 transition">プライバシーポリシー</Link></li>
