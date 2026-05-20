@@ -13,7 +13,7 @@
  *     - GSC_SERVICE_ACCOUNT_PRIVATE_KEY
  *
  *  共通:
- *     - GSC_SITE_URL  例: "https://genbacareer.jp/" または "sc-domain:genbacareer.jp"
+ *     - GSC_SITE_URL  例: "https://www.genbacareer.jp/" または "sc-domain:genbacareer.jp"
  */
 
 import crypto from "node:crypto"

@@ -10,7 +10,7 @@
  *
  * Indeed への申請手順:
  *   1. https://employers.indeed.com/p/cpc/feed-options で「XML feed」選択
- *   2. URL: https://genbacareer.jp/feed/indeed.xml を登録
+ *   2. URL: https://www.genbacareer.jp/feed/indeed.xml を登録
  *   3. 審査通過後、Indeed が定期クロール
  */
 
@@ -20,7 +20,7 @@ import { CONSTRUCTION_CATEGORY_VALUES, getCategoryLabel } from "@/lib/categories
 export const dynamic = "force-dynamic"
 export const revalidate = 3600
 
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
 function escapeXml(s: string): string {
   return s

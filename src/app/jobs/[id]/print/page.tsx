@@ -161,7 +161,7 @@ export default async function JobPrintPage({ params, searchParams }: Props) {
             <p>生成日時: {generatedAt}</p>
             <p>
               求人 URL:{" "}
-              {`https://genbacareer.jp/jobs/${job.id}`}
+              {`https://www.genbacareer.jp/jobs/${job.id}`}
             </p>
             {job.company?.websiteUrl && (
               <p>企業サイト: {job.company.websiteUrl}</p>

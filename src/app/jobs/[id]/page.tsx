@@ -88,12 +88,58 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   // 閲覧記録はクライアント beacon (<JobViewBeacon />) 経由で行う。
   // SSR 中に DB 書き込みを行わないことで、TTFB と将来の ISR 化を可能にする。
 
-  // include は Job 全カラム + Company の指定カラムを返す。Job 側は全カラム必要なので
-  // ここは include のまま (description / requirements など詳細ページで使う)。
-  // company は SNS や写真など重い JSON を含むがページで使うため取得は維持。
+  // 詳細ページで実際に使うカラムだけを select する。
+  // rawData (Hellowork 由来の Json 丸ごと格納) や dedupeKey 等は不要なので含めない。
+  // viewCount は別途 increment で update するだけなので select 不要。
   const job = await prisma.job.findUnique({
     where: { id },
-    include: {
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      requirements: true,
+      category: true,
+      employmentType: true,
+      salaryMin: true,
+      salaryMax: true,
+      salaryType: true,
+      prefecture: true,
+      city: true,
+      address: true,
+      benefits: true,
+      tags: true,
+      videoUrls: true,
+      status: true,
+      source: true,
+      helloworkId: true,
+      publishedAt: true,
+      expiresAt: true,
+      validUntil: true,
+      createdAt: true,
+      occupationTitle: true,
+      occupationCategoryName: true,
+      industryCode: true,
+      jobTypeName: true,
+      jobConditionNotes: true,
+      baseSalary: true,
+      bonus: true,
+      commuteAllowance: true,
+      fixedOvertime: true,
+      workHours: true,
+      workHoursNotes: true,
+      holidays: true,
+      holidaysOther: true,
+      annualHolidays: true,
+      insurance: true,
+      smokingPolicy: true,
+      trialPeriod: true,
+      requiredExperience: true,
+      education: true,
+      recruitmentCount: true,
+      recruitmentReason: true,
+      companyFeatures: true,
+      businessContent: true,
+      companyUrl: true,
       company: {
         select: {
           id: true,

@@ -17,7 +17,7 @@
 
 import Anthropic from "@anthropic-ai/sdk"
 
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
 const SYSTEM_PROMPT = `あなたは建設業に特化した求人サイト「ゲンバキャリア」の LINE 公式アカウントの担当者です。
 

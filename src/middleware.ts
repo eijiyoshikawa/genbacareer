@@ -97,7 +97,8 @@ export function middleware(request: NextRequest) {
     !CANONICAL_HOSTS.has(host)
   ) {
     const canonicalUrl = new URL(request.nextUrl)
-    canonicalUrl.host = "genbacareer.jp"
+    // www を canonical にしておくと apex→www の 301 を 1 ホップ省ける。
+    canonicalUrl.host = "www.genbacareer.jp"
     canonicalUrl.protocol = "https:"
     canonicalUrl.port = ""
     return NextResponse.redirect(canonicalUrl, 301)

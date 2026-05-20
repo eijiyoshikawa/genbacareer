@@ -17,7 +17,7 @@ import type {
   FlexMessage,
 } from "@/lib/line-messaging"
 
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
 const BRAND_GREEN = "#16a34a"
 const BRAND_BG = "#f0fdf4"

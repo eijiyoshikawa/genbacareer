@@ -9,7 +9,7 @@ import { ShareButtons } from "@/components/journal/share-buttons"
 import { JobCard } from "@/components/jobs/job-card"
 import { CATEGORIES } from "@/lib/categories"
 
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
 // 記事詳細は 1 時間単位の ISR で十分（更新頻度低）。
 export const revalidate = 3600

@@ -12,7 +12,7 @@ const CONSTRUCTION_CATEGORY_SET: ReadonlySet<string> = new Set(
 
 export const revalidate = 21600 // 6 hours ISR
 
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
 const PREFECTURES: Record<string, string> = {
   hokkaido: "北海道",

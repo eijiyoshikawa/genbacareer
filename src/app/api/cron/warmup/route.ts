@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     process.env.NEXT_PUBLIC_BASE_URL ??
     (process.env.VERCEL_PROJECT_PRODUCTION_URL
       ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "https://genbacareer.jp")
+      : "https://www.genbacareer.jp")
 
   const results = await Promise.all(
     TARGETS.map(async (path) => {

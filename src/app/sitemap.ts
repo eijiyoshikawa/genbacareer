@@ -17,7 +17,7 @@ const MAX_JOBS = 5000
 const MAX_SEO_COMBOS = 5000
 const MAX_COMPANIES = 2000
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
 async function safeFindMany<T>(label: string, fn: () => Promise<T[]>): Promise<T[]> {
   try {

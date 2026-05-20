@@ -17,7 +17,7 @@ import { Suspense } from "react"
 import type { Metadata } from "next"
 import { getRecommendedJobs } from "@/lib/job-recommendations"
 import { JobCard } from "@/components/jobs/job-card"
-import { JobCardSkeletonGrid } from "@/components/ui/skeleton"
+import { JobCardSkeletonGrid, Skeleton } from "@/components/ui/skeleton"
 import { calcProfileCompletion } from "@/lib/profile-completion"
 import { ProfileCompletionCard } from "@/components/mypage/profile-completion-card"
 
@@ -29,46 +29,24 @@ export default async function MyPage() {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
 
-  const [
-    user,
-    applicationCount,
-    unreadNotifications,
-    savedSearchCount,
-    favoriteCount,
-    companyFollowCount,
-  ] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: {
-        name: true,
-        email: true,
-        phone: true,
-        prefecture: true,
-        city: true,
-        birthDate: true,
-        desiredCategories: true,
-        desiredSalaryMin: true,
-        resumeUrl: true,
-        emailVerified: true,
-        createdAt: true,
-      },
-    }),
-    prisma.application.count({
-      where: { userId: session.user.id },
-    }),
-    prisma.notification
-      .count({ where: { userId: session.user.id, readAt: null } })
-      .catch(() => 0),
-    prisma.savedSearch
-      .count({ where: { userId: session.user.id } })
-      .catch(() => 0),
-    prisma.jobFavorite
-      .count({ where: { userId: session.user.id } })
-      .catch(() => 0),
-    prisma.companyFollow
-      .count({ where: { userId: session.user.id } })
-      .catch(() => 0),
-  ])
+  // ヘッダーと profile completion 表示に必要な user だけ block で取得し、
+  // 各 Link カードの count は <Suspense> で streaming する（TTFB 改善）。
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      name: true,
+      email: true,
+      phone: true,
+      prefecture: true,
+      city: true,
+      birthDate: true,
+      desiredCategories: true,
+      desiredSalaryMin: true,
+      resumeUrl: true,
+      emailVerified: true,
+      createdAt: true,
+    },
+  })
 
   if (!user) redirect("/login")
 
@@ -117,91 +95,9 @@ export default async function MyPage() {
 
       {/* Quick Links */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <Link
-          href="/mypage/notifications"
-          className="flex items-center gap-4 border bg-white p-5 shadow-sm transition hover:shadow-md"
-        >
-          <div className="relative flex h-10 w-10 items-center justify-center bg-amber-100">
-            <Bell className="h-5 w-5 text-amber-700" />
-            {unreadNotifications > 0 && (
-              <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 text-xs font-bold text-white bg-red-500">
-                {unreadNotifications > 99 ? "99+" : unreadNotifications}
-              </span>
-            )}
-          </div>
-          <div>
-            <p className="font-semibold text-gray-900">通知</p>
-            <p className="text-sm text-gray-500">
-              {unreadNotifications > 0
-                ? `未読 ${unreadNotifications} 件`
-                : "未読はありません"}
-            </p>
-          </div>
-        </Link>
-
-        <Link
-          href="/mypage/applications"
-          className="flex items-center gap-4  border bg-white p-5 shadow-sm transition hover:shadow-md"
-        >
-          <div className="flex h-10 w-10 items-center justify-center  bg-primary-100">
-            <FileText className="h-5 w-5 text-primary-600" />
-          </div>
-          <div>
-            <p className="font-semibold text-gray-900">応募一覧</p>
-            <p className="text-sm text-gray-500">
-              {applicationCount} 件の応募
-            </p>
-          </div>
-        </Link>
-
-        <Link
-          href="/mypage/favorites"
-          className="flex items-center gap-4 border bg-white p-5 shadow-sm transition hover:shadow-md"
-        >
-          <div className="flex h-10 w-10 items-center justify-center bg-amber-100">
-            <BookmarkCheck className="h-5 w-5 text-amber-700" />
-          </div>
-          <div>
-            <p className="font-semibold text-gray-900">お気に入り</p>
-            <p className="text-sm text-gray-500">
-              {favoriteCount > 0 ? `${favoriteCount} 件保存中` : "気になる求人を保存"}
-            </p>
-          </div>
-        </Link>
-
-        <Link
-          href="/mypage/saved-searches"
-          className="flex items-center gap-4 border bg-white p-5 shadow-sm transition hover:shadow-md"
-        >
-          <div className="flex h-10 w-10 items-center justify-center bg-sky-100">
-            <Bookmark className="h-5 w-5 text-sky-700" />
-          </div>
-          <div>
-            <p className="font-semibold text-gray-900">保存した検索</p>
-            <p className="text-sm text-gray-500">
-              {savedSearchCount > 0
-                ? `${savedSearchCount} 件 — 新着があれば通知`
-                : "条件を保存して新着通知を受け取る"}
-            </p>
-          </div>
-        </Link>
-
-        <Link
-          href="/mypage/companies/follow"
-          className="flex items-center gap-4 border bg-white p-5 shadow-sm transition hover:shadow-md"
-        >
-          <div className="flex h-10 w-10 items-center justify-center bg-amber-100">
-            <Star className="h-5 w-5 text-amber-600" />
-          </div>
-          <div>
-            <p className="font-semibold text-gray-900">フォロー企業</p>
-            <p className="text-sm text-gray-500">
-              {companyFollowCount > 0
-                ? `${companyFollowCount} 社 — 新着求人があれば通知`
-                : "気になる企業をフォロー"}
-            </p>
-          </div>
-        </Link>
+        <Suspense fallback={<QuickLinkCountsSkeleton />}>
+          <QuickLinkCounts userId={session.user.id} />
+        </Suspense>
 
         <Link
           href="/mypage/profile"
@@ -302,5 +198,130 @@ async function RecommendedJobsSection({ userId }: { userId: string }) {
         <JobCard key={job.id} job={job} loggedIn />
       ))}
     </div>
+  )
+}
+
+async function QuickLinkCounts({ userId }: { userId: string }) {
+  const [
+    applicationCount,
+    unreadNotifications,
+    savedSearchCount,
+    favoriteCount,
+    companyFollowCount,
+  ] = await Promise.all([
+    prisma.application.count({ where: { userId } }),
+    prisma.notification
+      .count({ where: { userId, readAt: null } })
+      .catch(() => 0),
+    prisma.savedSearch.count({ where: { userId } }).catch(() => 0),
+    prisma.jobFavorite.count({ where: { userId } }).catch(() => 0),
+    prisma.companyFollow.count({ where: { userId } }).catch(() => 0),
+  ])
+
+  return (
+    <>
+      <Link
+        href="/mypage/notifications"
+        className="flex items-center gap-4 border bg-white p-5 shadow-sm transition hover:shadow-md"
+      >
+        <div className="relative flex h-10 w-10 items-center justify-center bg-amber-100">
+          <Bell className="h-5 w-5 text-amber-700" />
+          {unreadNotifications > 0 && (
+            <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 text-xs font-bold text-white bg-red-500">
+              {unreadNotifications > 99 ? "99+" : unreadNotifications}
+            </span>
+          )}
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900">通知</p>
+          <p className="text-sm text-gray-500">
+            {unreadNotifications > 0
+              ? `未読 ${unreadNotifications} 件`
+              : "未読はありません"}
+          </p>
+        </div>
+      </Link>
+
+      <Link
+        href="/mypage/applications"
+        className="flex items-center gap-4  border bg-white p-5 shadow-sm transition hover:shadow-md"
+      >
+        <div className="flex h-10 w-10 items-center justify-center  bg-primary-100">
+          <FileText className="h-5 w-5 text-primary-600" />
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900">応募一覧</p>
+          <p className="text-sm text-gray-500">{applicationCount} 件の応募</p>
+        </div>
+      </Link>
+
+      <Link
+        href="/mypage/favorites"
+        className="flex items-center gap-4 border bg-white p-5 shadow-sm transition hover:shadow-md"
+      >
+        <div className="flex h-10 w-10 items-center justify-center bg-amber-100">
+          <BookmarkCheck className="h-5 w-5 text-amber-700" />
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900">お気に入り</p>
+          <p className="text-sm text-gray-500">
+            {favoriteCount > 0 ? `${favoriteCount} 件保存中` : "気になる求人を保存"}
+          </p>
+        </div>
+      </Link>
+
+      <Link
+        href="/mypage/saved-searches"
+        className="flex items-center gap-4 border bg-white p-5 shadow-sm transition hover:shadow-md"
+      >
+        <div className="flex h-10 w-10 items-center justify-center bg-sky-100">
+          <Bookmark className="h-5 w-5 text-sky-700" />
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900">保存した検索</p>
+          <p className="text-sm text-gray-500">
+            {savedSearchCount > 0
+              ? `${savedSearchCount} 件 — 新着があれば通知`
+              : "条件を保存して新着通知を受け取る"}
+          </p>
+        </div>
+      </Link>
+
+      <Link
+        href="/mypage/companies/follow"
+        className="flex items-center gap-4 border bg-white p-5 shadow-sm transition hover:shadow-md"
+      >
+        <div className="flex h-10 w-10 items-center justify-center bg-amber-100">
+          <Star className="h-5 w-5 text-amber-600" />
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900">フォロー企業</p>
+          <p className="text-sm text-gray-500">
+            {companyFollowCount > 0
+              ? `${companyFollowCount} 社 — 新着求人があれば通知`
+              : "気になる企業をフォロー"}
+          </p>
+        </div>
+      </Link>
+    </>
+  )
+}
+
+function QuickLinkCountsSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div
+          key={i}
+          className="flex items-center gap-4 border bg-white p-5 shadow-sm"
+        >
+          <Skeleton className="h-10 w-10 shrink-0" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-3 w-2/3" />
+          </div>
+        </div>
+      ))}
+    </>
   )
 }

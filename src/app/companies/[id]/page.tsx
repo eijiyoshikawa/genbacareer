@@ -25,7 +25,7 @@ import {
 
 export const revalidate = 3600 // 1 hour ISR
 
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
 type Props = {
   params: Promise<{ id: string }>

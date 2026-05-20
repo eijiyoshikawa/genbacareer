@@ -167,7 +167,7 @@ export function LiffApplyForm({
               {recommended.map((r) => (
                 <li key={r.id}>
                   <a
-                    href={`https://genbacareer.jp/jobs/${r.id}`}
+                    href={`https://www.genbacareer.jp/jobs/${r.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="press block accent-l border bg-white p-2 pl-3 hover:border-primary-300"

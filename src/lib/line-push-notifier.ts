@@ -16,7 +16,7 @@ import {
   type FlexNotificationKind,
 } from "@/lib/line-flex-templates"
 
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
 async function findLineUserId(userId: string): Promise<string | null> {
   const user = await prisma.user

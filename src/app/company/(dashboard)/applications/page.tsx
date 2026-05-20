@@ -1,9 +1,11 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
+import { Suspense } from "react"
 import type { Metadata } from "next"
 import { ApplicationsBulkTable } from "@/components/company/applications-bulk-table"
 import { Pagination } from "@/components/pagination"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export const metadata: Metadata = {
   title: "応募者管理",
@@ -23,39 +25,6 @@ export default async function CompanyApplicationsPage({
   const params = await searchParams
   const page = Math.max(1, Number(params.page) || 1)
   const statusFilter = params.status || "all"
-  const perPage = 20
-
-  const where = {
-    companyId,
-    ...(statusFilter !== "all" ? { status: statusFilter } : {}),
-  }
-
-  const [applications, total] = await Promise.all([
-    prisma.application.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * perPage,
-      take: perPage,
-      select: {
-        id: true,
-        status: true,
-        message: true,
-        createdAt: true,
-        job: { select: { id: true, title: true } },
-        user: {
-          select: {
-            name: true,
-            email: true,
-            phone: true,
-            prefecture: true,
-          },
-        },
-      },
-    }),
-    prisma.application.count({ where }),
-  ])
-
-  const totalPages = Math.ceil(total / perPage)
 
   const baseQuery = statusFilter !== "all" ? `?status=${statusFilter}` : ""
   const atsBase = `/api/company/applications/export-ats${
@@ -132,6 +101,64 @@ export default async function CompanyApplicationsPage({
         ))}
       </div>
 
+      <Suspense
+        key={`${statusFilter}:${page}`}
+        fallback={<ApplicationsListSkeleton />}
+      >
+        <ApplicationsList
+          companyId={companyId}
+          page={page}
+          statusFilter={statusFilter}
+        />
+      </Suspense>
+    </div>
+  )
+}
+
+async function ApplicationsList({
+  companyId,
+  page,
+  statusFilter,
+}: {
+  companyId: string
+  page: number
+  statusFilter: string
+}) {
+  const perPage = 20
+  const where = {
+    companyId,
+    ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+  }
+
+  const [applications, total] = await Promise.all([
+    prisma.application.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * perPage,
+      take: perPage,
+      select: {
+        id: true,
+        status: true,
+        message: true,
+        createdAt: true,
+        job: { select: { id: true, title: true } },
+        user: {
+          select: {
+            name: true,
+            email: true,
+            phone: true,
+            prefecture: true,
+          },
+        },
+      },
+    }),
+    prisma.application.count({ where }),
+  ])
+
+  const totalPages = Math.ceil(total / perPage)
+
+  return (
+    <>
       {applications.length === 0 ? (
         <div className="mt-8 border bg-white p-8 text-center shadow-sm">
           <p className="text-gray-500">応募はまだありません。</p>
@@ -149,10 +176,36 @@ export default async function CompanyApplicationsPage({
         />
       )}
 
-      {/* Pagination */}
       <div className="mt-4">
-        <Pagination currentPage={page} totalPages={totalPages} basePath="/company/applications" searchParams={{ status: statusFilter }} />
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          basePath="/company/applications"
+          searchParams={{ status: statusFilter }}
+        />
       </div>
+    </>
+  )
+}
+
+function ApplicationsListSkeleton() {
+  return (
+    <div className="mt-8 border bg-white shadow-sm">
+      <div className="border-b px-4 py-3">
+        <Skeleton className="h-5 w-32" />
+      </div>
+      <ul className="divide-y">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <li key={i} className="flex items-start gap-3 px-4 py-3">
+            <Skeleton className="h-10 w-10 shrink-0" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+            <Skeleton className="h-5 w-16 shrink-0" />
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

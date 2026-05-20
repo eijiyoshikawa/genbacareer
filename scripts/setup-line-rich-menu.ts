@@ -67,7 +67,7 @@ import {
   isMessagingConfigured,
 } from "../src/lib/line-messaging"
 
-const SITE = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
+const SITE = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 const IMAGE_PATH = join(process.cwd(), "scripts", "rich-menu.png")
 
 const WIDTH = 2500

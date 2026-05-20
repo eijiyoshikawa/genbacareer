@@ -19,7 +19,7 @@
 
 set -e
 
-BASE_URL=${1:-https://genbacareer.jp}
+BASE_URL=${1:-https://www.genbacareer.jp}
 FAIL=0
 
 echo "🧪 smoke test: $BASE_URL"

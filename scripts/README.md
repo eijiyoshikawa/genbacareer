@@ -94,7 +94,7 @@ Vercel ダッシュボード → Project Settings → Environment Variables に�
 Cron エンドポイントを手動で叩く場合:
 
 ```bash
-curl -X POST https://genbacareer.jp/api/cron/hellowork-import \
+curl -X POST https://www.genbacareer.jp/api/cron/hellowork-import \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
@@ -102,15 +102,15 @@ curl -X POST https://genbacareer.jp/api/cron/hellowork-import \
 
 ```bash
 # 任意の dataId × ページから N ページ取り込む（手動オーバーライド）
-curl -X POST "https://genbacareer.jp/api/cron/hellowork-import?dataId=M100&page=10&pages=2" \
+curl -X POST "https://www.genbacareer.jp/api/cron/hellowork-import?dataId=M100&page=10&pages=2" \
   -H "Authorization: Bearer $CRON_SECRET"
 
 # 1 回あたりのページ数だけ変えて、対象は DB 進捗から自動選択
-curl -X POST "https://genbacareer.jp/api/cron/hellowork-import?pages=1" \
+curl -X POST "https://www.genbacareer.jp/api/cron/hellowork-import?pages=1" \
   -H "Authorization: Bearer $CRON_SECRET"
 
 # closeOrphans を有効化（fullSweep 用。ローテーション中は使わない）
-curl -X POST "https://genbacareer.jp/api/cron/hellowork-import?closeOrphans=true" \
+curl -X POST "https://www.genbacareer.jp/api/cron/hellowork-import?closeOrphans=true" \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 

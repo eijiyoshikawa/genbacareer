@@ -24,7 +24,7 @@ const notoSansJP = Noto_Sans_JP({
   variable: "--font-noto-jp",
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp";
+const siteUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

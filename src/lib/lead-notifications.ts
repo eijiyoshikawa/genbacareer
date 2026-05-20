@@ -13,7 +13,7 @@
 
 import { sendEmail } from "./email"
 
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
 export interface LeadNotificationPayload {
   leadId: string

@@ -48,7 +48,7 @@ const ENV_DEFS: EnvDef[] = [
   {
     name: "NEXTAUTH_URL",
     required: ["preview", "production"],
-    description: "本番ドメイン (例: https://genbacareer.jp)",
+    description: "本番ドメイン (例: https://www.genbacareer.jp)",
     validate: (v) =>
       v.startsWith("https://") || "https:// で始まる URL が必要",
   },

@@ -54,7 +54,7 @@ const GREETING_TEXT = [
   "・「会社」と送ると運営会社情報をご案内",
 ].join("\n")
 
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
 // 直近 14 日以内の lead と自動 bind する
 const AUTO_BIND_WINDOW_DAYS = 14

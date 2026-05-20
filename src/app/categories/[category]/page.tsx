@@ -11,7 +11,7 @@ import {
 
 export const revalidate = 21600 // 6 hours ISR
 
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://genbacareer.jp"
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
 // 全国 47 都道府県（県別件数を表示するため src/app/[prefecture]/page.tsx と同じセット）
 const PREFECTURE_SLUG_TO_LABEL: Record<string, string> = {
