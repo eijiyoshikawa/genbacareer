@@ -354,7 +354,7 @@ export default async function ArticlePage({ params }: Props) {
         <div className="mt-10  bg-primary-50 border border-primary-100 p-6 text-center">
           <p className="font-bold text-gray-900">建設業界の求人を探す</p>
           <p className="mt-1 text-sm text-gray-600">
-            建設求人ポータルで、あなたに合った求人を見つけましょう。
+            ゲンバキャリアで、あなたに合った求人を見つけましょう。
           </p>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
             <Link href="/jobs" className="bg-primary-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-primary-700">

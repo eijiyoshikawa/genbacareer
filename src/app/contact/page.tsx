@@ -17,7 +17,7 @@ import type { Metadata } from "next"
 
 export const metadata: Metadata = {
   title: "ヘルプ・お問い合わせ",
-  description: "建設求人ポータルへのお問い合わせ、よくある質問、サポート情報。",
+  description: "ゲンバキャリアへのお問い合わせ、よくある質問、サポート情報。",
 }
 
 const faqs = [

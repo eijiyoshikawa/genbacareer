@@ -78,6 +78,25 @@ export default async function AdminArticlesPage({
         </Link>
       </div>
 
+      {/* 執筆ガイドラインへの導線 (新規作成前に必ず読む) */}
+      <Link
+        href="/admin/docs/article-guidelines"
+        className="press mt-4 flex items-center justify-between gap-3 border border-primary-200 bg-primary-50/40 px-4 py-3 hover:bg-primary-50 hover:border-primary-400 transition"
+      >
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-primary-700 tracking-wide">
+            EDITORIAL HANDBOOK
+          </p>
+          <p className="mt-0.5 text-sm font-bold text-gray-900">
+            記事執筆ガイドラインを読む (新規記事前に必読)
+          </p>
+          <p className="mt-0.5 text-xs text-gray-600">
+            SEO 設計 / E-E-A-T / NG リスト / 公開前チェックリスト 13 項目
+          </p>
+        </div>
+        <span className="text-primary-600 font-bold text-sm shrink-0">→</span>
+      </Link>
+
       {/* Filters */}
       <form className="mt-4 flex flex-wrap gap-2">
         <input

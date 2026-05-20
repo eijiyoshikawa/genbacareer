@@ -75,7 +75,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!job) return { title: "求人が見つかりません" }
   return {
     title: job.title,
-    description: `${job.prefecture}の${job.title}の求人詳細。建設業界特化の求人ポータル。`,
+    description: `${job.prefecture}の${job.title}の求人詳細。ゲンバキャリアで建設業界の最新求人をチェック。`,
     alternates: { canonical: `/jobs/${id}` },
   }
 }

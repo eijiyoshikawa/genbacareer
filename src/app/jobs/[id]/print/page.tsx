@@ -98,7 +98,7 @@ export default async function JobPrintPage({ params, searchParams }: Props) {
           <header className="hdr">
             <div className="brand">
               <span className="brand-mark">ゲンバキャリア</span>
-              <span className="brand-tag">建設業特化 求人ポータル</span>
+              <span className="brand-tag">建設業特化 ゲンバキャリア</span>
             </div>
             {job.company?.logoUrl && (
               <div className="logo">

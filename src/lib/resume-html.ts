@@ -122,7 +122,7 @@ ${resume.skills.length > 0 ? `<h2>保有スキル</h2><div class="tags">${tags(r
 ${resume.qualifications.length > 0 ? `<h2>保有資格</h2><div class="tags">${tags(resume.qualifications)}</div>` : ""}
 ` : ""}
 
-<div class="footer">建設求人ポータル</div>
+<div class="footer">ゲンバキャリア</div>
 </body>
 </html>`
 }

@@ -74,7 +74,7 @@ export default async function ResumePrintPage({ searchParams }: Props) {
           <header className="hdr">
             <div className="brand">
               <span className="brand-mark">ゲンバキャリア</span>
-              <span className="brand-tag">建設業特化 求人ポータル</span>
+              <span className="brand-tag">建設業特化 ゲンバキャリア</span>
             </div>
             <div className="doc-title">履歴書</div>
             <div className="gen">{generatedAt}</div>
@@ -183,7 +183,7 @@ export default async function ResumePrintPage({ searchParams }: Props) {
           <header className="hdr">
             <div className="brand">
               <span className="brand-mark">ゲンバキャリア</span>
-              <span className="brand-tag">建設業特化 求人ポータル</span>
+              <span className="brand-tag">建設業特化 ゲンバキャリア</span>
             </div>
             <div className="doc-title">職務経歴書</div>
             <div className="gen">{generatedAt}</div>

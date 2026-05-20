@@ -119,16 +119,19 @@ export function FeedSwiper({ initialJobs }: { initialJobs: FeedJob[] }) {
 
   if (jobs.length === 0) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] items-center justify-center text-white">
+      <div className="flex h-[calc(100dvh-4rem)] items-center justify-center text-white">
         <p>表示できる求人がありません</p>
       </div>
     )
   }
 
+  // dvh: iOS Safari の URL バー / 下部ツールバーが可変サイズで重なって
+  // 100vh が実画面より長くなる問題を解消するための dynamic viewport unit。
+  // 100vh のままだと bottom-* 配置の要素が Safari の下部ツールバー裏に隠れる。
   return (
     <div
       ref={containerRef}
-      className="h-[calc(100vh-4rem)] overflow-y-scroll snap-y snap-mandatory scroll-smooth"
+      className="h-[calc(100dvh-4rem)] overflow-y-scroll snap-y snap-mandatory scroll-smooth"
       style={{ scrollbarWidth: "none" }}
       aria-label="求人フィード"
     >
@@ -144,12 +147,12 @@ export function FeedSwiper({ initialJobs }: { initialJobs: FeedJob[] }) {
       {/* 末尾 3 枚手前で次の読み込みをトリガー */}
       <div ref={sentinelRef} className="h-1" />
       {loading && (
-        <div className="snap-start flex h-[calc(100vh-4rem)] items-center justify-center text-white">
+        <div className="snap-start flex h-[calc(100dvh-4rem)] items-center justify-center text-white">
           <p>読み込み中...</p>
         </div>
       )}
       {exhausted && (
-        <div className="snap-start flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4 text-white">
+        <div className="snap-start flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 text-white">
           <p>すべての求人を表示しました</p>
           <Link
             href="/jobs"
@@ -175,7 +178,7 @@ function FeedCard({
   showHint: boolean
 }) {
   return (
-    <article className="snap-start h-[calc(100vh-4rem)] relative overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
+    <article className="snap-start h-[calc(100dvh-4rem)] relative overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
       {/* 背景画像 */}
       {job.companyPhoto && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -188,8 +191,16 @@ function FeedCard({
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
 
-      {/* 本文 */}
-      <div className="relative z-10 flex h-full flex-col justify-end p-6 pb-24">
+      {/* 本文 — 右側のアクション列 + iOS home indicator 分の余白を確保。
+          pr-20 で右下アイコン列 (w-12 + right-4 padding) と本文テキストの
+          重なりを防ぐ。pb は safe-area inset を加味した env() で家機種別の
+          下端見切れを最小化。 */}
+      <div
+        className="relative z-10 flex h-full flex-col justify-end p-6 pr-20"
+        style={{
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
+        }}
+      >
         <div className="space-y-3">
           {/* 企業 */}
           <div className="flex items-center gap-2">
@@ -247,8 +258,14 @@ function FeedCard({
         </div>
       </div>
 
-      {/* 右下フローティング アクション */}
-      <div className="absolute bottom-6 right-4 z-20 flex flex-col gap-3">
+      {/* 右側フローティング アクション
+          (iOS Safari の下部ツールバーに隠れないよう safe-area-inset-bottom を加味) */}
+      <div
+        className="absolute right-4 z-20 flex flex-col gap-3"
+        style={{
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
+        }}
+      >
         <button
           type="button"
           onClick={onFavorite}
