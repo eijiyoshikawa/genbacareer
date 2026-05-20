@@ -1,6 +1,12 @@
 /**
  * 都道府県名 ↔ URL スラッグの双方向マップ。
- * 地域 × 職種 LP (13.2) と sitemap で利用。
+ *
+ * 同じデータが現在以下にもハードコードされている:
+ *   - src/app/sitemap.ts (PREFECTURE_SLUGS 配列)
+ *   - src/app/[prefecture]/[category]/page.tsx (PREFECTURES オブジェクト)
+ *   - src/app/[prefecture]/page.tsx (同上)
+ *
+ * 将来的に上記から本ファイルへ統合する想定。
  */
 
 export const PREFECTURE_SLUG_MAP = {
