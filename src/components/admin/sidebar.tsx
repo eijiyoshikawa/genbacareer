@@ -21,6 +21,7 @@ import {
   Flag,
   Sparkles,
   Ban,
+  MessageSquare,
 } from "lucide-react"
 
 const navItems = [
@@ -28,6 +29,7 @@ const navItems = [
   { href: "/admin/status", label: "システム状態", icon: Activity },
   { href: "/admin/analytics", label: "分析", icon: BarChart3 },
   { href: "/admin/reports", label: "通報", icon: Flag },
+  { href: "/admin/company-reviews", label: "企業口コミ審査", icon: MessageSquare },
   { href: "/admin/line-leads", label: "LINE リード", icon: MessageCircle },
   { href: "/admin/segments", label: "セグメント配信", icon: Send },
   { href: "/admin/companies", label: "企業管理", icon: Building2 },

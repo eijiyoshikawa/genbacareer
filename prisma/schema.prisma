@@ -316,6 +316,7 @@ model Company {
   billingEvents BillingEvent[]
   applications  Application[]
   followers     CompanyFollow[]
+  reviews       CompanyReview[]
 
   @@unique([source, name], name: "company_source_name_unique")
   @@index([status], name: "idx_companies_status")
@@ -887,6 +888,49 @@ model AiGeneratedArticle {
 
   @@index([status, publishedAt(sort: Desc)], name: "idx_ai_articles_status")
   @@map("ai_generated_articles")
+}
+
+// ========================================
+// 企業口コミ・レビュー (12.2)
+// ========================================
+/// 求職者が在籍/元在籍経験から企業を評価する口コミ。
+/// admin モデレーションを通過したものだけ公開。
+model CompanyReview {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid // 匿名投稿許可するため nullable
+  // 雇用状態: current(現在在籍) / former(元従業員) / interview(面接のみ)
+  employmentStatus String @map("employment_status") @db.VarChar(20)
+  // 1-5 の総合星評価
+  rating      Int
+  // 詳細評価 (任意): 給与 / 働きやすさ / 成長 / 福利厚生
+  ratingSalary       Int? @map("rating_salary")
+  ratingWorkLife     Int? @map("rating_work_life")
+  ratingGrowth       Int? @map("rating_growth")
+  ratingBenefits     Int? @map("rating_benefits")
+  // 自由記述 (3 セクション)
+  title       String?  @db.VarChar(200)
+  goodPoints  String?  @map("good_points") // 良い点
+  badPoints   String?  @map("bad_points")  // 改善点
+  advice      String?  // 入社を検討する人へのアドバイス
+  // モデレーション: pending(審査中) / approved(公開) / rejected(非公開)
+  status      String   @default("pending") @db.VarChar(20)
+  // 表示名（ハンドル）。匿名なら "建設業界の方" 等
+  displayName String?  @map("display_name") @db.VarChar(50)
+  // 投稿時 IP (連投検知用)
+  reporterIp  String?  @map("reporter_ip") @db.VarChar(45)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  // モデレーション結果
+  moderatedAt   DateTime? @map("moderated_at") @db.Timestamptz()
+  moderatedBy   String?   @map("moderated_by") @db.Uuid
+  moderationNote String?  @map("moderation_note") @db.VarChar(500)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status, createdAt(sort: Desc)], name: "idx_company_reviews_by_company")
+  @@index([status, createdAt(sort: Desc)], name: "idx_company_reviews_moderation")
+  @@map("company_reviews")
 }
 
 // ========================================
