@@ -7,13 +7,18 @@ import { auth } from "@/lib/auth"
 import { JobCard } from "@/components/jobs/job-card"
 import { CompanyFollowButton } from "@/components/companies/follow-button"
 import { CompanyGbizSection } from "@/components/companies/gbiz-section"
+import { ReportButton } from "@/components/reports/report-button"
 import { isValidUuid } from "@/lib/uuid"
+import { trackEvent } from "@/lib/track"
 import {
   MapPin,
   Buildings,
   Globe,
   UsersThree,
   Camera as InstagramIcon,
+  Star,
+  PaperPlaneTilt,
+  Heart,
 } from "@phosphor-icons/react/dist/ssr"
 
 export const revalidate = 3600 // 1 hour ISR
@@ -125,27 +130,70 @@ export default async function CompanyDetailPage({ params }: Props) {
         .catch(() => null))
     : false
 
-  const jobs = await prisma.job
-    .findMany({
-      where: { companyId: company.id, status: "active" },
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        employmentType: true,
-        salaryMin: true,
-        salaryMax: true,
-        salaryType: true,
-        prefecture: true,
-        city: true,
-        source: true,
-        tags: true,
-        company: { select: { name: true, logoUrl: true, gbizData: true } },
-      },
-      orderBy: { publishedAt: "desc" },
-      take: 30,
-    })
-    .catch(() => [])
+  const [jobs, followerCount, applicationCount, hiredCount, relatedCompanies] =
+    await Promise.all([
+      prisma.job
+        .findMany({
+          where: { companyId: company.id, status: "active" },
+          select: {
+            id: true,
+            title: true,
+            category: true,
+            employmentType: true,
+            salaryMin: true,
+            salaryMax: true,
+            salaryType: true,
+            prefecture: true,
+            city: true,
+            source: true,
+            tags: true,
+            company: { select: { name: true, logoUrl: true, gbizData: true } },
+          },
+          orderBy: { publishedAt: "desc" },
+          take: 30,
+        })
+        .catch(() => []),
+      prisma.companyFollow.count({ where: { companyId: company.id } }).catch(() => 0),
+      prisma.application.count({ where: { companyId: company.id } }).catch(() => 0),
+      prisma.application
+        .count({ where: { companyId: company.id, status: "hired" } })
+        .catch(() => 0),
+      // 関連企業: 同 industry / 同 prefecture から 3 件 (自分は除外)
+      prisma.company
+        .findMany({
+          where: {
+            status: "approved",
+            source: "direct",
+            id: { not: company.id },
+            OR: [
+              ...(company.industry ? [{ industry: company.industry }] : []),
+              ...(company.prefecture ? [{ prefecture: company.prefecture }] : []),
+            ],
+          },
+          select: {
+            id: true,
+            name: true,
+            tagline: true,
+            logoUrl: true,
+            prefecture: true,
+            industry: true,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 3,
+        })
+        .catch(() => []),
+    ])
+
+  // 13.4 独自イベントトラッキング (view_company)
+  void trackEvent({
+    name: "view_company",
+    payload: {
+      companyId: company.id,
+      industry: company.industry,
+      prefecture: company.prefecture,
+      jobsCount: jobs.length,
+    },
+  })
 
   const breadcrumb = {
     "@context": "https://schema.org",
@@ -298,6 +346,28 @@ export default async function CompanyDetailPage({ params }: Props) {
         )}
       </section>
 
+      {/* 採用統計 (12.1) */}
+      <section className="mt-6 grid grid-cols-3 gap-3">
+        <StatCard
+          icon={Star}
+          label="フォロワー"
+          value={followerCount.toLocaleString()}
+          accent="text-amber-600"
+        />
+        <StatCard
+          icon={PaperPlaneTilt}
+          label="累計応募"
+          value={applicationCount.toLocaleString()}
+          accent="text-primary-600"
+        />
+        <StatCard
+          icon={Heart}
+          label="採用決定"
+          value={hiredCount.toLocaleString()}
+          accent="text-rose-600"
+        />
+      </section>
+
       {/* GbizINFO 由来の企業情報（建設業許可・表彰歴） */}
       <CompanyGbizSection
         gbizData={company.gbizData}
@@ -392,6 +462,85 @@ export default async function CompanyDetailPage({ params }: Props) {
           </div>
         )}
       </section>
+
+      {/* 関連企業サジェスト (12.1) */}
+      {relatedCompanies.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold text-gray-900">
+            似た企業もチェック
+          </h2>
+          <p className="mt-1 text-xs text-gray-500">
+            同じ業界 / 地域で募集中の企業です。
+          </p>
+          <ul className="mt-4 grid gap-3 sm:grid-cols-3">
+            {relatedCompanies.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/companies/${c.id}`}
+                  className="flex items-start gap-3 border bg-white p-4 transition hover:border-primary-400 hover:shadow-sm"
+                >
+                  {c.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.logoUrl}
+                      alt=""
+                      className="h-10 w-10 shrink-0 border object-contain bg-white"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 shrink-0 border bg-primary-50 flex items-center justify-center">
+                      <Buildings className="h-5 w-5 text-primary-400" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-gray-900">
+                      {c.name}
+                    </p>
+                    {c.tagline && (
+                      <p className="mt-0.5 truncate text-xs text-gray-500">
+                        {c.tagline}
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      {[c.industry, c.prefecture].filter(Boolean).join(" / ")}
+                    </p>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* フッタ: 通報リンク (6.2) */}
+      <div className="mt-10 flex justify-end">
+        <ReportButton
+          targetType="company"
+          targetId={company.id}
+          label="この企業を通報"
+        />
+      </div>
+    </div>
+  )
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  accent,
+}: {
+  icon: typeof Star
+  label: string
+  value: string
+  accent: string
+}) {
+  return (
+    <div className="border bg-white p-3 sm:p-4 text-center">
+      <Icon className={`mx-auto h-5 w-5 ${accent}`} weight="duotone" />
+      <p className="mt-1 text-[11px] text-gray-500">{label}</p>
+      <p className={`mt-0.5 text-lg sm:text-xl font-extrabold tabular-nums ${accent}`}>
+        {value}
+      </p>
     </div>
   )
 }
