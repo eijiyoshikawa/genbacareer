@@ -139,7 +139,7 @@ export function HeaderMobileMenu() {
             </div>
 
             <p className="pt-6 text-center text-xs text-gray-400">
-              建設業界特化型 求人ポータル ゲンバキャリア
+              建設業界特化型 求人サイト ゲンバキャリア
             </p>
           </nav>
         </div>

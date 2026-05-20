@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       category: "industry",
       tags: ["業界動向", "市場規模"],
       metaDescription: "2026年の建設業界の現状と将来性を解説。市場規模、人手不足、ICT化の動向をデータで分析。",
-      authorName: "建設求人ポータル編集部",
+      authorName: "ゲンバキャリア編集部",
       status: "published",
       featured: true,
       publishedAt: new Date("2026-01-01T09:00:00+09:00"),
