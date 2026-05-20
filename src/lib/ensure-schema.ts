@@ -364,9 +364,17 @@ let inflight: Promise<boolean> | null = null
 // Vercel の build フェーズ (`NEXT_PHASE=phase-production-build`) ではスキップする。
 // build 時の prerender で複数 worker が並列に ensureSchema を呼ぶと、
 // connection_limit=1 環境で P2024 (接続プール枯渇) を多発させてビルド失敗するため。
-// 本番起動時 (request 処理時) には通常通り走るので DB 反映は問題ない。
+//
+// 本番運用ですでに `prisma db push` 済みの場合は `ENSURE_SCHEMA=false` を
+// 環境変数に設定すると一切走らない (cold lambda の TTFB を改善する)。
+// スキーマ変更を入れた直後は ENSURE_SCHEMA=true (or 未設定) で 1〜2 回走らせて
+// 確実に反映させ、安定後に false にする運用が推奨。
 export function ensureSchema(): Promise<boolean> {
  if (process.env.NEXT_PHASE === "phase-production-build") {
+   return Promise.resolve(true)
+ }
+ // 本番安定後は env で完全スキップ可能 (TTFB 改善)
+ if (process.env.ENSURE_SCHEMA === "false") {
    return Promise.resolve(true)
  }
  if (!inflight) {
