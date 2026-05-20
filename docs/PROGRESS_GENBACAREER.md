@@ -123,12 +123,12 @@ Phase 1 MVP リスト 32 機能のうち **約 85% (27/32) は既に実装済み
 - ✅ 13.2 地域 × 職種 LP（**既存** `/[prefecture]/[category]` で達成済み、追加実装した `/jobs/lp` は重複のため revert `a852bcb`）
 
 ### Phase 2-C: 通知 / Push
-- ⏳ 3.3 + 16.2 Web Push 通知（Service Worker 含む）
+- ❌ 3.3 + 16.2 Web Push 通知 — **ユーザー判断でスキップ**
 - ⏳ 3.4 通知頻度・時間帯設定 UI
 
 ### Phase 2-D: 検索拡張
-- ⏳ 11.2 マップ検索（Google Maps）
-- ⏳ 11.5 縦スワイプ求人フィード（TikTok 風）
+- ✅ 11.2 マップ検索 (Google Maps + フォールバック) (`ffacdde`)
+- ✅ 11.5 縦スワイプ求人フィード (TikTok 風) (`f9ac809`)
 - ⏳ 11.6 / 11.7 レコメンド強化
 
 ### Phase 2-E: 運営強化
@@ -141,7 +141,7 @@ Phase 1 MVP リスト 32 機能のうち **約 85% (27/32) は既に実装済み
   - admin /analytics に「独自イベント」セクション追加
   - 埋め込み済: /api/reports, /api/users/me/company-follows
   - 未埋め込み: view_job / search / apply_start / favorite_* など → 各所追加 TODO
-- ⏳ 13.5 求人成果レポート（企業向け）
+- ✅ 13.5 求人成果レポート (PV/UU/CTR/CVR/CPA 強化) (`6c02e49`)
 - ⏳ 9.6 Search Console 連携バッチ
 
 ### Phase 2-G: クローラ系
