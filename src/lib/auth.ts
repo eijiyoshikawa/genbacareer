@@ -57,7 +57,7 @@ providers.push(
           where: { email: credentials.email as string },
         })
 
-        if (!user || !user.passwordHash) return null
+        if (!user || !user.passwordHash || user.deletedAt) return null
 
         const isValid = await compare(
           credentials.password as string,
@@ -119,7 +119,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (user.email) {
           const existing = await prisma.user.findUnique({
             where: { email: user.email },
-            select: { id: true },
+            select: { id: true, deletedAt: true },
           })
           if (!existing) {
             const created = await prisma.user.create({
@@ -127,11 +127,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 email: user.email,
                 name: user.name ?? null,
                 authProvider: account.provider,
+                emailVerifiedAt: new Date(), // OAuth providers verify email
               },
             })
             user.id = created.id
             ;(user as { role?: string }).role = "seeker"
           } else {
+            if (existing.deletedAt) return false
             user.id = existing.id
             ;(user as { role?: string }).role = "seeker"
           }

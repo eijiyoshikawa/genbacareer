@@ -3,6 +3,7 @@ import { z } from "zod";
 import { hashSync } from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { PREFECTURES } from "@/lib/constants";
+import { getClientIp, rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const companyRegisterSchema = z.object({
   companyName: z.string().min(1, "会社名は必須です。"),
@@ -13,6 +14,13 @@ const companyRegisterSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const ipLimit = rateLimit(
+    `company-register:${getClientIp(request)}`,
+    5,
+    60 * 60 * 1000
+  );
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit.retryAfterMs);
+
   try {
     const body = await request.json();
     const parsed = companyRegisterSchema.safeParse(body);

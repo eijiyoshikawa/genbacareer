@@ -3,12 +3,20 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { generateToken, TOKEN_EXPIRY_MS } from "@/lib/tokens"
 import { sendPasswordResetEmail } from "@/lib/email"
+import { getClientIp, rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 
 const schema = z.object({
   email: z.string().email(),
 })
 
 export async function POST(request: NextRequest) {
+  const ipLimit = rateLimit(
+    `forgot-pw:${getClientIp(request)}`,
+    5,
+    60 * 60 * 1000
+  )
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit.retryAfterMs)
+
   let body: unknown
   try {
     body = await request.json()

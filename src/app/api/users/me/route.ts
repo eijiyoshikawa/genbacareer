@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { sendAccountDeletedEmail } from "@/lib/email"
 
 const updateProfileSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -104,3 +105,66 @@ export async function PUT(request: NextRequest) {
 
   return Response.json({ user })
 }
+
+/**
+ * 退会処理。
+ * - 法的・運用上の安全性のため、関連レコード（応募・スカウト・通知 等）は cascade で消える。
+ * - 重要なドメインデータ（採用済みの BillingEvent 等）は Application 経由で cascade されるが、
+ *   会計監査ログ用途では将来 soft-delete + 個人情報マスクへ切替を検討。
+ * 現状は: User レコードを匿名化＋ deletedAt セット＋ passwordHash null、認証不可にする。
+ */
+export async function DELETE() {
+  const session = await auth()
+  if (!session?.user?.id) {
+    return Response.json({ error: "ログインが必要です" }, { status: 401 })
+  }
+
+  const role = (session.user as { role?: string }).role
+  if (role && role !== "seeker") {
+    return Response.json(
+      { error: "求職者アカウントの退会のみサポートしています" },
+      { status: 403 }
+    )
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true, deletedAt: true },
+  })
+  if (!user) {
+    return Response.json({ error: "ユーザーが見つかりません" }, { status: 404 })
+  }
+  if (user.deletedAt) {
+    return Response.json({ error: "既に退会済みです" }, { status: 400 })
+  }
+
+  const anonymizedEmail = `deleted-${session.user.id}@deleted.local`
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: {
+      email: anonymizedEmail,
+      name: null,
+      phone: null,
+      birthDate: null,
+      city: null,
+      resumeUrl: null,
+      profilePublic: false,
+      passwordHash: null,
+      resetToken: null,
+      resetTokenExpiry: null,
+      emailVerifyToken: null,
+      emailVerifyTokenExpiry: null,
+      deletedAt: new Date(),
+    },
+  })
+
+  if (user.email && !user.email.startsWith("deleted-")) {
+    sendAccountDeletedEmail(user.email).catch((err) =>
+      console.error("[account-delete] failed to send email:", err)
+    )
+  }
+
+  return Response.json({ success: true })
+}
+

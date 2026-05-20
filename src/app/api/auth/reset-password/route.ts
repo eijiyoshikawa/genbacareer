@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { hash } from "bcryptjs"
 import { prisma } from "@/lib/db"
+import { getClientIp, rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 
 const schema = z.object({
   token: z.string().min(1),
@@ -9,6 +10,13 @@ const schema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  const ipLimit = rateLimit(
+    `reset-pw:${getClientIp(request)}`,
+    10,
+    60 * 60 * 1000
+  )
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit.retryAfterMs)
+
   let body: unknown
   try {
     body = await request.json()

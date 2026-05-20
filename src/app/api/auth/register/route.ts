@@ -3,6 +3,9 @@ import { z } from "zod";
 import { hashSync } from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { PREFECTURES } from "@/lib/constants";
+import { generateToken, EMAIL_VERIFY_EXPIRY_MS } from "@/lib/tokens";
+import { sendVerificationEmail } from "@/lib/email";
+import { getClientIp, rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const registerSchema = z.object({
   name: z.string().min(1, "氏名は必須です。"),
@@ -12,6 +15,10 @@ const registerSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // Rate limit: 5 registrations per IP per hour
+  const ipLimit = rateLimit(`register:${getClientIp(request)}`, 5, 60 * 60 * 1000);
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit.retryAfterMs);
+
   try {
     const body = await request.json();
     const parsed = registerSchema.safeParse(body);
@@ -32,6 +39,8 @@ export async function POST(request: Request) {
     }
 
     const passwordHash = hashSync(password, 12);
+    const verifyToken = generateToken();
+    const verifyExpiry = new Date(Date.now() + EMAIL_VERIFY_EXPIRY_MS);
 
     await prisma.user.create({
       data: {
@@ -39,8 +48,14 @@ export async function POST(request: Request) {
         email,
         passwordHash,
         prefecture,
+        emailVerifyToken: verifyToken,
+        emailVerifyTokenExpiry: verifyExpiry,
       },
     });
+
+    sendVerificationEmail(email, verifyToken).catch((err) =>
+      console.error("[register] failed to send verification email:", err)
+    );
 
     return NextResponse.json({ success: true }, { status: 201 });
   } catch (error) {
