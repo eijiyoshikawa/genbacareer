@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { hashSync } from "bcryptjs";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { PREFECTURES } from "@/lib/constants";
 import {
@@ -45,6 +46,21 @@ export async function POST(request: NextRequest) {
     if (existingUser) {
       return NextResponse.json(
         { error: "このメールアドレスは既に登録されています。" },
+        { status: 409 }
+      );
+    }
+
+    // 同名 (source=direct) の Company が既にあれば 409 を返す
+    const existingCompany = await prisma.company.findFirst({
+      where: { source: "direct", name: companyName },
+      select: { id: true },
+    });
+    if (existingCompany) {
+      return NextResponse.json(
+        {
+          error:
+            "同じ会社名で既に登録があります。別の会社名を入力するか、既存アカウントでログインしてください。",
+        },
         { status: 409 }
       );
     }
@@ -98,6 +114,19 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("Company registration error:", error);
+    // 同名 Company の race / 競合
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "同じ会社名またはメールアドレスで既に登録があります。別の値を入力してください。",
+        },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: "サーバーエラーが発生しました。" },
       { status: 500 }
