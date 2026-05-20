@@ -31,6 +31,39 @@ ALTER TABLE "users"
   ADD COLUMN IF NOT EXISTS "notification_prefs" JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 -- ----------------------------------------------------------------
+-- 12.2 企業口コミ・レビュー
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS "company_reviews" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  "company_id" UUID NOT NULL,
+  "user_id" UUID,
+  "employment_status" VARCHAR(20) NOT NULL,
+  "rating" INTEGER NOT NULL,
+  "rating_salary" INTEGER,
+  "rating_work_life" INTEGER,
+  "rating_growth" INTEGER,
+  "rating_benefits" INTEGER,
+  "title" VARCHAR(200),
+  "good_points" TEXT,
+  "bad_points" TEXT,
+  "advice" TEXT,
+  "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
+  "display_name" VARCHAR(50),
+  "reporter_ip" VARCHAR(45),
+  "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "moderated_at" TIMESTAMPTZ,
+  "moderated_by" UUID,
+  "moderation_note" VARCHAR(500),
+  CONSTRAINT "company_reviews_company_fkey" FOREIGN KEY ("company_id")
+    REFERENCES "companies"("id") ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS "idx_company_reviews_by_company"
+  ON "company_reviews" ("company_id", "status", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "idx_company_reviews_moderation"
+  ON "company_reviews" ("status", "created_at" DESC);
+
+-- ----------------------------------------------------------------
 -- 12.3 気になる (ライト応募)
 -- ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS "job_interests" (
