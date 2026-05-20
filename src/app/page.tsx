@@ -10,14 +10,7 @@ import {
   Building2,
   ArrowRight,
   MapPin,
-  Sparkles,
   Banknote,
-  GraduationCap,
-  Home as HomeIcon,
-  Award,
-  CalendarDays,
-  TrendingUp,
-  Users,
 } from "lucide-react"
 import { CATEGORY_LABELS } from "@/lib/article-categories"
 import { RecommendedForYou } from "@/components/jobs/recommended-for-you"
@@ -109,46 +102,60 @@ const ANNOUNCEMENTS: Array<{ date: string; label: string; href?: string }> = [
 ]
 
 // 「様々な切り口から探す」テーマ別バナー (注目特集 とは違う切り口)
+// 画像読み込み失敗時のフォールバックとして bg グラデーションを下に敷く
 const THEMED_BUCKETS: Array<{
   label: string
   desc: string
   query: string
+  image: string
   bg: string
 }> = [
   {
     label: "寮・社宅完備",
     desc: "住み込みでスタートしたい方に。",
     query: "寮",
+    image:
+      "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1000&q=70",
     bg: "from-emerald-500 to-emerald-700",
   },
   {
     label: "直行直帰OK",
     desc: "通勤の負担を最小化。",
     query: "直行直帰",
+    image:
+      "https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=1000&q=70",
     bg: "from-blue-500 to-blue-700",
   },
   {
     label: "年収 500 万円〜",
     desc: "高収入の現場リーダー候補。",
     query: "高収入",
+    image:
+      "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1000&q=70",
     bg: "from-rose-500 to-rose-700",
   },
   {
     label: "週休 2 日",
     desc: "プライベートも大切に。",
     query: "週休2日",
+    image:
+      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1000&q=70",
     bg: "from-violet-500 to-violet-700",
   },
   {
     label: "資格取得支援",
     desc: "会社負担でキャリアアップ。",
     query: "資格",
+    image:
+      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1000&q=70",
     bg: "from-amber-500 to-amber-700",
   },
   {
     label: "経験者優遇",
     desc: "現場リーダー / 監督候補。",
     query: "経験者",
+    image:
+      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1000&q=70",
     bg: "from-cyan-600 to-cyan-800",
   },
 ]
@@ -245,13 +252,56 @@ const popularAreas = [
 ]
 
 // マイナビ「働き方から探す」相当。クリックで /jobs にキーワードクエリで遷移。
-const WORK_STYLES: Array<{ icon: typeof Sparkles; label: string; q: string; color: string }> = [
-  { icon: GraduationCap, label: "未経験 OK", q: "未経験", color: "text-blue-600 bg-blue-50" },
-  { icon: HomeIcon, label: "寮・社宅完備", q: "寮", color: "text-emerald-600 bg-emerald-50" },
-  { icon: Award, label: "資格取得支援", q: "資格", color: "text-amber-600 bg-amber-50" },
-  { icon: CalendarDays, label: "週休 2 日", q: "週休2日", color: "text-purple-600 bg-purple-50" },
-  { icon: TrendingUp, label: "高収入", q: "高収入", color: "text-rose-600 bg-rose-50" },
-  { icon: Users, label: "若手活躍中", q: "若手", color: "text-cyan-600 bg-cyan-50" },
+// 写真をカード背景に配置し、テキストは下部にオーバーレイ。bg は写真読み込み
+// 失敗時のフォールバック用グラデーション。
+const WORK_STYLES: Array<{
+  label: string
+  q: string
+  image: string
+  bg: string
+}> = [
+  {
+    label: "未経験 OK",
+    q: "未経験",
+    image:
+      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=800&q=70",
+    bg: "from-blue-500 to-blue-700",
+  },
+  {
+    label: "寮・社宅完備",
+    q: "寮",
+    image:
+      "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=70",
+    bg: "from-emerald-500 to-emerald-700",
+  },
+  {
+    label: "資格取得支援",
+    q: "資格",
+    image:
+      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=800&q=70",
+    bg: "from-amber-500 to-amber-700",
+  },
+  {
+    label: "週休 2 日",
+    q: "週休2日",
+    image:
+      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=800&q=70",
+    bg: "from-purple-500 to-purple-700",
+  },
+  {
+    label: "高収入",
+    q: "高収入",
+    image:
+      "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=800&q=70",
+    bg: "from-rose-500 to-rose-700",
+  },
+  {
+    label: "若手活躍中",
+    q: "若手",
+    image:
+      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=70",
+    bg: "from-cyan-600 to-cyan-800",
+  },
 ]
 
 export default async function HomePage() {
@@ -400,20 +450,28 @@ export default async function HomePage() {
             <Link
               key={b.label}
               href={`/jobs?q=${encodeURIComponent(b.query)}`}
-              className={`press group relative block overflow-hidden bg-gradient-to-br ${b.bg} text-white shadow-sm hover:shadow-md transition`}
+              className="press group relative block overflow-hidden bg-ink-900 shadow-sm hover:shadow-md transition"
             >
-              <div className="relative aspect-[16/9] flex flex-col justify-end p-4">
-                {/* 軽い装飾 (右上に円のグラデ) */}
+              <div className={`relative aspect-[16/9] bg-gradient-to-br ${b.bg}`}>
+                <Image
+                  src={b.image}
+                  alt=""
+                  fill
+                  sizes="(max-width: 640px) 50vw, 33vw"
+                  className="object-cover opacity-75 group-hover:opacity-85 group-hover:scale-[1.03] transition duration-300"
+                />
                 <div
                   aria-hidden
-                  className="absolute -top-8 -right-8 h-32 w-32 bg-white/10 rounded-full blur-xl group-hover:bg-white/20 transition"
+                  className="absolute inset-0 bg-gradient-to-t from-ink-900/90 via-ink-900/40 to-transparent"
                 />
-                <p className="relative text-base sm:text-lg font-extrabold leading-tight drop-shadow">
-                  {b.label}
-                </p>
-                <p className="relative mt-1 text-xs text-white/90 leading-snug drop-shadow">
-                  {b.desc}
-                </p>
+                <div className="absolute inset-x-0 bottom-0 p-4">
+                  <p className="text-base sm:text-lg font-extrabold text-white leading-tight drop-shadow">
+                    {b.label}
+                  </p>
+                  <p className="mt-1 text-xs text-white/85 leading-snug drop-shadow">
+                    {b.desc}
+                  </p>
+                </div>
               </div>
             </Link>
           ))}
@@ -477,22 +535,36 @@ export default async function HomePage() {
           </div>
       </section>
 
-      {/* === 働き方から探す（マイナビ「働き方から探す」相当）================== */}
+      {/* === 働き方から探す ================================================== */}
       <section className="card-elevated p-5 sm:p-6 bg-white">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-5 section-bar">
           働き方から探す
         </h2>
-        <div className="grid grid-cols-3 gap-2">
-          {WORK_STYLES.map(({ icon: Icon, label, q, color }) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {WORK_STYLES.map(({ label, q, image, bg }) => (
             <Link
               key={q}
               href={`/jobs?q=${encodeURIComponent(q)}`}
-              className="press card flex flex-col items-center gap-2 p-4 text-center"
+              className="press group relative block overflow-hidden bg-ink-900 shadow-sm hover:shadow-md transition"
             >
-              <span className={`inline-flex h-10 w-10 items-center justify-center ${color}`}>
-                <Icon className="h-5 w-5" />
-              </span>
-              <span className="text-xs font-bold text-gray-700 leading-tight">{label}</span>
+              <div className={`relative aspect-[16/9] bg-gradient-to-br ${bg}`}>
+                <Image
+                  src={image}
+                  alt=""
+                  fill
+                  sizes="(max-width: 640px) 50vw, 33vw"
+                  className="object-cover opacity-75 group-hover:opacity-85 group-hover:scale-[1.03] transition duration-300"
+                />
+                <div
+                  aria-hidden
+                  className="absolute inset-0 bg-gradient-to-t from-ink-900/85 via-ink-900/30 to-transparent"
+                />
+                <div className="absolute inset-x-0 bottom-0 p-3">
+                  <p className="text-sm sm:text-base font-extrabold text-white leading-tight drop-shadow">
+                    {label}
+                  </p>
+                </div>
+              </div>
             </Link>
           ))}
         </div>
@@ -642,8 +714,9 @@ export default async function HomePage() {
 
           </main>
 
-          {/* === サイドバー (PC のみ、SP は main の下に重ねる) ================ */}
-          <div className="lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+          {/* === サイドバー (PC のみ、SP は main の下に重ねる) ================
+              下に余白があるのに動かせるのは不自然なので sticky / scroll は付けない */}
+          <div>
             <HomeSidebar
               featuredJobs={diversifiedRecommendedJobs}
               interviewArticles={interviewArticles}
