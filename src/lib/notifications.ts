@@ -41,7 +41,9 @@ export async function createNotification(input: {
   type: NotificationType
   title: string
   body?: string | null
+  items?: string[]
   linkUrl?: string | null
+  linkLabel?: string
   refId?: string | null
 }): Promise<void> {
   try {
@@ -59,12 +61,15 @@ export async function createNotification(input: {
     console.warn(`[notifications] create failed: ${e instanceof Error ? e.message : e}`)
   }
 
-  // LINE Push: 紐付け済みユーザーへリアルタイム配信
+  // LINE Push: 紐付け済みユーザーへリアルタイム配信（Flex Message + テキスト fallback）
   pushUserNotification({
     userId: input.userId,
     title: input.title,
     body: input.body,
+    items: input.items,
     linkUrl: input.linkUrl,
+    linkLabel: input.linkLabel,
+    kind: input.type,
   }).catch((e) => {
     console.warn(
       `[notifications] line push failed: ${e instanceof Error ? e.message : e}`

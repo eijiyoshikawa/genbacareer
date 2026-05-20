@@ -54,10 +54,6 @@ export async function POST(request: Request) {
         continue
       }
 
-      const sample = matches.slice(0, 3)
-      const titleBody = sample.map((m) => `・${m.title}`).join("\n")
-      const moreText = matches.length > 3 ? `\n... 他 ${matches.length - 3} 件` : ""
-
       const qs = toSearchQueryString(s)
       const link = qs ? `/jobs?${qs}` : "/jobs"
 
@@ -65,8 +61,10 @@ export async function POST(request: Request) {
         userId: s.userId,
         type: "system",
         title: `🆕 「${s.name}」に新着求人 ${matches.length} 件`,
-        body: `条件: ${formatSearchLabel(s)}\n\n${titleBody}${moreText}`,
+        body: `条件: ${formatSearchLabel(s)}`,
+        items: matches.map((m) => m.title),
         linkUrl: link,
+        linkLabel: "新着求人を見る",
         refId: s.id,
       })
 
