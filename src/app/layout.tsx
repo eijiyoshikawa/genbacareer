@@ -148,6 +148,13 @@ export default async function RootLayout({
             初回ロードで 100〜300ms 早く到達する（視覚品質は変わらない） */}
         <link rel="preconnect" href="https://images.unsplash.com" />
         <link rel="dns-prefetch" href="https://images.unsplash.com" />
+        {/* RSS フィード自動検出 — Feedly / NetNewsWire 等の購読アプリで認識される */}
+        <link
+          rel="alternate"
+          type="application/rss+xml"
+          title="ゲンバキャリア マガジン (RSS)"
+          href="/journal/rss.xml"
+        />
       </head>
       <body className="min-h-full flex flex-col font-sans bg-background text-foreground">
         <GoogleAnalytics />
