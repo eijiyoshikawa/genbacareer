@@ -24,6 +24,7 @@ interface ProfileFormData {
   desiredCategories: string[]
   desiredSalaryMin: string
   profilePublic: boolean
+  resumeUrl: string | null
 }
 
 export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
@@ -32,6 +33,36 @@ export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [resumeUploading, setResumeUploading] = useState(false)
+
+  async function uploadResume(file: File) {
+    setError("")
+    setResumeUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await fetch("/api/users/me/resume", {
+        method: "POST",
+        body: fd,
+      })
+      const data = (await res.json().catch(() => null)) as
+        | { resumeUrl?: string; error?: string }
+        | null
+      if (!res.ok) {
+        setError(data?.error ?? "アップロードに失敗しました")
+        return
+      }
+      setForm((f) => ({ ...f, resumeUrl: data?.resumeUrl ?? null }))
+    } finally {
+      setResumeUploading(false)
+    }
+  }
+
+  async function deleteResume() {
+    if (!confirm("履歴書を削除しますか？")) return
+    const res = await fetch("/api/users/me/resume", { method: "DELETE" })
+    if (res.ok) setForm((f) => ({ ...f, resumeUrl: null }))
+  }
 
   function toggleCategory(value: string) {
     setForm((prev) => ({
@@ -211,6 +242,44 @@ export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
             placeholder="200000"
           />
         </div>
+      </div>
+
+      <div className="rounded-lg border bg-white p-6 shadow-sm space-y-3">
+        <h2 className="text-lg font-semibold text-gray-900">履歴書</h2>
+        {form.resumeUrl ? (
+          <div className="flex items-center gap-3 text-sm">
+            <a
+              href={form.resumeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline"
+            >
+              アップロード済みの履歴書を開く
+            </a>
+            <button
+              type="button"
+              onClick={deleteResume}
+              className="text-red-600 hover:text-red-700"
+            >
+              削除
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">まだアップロードされていません</p>
+        )}
+        <input
+          type="file"
+          accept="application/pdf,image/jpeg,image/png"
+          disabled={resumeUploading}
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) uploadResume(file)
+          }}
+          className="block text-sm"
+        />
+        <p className="text-xs text-gray-500">
+          PDF / JPEG / PNG (最大 5MB)
+        </p>
       </div>
 
       <div className="rounded-lg border bg-white p-6 shadow-sm">

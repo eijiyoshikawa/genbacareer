@@ -37,6 +37,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "yearly",
       priority: 0.3,
     },
+    {
+      url: `${BASE_URL}/legal/tokushoho`,
+      lastModified: new Date(),
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+    {
+      url: `${BASE_URL}/contact`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.4,
+    },
   ]
 
   // Active job detail pages
@@ -55,15 +67,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Prefecture x category SEO landing pages
   const seoPages = await prisma.seoPage.findMany({
-    select: { prefecture: true, category: true, updatedAt: true },
+    select: { slug: true, prefecture: true, category: true, updatedAt: true },
   })
 
-  const seoCombos: MetadataRoute.Sitemap = seoPages.map((page) => ({
-    url: `${BASE_URL}/${page.prefecture}/${page.category}`,
-    lastModified: page.updatedAt,
-    changeFrequency: "daily" as const,
-    priority: 0.8,
-  }))
+  const seoCombos: MetadataRoute.Sitemap = seoPages.flatMap((page) => [
+    {
+      url: `${BASE_URL}/${page.prefecture}/${page.category}`,
+      lastModified: page.updatedAt,
+      changeFrequency: "daily" as const,
+      priority: 0.8,
+    },
+    {
+      url: `${BASE_URL}/lp/${page.slug}`,
+      lastModified: page.updatedAt,
+      changeFrequency: "daily" as const,
+      priority: 0.8,
+    },
+  ])
 
   return [...staticPages, ...jobPages, ...seoCombos]
 }

@@ -24,6 +24,7 @@ export default async function ProfilePage() {
       desiredCategories: true,
       desiredSalaryMin: true,
       profilePublic: true,
+      resumeUrl: true,
     },
   })
 
@@ -45,6 +46,7 @@ export default async function ProfilePage() {
             desiredCategories: user.desiredCategories,
             desiredSalaryMin: user.desiredSalaryMin?.toString() ?? "",
             profilePublic: user.profilePublic,
+            resumeUrl: user.resumeUrl,
           }}
         />
       </div>
