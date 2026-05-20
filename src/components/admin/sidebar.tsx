@@ -22,6 +22,7 @@ import {
   Sparkles,
   Ban,
   MessageSquare,
+  RefreshCw,
 } from "lucide-react"
 
 const navItems = [
@@ -43,6 +44,7 @@ const navItems = [
   { href: "/admin/billing", label: "課金管理", icon: CreditCard },
   { href: "/admin/audit-log", label: "監査ログ", icon: History },
   { href: "/admin/crawler", label: "クローラー", icon: Bot },
+  { href: "/admin/crawler-sync", label: "同期 / 重複マージ", icon: RefreshCw },
 ]
 
 export function AdminSidebar({ userName }: { userName: string }) {
