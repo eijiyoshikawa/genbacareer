@@ -8,6 +8,7 @@ import { JobCard } from "@/components/jobs/job-card"
 import { CompanyFollowButton } from "@/components/companies/follow-button"
 import { CompanyGbizSection } from "@/components/companies/gbiz-section"
 import { ReportButton } from "@/components/reports/report-button"
+import { generateLocalBusinessSchema } from "@/lib/structured-data"
 import { CompanyBlockButton } from "@/components/companies/block-button"
 import { CompanyReviewForm } from "@/components/companies/review-form"
 import { isValidUuid } from "@/lib/uuid"
@@ -256,33 +257,28 @@ export default async function CompanyDetailPage({ params }: Props) {
     ],
   }
 
-  const orgSchema = {
-    "@context": "https://schema.org",
-    "@type": "Organization",
+  // LocalBusiness 構造化データを優先 (Organization より「地域の建設会社」検索に強い)
+  const sameAsLinks = [
+    company.websiteUrl,
+    company.instagramUrl,
+    company.tiktokUrl,
+    company.facebookUrl,
+    company.xUrl,
+    company.youtubeUrl,
+  ].filter((u): u is string => !!u)
+
+  const orgSchema = generateLocalBusinessSchema({
+    id: company.id,
     name: company.name,
-    ...(company.description ? { description: company.description } : {}),
-    ...(company.logoUrl ? { logo: company.logoUrl } : {}),
-    ...(company.websiteUrl ? { url: company.websiteUrl } : {}),
-    ...(company.address || company.prefecture
-      ? {
-          address: {
-            "@type": "PostalAddress",
-            addressCountry: "JP",
-            ...(company.prefecture ? { addressRegion: company.prefecture } : {}),
-            ...(company.city ? { addressLocality: company.city } : {}),
-            ...(company.address ? { streetAddress: company.address } : {}),
-          },
-        }
-      : {}),
-    sameAs: [
-      company.websiteUrl,
-      company.instagramUrl,
-      company.tiktokUrl,
-      company.facebookUrl,
-      company.xUrl,
-      company.youtubeUrl,
-    ].filter(Boolean),
-  }
+    description: company.description ?? null,
+    logoUrl: company.logoUrl ?? null,
+    websiteUrl: company.websiteUrl ?? null,
+    industry: company.industry ?? null,
+    prefecture: company.prefecture ?? null,
+    city: company.city ?? null,
+    address: company.address ?? null,
+    sameAs: sameAsLinks,
+  })
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
