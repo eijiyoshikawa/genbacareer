@@ -7,6 +7,7 @@
 
 import { prisma } from "@/lib/db"
 import { pushUserNotification } from "@/lib/line-push-notifier"
+import { parsePrefs, isInQuietHours } from "@/lib/notification-prefs"
 
 export type NotificationType =
   | "application_status"
@@ -46,6 +47,7 @@ export async function createNotification(input: {
   linkLabel?: string
   refId?: string | null
 }): Promise<void> {
+  // inbox 行は通知設定に関わらず常に作成 (ユーザーが履歴を後から見られるように)
   try {
     await prisma.notification.create({
       data: {
@@ -61,20 +63,34 @@ export async function createNotification(input: {
     console.warn(`[notifications] create failed: ${e instanceof Error ? e.message : e}`)
   }
 
-  // LINE Push: 紐付け済みユーザーへリアルタイム配信（Flex Message + テキスト fallback）
-  pushUserNotification({
-    userId: input.userId,
-    title: input.title,
-    body: input.body,
-    items: input.items,
-    linkUrl: input.linkUrl,
-    linkLabel: input.linkLabel,
-    kind: input.type,
-  }).catch((e) => {
-    console.warn(
-      `[notifications] line push failed: ${e instanceof Error ? e.message : e}`
-    )
-  })
+  // 3.4 ユーザーの通知設定を取得
+  const user = await prisma.user
+    .findUnique({
+      where: { id: input.userId },
+      select: { notificationPrefs: true },
+    })
+    .catch(() => null)
+  const prefs = parsePrefs(user?.notificationPrefs)
+
+  // 静音時間帯ならプッシュ系をスキップ (inbox には残る)
+  if (isInQuietHours(prefs)) return
+
+  // 即時配信のみ LINE Push 発火 (daily/weekly は cron でバッチ送信、未実装)
+  if (prefs.frequency === "immediate" && prefs.lineEnabled) {
+    pushUserNotification({
+      userId: input.userId,
+      title: input.title,
+      body: input.body,
+      items: input.items,
+      linkUrl: input.linkUrl,
+      linkLabel: input.linkLabel,
+      kind: input.type,
+    }).catch((e) => {
+      console.warn(
+        `[notifications] line push failed: ${e instanceof Error ? e.message : e}`
+      )
+    })
+  }
 }
 
 /**

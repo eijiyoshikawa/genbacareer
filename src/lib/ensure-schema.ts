@@ -12,6 +12,9 @@ const STATEMENTS: ReadonlyArray<string> = [
  `ALTER TABLE "users"
    ADD COLUMN IF NOT EXISTS "blocked_company_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
    ADD COLUMN IF NOT EXISTS "blocked_keywords" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`,
+ // User 通知頻度・時間帯設定 (3.4)
+ `ALTER TABLE "users"
+   ADD COLUMN IF NOT EXISTS "notification_prefs" JSONB NOT NULL DEFAULT '{}'::jsonb`,
  // Company リッチコンテンツ + SNS
  `ALTER TABLE "companies"
  ADD COLUMN IF NOT EXISTS "tagline" VARCHAR(200),

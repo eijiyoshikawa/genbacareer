@@ -3,6 +3,7 @@ import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { JOB_SEARCH_STATUSES } from "@/lib/job-search-status"
+import { parsePrefs } from "@/lib/notification-prefs"
 
 const JOB_SEARCH_STATUS_VALUES = JOB_SEARCH_STATUSES.map((s) => s.value) as [
   string,
@@ -21,6 +22,16 @@ const updateProfileSchema = z.object({
   jobSearchStatus: z.enum(JOB_SEARCH_STATUS_VALUES).optional(),
   blockedCompanyIds: z.array(z.string().uuid()).max(200).optional(),
   blockedKeywords: z.array(z.string().min(1).max(50)).max(50).optional(),
+  notificationPrefs: z
+    .object({
+      emailEnabled: z.boolean().optional(),
+      lineEnabled: z.boolean().optional(),
+      pushEnabled: z.boolean().optional(),
+      frequency: z.enum(["immediate", "daily", "weekly"]).optional(),
+      quietHoursStart: z.number().int().min(0).max(23).nullable().optional(),
+      quietHoursEnd: z.number().int().min(0).max(23).nullable().optional(),
+    })
+    .optional(),
 })
 
 export async function GET() {
@@ -108,6 +119,13 @@ export async function PUT(request: NextRequest) {
       ...(data.blockedKeywords !== undefined
         ? { blockedKeywords: data.blockedKeywords }
         : {}),
+      ...(data.notificationPrefs !== undefined
+        ? {
+            notificationPrefs: parsePrefs(
+              data.notificationPrefs
+            ) as unknown as object,
+          }
+        : {}),
     },
     select: {
       id: true,
@@ -123,6 +141,7 @@ export async function PUT(request: NextRequest) {
       jobSearchStatus: true,
       blockedCompanyIds: true,
       blockedKeywords: true,
+      notificationPrefs: true,
     },
   })
 
