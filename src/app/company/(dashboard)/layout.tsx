@@ -20,25 +20,29 @@ export default async function CompanyLayout({
     redirect("/login")
   }
 
-  // 直接発行された企業ユーザーは初回 PW 変更を完了するまでダッシュボードに入れない
   const userId = (session.user as { id?: string }).id
-  if (userId) {
-    const cu = await prisma.companyUser.findUnique({
-      where: { id: userId },
-      select: { mustChangePassword: true },
-    })
-    if (cu?.mustChangePassword) {
-      redirect("/company/change-password")
-    }
-  }
-
   const companyId = (session.user as { companyId?: string }).companyId ?? ""
-  const company = companyId
-    ? await prisma.company.findUnique({
-        where: { id: companyId },
-        select: { status: true, rejectionReason: true },
-      })
-    : null
+
+  // PW 変更必須チェックと企業ステータス取得を並列実行
+  const [cu, company] = await Promise.all([
+    userId
+      ? prisma.companyUser.findUnique({
+          where: { id: userId },
+          select: { mustChangePassword: true },
+        })
+      : Promise.resolve(null),
+    companyId
+      ? prisma.company.findUnique({
+          where: { id: companyId },
+          select: { status: true, rejectionReason: true },
+        })
+      : Promise.resolve(null),
+  ])
+
+  // 直接発行された企業ユーザーは初回 PW 変更を完了するまでダッシュボードに入れない
+  if (cu?.mustChangePassword) {
+    redirect("/company/change-password")
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">

@@ -179,14 +179,42 @@ export default async function JobsPage({ searchParams }: Props) {
     }
   }
 
+  // 一覧表示用の最小カラムのみ select。Job.description (長文) や
+  // company.gbizData (大きな JSON) など重いカラムは取得しない。
+  const jobListSelect = {
+    id: true,
+    title: true,
+    category: true,
+    employmentType: true,
+    salaryMin: true,
+    salaryMax: true,
+    salaryType: true,
+    prefecture: true,
+    city: true,
+    source: true,
+    tags: true,
+    annualHolidays: true,
+    insurance: true,
+    companyId: true,
+    publishedAt: true,
+    company: {
+      select: {
+        id: true,
+        name: true,
+        logoUrl: true,
+        // gbizData は keys だけで容量大きいので一覧では取らない。
+        // バッジ表示はカテゴリ判定 (computeHasConstructionPermit)
+        // で必要だが、一覧では割愛し、詳細ページで表示する方針。
+      },
+    },
+  } as const
+
   const [jobs, total] = await Promise.all([
     fuzzyIds
       ? prisma.job
           .findMany({
             where: { id: { in: fuzzyIds } },
-            include: {
-              company: { select: { id: true, name: true, logoUrl: true, gbizData: true } },
-            },
+            select: jobListSelect,
           })
           // fuzzy で返ってきた id 順を維持
           .then((rows) => {
@@ -203,9 +231,7 @@ export default async function JobsPage({ searchParams }: Props) {
           orderBy,
           skip: (page - 1) * limit,
           take: limit,
-          include: {
-            company: { select: { id: true, name: true, logoUrl: true, gbizData: true } },
-          },
+          select: jobListSelect,
         }),
     fuzzyIds
       ? Promise.resolve(fuzzyIds.length)
