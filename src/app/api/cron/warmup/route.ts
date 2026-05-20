@@ -19,9 +19,14 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  // NEXT_PUBLIC_BASE_URL は canonical 用に apex (genbacareer.jp) を指している
+  // ことが多いが、cron が apex を叩くと 301 で www に転送される 1 hop が無駄。
+  // ここでは canonical の www を直接叩く。preview 等で別ホストに向けたい場合は
+  // WARMUP_BASE_URL を上書きで設定する。
   const baseUrl =
-    process.env.NEXT_PUBLIC_BASE_URL ??
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    process.env.WARMUP_BASE_URL ??
+    (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production" &&
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
       ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
       : "https://www.genbacareer.jp")
 
