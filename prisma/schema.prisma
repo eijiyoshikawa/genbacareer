@@ -11,26 +11,33 @@ datasource db {
 // 求職者
 // ========================================
 model User {
-  id                String    @id @default(uuid()) @db.Uuid
-  email             String    @unique @db.VarChar(255)
-  passwordHash      String?   @map("password_hash") @db.VarChar(255)
-  name              String?   @db.VarChar(100)
-  phone             String?   @db.VarChar(20)
-  prefecture        String?   @db.VarChar(10)
-  city              String?   @db.VarChar(50)
-  birthDate         DateTime? @map("birth_date") @db.Date
-  desiredCategories String[]  @default([]) @map("desired_categories")
-  desiredSalaryMin  Int?      @map("desired_salary_min")
-  resumeUrl         String?   @map("resume_url") @db.VarChar(500)
-  profilePublic     Boolean   @default(false) @map("profile_public")
-  authProvider      String    @default("email") @map("auth_provider") @db.VarChar(20)
-  resetToken        String?   @unique @map("reset_token") @db.VarChar(64)
-  resetTokenExpiry  DateTime? @map("reset_token_expiry") @db.Timestamptz()
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  id                     String    @id @default(uuid()) @db.Uuid
+  email                  String    @unique @db.VarChar(255)
+  passwordHash           String?   @map("password_hash") @db.VarChar(255)
+  name                   String?   @db.VarChar(100)
+  phone                  String?   @db.VarChar(20)
+  prefecture             String?   @db.VarChar(10)
+  city                   String?   @db.VarChar(50)
+  birthDate              DateTime? @map("birth_date") @db.Date
+  desiredCategories      String[]  @default([]) @map("desired_categories")
+  desiredSalaryMin       Int?      @map("desired_salary_min")
+  resumeUrl              String?   @map("resume_url") @db.VarChar(500)
+  profilePublic          Boolean   @default(false) @map("profile_public")
+  authProvider           String    @default("email") @map("auth_provider") @db.VarChar(20)
+  resetToken             String?   @unique @map("reset_token") @db.VarChar(64)
+  resetTokenExpiry       DateTime? @map("reset_token_expiry") @db.Timestamptz()
+  emailVerifiedAt        DateTime? @map("email_verified_at") @db.Timestamptz()
+  emailVerifyToken       String?   @unique @map("email_verify_token") @db.VarChar(64)
+  emailVerifyTokenExpiry DateTime? @map("email_verify_token_expiry") @db.Timestamptz()
+  deletedAt              DateTime? @map("deleted_at") @db.Timestamptz()
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
-  applications Application[]
-  scouts       Scout[]
+  applications  Application[]
+  scouts        Scout[]
+  favorites     Favorite[]
+  savedSearches SavedSearch[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -39,19 +46,21 @@ model User {
 // 掲載企業
 // ========================================
 model Company {
-  id               String   @id @default(uuid()) @db.Uuid
-  name             String   @db.VarChar(200)
-  industry         String?  @db.VarChar(100)
-  prefecture       String?  @db.VarChar(10)
-  city             String?  @db.VarChar(50)
+  id               String    @id @default(uuid()) @db.Uuid
+  name             String    @db.VarChar(200)
+  industry         String?   @db.VarChar(100)
+  prefecture       String?   @db.VarChar(10)
+  city             String?   @db.VarChar(50)
   address          String?
-  employeeCount    String?  @map("employee_count") @db.VarChar(50)
+  employeeCount    String?   @map("employee_count") @db.VarChar(50)
   description      String?
-  logoUrl          String?  @map("logo_url") @db.VarChar(500)
-  websiteUrl       String?  @map("website_url") @db.VarChar(500)
-  contactEmail     String?  @map("contact_email") @db.VarChar(255)
-  stripeCustomerId String?  @map("stripe_customer_id") @db.VarChar(100)
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  logoUrl          String?   @map("logo_url") @db.VarChar(500)
+  websiteUrl       String?   @map("website_url") @db.VarChar(500)
+  contactEmail     String?   @map("contact_email") @db.VarChar(255)
+  stripeCustomerId String?   @map("stripe_customer_id") @db.VarChar(100)
+  approvedAt       DateTime? @map("approved_at") @db.Timestamptz()
+  suspendedAt      DateTime? @map("suspended_at") @db.Timestamptz()
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
   companyUsers  CompanyUser[]
   jobs          Job[]
@@ -101,7 +110,8 @@ model Job {
   address        String?
   benefits       String[]  @default([])
   tags           String[]  @default([])
-  status         String    @default("active") @db.VarChar(20) // draft | active | closed
+  status         String    @default("active") @db.VarChar(20) // draft | active | closed | suspended
+  moderationNote String?   @map("moderation_note")
   publishedAt    DateTime? @map("published_at") @db.Timestamptz()
   expiresAt      DateTime? @map("expires_at") @db.Timestamptz()
   viewCount      Int       @default(0) @map("view_count")
@@ -111,10 +121,12 @@ model Job {
   company      Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
   applications Application[]
   scouts       Scout[]
+  favorites    Favorite[]
 
   @@index([prefecture, category, employmentType, status], name: "idx_jobs_search")
   @@index([salaryMin, salaryMax], name: "idx_jobs_salary")
   @@index([status, publishedAt(sort: Desc)], name: "idx_jobs_status_published")
+  @@index([status, expiresAt], name: "idx_jobs_status_expires")
   @@map("jobs")
 }
 
@@ -122,19 +134,21 @@ model Job {
 // 応募
 // ========================================
 model Application {
-  id        String   @id @default(uuid()) @db.Uuid
-  jobId     String   @map("job_id") @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  companyId String?  @map("company_id") @db.Uuid
-  status    String   @default("applied") @db.VarChar(20) // applied | reviewing | interview | offered | hired | rejected
-  message   String?
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  id          String    @id @default(uuid()) @db.Uuid
+  jobId       String    @map("job_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  companyId   String?   @map("company_id") @db.Uuid
+  status      String    @default("applied") @db.VarChar(20) // applied | reviewing | interview | offered | hired | rejected | withdrawn
+  message     String?
+  withdrawnAt DateTime? @map("withdrawn_at") @db.Timestamptz()
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
-  job          Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company      Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  job          Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company      Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
   billingEvent BillingEvent?
+  messages     ApplicationMessage[]
 
   @@unique([jobId, userId])
   @@map("applications")
@@ -144,14 +158,16 @@ model Application {
 // スカウト
 // ========================================
 model Scout {
-  id        String    @id @default(uuid()) @db.Uuid
-  companyId String    @map("company_id") @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  jobId     String?   @map("job_id") @db.Uuid
-  message   String?
-  status    String    @default("sent") @db.VarChar(20) // sent | read | replied | declined
-  sentAt    DateTime  @default(now()) @map("sent_at") @db.Timestamptz()
-  readAt    DateTime? @map("read_at") @db.Timestamptz()
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  jobId       String?   @map("job_id") @db.Uuid
+  message     String?
+  status      String    @default("sent") @db.VarChar(20) // sent | read | replied | declined
+  replyMessage String?  @map("reply_message")
+  sentAt      DateTime  @default(now()) @map("sent_at") @db.Timestamptz()
+  readAt      DateTime? @map("read_at") @db.Timestamptz()
+  respondedAt DateTime? @map("responded_at") @db.Timestamptz()
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -195,4 +211,95 @@ model SeoPage {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
   @@map("seo_pages")
+}
+
+// ========================================
+// お気に入り（保存求人）
+// ========================================
+model Favorite {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  jobId     String   @map("job_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("favorites")
+}
+
+// ========================================
+// 保存した検索条件（求人アラート）
+// ========================================
+model SavedSearch {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  name          String    @db.VarChar(100)
+  prefecture    String?   @db.VarChar(10)
+  category      String?   @db.VarChar(50)
+  employmentType String?  @map("employment_type") @db.VarChar(20)
+  salaryMin     Int?      @map("salary_min")
+  keyword       String?   @db.VarChar(200)
+  alertEnabled  Boolean   @default(true) @map("alert_enabled")
+  lastNotifiedAt DateTime? @map("last_notified_at") @db.Timestamptz()
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("saved_searches")
+}
+
+// ========================================
+// アプリ内通知
+// ========================================
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  kind      String    @db.VarChar(50) // application_status | scout | saved_search_match | system
+  title     String    @db.VarChar(200)
+  body      String?
+  linkUrl   String?   @map("link_url") @db.VarChar(500)
+  readAt    DateTime? @map("read_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+// ========================================
+// お問い合わせ
+// ========================================
+model ContactMessage {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @db.VarChar(100)
+  email     String    @db.VarChar(255)
+  category  String    @db.VarChar(50) // general | job_posting | account | bug | other
+  body      String
+  handledAt DateTime? @map("handled_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([handledAt, createdAt(sort: Desc)])
+  @@map("contact_messages")
+}
+
+// ========================================
+// 応募スレッドメッセージ
+// ========================================
+model ApplicationMessage {
+  id            String   @id @default(uuid()) @db.Uuid
+  applicationId String   @map("application_id") @db.Uuid
+  senderKind    String   @map("sender_kind") @db.VarChar(20) // seeker | company | system
+  senderId      String?  @map("sender_id") @db.Uuid
+  body          String
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, createdAt])
+  @@map("application_messages")
 }
