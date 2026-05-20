@@ -489,6 +489,8 @@ model Application {
   // 14.5 オンライン面接 URL (Zoom / Google Meet 等)。
   // 既存の interviewVenue とは別に持ち、企業ダッシュボードで明示的に管理。
   interviewUrl   String? @map("interview_url") @db.VarChar(500)
+  // 14.4 Google Calendar 連携で作成したイベント ID。null = 未連携 / 削除済み
+  googleCalendarEventId String? @map("google_calendar_event_id") @db.VarChar(200)
   // ステータス遷移履歴（{ from, to, at, by, note }[]）
   statusHistory Json @default("[]") @map("status_history")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
@@ -927,6 +929,26 @@ model HiringBonus {
   @@index([status, createdAt(sort: Desc)], name: "idx_hiring_bonuses_status")
   @@index([userId, createdAt(sort: Desc)], name: "idx_hiring_bonuses_user")
   @@map("hiring_bonuses")
+}
+
+// ========================================
+// Google Calendar 連携 (14.4)
+// ========================================
+/// 企業ごとに 1 件。OAuth で取得したリフレッシュトークン等を保管。
+/// 面接日時 (Application.interviewAt) の保存時に該当企業の Google Calendar にイベントを作成/更新/削除する。
+model CompanyCalendarOauth {
+  id             String   @id @default(uuid()) @db.Uuid
+  companyId      String   @unique @map("company_id") @db.Uuid
+  email          String   @db.VarChar(255) // 連携先 Google アカウント
+  refreshToken   String   @map("refresh_token")
+  accessToken    String?  @map("access_token")
+  tokenExpiresAt DateTime? @map("token_expires_at") @db.Timestamptz()
+  scope          String   @default("") @db.VarChar(500)
+  calendarId     String   @default("primary") @map("calendar_id") @db.VarChar(200)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("company_calendar_oauth")
 }
 
 // ========================================
