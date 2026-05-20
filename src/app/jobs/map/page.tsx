@@ -20,7 +20,12 @@ export const metadata: Metadata = {
     "全国の建設・ノンデスク求人を地図上で確認。都道府県ごとの掲載件数が一目で分かります。",
 }
 
-export const revalidate = 600 // 10 分 ISR
+// ビルド時 prerender をスキップ (P2024 回避)。
+// /jobs/feed / sitemap.ts と同じ理由: build phase で複数 worker が
+// connection_limit=1 環境で接続を奪い合い、prisma.job.groupBy が
+// 10s timeout で落ちるため。初回リクエスト時に動的生成 + 短時間キャッシュで運用。
+export const dynamic = "force-dynamic"
+export const revalidate = 600
 
 export default async function JobMapPage() {
   const rows = await prisma.job.groupBy({

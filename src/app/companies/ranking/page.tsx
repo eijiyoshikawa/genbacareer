@@ -19,7 +19,11 @@ export const metadata: Metadata = {
     "建設業界・ノンデスク産業の人気企業ランキング。求人数・フォロワー数・応募数から算出。",
 }
 
-// 6h ISR で十分（ランキングが秒単位で更新される必要なし）
+// ビルド時 prerender をスキップ (P2024 回避)。
+// /jobs/map / /jobs/feed / sitemap.ts と同じ build 時接続枯渇問題への対応。
+// 6h ISR は意図したキャッシュ運用 (ランキングが秒単位で更新される必要なし) なので
+// revalidate 自体は残すが、force-dynamic で build 時 prerender を抑止。
+export const dynamic = "force-dynamic"
 export const revalidate = 21600
 
 type SearchParams = Promise<{ industry?: string; pref?: string; tab?: string }>
