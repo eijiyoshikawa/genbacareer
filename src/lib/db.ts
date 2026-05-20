@@ -21,14 +21,16 @@ function buildDatabaseUrl(): string | undefined {
   const original = process.env.DATABASE_URL
   if (!original) return undefined
   let url = original
-  // connection_limit が未指定なら 1 を強制 (pgbouncer + Lambda 想定)
+  // Lambda 単位の connection_limit。
+  // 1 だと Promise.all で 5〜7 並列クエリのページが pool_timeout で詰まる。
+  // 3 にすれば各 Lambda が 3 接続まで持ち、並列度が上がる。
+  // Supabase pgbouncer Transaction mode の上限 (Free 60 / Pro 200) を
+  // 想定 Lambda 同時数 ~20 で割って安全側に。
   if (!/[?&]connection_limit=/.test(url)) {
     const sep = url.includes("?") ? "&" : "?"
-    url = `${url}${sep}connection_limit=1`
+    url = `${url}${sep}connection_limit=3`
   }
-  // pool_timeout が未指定なら 30 秒に伸ばす (デフォルト 10s は短すぎ)。
-  // connection_limit=1 環境では並列クエリが順番待ちで詰まりやすく、
-  // 10s では Promise.all(7 queries) でも P2024 になる事例があった。
+  // pool_timeout を 30 秒に伸ばす (デフォルト 10s は Promise.all で並列度高いと足りない)
   if (!/[?&]pool_timeout=/.test(url)) {
     const sep = url.includes("?") ? "&" : "?"
     url = `${url}${sep}pool_timeout=30`
