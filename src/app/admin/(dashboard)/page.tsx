@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Suspense } from "react"
 import { prisma } from "@/lib/db"
+import { approximateCount } from "@/lib/db-stats"
 import {
   Briefcase,
   Users,
@@ -146,12 +147,14 @@ async function UrgentAlertsSection() {
 async function SummaryStatsSection() {
   const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  // 大きいテーブルの「総数」は pg_class.reltuples で近似値を返す。
+  // 「ステータス別」「期間別」は WHERE に index が効くので prisma.count() のまま。
   const [
     activeJobs,
     pendingJobsQuality,
-    totalUsers,
+    totalUsersApprox,
     newUsers7d,
-    totalCompanies,
+    totalCompaniesApprox,
     pendingCompanies,
     billingSum30d,
   ] = await Promise.all([
@@ -159,11 +162,11 @@ async function SummaryStatsSection() {
     prisma.job
       .count({ where: { status: "draft", source: "direct" } })
       .catch(() => 0),
-    prisma.user.count().catch(() => 0),
+    approximateCount("users"),
     prisma.user
       .count({ where: { createdAt: { gte: since7d } } })
       .catch(() => 0),
-    prisma.company.count({ where: { source: "direct" } }).catch(() => 0),
+    approximateCount("companies"),
     prisma.company
       .count({ where: { source: "direct", status: "pending" } })
       .catch(() => 0),
@@ -195,14 +198,14 @@ async function SummaryStatsSection() {
           icon={<Users className="h-5 w-5 text-green-600" />}
           iconBg="bg-green-100"
           label="求職者"
-          value={totalUsers.toLocaleString()}
+          value={`約 ${totalUsersApprox.toLocaleString()}`}
           sub={`過去 7 日: +${newUsers7d}`}
         />
         <StatCard
           icon={<Building2 className="h-5 w-5 text-purple-600" />}
           iconBg="bg-purple-100"
           label="登録企業"
-          value={totalCompanies.toLocaleString()}
+          value={`約 ${totalCompaniesApprox.toLocaleString()}`}
           sub={
             pendingCompanies > 0
               ? `うち承認待ち ${pendingCompanies}`
@@ -227,9 +230,10 @@ async function SummaryStatsSection() {
 async function TrendsSection() {
   const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  const [totalApplications, newApplications7d, newApplications30d] =
+  // 累計は近似値で十分。期間別は index で速い
+  const [totalApplicationsApprox, newApplications7d, newApplications30d] =
     await Promise.all([
-      prisma.application.count().catch(() => 0),
+      approximateCount("applications"),
       prisma.application
         .count({ where: { createdAt: { gte: since7d } } })
         .catch(() => 0),
@@ -247,7 +251,7 @@ async function TrendsSection() {
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <TrendCell
           label="累計 応募数"
-          value={totalApplications.toLocaleString()}
+          value={`約 ${totalApplicationsApprox.toLocaleString()}`}
         />
         <TrendCell
           label="直近 30 日"

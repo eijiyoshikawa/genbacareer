@@ -88,6 +88,9 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   // 閲覧記録はクライアント beacon (<JobViewBeacon />) 経由で行う。
   // SSR 中に DB 書き込みを行わないことで、TTFB と将来の ISR 化を可能にする。
 
+  // include は Job 全カラム + Company の指定カラムを返す。Job 側は全カラム必要なので
+  // ここは include のまま (description / requirements など詳細ページで使う)。
+  // company は SNS や写真など重い JSON を含むがページで使うため取得は維持。
   const job = await prisma.job.findUnique({
     where: { id },
     include: {
