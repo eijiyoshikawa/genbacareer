@@ -236,7 +236,7 @@ export default function CompanyRegisterPage() {
           <div className="mt-6 text-center text-sm text-gray-500">
             すでにアカウントをお持ちの方は
             <Link
-              href="/login"
+              href="/company/login"
               className="ml-1 font-medium text-primary-600 hover:text-primary-500"
             >
               ログイン

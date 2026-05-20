@@ -120,6 +120,40 @@ body {
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
+/* === カード共通スタイル =========================================
+   角丸無し方針はキープしつつ、border を薄くして box-shadow 主体で
+   立体感を出す。素人感の出やすい「黒線で四角く囲む」見た目を回避。
+   既存の border bg-white から .card に置き換えると統一感が出る。 */
+.card {
+  background: #ffffff;
+  border: 1px solid rgba(229, 231, 235, 0.7); /* gray-200 を半透明化 */
+  box-shadow: 0 1px 2px rgba(15, 17, 21, 0.04), 0 1px 1px rgba(15, 17, 21, 0.03);
+  transition: border-color 150ms ease, box-shadow 200ms ease, transform 200ms ease;
+}
+.card:hover {
+  border-color: rgba(243, 117, 36, 0.4); /* primary-500/40 */
+  box-shadow: 0 6px 16px rgba(15, 17, 21, 0.08), 0 2px 4px rgba(15, 17, 21, 0.04);
+}
+.card-elevated {
+  background: #ffffff;
+  border: 1px solid rgba(229, 231, 235, 0.4);
+  box-shadow: 0 4px 12px rgba(15, 17, 21, 0.06), 0 2px 4px rgba(15, 17, 21, 0.04);
+  transition: border-color 150ms ease, box-shadow 200ms ease, transform 200ms ease;
+}
+.card-elevated:hover {
+  box-shadow: 0 8px 20px rgba(15, 17, 21, 0.10), 0 3px 6px rgba(15, 17, 21, 0.06);
+}
+/* 静かな区切り (border のみ、shadow なし) — 一覧の行など軽量な区切り用 */
+.card-flat {
+  background: #ffffff;
+  border: 1px solid rgba(229, 231, 235, 0.7);
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.card-flat:hover {
+  border-color: rgba(243, 117, 36, 0.4);
+  background-color: rgba(255, 247, 237, 0.5); /* primary-50/50 */
+}
+
 /* === ボタン共通プレスアニメーション ============================
    ネイティブ <button> 全てに自動適用。
    Link-as-button にも `.press` を付ければ同じ挙動。

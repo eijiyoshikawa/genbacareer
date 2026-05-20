@@ -1,20 +1,44 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Menu, X, Search, Newspaper, Building2 } from "lucide-react"
+import {
+  Menu,
+  X,
+  Search,
+  Newspaper,
+  Building2,
+  Map as MapIcon,
+  Sparkles,
+  MessageCircle,
+  Home,
+} from "lucide-react"
 import { LinkButton } from "@/components/ui/button"
+import { BrandLogo } from "./brand-logo"
 
 /**
- * モバイルメニュー専用の Client Component。
+ * モバイル用フルスクリーンメニュー。
  *
  * Header 本体を Server Component に保ち、開閉状態だけをこの薄い
  * Client コンポーネントに閉じ込めることで、全画面に乗る Hydration
  * コストを最小化する。
+ *
+ * 開いたときに body のスクロールをロックして、メニュー内スクロールが
+ * 背景ページにフォールスルーするのを防ぐ。
  */
 export function HeaderMobileMenu() {
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
+
+  // 開閉に応じて body スクロールをロック
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [open])
 
   return (
     <>
@@ -32,58 +56,119 @@ export function HeaderMobileMenu() {
       {open && (
         <div
           id="header-mobile-drawer"
-          className="md:hidden border-t border-gray-100 bg-white absolute inset-x-0 top-16 z-40"
+          className="md:hidden fixed inset-0 z-[60] bg-white overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
         >
-          <nav className="mx-auto max-w-7xl px-4 py-3 space-y-1">
-            <Link
+          {/* ヘッダー行 (閉じるボタン) */}
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3 shadow-sm">
+            <Link href="/" onClick={close} aria-label="ゲンバキャリア トップへ">
+              <BrandLogo />
+            </Link>
+            <button
+              type="button"
+              onClick={close}
+              className="flex h-11 w-11 items-center justify-center text-gray-700 hover:bg-gray-100"
+              aria-label="メニューを閉じる"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+
+          {/* メニュー本体 — タップターゲット大きめ */}
+          <nav className="px-4 py-6 space-y-2">
+            <MenuItem
+              href="/"
+              icon={<Home className="h-5 w-5 text-primary-500" />}
+              label="トップ"
+              onClick={close}
+            />
+            <MenuItem
               href="/jobs"
+              icon={<Search className="h-5 w-5 text-primary-500" />}
+              label="求人を探す"
               onClick={close}
-              className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-primary-50"
-            >
-              <Search className="h-4 w-4 text-primary-500" />
-              求人を探す
-            </Link>
-            <Link
+            />
+            <MenuItem
+              href="/jobs/feed"
+              icon={<Sparkles className="h-5 w-5 text-primary-500" />}
+              label="新着フィード"
+              onClick={close}
+            />
+            <MenuItem
+              href="/jobs/map"
+              icon={<MapIcon className="h-5 w-5 text-primary-500" />}
+              label="マップから探す"
+              onClick={close}
+            />
+            <MenuItem
               href="/journal"
+              icon={<Newspaper className="h-5 w-5 text-primary-500" />}
+              label="お役立ちマガジン"
               onClick={close}
-              className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-primary-50"
-            >
-              <Newspaper className="h-4 w-4 text-primary-500" />
-              マガジン
-            </Link>
-            <Link
+            />
+            <MenuItem
               href="/for-employers"
+              icon={<Building2 className="h-5 w-5 text-primary-500" />}
+              label="企業の方へ"
               onClick={close}
-              className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-primary-50"
-            >
-              <Building2 className="h-4 w-4 text-primary-500" />
-              企業の方
-            </Link>
-            <div className="border-t pt-3 mt-2 grid grid-cols-2 gap-2">
-              <LinkButton
-                href="/login"
-                variant="secondary"
-                size="lg"
-                fullWidth
-                onClick={close}
-                className="border-primary-600 text-primary-600 hover:bg-primary-50"
-              >
-                ログイン
-              </LinkButton>
+            />
+
+            <div className="pt-6 mt-4 border-t border-gray-100 space-y-3">
               <LinkButton
                 href="/register"
                 variant="primary"
                 size="lg"
                 fullWidth
                 onClick={close}
-                className="bg-primary-500 hover:bg-primary-600"
+                className="!h-14 !text-base bg-primary-500 hover:bg-primary-600 shadow-sm"
               >
-                無料で始める
+                <MessageCircle className="h-5 w-5" />
+                無料で会員登録
+              </LinkButton>
+              <LinkButton
+                href="/login"
+                variant="secondary"
+                size="lg"
+                fullWidth
+                onClick={close}
+                className="!h-14 !text-base border-primary-600 text-primary-700 hover:bg-primary-50"
+              >
+                ログイン
               </LinkButton>
             </div>
+
+            <p className="pt-6 text-center text-xs text-gray-400">
+              建設業界特化型 求人ポータル ゲンバキャリア
+            </p>
           </nav>
         </div>
       )}
     </>
+  )
+}
+
+function MenuItem({
+  href,
+  icon,
+  label,
+  onClick,
+}: {
+  href: string
+  icon: React.ReactNode
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className="press flex items-center gap-3 border border-gray-100 bg-white px-4 py-4 text-base font-bold text-gray-800 shadow-sm hover:border-primary-300 hover:bg-primary-50"
+    >
+      <span className="flex h-9 w-9 items-center justify-center bg-primary-50">
+        {icon}
+      </span>
+      <span className="flex-1">{label}</span>
+    </Link>
   )
 }

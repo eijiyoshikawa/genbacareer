@@ -421,31 +421,35 @@ export default async function HomePage() {
               <Link
                 key={key}
                 href={`/jobs?category=${key}`}
-                className="press group accent-t border border-gray-200 overflow-hidden bg-white hover:border-primary-400 hover:shadow-md transition"
+                className="press group relative block overflow-hidden bg-ink-900 shadow-sm hover:shadow-md transition"
               >
-                {/* 画像読み込み中 / 失敗時のフォールバックとして色グラデを下に敷く */}
-                <div className={`relative h-24 sm:h-28 bg-gradient-to-br ${bg}`}>
+                {/* フォールバック用色グラデ + 写真を重ねる */}
+                <div className={`relative aspect-[4/3] sm:aspect-[16/11] bg-gradient-to-br ${bg}`}>
                   <Image
                     src={image}
                     alt=""
                     fill
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                    className="object-cover"
+                    className="object-cover opacity-75 group-hover:opacity-85 group-hover:scale-[1.03] transition duration-300"
                   />
-                  {/* テキストとの視覚的な切り替え用に微かな暗いグラデーション */}
+                  {/* テキスト可読性のための暗グラデ (注目特集と統一) */}
                   <div
                     aria-hidden
-                    className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"
+                    className="absolute inset-0 bg-gradient-to-t from-ink-900/95 via-ink-900/40 to-transparent"
                   />
-                </div>
-                <div className="p-3">
-                  <p className="text-sm font-bold text-gray-900 group-hover:text-primary-600">
-                    {label}
-                  </p>
-                  <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">{sub}</p>
-                  <p className="mt-2 text-xs font-extrabold text-primary-600">
+                  {/* 件数バッジ (右上) */}
+                  <span className="absolute top-2 right-2 inline-flex items-center bg-brand-yellow-500 text-ink-900 px-2 py-0.5 text-[11px] font-extrabold tracking-wide">
                     {count.toLocaleString()} 件
-                  </p>
+                  </span>
+                  {/* 写真の上にテキストを重ねる */}
+                  <div className="absolute inset-x-0 bottom-0 p-3">
+                    <p className="text-base font-extrabold text-white leading-tight drop-shadow">
+                      {label}
+                    </p>
+                    <p className="mt-1 text-[11px] text-white/85 leading-relaxed line-clamp-1">
+                      {sub}
+                    </p>
+                  </div>
                 </div>
               </Link>
             ))}
@@ -462,7 +466,7 @@ export default async function HomePage() {
             <Link
               key={q}
               href={`/jobs?q=${encodeURIComponent(q)}`}
-              className="press flex flex-col items-center gap-2 border border-gray-200 bg-white p-4 text-center hover:border-primary-400 hover:shadow-sm transition"
+              className="press card flex flex-col items-center gap-2 p-4 text-center"
             >
               <span className={`inline-flex h-10 w-10 items-center justify-center ${color}`}>
                 <Icon className="h-5 w-5" />
@@ -499,7 +503,7 @@ export default async function HomePage() {
                 <Link
                   key={job.id}
                   href={`/jobs/${job.id}`}
-                  className="press group relative accent-l border bg-white p-4 pl-5 hover:border-primary-400 hover:shadow-sm transition"
+                  className="press group relative accent-l card p-4 pl-5"
                 >
                   <span className="absolute top-2 right-2 inline-flex h-6 w-6 items-center justify-center bg-primary-600 text-xs font-extrabold text-white">
                     {i + 1}
@@ -552,7 +556,7 @@ export default async function HomePage() {
             <Link
               key={a.slug}
               href={`/${a.slug}`}
-              className="press flex items-center justify-center border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-700 hover:border-primary-400 hover:bg-primary-50 hover:text-primary-700 transition"
+              className="press card-flat flex items-center justify-center px-3 py-3 text-sm font-medium text-gray-700 hover:text-primary-700"
             >
               <MapPin className="h-4 w-4 mr-1 text-gray-400" />
               {a.pref}

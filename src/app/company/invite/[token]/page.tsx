@@ -25,7 +25,7 @@ export default async function CompanyInviteAcceptPage({ params }: Props) {
           </p>
           <div className="mt-6">
             <Link
-              href="/login"
+              href="/company/login"
               className="inline-block bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
               ログイン画面へ
