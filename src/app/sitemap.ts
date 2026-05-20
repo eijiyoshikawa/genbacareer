@@ -3,6 +3,11 @@ import { prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { publishedArticleFilter } from "@/lib/articles"
 import { AUTHORS } from "@/lib/authors"
+import {
+  SALARY_RANGES,
+  LICENSE_LPS,
+  EMPLOYMENT_LPS,
+} from "@/lib/longtail-lp"
 
 // Vercel ビルド時の prerender をスキップしてリクエスト時生成に切り替える。
 // 多数の Prisma クエリ (Job 5000 + Company 2000 + SeoPage 5000 + Article 2000) を
@@ -281,6 +286,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.5,
     }))
 
+  // ロングテール LP — 年収レンジ / 資格 / 雇用形態
+  const salaryPages: MetadataRoute.Sitemap = SALARY_RANGES.map((r) => ({
+    url: `${BASE_URL}/salary/${r.slug}`,
+    lastModified: new Date(),
+    changeFrequency: "daily" as const,
+    priority: 0.7,
+  }))
+  const licensePages: MetadataRoute.Sitemap = LICENSE_LPS.map((l) => ({
+    url: `${BASE_URL}/license/${l.slug}`,
+    lastModified: new Date(),
+    changeFrequency: "weekly" as const,
+    priority: 0.7,
+  }))
+  const employmentPages: MetadataRoute.Sitemap = EMPLOYMENT_LPS.map((e) => ({
+    url: `${BASE_URL}/employment-type/${e.slug}`,
+    lastModified: new Date(),
+    changeFrequency: "daily" as const,
+    priority: 0.7,
+  }))
+
   return [
     ...staticPages,
     ...journalPages,
@@ -292,5 +317,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...helpPages,
     ...authorPages,
     ...tagPages,
+    ...salaryPages,
+    ...licensePages,
+    ...employmentPages,
   ]
 }
