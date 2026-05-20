@@ -31,6 +31,23 @@ ALTER TABLE "users"
   ADD COLUMN IF NOT EXISTS "notification_prefs" JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 -- ----------------------------------------------------------------
+-- 8.1 除外キーワード GUI 管理
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS "blocklists" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  "keyword" VARCHAR(100) NOT NULL,
+  "scope" VARCHAR(20) NOT NULL DEFAULT 'any',
+  "note" VARCHAR(500),
+  "enabled" BOOLEAN NOT NULL DEFAULT true,
+  "hit_count" INTEGER NOT NULL DEFAULT 0,
+  "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "created_by" UUID
+);
+CREATE INDEX IF NOT EXISTS "idx_blocklist_enabled_scope"
+  ON "blocklists" ("enabled", "scope");
+
+-- ----------------------------------------------------------------
 -- 6.2 通報・レポート
 -- ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS "reports" (

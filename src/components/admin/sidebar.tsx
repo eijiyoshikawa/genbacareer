@@ -20,6 +20,7 @@ import {
   Search,
   Flag,
   Sparkles,
+  Ban,
 } from "lucide-react"
 
 const navItems = [
@@ -33,7 +34,8 @@ const navItems = [
   { href: "/admin/articles", label: "記事管理", icon: FileText },
   { href: "/admin/job-templates", label: "求人テンプレ", icon: FileStack },
   { href: "/admin/job-quality", label: "求人精査", icon: ShieldCheck },
-  { href: "/admin/categorize-preview", label: "カテゴリ判定テスト", icon: Sparkles },
+  { href: "/admin/categorize-preview", label: "カテゴリ判定 / 分類", icon: Sparkles },
+  { href: "/admin/blocklists", label: "除外キーワード", icon: Ban },
   { href: "/admin/hellowork-stats", label: "HW 取込統計", icon: Database },
   { href: "/admin/search-logs", label: "検索ログ", icon: Search },
   { href: "/admin/billing", label: "課金管理", icon: CreditCard },
