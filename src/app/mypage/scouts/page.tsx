@@ -33,6 +33,11 @@ export default async function ScoutsPage() {
     })
   }
 
+  const unreadIdSet = new Set(unreadIds)
+  const displayScouts = scouts.map((s) =>
+    unreadIdSet.has(s.id) ? { ...s, status: "read" as const } : s
+  )
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between">
@@ -45,7 +50,7 @@ export default async function ScoutsPage() {
         </Link>
       </div>
 
-      {scouts.length === 0 ? (
+      {displayScouts.length === 0 ? (
         <div className="mt-8 rounded-lg border bg-white p-8 text-center shadow-sm">
           <Mail className="mx-auto h-10 w-10 text-gray-300" />
           <p className="mt-3 text-gray-500">スカウトはまだ届いていません。</p>
@@ -61,7 +66,7 @@ export default async function ScoutsPage() {
         </div>
       ) : (
         <div className="mt-6 space-y-4">
-          {scouts.map((scout) => (
+          {displayScouts.map((scout) => (
             <div
               key={scout.id}
               className={`rounded-lg border bg-white p-5 shadow-sm ${

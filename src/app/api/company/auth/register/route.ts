@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { hashSync } from "bcryptjs";
+import { hash } from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { PREFECTURES } from "@/lib/constants";
 
 const companyRegisterSchema = z.object({
   companyName: z.string().min(1, "会社名は必須です。"),
   industry: z.string().min(1, "業種は必須です。"),
-  prefecture: z.enum(PREFECTURES, "有効な都道府県を選択してください。"),
+  prefecture: z.enum(PREFECTURES, { message: "有効な都道府県を選択してください。" }),
   contactEmail: z.string().email("有効なメールアドレスを入力してください。"),
   password: z.string().min(8, "パスワードは8文字以上で入力してください。"),
 });
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const passwordHash = hashSync(password, 12);
+    const passwordHash = await hash(password, 12);
 
     await prisma.$transaction(async (tx) => {
       const company = await tx.company.create({

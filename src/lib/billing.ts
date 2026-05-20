@@ -11,6 +11,13 @@ import { stripe, HIRING_FEE_AMOUNT } from "./stripe"
  * 4. BillingEvent を invoiced に更新
  */
 export async function createHiringInvoice(applicationId: string) {
+  const existing = await prisma.billingEvent.findUnique({
+    where: { applicationId },
+  })
+  if (existing) {
+    return { billingEvent: existing, invoiceId: existing.stripeInvoiceId }
+  }
+
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
     include: {

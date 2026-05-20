@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { sendScoutNotificationEmail } from "@/lib/email"
 
 const scoutSchema = z.object({
   userId: z.string().uuid(),
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
   // Check user exists and profile is public
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { profilePublic: true },
+    select: { profilePublic: true, email: true },
   })
 
   if (!user) {
@@ -113,15 +114,27 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const scout = await prisma.scout.create({
-    data: {
-      companyId,
-      userId,
-      jobId: jobId ?? null,
-      message,
-      status: "sent",
-    },
-  })
+  const [scout, company] = await Promise.all([
+    prisma.scout.create({
+      data: {
+        companyId,
+        userId,
+        jobId: jobId ?? null,
+        message,
+        status: "sent",
+      },
+    }),
+    prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true },
+    }),
+  ])
+
+  if (user.email && company) {
+    sendScoutNotificationEmail(user.email, company.name).catch((e) =>
+      console.error("[scout] メール送信エラー:", e)
+    )
+  }
 
   return Response.json({ scout }, { status: 201 })
 }
