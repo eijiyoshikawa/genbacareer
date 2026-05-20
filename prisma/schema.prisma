@@ -410,6 +410,12 @@ model Job {
   // 取り込み時 / 企業プロフィール保存時に再計算される。
   rankScore      Int       @default(0) @map("rank_score")
 
+  // 8.4 重複求人検出用ハッシュ (title 正規化 + companyId or 会社名 + prefecture から生成)
+  // 同一 dedupeKey の求人は 1 つだけ active で表示、他は status=closed に降格される
+  dedupeKey      String?  @map("dedupe_key") @db.VarChar(64)
+  // この求人が他求人の重複として close された場合、その代表求人の id
+  dedupedTo      String?  @map("deduped_to") @db.Uuid
+
   // ハローワーク API 由来の拡張フィールド（C案ハイブリッド: 主要項目を個別カラム化）
   occupationTitle        String?   @map("occupation_title") @db.VarChar(100)
   jobConditionNotes      String?   @map("job_condition_notes")
@@ -453,6 +459,7 @@ model Job {
   favorites         JobFavorite[]
   interests         JobInterest[]
 
+  @@index([dedupeKey], name: "idx_jobs_dedupe_key")
   @@index([prefecture, category, employmentType, status], name: "idx_jobs_search")
   @@index([salaryMin, salaryMax], name: "idx_jobs_salary")
   @@index([status, publishedAt(sort: Desc)], name: "idx_jobs_status_published")

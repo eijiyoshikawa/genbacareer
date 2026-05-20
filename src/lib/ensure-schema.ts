@@ -15,6 +15,12 @@ const STATEMENTS: ReadonlyArray<string> = [
  // User 通知頻度・時間帯設定 (3.4)
  `ALTER TABLE "users"
    ADD COLUMN IF NOT EXISTS "notification_prefs" JSONB NOT NULL DEFAULT '{}'::jsonb`,
+ // Job 重複求人検出 (8.4)
+ `ALTER TABLE "jobs"
+   ADD COLUMN IF NOT EXISTS "dedupe_key" VARCHAR(64),
+   ADD COLUMN IF NOT EXISTS "deduped_to" UUID`,
+ `CREATE INDEX IF NOT EXISTS "idx_jobs_dedupe_key"
+    ON "jobs" ("dedupe_key")`,
  // 企業口コミ・レビュー (12.2)
  `CREATE TABLE IF NOT EXISTS "company_reviews" (
    "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
