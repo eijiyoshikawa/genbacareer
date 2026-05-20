@@ -12,6 +12,11 @@ import { prisma } from "@/lib/db"
 import type { Metadata } from "next"
 import { FeedSwiper, type FeedJob } from "./feed-swiper"
 
+// ビルド時 prerender をスキップ。
+// Supabase 接続プールが build フェーズで枯渇し P2024 で失敗するのを回避
+// (sitemap.ts と同じパターン)。ユーザーが /jobs/feed を開いた時に初回生成。
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
   title: "求人フィード",
   description: "スワイプで気になる求人を発見。ゲンバキャリアのフィード機能。",
