@@ -95,6 +95,8 @@ export function CalendarConnectPanel({ connected, email }: Props) {
               {disconnecting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               連携を解除
             </button>
+            {/* API route への full browser navigation 必須 (OAuth リダイレクト) */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a
               href="/api/company/calendar/connect"
               className="text-xs text-primary-700 hover:underline"
@@ -103,6 +105,8 @@ export function CalendarConnectPanel({ connected, email }: Props) {
             </a>
           </>
         ) : (
+          // API route への full browser navigation 必須 (OAuth リダイレクト)
+          // eslint-disable-next-line @next/next/no-html-link-for-pages
           <a
             href="/api/company/calendar/connect"
             className="inline-flex items-center gap-2 bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700"

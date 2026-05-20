@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { daysAgo } from "@/lib/date-range"
 
 /**
  * HelloWork 取込統計ダッシュボード。
@@ -8,6 +9,7 @@ import { prisma } from "@/lib/db"
  * - 都道府県別 Top 10
  */
 export default async function HelloworkStatsPage() {
+  const since7d = daysAgo(7)
   const [active, closed, byCategory, byPrefecture, recent7d] = await Promise.all([
     prisma.job.count({ where: { source: "hellowork", status: "active" } }),
     prisma.job.count({ where: { source: "hellowork", status: "closed" } }),
@@ -27,7 +29,7 @@ export default async function HelloworkStatsPage() {
     prisma.job.count({
       where: {
         source: "hellowork",
-        publishedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        publishedAt: { gte: since7d },
       },
     }),
   ])
