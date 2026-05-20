@@ -2,9 +2,11 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import Link from "next/link"
+import { Suspense } from "react"
 import type { Metadata } from "next"
 import { Bell, CircleCheck } from "lucide-react"
 import { NotificationList } from "./notification-list"
+import { ListRowSkeleton } from "@/components/ui/skeleton"
 
 export const metadata: Metadata = {
   title: "通知",
@@ -25,26 +27,6 @@ export default async function NotificationsPage({
   const page = Math.max(1, Number(params.page) || 1)
   const filter = params.filter === "unread" ? "unread" : "all"
 
-  const where = {
-    userId: session.user.id,
-    ...(filter === "unread" ? { readAt: null } : {}),
-  }
-
-  const [items, total, unreadCount] = await Promise.all([
-    prisma.notification.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * PER_PAGE,
-      take: PER_PAGE,
-    }),
-    prisma.notification.count({ where }),
-    prisma.notification.count({
-      where: { userId: session.user.id, readAt: null },
-    }),
-  ])
-
-  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
-
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex items-start justify-between gap-3">
@@ -52,11 +34,6 @@ export default async function NotificationsPage({
           <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
             <Bell className="h-6 w-6 text-primary-500" />
             通知
-            {unreadCount > 0 && (
-              <span className="ml-1 inline-flex items-center justify-center min-w-[1.5rem] bg-primary-600 px-2 text-sm font-bold text-white">
-                {unreadCount}
-              </span>
-            )}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
             応募ステータスや新着求人などの最新情報をここで確認できます。
@@ -68,23 +45,9 @@ export default async function NotificationsPage({
             通知設定 (チャネル / 頻度 / 静音時間) →
           </Link>
         </div>
-        {unreadCount > 0 && (
-          <form
-            action="/api/users/me/notifications/mark-all-read"
-            method="POST"
-          >
-            <button
-              type="submit"
-              className="press inline-flex items-center gap-1.5 border border-gray-300 bg-white hover:bg-gray-50 px-3 py-2 text-sm font-bold text-gray-700"
-            >
-              <CircleCheck className="h-4 w-4" />
-              すべて既読にする
-            </button>
-          </form>
-        )}
       </div>
 
-      {/* Filter tabs */}
+      {/* Filter tabs (unread count はストリーミングで遅延表示) */}
       <div className="mt-6 flex gap-2 border-b">
         <Link
           href="/mypage/notifications"
@@ -104,11 +67,88 @@ export default async function NotificationsPage({
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
-          未読のみ {unreadCount > 0 && `(${unreadCount})`}
+          未読のみ
         </Link>
       </div>
 
-      {/* List */}
+      <Suspense
+        key={`${filter}:${page}`}
+        fallback={<div className="mt-6"><ListRowSkeleton count={6} /></div>}
+      >
+        <NotificationsBody
+          userId={session.user.id}
+          page={page}
+          filter={filter}
+        />
+      </Suspense>
+    </div>
+  )
+}
+
+async function NotificationsBody({
+  userId,
+  page,
+  filter,
+}: {
+  userId: string
+  page: number
+  filter: "all" | "unread"
+}) {
+  const where = {
+    userId,
+    ...(filter === "unread" ? { readAt: null } : {}),
+  }
+
+  const [items, total, unreadCount] = await Promise.all([
+    prisma.notification.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * PER_PAGE,
+      take: PER_PAGE,
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        body: true,
+        linkUrl: true,
+        createdAt: true,
+        readAt: true,
+      },
+    }),
+    prisma.notification.count({ where }),
+    prisma.notification.count({
+      where: { userId, readAt: null },
+    }),
+  ])
+
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
+
+  return (
+    <>
+      {unreadCount > 0 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-2 text-sm text-gray-600">
+            未読
+            <span className="inline-flex items-center justify-center min-w-[1.5rem] bg-primary-600 px-2 text-sm font-bold text-white">
+              {unreadCount}
+            </span>
+            件
+          </span>
+          <form
+            action="/api/users/me/notifications/mark-all-read"
+            method="POST"
+          >
+            <button
+              type="submit"
+              className="press inline-flex items-center gap-1.5 border border-gray-300 bg-white hover:bg-gray-50 px-3 py-2 text-sm font-bold text-gray-700"
+            >
+              <CircleCheck className="h-4 w-4" />
+              すべて既読にする
+            </button>
+          </form>
+        </div>
+      )}
+
       {items.length === 0 ? (
         <div className="mt-8 border bg-white p-10 text-center text-sm text-gray-500">
           {filter === "unread"
@@ -156,6 +196,6 @@ export default async function NotificationsPage({
           )}
         </nav>
       )}
-    </div>
+    </>
   )
 }
