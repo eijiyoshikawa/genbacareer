@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
+import Link from "next/link"
 import type { Metadata } from "next"
 import { PREFECTURES } from "@/lib/constants"
 import { ScoutSendButton } from "@/components/company/scout-send-button"
@@ -327,7 +328,7 @@ export default async function CompanyScoutsPage({
 function TabNav({ tab }: { tab: string }) {
   return (
     <div className="mt-4 flex border-b">
-      <a
+      <Link
         href="/company/scouts?tab=candidates"
         className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
           tab === "candidates"
@@ -336,8 +337,8 @@ function TabNav({ tab }: { tab: string }) {
         }`}
       >
         候補者検索
-      </a>
-      <a
+      </Link>
+      <Link
         href="/company/scouts?tab=sent"
         className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
           tab === "sent"
@@ -346,7 +347,7 @@ function TabNav({ tab }: { tab: string }) {
         }`}
       >
         送信済みスカウト
-      </a>
+      </Link>
     </div>
   )
 }

@@ -24,8 +24,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export async function generateStaticParams() {
-  const pages = await prisma.seoPage.findMany({ select: { slug: true } })
-  return pages.map((p) => ({ slug: p.slug }))
+  // ISR でオンデマンド生成（ビルド時に DB 接続不要にする）
+  return []
 }
 
 export default async function LandingPage({ params }: Props) {
