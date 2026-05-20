@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Search, Newspaper, MessageCircle, Sparkles } from "lucide-react"
+import { Search, Newspaper, MessageCircle, Sparkles, Map as MapIcon } from "lucide-react"
 import { BrandLogo } from "./brand-logo"
 import { LinkButton } from "@/components/ui/button"
 import { HeaderMobileMenu } from "./header-mobile-menu"
@@ -35,6 +35,13 @@ export function Header() {
             >
               <Sparkles className="h-4 w-4" />
               フィード
+            </Link>
+            <Link
+              href="/jobs/map"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
+            >
+              <MapIcon className="h-4 w-4" />
+              マップ
             </Link>
             <Link
               href="/journal"
