@@ -63,7 +63,10 @@ export default async function CompanyDashboard({
       where: { companyId },
       orderBy: { createdAt: "desc" },
       take: 5,
-      include: {
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
         job: { select: { title: true } },
         user: { select: { name: true, email: true } },
       },

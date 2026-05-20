@@ -159,7 +159,9 @@ export default async function CompanyDetailPage({ params }: Props) {
             city: true,
             source: true,
             tags: true,
-            company: { select: { name: true, logoUrl: true, gbizData: true } },
+            // 同一企業のページのため company 情報は冗長。
+            // JobCard が必要とするのは company.name / logoUrl / gbizData のみで、
+            // ページ上部の company オブジェクトから補完する。
           },
           orderBy: { publishedAt: "desc" },
           take: 30,
@@ -496,7 +498,17 @@ export default async function CompanyDetailPage({ params }: Props) {
         ) : (
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {jobs.map((job) => (
-              <JobCard key={job.id} job={job} />
+              <JobCard
+                key={job.id}
+                job={{
+                  ...job,
+                  company: {
+                    name: company.name,
+                    logoUrl: company.logoUrl,
+                    gbizData: company.gbizData,
+                  },
+                }}
+              />
             ))}
           </div>
         )}
