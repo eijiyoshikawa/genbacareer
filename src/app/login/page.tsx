@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Building2, ArrowRight } from "lucide-react";
+import { LineLoginButton } from "@/components/auth/line-login-button";
 
 /**
  * 求職者向けログインページ。
@@ -57,6 +58,15 @@ export default function LoginPage() {
               {error}
             </div>
           )}
+
+          {/* === LINE 1 タップログイン (主導線) === */}
+          <LineLoginButton label="LINE でログイン" callbackUrl="/mypage" fullWidth />
+
+          <div className="my-4 flex items-center gap-2 text-xs text-gray-400">
+            <span className="flex-1 border-t border-gray-200" />
+            または メールアドレスで
+            <span className="flex-1 border-t border-gray-200" />
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

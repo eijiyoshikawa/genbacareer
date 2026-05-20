@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { PREFECTURES } from "@/lib/constants";
+import { LineLoginButton } from "@/components/auth/line-login-button";
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -135,6 +136,18 @@ export default function RegisterPage() {
               {error}
             </div>
           )}
+
+          {/* === LINE 1 タップ登録 (主導線) === */}
+          <LineLoginButton label="LINE で 1 タップ登録" callbackUrl="/mypage" fullWidth />
+          <p className="mt-1.5 text-[11px] text-center text-gray-500">
+            生年月日 / 都道府県は登録後に補完できます (18 歳以上の方限定)
+          </p>
+
+          <div className="my-4 flex items-center gap-2 text-xs text-gray-400">
+            <span className="flex-1 border-t border-gray-200" />
+            または メールアドレスで登録
+            <span className="flex-1 border-t border-gray-200" />
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

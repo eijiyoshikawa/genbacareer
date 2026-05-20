@@ -6,83 +6,90 @@ import {
   ShieldCheck,
   CaretRight,
 } from "@phosphor-icons/react/dist/ssr"
+import { LineLoginButton } from "@/components/auth/line-login-button"
 
 /**
  * 会員登録誘導 CTA バナー。
  *
- * ログインしていないユーザーに、登録のメリット (求人保存・お祝い金・通知)
- * を見せて新規登録ボタンに誘導するセクション。
+ * 未ログインユーザーに登録のメリット (求人保存・お祝い金・ブロック)
+ * を見せて新規登録に誘導するセクション。LINE 1 タップ登録を主導線、
+ * メール登録 / ログインを副導線として配置。
  */
 export function MemberCta() {
   return (
     <section className="bg-gradient-to-br from-primary-50 to-brand-yellow-50 border-y border-primary-100">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
-        <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-10">
-          <div className="flex-1">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-7 sm:py-9">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center gap-5 lg:gap-8">
+          {/* === 左: 訴求テキスト + 特徴 === */}
+          <div className="flex-1 min-w-0">
             <p className="inline-flex items-center gap-1.5 bg-brand-yellow-500 text-ink-900 px-3 py-1 text-xs font-extrabold">
               <Sparkle weight="duotone" className="h-3.5 w-3.5" />
               無料・1 分で完了
             </p>
-            <h2 className="mt-3 text-2xl sm:text-3xl font-extrabold text-gray-900 leading-tight">
+            <h2 className="mt-2 text-2xl sm:text-3xl font-extrabold text-gray-900 leading-tight">
               会員登録で
               <span className="text-primary-600">あなただけの求人体験</span>
             </h2>
-            <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-              気になる求人の保存、応募状況の管理、採用後のお祝い金申請まで。<br className="hidden sm:block" />
-              履歴書なし・LINE で気軽に応募できます。
-            </p>
 
-            <ul className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl">
-              <li className="flex items-center gap-2.5 card p-3">
-                <span className="flex h-9 w-9 items-center justify-center bg-primary-100 shrink-0">
-                  <Bell weight="duotone" className="h-5 w-5 text-primary-600" />
-                </span>
-                <span className="text-xs font-bold text-gray-800 leading-snug">
-                  新着求人を
-                  <br />
-                  通知で受け取る
-                </span>
-              </li>
-              <li className="flex items-center gap-2.5 card p-3">
-                <span className="flex h-9 w-9 items-center justify-center bg-amber-100 shrink-0">
+            {/* === 特徴 3 つ (インパクト強化版) === */}
+            <ul className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-2xl">
+              <FeatureBadge
+                no={1}
+                icon={
+                  <Bell weight="duotone" className="h-6 w-6 text-primary-600" />
+                }
+                title="新着求人を即通知"
+                desc="気になる条件で自動配信"
+                accent="from-primary-100 to-primary-50"
+              />
+              <FeatureBadge
+                no={2}
+                icon={
                   <HandCoins
                     weight="duotone"
-                    className="h-5 w-5 text-amber-700"
+                    className="h-6 w-6 text-amber-700"
                   />
-                </span>
-                <span className="text-xs font-bold text-gray-800 leading-snug">
-                  採用決定で
-                  <br />
-                  お祝い金がもらえる
-                </span>
-              </li>
-              <li className="flex items-center gap-2.5 card p-3">
-                <span className="flex h-9 w-9 items-center justify-center bg-emerald-100 shrink-0">
+                }
+                title="採用でお祝い金"
+                desc="最大 10 万円相当"
+                accent="from-amber-100 to-amber-50"
+              />
+              <FeatureBadge
+                no={3}
+                icon={
                   <ShieldCheck
                     weight="duotone"
-                    className="h-5 w-5 text-emerald-700"
+                    className="h-6 w-6 text-emerald-700"
                   />
-                </span>
-                <span className="text-xs font-bold text-gray-800 leading-snug">
-                  ブロック企業設定で
-                  <br />
-                  現職バレ防止
-                </span>
-              </li>
+                }
+                title="現職バレ防止"
+                desc="ブロック企業設定"
+                accent="from-emerald-100 to-emerald-50"
+              />
             </ul>
           </div>
 
-          <div className="w-full lg:w-auto flex flex-col gap-3 lg:min-w-[240px]">
+          {/* === 右: CTA 群 === */}
+          <div className="w-full lg:w-auto flex flex-col gap-2.5 lg:min-w-[280px]">
+            {/* LINE 1 タップ登録 (主導線) */}
+            <LineLoginButton
+              label="LINE で 1 タップ登録"
+              callbackUrl="/mypage"
+              size="lg"
+              fullWidth
+            />
+            {/* メール登録 */}
             <Link
               href="/register"
-              className="press inline-flex items-center justify-center gap-1.5 bg-primary-600 px-6 py-3 text-base font-extrabold text-white shadow hover:bg-primary-700"
+              className="press inline-flex items-center justify-center gap-1.5 bg-primary-600 px-5 py-3 text-sm font-extrabold text-white shadow hover:bg-primary-700"
             >
-              無料で会員登録
+              メールで無料登録
               <CaretRight weight="bold" className="h-4 w-4" />
             </Link>
+            {/* ログイン */}
             <Link
               href="/login"
-              className="press inline-flex items-center justify-center gap-1.5 border border-primary-600 bg-white px-6 py-3 text-base font-bold text-primary-700 hover:bg-primary-50"
+              className="press inline-flex items-center justify-center gap-1.5 border border-primary-600 bg-white px-5 py-2.5 text-sm font-bold text-primary-700 hover:bg-primary-50"
             >
               ログイン
             </Link>
@@ -96,5 +103,43 @@ export function MemberCta() {
         </div>
       </div>
     </section>
+  )
+}
+
+/**
+ * 特徴バッジ (番号 + アイコン + タイトル + ひと言)。
+ * 数字バッジで「3 つの特典」感を強調、グラデで視認性 UP。
+ */
+function FeatureBadge({
+  no,
+  icon,
+  title,
+  desc,
+  accent,
+}: {
+  no: number
+  icon: React.ReactNode
+  title: string
+  desc: string
+  accent: string
+}) {
+  return (
+    <li
+      className={`relative flex items-center gap-3 bg-gradient-to-br ${accent} border border-white/60 shadow-sm p-3`}
+    >
+      {/* 数字バッジ */}
+      <span className="absolute -top-2 -left-2 flex h-6 w-6 items-center justify-center bg-ink-900 text-white text-[11px] font-extrabold shadow">
+        {no}
+      </span>
+      <span className="flex h-11 w-11 items-center justify-center bg-white shadow-sm shrink-0">
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-extrabold text-gray-900 leading-tight">
+          {title}
+        </p>
+        <p className="mt-0.5 text-[11px] text-gray-600 leading-snug">{desc}</p>
+      </div>
+    </li>
   )
 }
