@@ -1,13 +1,19 @@
 /**
  * 9.6 Search Console (GSC) API クライアント。
  *
- * Service Account の鍵で JWT を発行し、access_token を取得して
- * Search Analytics の searchAnalytics.query を叩く。
+ * 認証方式は 2 系統サポート (リフレッシュトークンを優先):
  *
- * 必要環境変数:
- *  - GSC_SERVICE_ACCOUNT_EMAIL
- *  - GSC_SERVICE_ACCOUNT_PRIVATE_KEY  (PEM。改行は "\n" でも literal でも可)
- *  - GSC_SITE_URL  例: "https://genbacareer.jp/" または "sc-domain:genbacareer.jp"
+ *  A) OAuth User Refresh Token (推奨。オーナーユーザーの認可をそのまま使う)
+ *     - GSC_OAUTH_CLIENT_ID
+ *     - GSC_OAUTH_CLIENT_SECRET
+ *     - GSC_OAUTH_REFRESH_TOKEN
+ *
+ *  B) Service Account JWT
+ *     - GSC_SERVICE_ACCOUNT_EMAIL
+ *     - GSC_SERVICE_ACCOUNT_PRIVATE_KEY
+ *
+ *  共通:
+ *     - GSC_SITE_URL  例: "https://genbacareer.jp/" または "sc-domain:genbacareer.jp"
  */
 
 import crypto from "node:crypto"
@@ -29,7 +35,33 @@ function normalizePrivateKey(raw: string): string {
   return raw
 }
 
-export async function getGscAccessToken(): Promise<string> {
+async function getAccessTokenViaRefreshToken(): Promise<string> {
+  const clientId = process.env.GSC_OAUTH_CLIENT_ID
+  const clientSecret = process.env.GSC_OAUTH_CLIENT_SECRET
+  const refreshToken = process.env.GSC_OAUTH_REFRESH_TOKEN
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error("GSC OAuth refresh token credentials are not configured")
+  }
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }).toString(),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`GSC OAuth refresh failed: ${res.status} ${text}`)
+  }
+  const data = (await res.json()) as { access_token?: string }
+  if (!data.access_token) throw new Error("GSC OAuth response missing access_token")
+  return data.access_token
+}
+
+async function getAccessTokenViaServiceAccount(): Promise<string> {
   const email = process.env.GSC_SERVICE_ACCOUNT_EMAIL
   const privateKeyRaw = process.env.GSC_SERVICE_ACCOUNT_PRIVATE_KEY
   if (!email || !privateKeyRaw) {
@@ -70,6 +102,14 @@ export async function getGscAccessToken(): Promise<string> {
   const data = (await res.json()) as { access_token?: string }
   if (!data.access_token) throw new Error("GSC token response missing access_token")
   return data.access_token
+}
+
+export async function getGscAccessToken(): Promise<string> {
+  // OAuth リフレッシュトークンが設定されていればそちらを優先
+  if (process.env.GSC_OAUTH_REFRESH_TOKEN) {
+    return getAccessTokenViaRefreshToken()
+  }
+  return getAccessTokenViaServiceAccount()
 }
 
 export type GscRow = {

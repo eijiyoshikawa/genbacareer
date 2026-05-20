@@ -100,10 +100,12 @@ export default async function SearchConsolePage() {
           <code className="mx-1 rounded bg-white px-1 py-0.5">
             /api/cron/search-console-sync
           </code>
-          が実行されると蓄積されます。GSC サービスアカウント (
-          <code className="mx-1">GSC_SERVICE_ACCOUNT_EMAIL</code>,
-          <code className="mx-1">GSC_SERVICE_ACCOUNT_PRIVATE_KEY</code>,
-          <code className="mx-1">GSC_SITE_URL</code>) を環境変数に設定してください。
+          が実行されると蓄積されます。OAuth リフレッシュトークン (
+          <code className="mx-1">GSC_OAUTH_CLIENT_ID</code>,
+          <code className="mx-1">GSC_OAUTH_CLIENT_SECRET</code>,
+          <code className="mx-1">GSC_OAUTH_REFRESH_TOKEN</code>) と{" "}
+          <code className="mx-1">GSC_SITE_URL</code>{" "}
+          を環境変数に設定してください。
         </div>
       ) : (
         <>
