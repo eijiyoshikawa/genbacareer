@@ -42,6 +42,7 @@ const navItems = [
   { href: "/admin/blocklists", label: "除外キーワード", icon: Ban },
   { href: "/admin/hellowork-stats", label: "HW 取込統計", icon: Database },
   { href: "/admin/search-logs", label: "検索ログ", icon: Search },
+  { href: "/admin/search-console", label: "Search Console", icon: Search },
   { href: "/admin/billing", label: "課金管理", icon: CreditCard },
   { href: "/admin/hiring-bonuses", label: "採用ボーナス", icon: Gift },
   { href: "/admin/audit-log", label: "監査ログ", icon: History },
