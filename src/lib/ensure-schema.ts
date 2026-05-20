@@ -15,6 +15,9 @@ const STATEMENTS: ReadonlyArray<string> = [
  // User 通知頻度・時間帯設定 (3.4)
  `ALTER TABLE "users"
    ADD COLUMN IF NOT EXISTS "notification_prefs" JSONB NOT NULL DEFAULT '{}'::jsonb`,
+ // Application オンライン面接 URL (14.5)
+ `ALTER TABLE "applications"
+   ADD COLUMN IF NOT EXISTS "interview_url" VARCHAR(500)`,
  // Job 重複求人検出 (8.4)
  `ALTER TABLE "jobs"
    ADD COLUMN IF NOT EXISTS "dedupe_key" VARCHAR(64),

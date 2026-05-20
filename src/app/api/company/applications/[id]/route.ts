@@ -35,6 +35,7 @@ const updateNotesSchema = z.object({
     .nullable()
     .optional(),
   interviewVenue: z.string().max(500).nullable().optional(),
+  interviewUrl: z.string().url().max(500).nullable().optional(),
   interviewSlots: z
     .array(z.string().datetime({ offset: true }))
     .max(5)
@@ -226,6 +227,9 @@ export async function PATCH(
         : {}),
       ...(data.interviewAt !== undefined
         ? { interviewAt: data.interviewAt ? new Date(data.interviewAt) : null }
+        : {}),
+      ...(data.interviewUrl !== undefined
+        ? { interviewUrl: data.interviewUrl }
         : {}),
       ...(data.interviewVenue !== undefined
         ? { interviewVenue: data.interviewVenue }
