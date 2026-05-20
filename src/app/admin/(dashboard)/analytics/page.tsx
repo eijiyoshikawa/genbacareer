@@ -13,6 +13,7 @@ import {
   type TimeSeriesPoint,
 } from "@/lib/analytics"
 import { LEAD_STATUS_META, type LeadStatus } from "@/lib/line-lead-status"
+import { getEventCounts } from "@/lib/track"
 
 export const metadata: Metadata = {
   title: "分析ダッシュボード",
@@ -31,13 +32,14 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const days = parseDays(params.days)
   const range = rangeForDays(days)
 
-  const [funnel, utm, category, prefecture, series, statusCounts] = await Promise.all([
+  const [funnel, utm, category, prefecture, series, statusCounts, customEvents] = await Promise.all([
     fetchFunnel(range),
     fetchUtmBreakdown(range),
     fetchCategoryBreakdown(range),
     fetchPrefectureBreakdown(range),
     fetchTimeSeries(range),
     fetchStatusCounts(range),
+    getEventCounts(days).catch(() => [] as { name: string; count: number }[]),
   ])
 
   return (
@@ -119,6 +121,30 @@ export default async function AnalyticsPage({ searchParams }: Props) {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* 独自イベント (13.4) */}
+      <section className="border bg-white p-5">
+        <h2 className="flex items-center gap-2 text-base font-bold text-gray-900 mb-3 section-bar">
+          独自イベント ({days} 日間)
+        </h2>
+        {customEvents.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            まだイベントが記録されていません。trackEvent() の埋め込み箇所が増えると、
+            ここに集計が表示されます。
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {customEvents.map((e) => (
+              <div key={e.name} className="border bg-gray-50 p-3">
+                <p className="text-xs font-bold text-gray-700">{e.name}</p>
+                <p className="mt-1 text-2xl font-black tabular-nums text-gray-900">
+                  {e.count}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   )

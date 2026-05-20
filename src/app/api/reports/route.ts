@@ -18,6 +18,7 @@ import {
   REPORT_REASONS,
   REPORT_TARGET_TYPES,
 } from "@/lib/report-reasons"
+import { trackEvent } from "@/lib/track"
 
 const REASON_VALUES = REPORT_REASONS.map((r) => r.value) as [string, ...string[]]
 const TARGET_TYPE_VALUES = [...REPORT_TARGET_TYPES] as [string, ...string[]]
@@ -67,6 +68,16 @@ export async function POST(request: NextRequest) {
       reporterIp: ip,
       reason: parsed.data.reason,
       detail: parsed.data.detail ?? null,
+    },
+  })
+
+  await trackEvent({
+    name: "report_submit",
+    userId: reporterId,
+    payload: {
+      targetType: parsed.data.targetType,
+      targetId: parsed.data.targetId,
+      reason: parsed.data.reason,
     },
   })
 
