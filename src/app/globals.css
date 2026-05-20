@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
+/* Manual dark mode: html.dark で切り替え (16.6 テーマ切り替え)
+   Tailwind v4 既定の prefers-color-scheme を上書きし、
+   ユーザー選択を優先する。 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #18181b;
+}
+
+html.dark {
+  --background: #0f1115;
+  --foreground: #e5e7eb;
 }
 
 @theme inline {
