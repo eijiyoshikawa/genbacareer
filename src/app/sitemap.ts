@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next"
 import { prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { publishedArticleFilter } from "@/lib/articles"
+import { AUTHORS } from "@/lib/authors"
 
 // Vercel ビルド時の prerender をスキップしてリクエスト時生成に切り替える。
 // 多数の Prisma クエリ (Job 5000 + Company 2000 + SeoPage 5000 + Article 2000) を
@@ -131,6 +132,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.7,
     },
+    {
+      url: `${BASE_URL}/authors`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.5,
+    },
+    {
+      url: `${BASE_URL}/editorial-policy`,
+      lastModified: new Date(),
+      changeFrequency: "yearly",
+      priority: 0.4,
+    },
   ]
 
   // Journal articles
@@ -237,6 +250,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   })
 
+  // 著者ページ /authors/[slug] (E-E-A-T 強化)
+  const authorPages: MetadataRoute.Sitemap = AUTHORS.map((a) => ({
+    url: `${BASE_URL}/authors/${a.slug}`,
+    lastModified: new Date(),
+    changeFrequency: "monthly" as const,
+    priority: 0.5,
+  }))
+
   return [
     ...staticPages,
     ...journalPages,
@@ -246,5 +267,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...seoCombos,
     ...companyPages,
     ...helpPages,
+    ...authorPages,
   ]
 }

@@ -400,6 +400,8 @@ type ArticleSchemaInput = {
   title: string
   description: string | null
   authorName: string
+  /** 著者プロフィールページのスラッグ (Person.url で /authors/[slug] を指す) */
+  authorSlug?: string
   category: string
   /** カテゴリのラベル (例: "転職・キャリア") */
   categoryLabel?: string
@@ -453,7 +455,9 @@ export function generateArticleSchema(
     author: {
       "@type": "Person",
       name: article.authorName,
-      url: `${BASE_URL}/about`,
+      url: article.authorSlug
+        ? `${BASE_URL}/authors/${article.authorSlug}`
+        : `${BASE_URL}/authors`,
       worksFor: { "@id": `${BASE_URL}/#organization` },
     },
     publisher: { "@id": `${BASE_URL}/#organization` },
@@ -585,6 +589,57 @@ export function generateVideoObjectSchema(params: {
     contentUrl: params.videoUrl,
     embedUrl: params.videoUrl,
     publisher: { "@id": `${BASE_URL}/#organization` },
+  }
+}
+
+// ============================================================
+// Person (著者プロフィール用)
+// ============================================================
+
+type PersonSchemaInput = {
+  slug: string
+  name: string
+  role: string
+  bio: string
+  qualifications?: string[]
+  expertise?: string[]
+  photoUrl?: string
+  sameAs?: string[]
+}
+
+/**
+ * Person 構造化データ。著者ページ (/authors/[slug]) で出す。
+ *
+ * E-E-A-T: jobTitle / hasCredential / knowsAbout / worksFor を全部埋めて、
+ * Google に「専門性と実績を持つ実在の著者」と認識させる。
+ */
+export function generatePersonSchema(
+  person: PersonSchemaInput,
+): Record<string, unknown> {
+  const url = `${BASE_URL}/authors/${person.slug}`
+  return {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "@id": url,
+    name: person.name,
+    description: person.bio,
+    url,
+    jobTitle: person.role,
+    worksFor: { "@id": `${BASE_URL}/#organization` },
+    ...(person.photoUrl && { image: person.photoUrl }),
+    ...(person.expertise && person.expertise.length > 0 && {
+      knowsAbout: person.expertise,
+    }),
+    ...(person.qualifications && person.qualifications.length > 0 && {
+      hasCredential: person.qualifications.map((q) => ({
+        "@type": "EducationalOccupationalCredential",
+        credentialCategory: "professional certificate",
+        name: q,
+      })),
+    }),
+    ...(person.sameAs && person.sameAs.length > 0 && {
+      sameAs: person.sameAs,
+    }),
   }
 }
 
