@@ -40,6 +40,33 @@ CREATE INDEX IF NOT EXISTS "idx_jobs_dedupe_key"
   ON "jobs" ("dedupe_key");
 
 -- ----------------------------------------------------------------
+-- 15.6 採用決定ボーナス
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS "hiring_bonuses" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  "application_id" UUID NOT NULL UNIQUE,
+  "user_id" UUID NOT NULL,
+  "company_id" UUID NOT NULL,
+  "amount" INTEGER NOT NULL,
+  "payout_method" VARCHAR(30) NOT NULL,
+  "payout_details" JSONB,
+  "status" VARCHAR(20) NOT NULL DEFAULT 'requested',
+  "request_note" TEXT,
+  "approved_at" TIMESTAMPTZ,
+  "approved_by" UUID,
+  "paid_at" TIMESTAMPTZ,
+  "paid_by" UUID,
+  "rejected_at" TIMESTAMPTZ,
+  "rejection_reason" VARCHAR(500),
+  "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS "idx_hiring_bonuses_status"
+  ON "hiring_bonuses" ("status", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "idx_hiring_bonuses_user"
+  ON "hiring_bonuses" ("user_id", "created_at" DESC);
+
+-- ----------------------------------------------------------------
 -- 12.2 企業口コミ・レビュー
 -- ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS "company_reviews" (

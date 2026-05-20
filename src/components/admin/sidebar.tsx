@@ -23,6 +23,7 @@ import {
   Ban,
   MessageSquare,
   RefreshCw,
+  Gift,
 } from "lucide-react"
 
 const navItems = [
@@ -42,6 +43,7 @@ const navItems = [
   { href: "/admin/hellowork-stats", label: "HW 取込統計", icon: Database },
   { href: "/admin/search-logs", label: "検索ログ", icon: Search },
   { href: "/admin/billing", label: "課金管理", icon: CreditCard },
+  { href: "/admin/hiring-bonuses", label: "採用ボーナス", icon: Gift },
   { href: "/admin/audit-log", label: "監査ログ", icon: History },
   { href: "/admin/crawler", label: "クローラー", icon: Bot },
   { href: "/admin/crawler-sync", label: "同期 / 重複マージ", icon: RefreshCw },

@@ -898,6 +898,35 @@ model AiGeneratedArticle {
 }
 
 // ========================================
+// 採用決定ボーナス (15.6)
+// ========================================
+/// 応募 → 採用決定時に求職者へ支払う祝い金 (現金 / Amazon ギフトカード / 振込)。
+/// 申請から admin 承認・支払までのワークフローを記録。
+model HiringBonus {
+  id              String    @id @default(uuid()) @db.Uuid
+  applicationId   String    @unique @map("application_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  amount          Int       // JPY
+  payoutMethod    String    @map("payout_method") @db.VarChar(30) // amazon_gift | bank_transfer | cash
+  payoutDetails   Json?     @map("payout_details") // 振込先 / メールアドレス等
+  status          String    @default("requested") @db.VarChar(20) // requested | approved | paid | rejected
+  requestNote     String?   @map("request_note")
+  approvedAt      DateTime? @map("approved_at") @db.Timestamptz()
+  approvedBy      String?   @map("approved_by") @db.Uuid
+  paidAt          DateTime? @map("paid_at") @db.Timestamptz()
+  paidBy          String?   @map("paid_by") @db.Uuid
+  rejectedAt      DateTime? @map("rejected_at") @db.Timestamptz()
+  rejectionReason String?   @map("rejection_reason") @db.VarChar(500)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@index([status, createdAt(sort: Desc)], name: "idx_hiring_bonuses_status")
+  @@index([userId, createdAt(sort: Desc)], name: "idx_hiring_bonuses_user")
+  @@map("hiring_bonuses")
+}
+
+// ========================================
 // 企業口コミ・レビュー (12.2)
 // ========================================
 /// 求職者が在籍/元在籍経験から企業を評価する口コミ。
