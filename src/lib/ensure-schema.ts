@@ -21,6 +21,15 @@ const STATEMENTS: ReadonlyArray<string> = [
  // Application Google Calendar イベント ID (14.4)
  `ALTER TABLE "applications"
    ADD COLUMN IF NOT EXISTS "google_calendar_event_id" VARCHAR(200)`,
+ // admin 企業一覧 / 応募集計の高速化用 index (本番でテーブル既存の場合用)
+ `CREATE INDEX IF NOT EXISTS "idx_applications_by_company"
+    ON "applications" ("company_id", "created_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_applications_by_user"
+    ON "applications" ("user_id", "created_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_applications_by_status"
+    ON "applications" ("status", "created_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_companies_admin_list"
+    ON "companies" ("source", "status", "created_at" DESC)`,
  // Google Calendar OAuth トークン保管 (14.4)
  `CREATE TABLE IF NOT EXISTS "company_calendar_oauth" (
    "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
