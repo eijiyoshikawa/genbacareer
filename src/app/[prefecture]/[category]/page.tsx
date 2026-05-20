@@ -3,7 +3,11 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
-import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
+import {
+  CONSTRUCTION_CATEGORY_VALUES,
+  isConstructionCategory,
+} from "@/lib/categories"
+import { buildPrefectureCategoryDescription } from "@/lib/seo-text"
 
 // /[prefecture]/[category] の category は建設業のみ受け付ける（"other" は除外）。
 const CONSTRUCTION_CATEGORY_SET: ReadonlySet<string> = new Set(
@@ -94,7 +98,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const title = `${prefLabel}の${catLabel}求人一覧`
-  const description = `${prefLabel}で募集中の${catLabel}の求人情報を掲載。給与・勤務地・雇用形態など詳細条件で検索できます。`
+  const description = isConstructionCategory(category)
+    ? buildPrefectureCategoryDescription(prefLabel, catLabel, category)
+    : `${prefLabel}で募集中の${catLabel}の求人情報を掲載。給与・勤務地・雇用形態など詳細条件で検索できます。`
 
   return {
     title,
