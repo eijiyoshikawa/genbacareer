@@ -138,6 +138,94 @@ const STATEMENTS: ReadonlyArray<string> = [
  `CREATE INDEX IF NOT EXISTS "idx_search_logs_query"
     ON "search_logs" ("query", "created_at" DESC)
     WHERE "query" IS NOT NULL`,
+ // 通報・レポート (6.2)
+ `CREATE TABLE IF NOT EXISTS "reports" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "target_type" VARCHAR(20) NOT NULL,
+   "target_id" UUID NOT NULL,
+   "reporter_id" UUID,
+   "reporter_ip" VARCHAR(45),
+   "reason" VARCHAR(100) NOT NULL,
+   "detail" TEXT,
+   "status" VARCHAR(20) NOT NULL DEFAULT 'open',
+   "resolved_at" TIMESTAMPTZ,
+   "resolved_by" UUID,
+   "resolution" VARCHAR(500),
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   CONSTRAINT "reports_reporter_fkey" FOREIGN KEY ("reporter_id")
+     REFERENCES "users"("id") ON DELETE SET NULL
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_reports_status_time"
+    ON "reports" ("status", "created_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_reports_target"
+    ON "reports" ("target_type", "target_id")`,
+ // クローラ求人カテゴリ分類 (7.1)
+ `CREATE TABLE IF NOT EXISTS "job_category_classifications" (
+   "job_id" UUID NOT NULL PRIMARY KEY,
+   "industry" VARCHAR(50) NOT NULL,
+   "occupation" VARCHAR(50) NOT NULL,
+   "confidence" DOUBLE PRECISION NOT NULL,
+   "classified_by" VARCHAR(20) NOT NULL,
+   "classified_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_job_classification"
+    ON "job_category_classifications" ("industry", "occupation")`,
+ // クローラ差分同期チェックポイント (7.2)
+ `CREATE TABLE IF NOT EXISTS "crawler_sync_checkpoints" (
+   "source" VARCHAR(50) NOT NULL PRIMARY KEY,
+   "last_synced_at" TIMESTAMPTZ NOT NULL,
+   "last_cursor" VARCHAR(200),
+   "total_imported" INTEGER NOT NULL DEFAULT 0,
+   "total_updated" INTEGER NOT NULL DEFAULT 0,
+   "total_skipped" INTEGER NOT NULL DEFAULT 0,
+   "total_errors" INTEGER NOT NULL DEFAULT 0,
+   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ // Search Console スナップショット (9.6)
+ `CREATE TABLE IF NOT EXISTS "search_console_snapshots" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "date" DATE NOT NULL,
+   "query" VARCHAR(200) NOT NULL,
+   "page" VARCHAR(500) NOT NULL,
+   "clicks" INTEGER NOT NULL,
+   "impressions" INTEGER NOT NULL,
+   "ctr" DOUBLE PRECISION NOT NULL,
+   "position" DOUBLE PRECISION NOT NULL,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE UNIQUE INDEX IF NOT EXISTS "uniq_gsc_dimensions"
+    ON "search_console_snapshots" ("date", "query", "page")`,
+ `CREATE INDEX IF NOT EXISTS "idx_gsc_top"
+    ON "search_console_snapshots" ("date" DESC, "clicks" DESC)`,
+ // AI 生成記事 (9.7)
+ `CREATE TABLE IF NOT EXISTS "ai_generated_articles" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "slug" VARCHAR(200) NOT NULL UNIQUE,
+   "topic" VARCHAR(200) NOT NULL,
+   "prompt" TEXT NOT NULL,
+   "body_markdown" TEXT NOT NULL,
+   "status" VARCHAR(20) NOT NULL DEFAULT 'draft',
+   "published_at" TIMESTAMPTZ,
+   "related_job_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+   "model_name" VARCHAR(50),
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_ai_articles_status"
+    ON "ai_generated_articles" ("status", "published_at" DESC)`,
+ // アナリティクスイベント (13.4)
+ `CREATE TABLE IF NOT EXISTS "analytics_events" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "user_id" UUID,
+   "session_id" VARCHAR(50),
+   "name" VARCHAR(50) NOT NULL,
+   "payload" JSONB NOT NULL DEFAULT '{}'::jsonb,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_analytics_name_time"
+    ON "analytics_events" ("name", "created_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_analytics_user_time"
+    ON "analytics_events" ("user_id", "created_at" DESC)`,
 ]
 
 let inflight: Promise<boolean> | null = null
