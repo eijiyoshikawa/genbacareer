@@ -7,7 +7,10 @@ import {
 import { Banknote, TrendingUp, MapPin, Briefcase } from "lucide-react"
 import type { Metadata } from "next"
 
-export const revalidate = 3600 // 1 時間 ISR
+// ビルド時の DB 接続枯渇を回避するため、初回リクエスト時にレンダリング。
+// ISR (revalidate=3600) で 2 回目以降はキャッシュ応答。
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 export const metadata: Metadata = {
   title: "建設業の給与ランキング | ゲンバキャリア",
