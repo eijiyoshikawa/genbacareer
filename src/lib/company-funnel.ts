@@ -15,6 +15,12 @@
  */
 
 import { prisma } from "@/lib/db"
+import { unstable_cache } from "next/cache"
+
+// ファネル集計は 8 並列 count を毎回叩くため、企業ダッシュボードの再訪で
+// 同じクエリが多発する。60 秒のメモリキャッシュで負荷を平準化する。
+// 引数 (companyId, rangeKey) をキーに含めて衝突を防ぐ。
+const CACHE_TTL_SECONDS = 60
 
 export type FunnelStage = {
   key: string
@@ -45,7 +51,7 @@ function rangeFrom(key: RangeKey): Date {
   return new Date(0)
 }
 
-export async function computeCompanyFunnel(
+async function computeCompanyFunnelUncached(
   companyId: string,
   rangeKey: RangeKey
 ): Promise<FunnelData> {
@@ -184,6 +190,12 @@ export async function computeCompanyFunnel(
   }
 }
 
+export const computeCompanyFunnel = unstable_cache(
+  computeCompanyFunnelUncached,
+  ["company-funnel"],
+  { revalidate: CACHE_TTL_SECONDS, tags: ["company-funnel"] },
+)
+
 export function isRangeKey(value: unknown): value is RangeKey {
   return value === "30d" || value === "90d" || value === "all"
 }
@@ -203,7 +215,7 @@ export type JobPerformanceRow = {
   viewToApply: number | null
 }
 
-export async function computeJobPerformance(
+async function computeJobPerformanceUncached(
   companyId: string,
   rangeKey: RangeKey,
   limit = 20
@@ -294,7 +306,13 @@ export type TimeSeriesPoint = {
  * 期間を日次バケットに分割して件数を集計。
  * 30d / 90d は日次、all は週次にする。
  */
-export async function computeTimeSeries(
+export const computeJobPerformance = unstable_cache(
+  computeJobPerformanceUncached,
+  ["company-job-performance"],
+  { revalidate: CACHE_TTL_SECONDS, tags: ["company-funnel"] },
+)
+
+async function computeTimeSeriesUncached(
   companyId: string,
   rangeKey: RangeKey
 ): Promise<TimeSeriesPoint[]> {
@@ -372,3 +390,9 @@ export async function computeTimeSeries(
     a.date.localeCompare(b.date)
   )
 }
+
+export const computeTimeSeries = unstable_cache(
+  computeTimeSeriesUncached,
+  ["company-time-series"],
+  { revalidate: CACHE_TTL_SECONDS, tags: ["company-funnel"] },
+)

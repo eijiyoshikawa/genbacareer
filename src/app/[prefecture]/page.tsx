@@ -4,6 +4,7 @@ import Link from "next/link"
 import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
+import { buildPrefectureDescription } from "@/lib/seo-text"
 
 export const revalidate = 21600 // 6 hours ISR
 
@@ -96,7 +97,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const title = `${prefLabel}の求人一覧`
-  const description = `${prefLabel}で募集中の建設・土木・ドライバー・製造業など、ノンデスク産業の求人情報を職種別に検索できます。`
+  const description = buildPrefectureDescription(prefLabel)
 
   return {
     title,

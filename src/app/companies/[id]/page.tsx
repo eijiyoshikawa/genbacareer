@@ -474,6 +474,9 @@ export default async function CompanyDetailPage({ params }: Props) {
                   fill
                   sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
                   className="object-cover"
+                  // 外部ホスト (remotePatterns 未登録) の URL でも壊れないよう、
+                  // 自社ストレージ以外は Vercel Image Optimization をスキップ
+                  unoptimized={!url.startsWith("/") && !url.includes("supabase.co")}
                 />
               </div>
             ))}
