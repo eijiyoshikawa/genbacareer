@@ -17,6 +17,11 @@ export const metadata: Metadata = {
   description:
     "都道府県別・職種別の建設業の平均給与をランキングで掲載。型枠大工、施工管理、電気工事、土木など、職種別の年収相場が一目で分かります。",
   alternates: { canonical: "/salary" },
+  openGraph: {
+    title: "建設業の給与ランキング | ゲンバキャリア",
+    description:
+      "都道府県別 × 職種別の建設業 平均年収ランキング。施工管理 / 電気工事 / 型枠大工 / 土木 / 解体 など職種別相場。",
+  },
 }
 
 type Aggregation = {

@@ -16,7 +16,13 @@ import { PREFECTURES } from "@/lib/constants"
 export const metadata: Metadata = {
   title: "企業ランキング",
   description:
-    "建設業界・ノンデスク産業の人気企業ランキング。求人数・フォロワー数・応募数から算出。",
+    "建設業界の人気企業ランキング。求人数・フォロワー数・応募数から総合スコアを算出。業界別 / 地域別で絞り込み可能。",
+  alternates: { canonical: "/companies/ranking" },
+  openGraph: {
+    title: "建設業 企業ランキング | ゲンバキャリア",
+    description:
+      "求人数 × フォロワー数 × 応募数で算出した建設業の人気企業 TOP 10。",
+  },
 }
 
 // ビルド時 prerender をスキップ (P2024 回避)。
