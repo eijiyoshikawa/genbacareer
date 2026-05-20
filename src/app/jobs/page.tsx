@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
 import { Search } from "lucide-react"
 import type { Metadata } from "next"
+import { auth } from "@/lib/auth"
+import { SaveSearchButton } from "@/components/jobs/save-search-button"
 
 type Props = {
   searchParams: Promise<Record<string, string | undefined>>
@@ -50,6 +52,10 @@ export default async function JobsPage({ searchParams }: Props) {
 
   const totalPages = Math.ceil(total / limit)
 
+  const session = await auth()
+  const sessionRole = (session?.user as { role?: string } | undefined)?.role
+  const isSeeker = !!session?.user?.id && (!sessionRole || sessionRole === "seeker")
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Search Bar */}
@@ -93,6 +99,16 @@ export default async function JobsPage({ searchParams }: Props) {
         <p className="text-sm text-gray-600">
           <span className="font-semibold text-gray-900">{total.toLocaleString()}</span> 件の求人
         </p>
+        <SaveSearchButton
+          enabled={isSeeker}
+          filters={{
+            prefecture: params.prefecture ?? null,
+            category: params.category ?? null,
+            employmentType: params.employment_type ?? null,
+            salaryMin: params.salary_min ? Number(params.salary_min) : null,
+            keyword: params.q ?? null,
+          }}
+        />
       </div>
 
       {/* Job List */}

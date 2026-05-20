@@ -11,6 +11,8 @@ import {
 } from "lucide-react"
 import type { Metadata } from "next"
 import { generateJobPostingSchema } from "@/lib/structured-data"
+import { auth } from "@/lib/auth"
+import { FavoriteButton } from "@/components/jobs/favorite-button"
 
 type Props = {
   params: Promise<{ id: string }>
@@ -57,6 +59,18 @@ export default async function JobDetailPage({ params }: Props) {
   prisma.job
     .update({ where: { id }, data: { viewCount: { increment: 1 } } })
     .catch(() => {})
+
+  const session = await auth()
+  const sessionRole = (session?.user as { role?: string } | undefined)?.role
+  const isSeeker = !!session?.user?.id && (!sessionRole || sessionRole === "seeker")
+  const isFavorite = isSeeker
+    ? !!(await prisma.favorite.findUnique({
+        where: {
+          userId_jobId: { userId: session!.user!.id!, jobId: id },
+        },
+        select: { id: true },
+      }))
+    : false
 
   const jsonLd = generateJobPostingSchema({
     id: job.id,
@@ -105,6 +119,9 @@ export default async function JobDetailPage({ params }: Props) {
               </span>
             )}
             <h1 className="text-2xl font-bold text-gray-900">{job.title}</h1>
+            <div className="mt-2">
+              <FavoriteButton jobId={job.id} initial={isFavorite} enabled={isSeeker} />
+            </div>
             {job.company && (
               <p className="mt-1 flex items-center gap-1 text-gray-600">
                 <Building2 className="h-4 w-4" />
