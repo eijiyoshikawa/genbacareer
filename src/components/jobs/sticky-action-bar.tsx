@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { MessageCircle, Bookmark, Banknote } from "lucide-react"
+import { MessageCircle, Banknote } from "lucide-react"
+import { InterestButton } from "./interest-button"
 
 /**
  * 求人詳細ページの下部固定アクションバー。
@@ -7,19 +8,22 @@ import { MessageCircle, Bookmark, Banknote } from "lucide-react"
  *
  * 左 (sm+): 求人タイトル + 会社名（参照のため）
  * 左 (mobile): 給与情報（あれば）を小さく表示。スクロールしても給与が見える。
- * 右: 「気になる」（UI スタブ、現状は alert）+ 「LINE で応募」
+ * 右: 「気になる」(12.3) + 「話を聞きたい (応募)」
  */
 export function StickyActionBar({
   jobId,
   title,
   companyName,
   salaryLabel,
+  initialInterested,
+  loggedIn,
 }: {
   jobId: string
   title: string
   companyName: string | null
-  /** 例: "月給 25〜35万円" 。あれば mobile でも左側に小さく表示 */
   salaryLabel?: string | null
+  initialInterested: boolean
+  loggedIn: boolean
 }) {
   return (
     <div className="fixed bottom-0 inset-x-0 z-30 border-t-2 border-primary-500 bg-white shadow-[0_-6px_16px_rgba(0,0,0,0.06)]">
@@ -45,15 +49,15 @@ export function StickyActionBar({
           </div>
         )}
 
-        {/* 気になる（stub） */}
-        <button
-          type="button"
-          className="hidden sm:inline-flex items-center gap-1.5 border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          aria-label="気になるに追加"
-        >
-          <Bookmark className="h-4 w-4" />
-          気になる
-        </button>
+        {/* 気になる (12.3 ライト応募) */}
+        <div className="hidden sm:inline-flex">
+          <InterestButton
+            jobId={jobId}
+            initialInterested={initialInterested}
+            loggedIn={loggedIn}
+            variant="button"
+          />
+        </div>
 
         <Link
           href={`/jobs/${jobId}/apply`}

@@ -274,6 +274,19 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   // (同カテゴリ × 同県 → 同カテゴリ → 同県 → 全国 のフォールバック)
   const relatedJobs = await findRelatedJobs(job.id, 4).catch(() => [])
 
+  // 12.3 ログインユーザーがこの求人を「気になる」登録しているか
+  const loggedInUserId = session?.user?.id
+  const isInterested = loggedInUserId
+    ? !!(await prisma.jobInterest
+        .findUnique({
+          where: {
+            userId_jobId: { userId: loggedInUserId, jobId: job.id },
+          },
+          select: { userId: true },
+        })
+        .catch(() => null))
+    : false
+
   return (
     <div className="bg-gray-50 min-h-screen pb-24 sm:pb-28">
       <JobViewBeacon jobId={job.id} enabled={!isPreview} />
@@ -896,6 +909,8 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
             ? formatSalary(job.salaryMin, job.salaryMax, job.salaryType)
             : null
         }
+        initialInterested={isInterested}
+        loggedIn={!!loggedInUserId}
       />
     </div>
   )
