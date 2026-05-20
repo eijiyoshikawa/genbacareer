@@ -243,7 +243,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async signIn({ user, account }) {
       // Auto-create user record for OAuth sign-ins
-      if (account?.provider && account.provider !== "seeker-credentials" && account.provider !== "company-credentials") {
+      // admin-credentials も除外: admin ログイン直後にこの分岐に入ると、
+      // role を "seeker" に上書きされて /admin から弾かれるバグ防止 (旧 #123)
+      if (
+        account?.provider &&
+        account.provider !== "seeker-credentials" &&
+        account.provider !== "company-credentials" &&
+        account.provider !== "admin-credentials"
+      ) {
         if (user.email) {
           const existing = await prisma.user.findUnique({
             where: { email: user.email },
