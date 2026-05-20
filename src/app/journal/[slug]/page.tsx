@@ -3,6 +3,8 @@ import Link from "next/link"
 import { prisma } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
 import { ChevronRight } from "lucide-react"
+import { Buildings } from "@phosphor-icons/react/dist/ssr"
+import { getAuthorByName } from "@/lib/authors"
 import type { Metadata } from "next"
 import { trackEvent } from "@/lib/track"
 import { ShareButtons } from "@/components/journal/share-buttons"
@@ -143,12 +145,17 @@ export default async function ArticlePage({ params }: Props) {
     take: 5,
   })
 
+  // 著者プロフィール (Authors テーブルから引く)
+  const author = getAuthorByName(article.authorName)
+  const authorSlug = author.slug
+
   // JSON-LD: 強化版 Article schema (wordCount / articleSection / Person author 等)
   const articleJsonLd = generateArticleSchema({
     slug: article.slug,
     title: article.title,
     description: article.excerpt ?? article.metaDescription ?? null,
     authorName: article.authorName,
+    authorSlug,
     category: article.category,
     categoryLabel: CATEGORY_LABELS[article.category] ?? article.category,
     publishedAt: article.publishedAt,
@@ -214,16 +221,38 @@ export default async function ArticlePage({ params }: Props) {
           {article.title}
         </h1>
 
-        <div className="mt-2 flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-xs text-gray-500">
-            {article.authorName}
-          </p>
+        <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <Link
+              href={`/authors/${authorSlug}`}
+              className="press inline-flex items-center gap-1.5 font-bold text-gray-700 hover:text-primary-700"
+              rel="author"
+            >
+              <span className="flex h-7 w-7 items-center justify-center bg-primary-50 text-primary-500">
+                <Buildings weight="duotone" className="h-4 w-4" />
+              </span>
+              <span>{article.authorName}</span>
+            </Link>
+            <span className="hidden sm:inline text-gray-300">|</span>
+            <span className="hidden sm:inline">
+              最終更新:{" "}
+              <time dateTime={article.updatedAt.toISOString()}>
+                {article.updatedAt.toLocaleDateString("ja-JP")}
+              </time>
+            </span>
+          </div>
           <ShareButtons
             url={`${SITE_URL}/journal/${article.slug}`}
             title={article.title}
             articleId={article.id}
           />
         </div>
+        <p className="mt-1.5 sm:hidden text-[11px] text-gray-400">
+          最終更新:{" "}
+          <time dateTime={article.updatedAt.toISOString()}>
+            {article.updatedAt.toLocaleDateString("ja-JP")}
+          </time>
+        </p>
 
         {/* Top CTA */}
         <div className="mt-6">
