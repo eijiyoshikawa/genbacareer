@@ -20,10 +20,20 @@ const globalForPrisma = globalThis as unknown as {
 function buildDatabaseUrl(): string | undefined {
   const original = process.env.DATABASE_URL
   if (!original) return undefined
-  // 既に connection_limit を指定済みなら触らない
-  if (/[?&]connection_limit=/.test(original)) return original
-  const separator = original.includes("?") ? "&" : "?"
-  return `${original}${separator}connection_limit=1`
+  let url = original
+  // connection_limit が未指定なら 1 を強制 (pgbouncer + Lambda 想定)
+  if (!/[?&]connection_limit=/.test(url)) {
+    const sep = url.includes("?") ? "&" : "?"
+    url = `${url}${sep}connection_limit=1`
+  }
+  // pool_timeout が未指定なら 30 秒に伸ばす (デフォルト 10s は短すぎ)。
+  // connection_limit=1 環境では並列クエリが順番待ちで詰まりやすく、
+  // 10s では Promise.all(7 queries) でも P2024 になる事例があった。
+  if (!/[?&]pool_timeout=/.test(url)) {
+    const sep = url.includes("?") ? "&" : "?"
+    url = `${url}${sep}pool_timeout=30`
+  }
+  return url
 }
 
 const datasourceUrl = buildDatabaseUrl()
