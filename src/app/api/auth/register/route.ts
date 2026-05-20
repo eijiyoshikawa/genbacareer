@@ -6,6 +6,7 @@ import { PREFECTURES } from "@/lib/constants";
 import { generateToken } from "@/lib/tokens";
 import { sendEmailVerificationEmail } from "@/lib/email";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { trackEvent } from "@/lib/track";
 
 const registerSchema = z.object({
   name: z.string().min(1, "氏名は必須です。"),
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
       Date.now() + VERIFICATION_TOKEN_EXPIRY_MS
     );
 
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         name,
         email,
@@ -92,6 +93,14 @@ export async function POST(request: Request) {
         verificationTokenExpiry,
         termsAcceptedAt: new Date(),
       },
+      select: { id: true },
+    });
+
+    // 13.4 独自イベントトラッキング
+    void trackEvent({
+      name: "register_complete",
+      userId: user.id,
+      payload: { prefecture, authProvider: "email" },
     });
 
     try {

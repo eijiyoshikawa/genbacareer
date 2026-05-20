@@ -12,6 +12,7 @@
 import { auth } from "@/lib/auth"
 import { getSessionIdIfExists } from "@/lib/session-id"
 import { recordJobView, extractUtmFromUrl } from "@/lib/tracking"
+import { trackEvent } from "@/lib/track"
 import {
   checkRateLimit,
   getClientIp,
@@ -69,6 +70,19 @@ export async function POST(
     referer,
     utm,
   }).catch(() => {})
+
+  // 13.4 独自イベントトラッキング (AnalyticsEvent への記録)
+  void trackEvent({
+    name: "view_job",
+    userId,
+    sessionId,
+    payload: {
+      jobId: id,
+      utmSource: utm.source,
+      utmMedium: utm.medium,
+      utmCampaign: utm.campaign,
+    },
+  })
 
   return Response.json({ ok: true })
 }

@@ -8,6 +8,7 @@
 import { type NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { trackEvent } from "@/lib/track"
 
 export const dynamic = "force-dynamic"
 
@@ -33,6 +34,11 @@ export async function POST(
     await prisma.jobFavorite.create({
       data: { userId: session.user.id, jobId },
     })
+    void trackEvent({
+      name: "favorite_add",
+      userId: session.user.id,
+      payload: { jobId },
+    })
   } catch (e) {
     // 重複（既にお気に入り）の場合はそのまま 200
     const msg = e instanceof Error ? e.message : String(e)
@@ -57,5 +63,10 @@ export async function DELETE(
       where: { userId: session.user.id, jobId },
     })
     .catch(() => ({ count: 0 }))
+  void trackEvent({
+    name: "favorite_remove",
+    userId: session.user.id,
+    payload: { jobId },
+  })
   return Response.json({ ok: true })
 }
