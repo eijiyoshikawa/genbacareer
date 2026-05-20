@@ -40,8 +40,12 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* `overflow-x: hidden` を html に当てると position: sticky のスクロールコンテキストを
+   壊して SP でヘッダー追従が効かなくなる。clip は同等の効果を持ちつつ sticky を
+   破壊しないため、html/body ともに clip を採用する。
+   refs: https://caniuse.com/css-overflow (clip は主要ブラウザ全対応) */
 html {
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
@@ -51,7 +55,7 @@ body {
   font-feature-settings: "palt";
   -webkit-font-smoothing: antialiased;
   letter-spacing: 0.01em;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* Scroll animation - subtle fade only */
@@ -154,18 +158,41 @@ body {
   background-color: rgba(255, 247, 237, 0.5); /* primary-50/50 */
 }
 
-/* === ボタン共通プレスアニメーション ============================
-   ネイティブ <button> 全てに自動適用。
-   Link-as-button にも `.press` を付ければ同じ挙動。
-   角丸を全廃した代わりに「沈み込み」で触り心地を担保する。 */
+/* === ボタン / リンクの「押してる」タップモーション ===================
+   角丸無し方針なので「沈み込み + 縮小 + 薄暗くなる」3 段で触り心地を担保。
+   release 時は cubic-bezier で軽くオーバーシュートさせて、硬さを軽減する。
+
+   - press: transform + opacity を 80ms で即時下げ
+   - release: 220ms かけてバネっぽく戻す
+   - hover: 浮き上がり (translateY -1px) で「触れる前のお誘い」
+*/
 button,
 .press {
-  transition: transform 120ms ease, box-shadow 120ms ease, background-color 150ms ease, border-color 150ms ease, color 150ms ease, opacity 150ms ease;
+  transition:
+    transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 200ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease,
+    filter 150ms ease;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  will-change: transform;
 }
+/* hover: 軽く浮き上がる (PC) */
+@media (hover: hover) {
+  button:not(:disabled):hover,
+  .press:hover {
+    transform: translateY(-1px);
+  }
+}
+/* press: 沈み込み + 縮小 + うっすら暗く */
 button:active:not(:disabled),
 .press:active {
-  transform: translateY(1px) scale(0.98);
+  transform: translateY(1px) scale(0.96);
+  filter: brightness(0.94);
+  transition-duration: 80ms;
   box-shadow: none !important;
 }
 button:disabled {
