@@ -3,8 +3,13 @@ import { prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { publishedArticleFilter } from "@/lib/articles"
 
-// 60 秒ごとに再生成（クロール頻度が高くてもラムダコストを抑える）
-export const revalidate = 60
+// Vercel ビルド時の prerender をスキップしてリクエスト時生成に切り替える。
+// 多数の Prisma クエリ (Job 5000 + Company 2000 + SeoPage 5000 + Article 2000) を
+// 抱えており、ビルドフェーズで 60s タイムアウトしてデプロイ失敗するため。
+// dynamic = "force-dynamic" 指定で revalidate は無視されるが、将来 fetchCache 等で
+// 部分キャッシュ運用したいときの目安として 1 時間を残しておく。
+export const dynamic = "force-dynamic"
+export const revalidate = 3600
 
 // Google の sitemap 上限は 50,000 URL / 50 MB。
 // 求人系の URL は更新頻度の高い直近分のみ載せ、それ以外は静的 LP に任せる。
