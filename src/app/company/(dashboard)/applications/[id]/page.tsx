@@ -5,7 +5,6 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import type { Metadata } from "next"
 import { ApplicationActionPanel } from "@/components/company/application-action-panel"
-import { ScoutRecommendationPanel } from "@/components/company/scout-recommendation-panel"
 import { SchedulingUrlsPanel } from "@/components/company/scheduling-urls-panel"
 import { parseSchedulingUrls } from "@/lib/scheduling-urls"
 
@@ -221,7 +220,6 @@ export default async function ApplicationDetailPage({
             interviewAt={app.interviewAt ? app.interviewAt.toISOString() : null}
             interviewVenue={app.interviewVenue ?? ""}
           />
-          <ScoutRecommendationPanel applicationId={app.id} />
           <SchedulingUrlsPanel urls={schedulingUrls} />
         </aside>
       </div>

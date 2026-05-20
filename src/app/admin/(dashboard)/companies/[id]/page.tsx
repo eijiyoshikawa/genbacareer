@@ -40,7 +40,7 @@ export default async function AdminCompanyDetailPage({
           createdAt: true,
         },
       },
-      _count: { select: { jobs: true, applications: true, scouts: true } },
+      _count: { select: { jobs: true, applications: true } },
     },
   })
 
@@ -172,10 +172,6 @@ export default async function AdminCompanyDetailPage({
           <p className="mt-1 text-2xl font-bold">
             {company._count.applications}
           </p>
-        </div>
-        <div className="border bg-white p-4 shadow-sm">
-          <p className="text-xs text-gray-500">スカウト数</p>
-          <p className="mt-1 text-2xl font-bold">{company._count.scouts}</p>
         </div>
       </div>
 

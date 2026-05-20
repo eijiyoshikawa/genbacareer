@@ -1,8 +1,9 @@
 import Link from "next/link"
-import { Search, Newspaper, MessageCircle } from "lucide-react"
+import { Search, Newspaper, MessageCircle, Sparkles, Map as MapIcon } from "lucide-react"
 import { BrandLogo } from "./brand-logo"
 import { LinkButton } from "@/components/ui/button"
 import { HeaderMobileMenu } from "./header-mobile-menu"
+import { ThemeToggle } from "@/components/theme/theme-toggle"
 
 /**
  * サイト共通ヘッダー。
@@ -12,7 +13,7 @@ import { HeaderMobileMenu } from "./header-mobile-menu"
  */
 export function Header() {
   return (
-    <header className="bg-white sticky top-0 z-50 border-b border-gray-100">
+    <header className="bg-white dark:bg-gray-950 sticky top-0 z-50 border-b border-gray-100 dark:border-gray-800">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <Link href="/" aria-label="ゲンバキャリア トップへ">
@@ -27,6 +28,20 @@ export function Header() {
             >
               <Search className="h-4 w-4" />
               求人を探す
+            </Link>
+            <Link
+              href="/jobs/feed"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
+            >
+              <Sparkles className="h-4 w-4" />
+              フィード
+            </Link>
+            <Link
+              href="/jobs/map"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
+            >
+              <MapIcon className="h-4 w-4" />
+              マップ
             </Link>
             <Link
               href="/journal"
@@ -58,6 +73,9 @@ export function Header() {
               <MessageCircle className="h-4 w-4" />
               無料で始める
             </LinkButton>
+            <div className="ml-2">
+              <ThemeToggle />
+            </div>
           </nav>
 
           <HeaderMobileMenu />

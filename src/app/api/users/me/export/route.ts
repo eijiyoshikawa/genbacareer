@@ -48,7 +48,6 @@ export async function GET(request: NextRequest) {
     favorites,
     savedSearches,
     notifications,
-    scouts,
     companyFollows,
     messageTemplates,
   ] = await Promise.all([
@@ -115,17 +114,6 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
       take: 500,
     }),
-    prisma.scout.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        message: true,
-        status: true,
-        sentAt: true,
-        readAt: true,
-        company: { select: { name: true } },
-      },
-    }),
     prisma.companyFollow.findMany({
       where: { userId },
       select: {
@@ -150,7 +138,6 @@ export async function GET(request: NextRequest) {
     favorites,
     savedSearches,
     notifications,
-    scouts,
     companyFollows,
     messageTemplates,
   }

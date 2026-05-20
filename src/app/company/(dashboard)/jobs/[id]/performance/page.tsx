@@ -2,12 +2,17 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Eye, MessageCircle, MousePointerClick, TrendingUp } from "lucide-react"
+import { ArrowLeft, Eye, MessageCircle, MousePointerClick, TrendingUp, Users, Coins } from "lucide-react"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
   title: "求人パフォーマンス",
 }
+
+// 1 件採用あたりのモデル単価 (13.5 コスパ計算用)。
+// 将来は Company 単位の設定値や BillingEvent 実績から算出するが、
+// 現段階は業界中央値を仮値として表示する。
+const ASSUMED_HIRING_FEE_JPY = 300_000
 
 export default async function JobPerformancePage({
   params,
@@ -33,7 +38,6 @@ export default async function JobPerformancePage({
   })
   if (!job) notFound()
 
-  // 7d / 28d の集計はそれぞれ件数のみ
   const now = new Date()
   const d7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
   const d28 = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000)
@@ -42,23 +46,56 @@ export default async function JobPerformancePage({
     applications7d,
     applications28d,
     applicationsTotal,
+    hiredTotal,
     clicks7d,
     clicks28d,
     views7d,
     views28d,
+    uniqueViews7dRows,
+    uniqueViews28dRows,
   ] = await Promise.all([
     prisma.application.count({ where: { jobId: id, createdAt: { gte: d7 } } }),
     prisma.application.count({ where: { jobId: id, createdAt: { gte: d28 } } }),
     prisma.application.count({ where: { jobId: id } }),
-    prisma.applicationClick.count({ where: { jobId: id, clickedAt: { gte: d7 } } }).catch(() => 0),
-    prisma.applicationClick.count({ where: { jobId: id, clickedAt: { gte: d28 } } }).catch(() => 0),
-    // viewCount は累計値のみ DB に保存しているため、期間別は別途 view event テーブル必要 (未実装)
-    Promise.resolve(0),
-    Promise.resolve(0),
+    prisma.application.count({ where: { jobId: id, status: "hired" } }),
+    prisma.applicationClick
+      .count({ where: { jobId: id, clickedAt: { gte: d7 } } })
+      .catch(() => 0),
+    prisma.applicationClick
+      .count({ where: { jobId: id, clickedAt: { gte: d28 } } })
+      .catch(() => 0),
+    prisma.jobView
+      .count({ where: { jobId: id, viewedAt: { gte: d7 } } })
+      .catch(() => 0),
+    prisma.jobView
+      .count({ where: { jobId: id, viewedAt: { gte: d28 } } })
+      .catch(() => 0),
+    prisma.jobView
+      .findMany({
+        where: { jobId: id, viewedAt: { gte: d7 }, sessionId: { not: null } },
+        distinct: ["sessionId"],
+        select: { sessionId: true },
+      })
+      .catch(() => [] as { sessionId: string | null }[]),
+    prisma.jobView
+      .findMany({
+        where: { jobId: id, viewedAt: { gte: d28 }, sessionId: { not: null } },
+        distinct: ["sessionId"],
+        select: { sessionId: true },
+      })
+      .catch(() => [] as { sessionId: string | null }[]),
   ])
 
-  const ctr7d = clicks7d > 0 ? ((applications7d / clicks7d) * 100).toFixed(1) : "—"
-  const ctr28d = clicks28d > 0 ? ((applications28d / clicks28d) * 100).toFixed(1) : "—"
+  const uniqueViews7d = uniqueViews7dRows.length
+  const uniqueViews28d = uniqueViews28dRows.length
+
+  const fmtPct = (num: number, den: number) =>
+    den > 0 ? `${((num / den) * 100).toFixed(1)}%` : "—"
+
+  const cpa28d =
+    applications28d > 0
+      ? Math.round(ASSUMED_HIRING_FEE_JPY / Math.max(1, applications28d))
+      : 0
 
   return (
     <div className="space-y-6">
@@ -85,10 +122,24 @@ export default async function JobPerformancePage({
       <section>
         <h2 className="text-sm font-bold text-gray-900 mb-2">直近 28 日</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Kpi icon={Eye} label="閲覧数 (累計)" value={job.viewCount.toLocaleString()} sub="開始から" />
-          <Kpi icon={MousePointerClick} label="応募 CTA クリック" value={clicks28d.toLocaleString()} />
+          <Kpi icon={Eye} label="閲覧数 (PV)" value={views28d.toLocaleString()} />
+          <Kpi icon={Users} label="ユニーク閲覧" value={uniqueViews28d.toLocaleString()} sub="セッション基準" />
+          <Kpi icon={MousePointerClick} label="CTA クリック" value={clicks28d.toLocaleString()} />
           <Kpi icon={MessageCircle} label="応募数" value={applications28d.toLocaleString()} />
-          <Kpi icon={TrendingUp} label="CVR" value={`${ctr28d}%`} sub="応募 / クリック" />
+          <Kpi icon={TrendingUp} label="クリック率" value={fmtPct(clicks28d, views28d)} sub="クリック / PV" />
+          <Kpi icon={TrendingUp} label="CVR" value={fmtPct(applications28d, clicks28d)} sub="応募 / クリック" />
+          <Kpi
+            icon={TrendingUp}
+            label="ファネル全体 CV"
+            value={fmtPct(applications28d, views28d)}
+            sub="応募 / PV"
+          />
+          <Kpi
+            icon={Coins}
+            label="推定 CPA"
+            value={cpa28d > 0 ? `¥${cpa28d.toLocaleString()}` : "—"}
+            sub="採用単価 ÷ 応募"
+          />
         </div>
       </section>
 
@@ -96,10 +147,24 @@ export default async function JobPerformancePage({
       <section>
         <h2 className="text-sm font-bold text-gray-900 mb-2">直近 7 日</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Kpi icon={Eye} label="閲覧数" value="—" sub="期間別は近日対応" />
-          <Kpi icon={MousePointerClick} label="応募 CTA クリック" value={clicks7d.toLocaleString()} />
+          <Kpi icon={Eye} label="閲覧数 (PV)" value={views7d.toLocaleString()} />
+          <Kpi icon={Users} label="ユニーク閲覧" value={uniqueViews7d.toLocaleString()} sub="セッション基準" />
+          <Kpi icon={MousePointerClick} label="CTA クリック" value={clicks7d.toLocaleString()} />
           <Kpi icon={MessageCircle} label="応募数" value={applications7d.toLocaleString()} />
-          <Kpi icon={TrendingUp} label="CVR" value={`${ctr7d}%`} sub="応募 / クリック" />
+          <Kpi icon={TrendingUp} label="クリック率" value={fmtPct(clicks7d, views7d)} sub="クリック / PV" />
+          <Kpi icon={TrendingUp} label="CVR" value={fmtPct(applications7d, clicks7d)} sub="応募 / クリック" />
+          <Kpi
+            icon={TrendingUp}
+            label="ファネル全体 CV"
+            value={fmtPct(applications7d, views7d)}
+            sub="応募 / PV"
+          />
+          <Kpi
+            icon={Users}
+            label="閲覧/UU 重複度"
+            value={uniqueViews7d > 0 ? (views7d / uniqueViews7d).toFixed(1) + "x" : "—"}
+            sub="再訪指標"
+          />
         </div>
       </section>
 
@@ -107,16 +172,19 @@ export default async function JobPerformancePage({
       <section>
         <h2 className="text-sm font-bold text-gray-900 mb-2">累計</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Kpi icon={Eye} label="閲覧数" value={job.viewCount.toLocaleString()} />
+          <Kpi icon={Eye} label="閲覧数" value={job.viewCount.toLocaleString()} sub="job.viewCount 集計" />
           <Kpi icon={MessageCircle} label="応募数" value={applicationsTotal.toLocaleString()} />
+          <Kpi icon={MessageCircle} label="採用決定" value={hiredTotal.toLocaleString()} sub="status=hired" />
           <Kpi
             icon={TrendingUp}
             label="閲覧→応募率"
-            value={
-              job.viewCount > 0
-                ? `${((applicationsTotal / job.viewCount) * 100).toFixed(2)}%`
-                : "—"
-            }
+            value={fmtPct(applicationsTotal, job.viewCount)}
+          />
+          <Kpi
+            icon={TrendingUp}
+            label="応募→採用率"
+            value={fmtPct(hiredTotal, applicationsTotal)}
+            sub="採用 / 応募"
           />
           <Kpi
             icon={TrendingUp}
@@ -137,8 +205,9 @@ export default async function JobPerformancePage({
       </section>
 
       <p className="text-xs text-gray-500 leading-relaxed">
-        ※ 期間別の閲覧数集計は近日対応予定です。現状は累計のみ表示しています。
-        CVR は「応募 / CTA クリック」、閲覧→応募率は「応募 / 閲覧」で算出。
+        ※ 推定 CPA は採用単価を ¥{ASSUMED_HIRING_FEE_JPY.toLocaleString()} と仮定した時の
+        「応募 1 件あたりの想定コスト」です。実際の課金は採用決定時の成果報酬制で、
+        BillingEvent ベースの実値表示は近日対応予定。
       </p>
     </div>
   )

@@ -6,6 +6,7 @@
 import { type NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { trackEvent } from "@/lib/track"
 
 export const dynamic = "force-dynamic"
 
@@ -29,6 +30,11 @@ export async function POST(
   try {
     await prisma.companyFollow.create({
       data: { userId: session.user.id, companyId },
+    })
+    await trackEvent({
+      name: "follow_company",
+      userId: session.user.id,
+      payload: { companyId },
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

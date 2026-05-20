@@ -6,7 +6,6 @@ import {
   FileText,
   User,
   Pencil,
-  Mail,
   Bell,
   Bookmark,
   BookmarkCheck,
@@ -32,7 +31,6 @@ export default async function MyPage() {
   const [
     user,
     applicationCount,
-    scoutCount,
     unreadNotifications,
     savedSearchCount,
     favoriteCount,
@@ -55,9 +53,6 @@ export default async function MyPage() {
       },
     }),
     prisma.application.count({
-      where: { userId: session.user.id },
-    }),
-    prisma.scout.count({
       where: { userId: session.user.id },
     }),
     prisma.notification
@@ -203,21 +198,6 @@ export default async function MyPage() {
               {companyFollowCount > 0
                 ? `${companyFollowCount} 社 — 新着求人があれば通知`
                 : "気になる企業をフォロー"}
-            </p>
-          </div>
-        </Link>
-
-        <Link
-          href="/mypage/scouts"
-          className="flex items-center gap-4  border bg-white p-5 shadow-sm transition hover:shadow-md"
-        >
-          <div className="flex h-10 w-10 items-center justify-center  bg-purple-100">
-            <Mail className="h-5 w-5 text-purple-600" />
-          </div>
-          <div>
-            <p className="font-semibold text-gray-900">スカウト</p>
-            <p className="text-sm text-gray-500">
-              {scoutCount} 件のスカウト
             </p>
           </div>
         </Link>

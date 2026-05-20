@@ -35,6 +35,8 @@ model User {
   resetTokenExpiry  DateTime? @map("reset_token_expiry") @db.Timestamptz()
   // active: 通常 / suspended: 凍結 (管理側で BAN) / deleted: 退会済 (個人情報匿名化済)
   status            String    @default("active") @db.VarChar(20)
+  // 求職ステータス (2.6): searching=求職中 / employed_open=在職中(スカウト/オファー歓迎) / hired=採用済み(一時的に非アクティブ)
+  jobSearchStatus   String    @default("searching") @map("job_search_status") @db.VarChar(20)
   suspendedAt       DateTime? @map("suspended_at") @db.Timestamptz()
   suspendedReason   String?   @map("suspended_reason") @db.VarChar(500)
   deletedAt         DateTime? @map("deleted_at") @db.Timestamptz()
@@ -44,7 +46,6 @@ model User {
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
   applications      Application[]
-  scouts            Scout[]
   resume            Resume?
   uploadedFiles     UploadedFile[]
   applicationClicks ApplicationClick[]
@@ -54,6 +55,7 @@ model User {
   messageTemplates  ApplicationMessageTemplate[]
   jobFavorites      JobFavorite[]
   companyFollows    CompanyFollow[]
+  reportsSubmitted  Report[] @relation("ReportReporter")
 
   @@map("users")
 }
@@ -156,7 +158,7 @@ model SavedSearch {
 // 重要な操作（求人の承認/却下、テンプレ編集、企業情報更新、応募ステータス変更 等）
 // を時系列で保存する。
 //   - actorType: admin | company_user | system
-//   - resourceType: company | job | job_template | application | line_lead | scout | ...
+//   - resourceType: company | job | job_template | application | line_lead | ...
 //   - action: create | update | delete | approve | reject | login | …（自由形式 VarChar）
 //   - diff: 任意のスナップショット / 差分 JSON
 model AuditLog {
@@ -219,7 +221,7 @@ model JobTemplate {
 model Notification {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
-  // application_status | scout_received | system | promo
+  // application_status | system | promo
   type      String   @db.VarChar(30)
   title     String   @db.VarChar(200)
   body      String?
@@ -227,7 +229,7 @@ model Notification {
   linkUrl   String?  @map("link_url") @db.VarChar(500)
   // 既読日時。null なら未読。
   readAt    DateTime? @map("read_at") @db.Timestamptz()
-  // 関連リソースの id（applicationId / scoutId / jobId 等）
+  // 関連リソースの id（applicationId / jobId 等）
   refId     String?  @map("ref_id") @db.VarChar(50)
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
@@ -304,7 +306,6 @@ model Company {
   companyUsers  CompanyUser[]
   invitations   CompanyInvitation[]
   jobs          Job[]
-  scouts        Scout[]
   billingEvents BillingEvent[]
   applications  Application[]
   followers     CompanyFollow[]
@@ -438,7 +439,6 @@ model Job {
 
   company           Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
   applications      Application[]
-  scouts            Scout[]
   applicationClicks ApplicationClick[]
   lineLeads         LineLead[]
   jobViews          JobView[]
@@ -609,41 +609,6 @@ model BroadcastLog {
   @@map("broadcast_logs")
 }
 
-// ========================================
-// スカウト
-// ========================================
-model Scout {
-  id        String    @id @default(uuid()) @db.Uuid
-  companyId String    @map("company_id") @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  jobId     String?   @map("job_id") @db.Uuid
-  message   String?
-  status    String    @default("sent") @db.VarChar(20) // sent | read | replied | declined
-  sentAt    DateTime  @default(now()) @map("sent_at") @db.Timestamptz()
-  readAt    DateTime? @map("read_at") @db.Timestamptz()
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  job     Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
-
-  @@map("scouts")
-}
-
-/// 企業がよく使うスカウト文章のテンプレート。
-/// /company/scout-templates から CRUD し、スカウト送信時に選択して挿入する想定。
-model ScoutTemplate {
-  id        String   @id @default(uuid()) @db.Uuid
-  companyId String   @map("company_id") @db.Uuid
-  name      String   @db.VarChar(80)
-  body      String
-  sortOrder Int      @default(100) @map("sort_order")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-
-  @@index([companyId, sortOrder], name: "idx_scout_template_company")
-  @@map("scout_templates")
-}
-
 /// 検索ログ。/jobs での検索クエリと結果件数を記録し、
 /// admin が「人気キーワード」「ゼロヒットクエリ」を可視化する。
 model SearchLog {
@@ -809,4 +774,128 @@ model SeoPage {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
   @@map("seo_pages")
+}
+
+// ========================================
+// 通報・レポート (6.2)
+// ========================================
+/// 求人 / 企業 / ユーザー / 口コミ等への通報。
+/// targetType + targetId のシンプル多態。reporterId は匿名通報 (null) も許可。
+/// admin が status を resolved / dismissed に更新して処理。
+model Report {
+  id          String    @id @default(uuid()) @db.Uuid
+  targetType  String    @map("target_type") @db.VarChar(20) // job | company | user | review
+  targetId    String    @map("target_id") @db.Uuid
+  reporterId  String?   @map("reporter_id") @db.Uuid
+  reporterIp  String?   @map("reporter_ip") @db.VarChar(45)
+  reason      String    @db.VarChar(100) // 規約違反 | 虚偽情報 | 不適切な表現 | 個人情報 | その他
+  detail      String?
+  status      String    @default("open") @db.VarChar(20) // open | resolved | dismissed
+  resolvedAt  DateTime? @map("resolved_at") @db.Timestamptz()
+  resolvedBy  String?   @map("resolved_by") @db.Uuid // admin user id
+  resolution  String?   @db.VarChar(500)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  reporter User? @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)], name: "idx_reports_status_time")
+  @@index([targetType, targetId], name: "idx_reports_target")
+  @@map("reports")
+}
+
+// ========================================
+// クローラ求人のカテゴリ分類 (7.1)
+// ========================================
+/// 取り込んだ Job に対して、ルール / LLM / 手動で
+/// 業界・職種を判定した結果。Job 1:1。
+model JobCategoryClassification {
+  jobId        String   @id @map("job_id") @db.Uuid
+  industry     String   @db.VarChar(50)
+  occupation   String   @db.VarChar(50)
+  confidence   Float    // 0.0-1.0
+  classifiedBy String   @map("classified_by") @db.VarChar(20) // rule | llm | manual
+  classifiedAt DateTime @default(now()) @map("classified_at") @db.Timestamptz()
+
+  @@index([industry, occupation], name: "idx_job_classification")
+  @@map("job_category_classifications")
+}
+
+// ========================================
+// クローラ差分同期 (7.2)
+// ========================================
+/// 外部ソース別の最終同期チェックポイント。
+/// 次回クロール時に lastCursor / lastSyncedAt から差分のみ取り込む。
+model CrawlerSyncCheckpoint {
+  source         String   @id @db.VarChar(50) // hellowork | indeed | ...
+  lastSyncedAt   DateTime @map("last_synced_at") @db.Timestamptz()
+  lastCursor     String?  @map("last_cursor") @db.VarChar(200)
+  totalImported  Int      @default(0) @map("total_imported")
+  totalUpdated   Int      @default(0) @map("total_updated")
+  totalSkipped   Int      @default(0) @map("total_skipped")
+  totalErrors    Int      @default(0) @map("total_errors")
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("crawler_sync_checkpoints")
+}
+
+// ========================================
+// Search Console スナップショット (9.6)
+// ========================================
+/// GSC API で日次取得する検索クエリ別のパフォーマンス。
+/// admin の /admin/search-console で可視化する。
+model SearchConsoleSnapshot {
+  id          String   @id @default(uuid()) @db.Uuid
+  date        DateTime @db.Date
+  query       String   @db.VarChar(200)
+  page        String   @db.VarChar(500)
+  clicks      Int
+  impressions Int
+  ctr         Float
+  position    Float
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@unique([date, query, page], name: "uniq_gsc_dimensions")
+  @@index([date(sort: Desc), clicks(sort: Desc)], name: "idx_gsc_top")
+  @@map("search_console_snapshots")
+}
+
+// ========================================
+// AI 生成記事 (9.7)
+// ========================================
+/// 13.1 ブログ / 13.2 地域×職種 LP の本文を LLM で
+/// 補完生成。admin がレビューして published にする運用。
+model AiGeneratedArticle {
+  id            String    @id @default(uuid()) @db.Uuid
+  slug          String    @unique @db.VarChar(200)
+  topic         String    @db.VarChar(200) // 業界 + 職種 + 地域 等
+  prompt        String
+  bodyMarkdown  String    @map("body_markdown")
+  status        String    @default("draft") @db.VarChar(20) // draft | review | published
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz()
+  relatedJobIds String[]  @default([]) @map("related_job_ids")
+  modelName     String?   @map("model_name") @db.VarChar(50) // 生成に使った LLM モデル名
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@index([status, publishedAt(sort: Desc)], name: "idx_ai_articles_status")
+  @@map("ai_generated_articles")
+}
+
+// ========================================
+// アナリティクスイベント (13.4)
+// ========================================
+/// GA4 と並行して持つ独自イベントログ。
+/// search / view_job / apply / interest_click / scout_click 等。
+/// payload は Json で柔軟に。admin の /admin/analytics で可視化。
+model AnalyticsEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  sessionId String?  @map("session_id") @db.VarChar(50)
+  name      String   @db.VarChar(50) // search | view_job | apply | ...
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([name, createdAt(sort: Desc)], name: "idx_analytics_name_time")
+  @@index([userId, createdAt(sort: Desc)], name: "idx_analytics_user_time")
+  @@map("analytics_events")
 }

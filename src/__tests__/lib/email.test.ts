@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { sendEmail, sendApplicationConfirmEmail, sendScoutNotificationEmail } from "@/lib/email"
+import { sendEmail, sendApplicationConfirmEmail } from "@/lib/email"
 
 describe("sendEmail", () => {
   beforeEach(() => {
@@ -29,11 +29,3 @@ describe("sendApplicationConfirmEmail", () => {
   })
 })
 
-describe("sendScoutNotificationEmail", () => {
-  it("sends email with company name", async () => {
-    const spy = vi.spyOn(console, "log").mockImplementation(() => {})
-    await sendScoutNotificationEmail("user@example.com", "株式会社建設")
-    expect(spy).toHaveBeenCalledWith(expect.stringContaining("user@example.com"))
-    expect(spy).toHaveBeenCalledWith(expect.stringContaining("株式会社建設"))
-  })
-})

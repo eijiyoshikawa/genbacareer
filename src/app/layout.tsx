@@ -5,6 +5,8 @@ import { Footer } from "@/components/layout/footer";
 import { NavigationProgress } from "@/components/navigation-progress";
 import { GoogleAnalytics, DeferredVercelTelemetry } from "@/components/analytics";
 import { CookieConsentBanner } from "@/components/cookie-consent";
+import { ThemeProvider } from "@/components/theme/theme-provider";
+import { ThemeInitScript } from "@/components/theme/theme-init-script";
 import {
   generateOrganizationSchema,
   generateWebSiteSchema,
@@ -102,8 +104,10 @@ export default async function RootLayout({
             初回ロードで 100〜300ms 早く到達する（視覚品質は変わらない） */}
         <link rel="preconnect" href="https://images.unsplash.com" />
         <link rel="dns-prefetch" href="https://images.unsplash.com" />
+        {/* ハイドレーション前に theme を <html> に当てて flicker を防ぐ */}
+        <ThemeInitScript />
       </head>
-      <body className="min-h-full flex flex-col font-sans bg-white">
+      <body className="min-h-full flex flex-col font-sans bg-background text-foreground">
         <GoogleAnalytics />
         <script
           type="application/ld+json"
@@ -121,12 +125,14 @@ export default async function RootLayout({
         >
           本文へスキップ
         </a>
-        <NavigationProgress />
-        <Header />
-        <main id="main-content" className="flex-1">{children}</main>
-        <Footer />
-        <CookieConsentBanner />
-        <DeferredVercelTelemetry />
+        <ThemeProvider>
+          <NavigationProgress />
+          <Header />
+          <main id="main-content" className="flex-1">{children}</main>
+          <Footer />
+          <CookieConsentBanner />
+          <DeferredVercelTelemetry />
+        </ThemeProvider>
       </body>
     </html>
   );

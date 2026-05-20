@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { PREFECTURES } from "@/lib/constants"
 import { CATEGORIES } from "@/lib/categories"
+import { JOB_SEARCH_STATUSES } from "@/lib/job-search-status"
 
 interface ProfileFormData {
   name: string
@@ -14,6 +15,7 @@ interface ProfileFormData {
   desiredCategories: string[]
   desiredSalaryMin: string
   profilePublic: boolean
+  jobSearchStatus: string
 }
 
 export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
@@ -53,6 +55,7 @@ export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
             ? Number(form.desiredSalaryMin)
             : null,
           profilePublic: form.profilePublic,
+          jobSearchStatus: form.jobSearchStatus,
         }),
       })
 
@@ -203,6 +206,36 @@ export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
         </div>
       </div>
 
+      <div className="border bg-white p-6 shadow-sm space-y-5">
+        <h2 className="text-lg font-semibold text-gray-900">求職ステータス</h2>
+        <p className="text-xs text-gray-500">
+          現在の状況に応じて、新着求人通知や企業からの連絡量が変わります。
+        </p>
+        <div className="space-y-2">
+          {JOB_SEARCH_STATUSES.map((s) => (
+            <label
+              key={s.value}
+              className="flex cursor-pointer items-start gap-3 border p-3 hover:bg-gray-50"
+            >
+              <input
+                type="radio"
+                name="jobSearchStatus"
+                value={s.value}
+                checked={form.jobSearchStatus === s.value}
+                onChange={(e) =>
+                  setForm({ ...form, jobSearchStatus: e.target.value })
+                }
+                className="mt-1 h-4 w-4 border-gray-300 text-primary-600"
+              />
+              <div>
+                <p className="text-sm font-medium text-gray-900">{s.label}</p>
+                <p className="text-xs text-gray-500">{s.description}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
       <div className="border bg-white p-6 shadow-sm">
         <label className="flex items-center gap-3">
           <input
@@ -214,7 +247,7 @@ export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
             className="h-4 w-4 border-gray-300 text-primary-600"
           />
           <span className="text-sm text-gray-700">
-            プロフィールを企業に公開する（スカウトを受け取るために必要です）
+            プロフィールを企業に公開する
           </span>
         </label>
       </div>

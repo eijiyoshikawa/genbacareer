@@ -2,6 +2,12 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { JOB_SEARCH_STATUSES } from "@/lib/job-search-status"
+
+const JOB_SEARCH_STATUS_VALUES = JOB_SEARCH_STATUSES.map((s) => s.value) as [
+  string,
+  ...string[],
+]
 
 const updateProfileSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -12,6 +18,7 @@ const updateProfileSchema = z.object({
   desiredCategories: z.array(z.string()).optional(),
   desiredSalaryMin: z.number().int().min(0).nullable().optional(),
   profilePublic: z.boolean().optional(),
+  jobSearchStatus: z.enum(JOB_SEARCH_STATUS_VALUES).optional(),
 })
 
 export async function GET() {
@@ -34,6 +41,7 @@ export async function GET() {
       desiredSalaryMin: true,
       resumeUrl: true,
       profilePublic: true,
+      jobSearchStatus: true,
       createdAt: true,
     },
   })
@@ -87,6 +95,9 @@ export async function PUT(request: NextRequest) {
       ...(data.profilePublic !== undefined
         ? { profilePublic: data.profilePublic }
         : {}),
+      ...(data.jobSearchStatus !== undefined
+        ? { jobSearchStatus: data.jobSearchStatus }
+        : {}),
     },
     select: {
       id: true,
@@ -99,6 +110,7 @@ export async function PUT(request: NextRequest) {
       desiredCategories: true,
       desiredSalaryMin: true,
       profilePublic: true,
+      jobSearchStatus: true,
     },
   })
 
