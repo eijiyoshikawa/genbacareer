@@ -57,11 +57,13 @@ function VerifyEmailContent() {
 
   if (!token) {
     return (
-      <div className="mt-6 border bg-white p-6 shadow-sm text-center">
-        <p className="text-red-600">確認リンクが見つかりません。</p>
+      <div className="mt-6 bg-white dark:bg-gray-900 p-8 shadow-xl text-center">
+        <p className="text-red-600 dark:text-red-400">
+          確認リンクが見つかりません。
+        </p>
         <Link
           href="/register"
-          className="mt-4 inline-block text-sm font-medium text-primary-600"
+          className="mt-4 inline-block text-sm font-medium text-primary-600 dark:text-primary-400"
         >
           再度ご登録
         </Link>
@@ -71,7 +73,7 @@ function VerifyEmailContent() {
 
   if (state.status === "loading") {
     return (
-      <div className="mt-6 border bg-white p-6 shadow-sm text-center text-gray-600">
+      <div className="mt-6 bg-white dark:bg-gray-900 p-8 shadow-xl text-center text-gray-600 dark:text-gray-300">
         確認中...
       </div>
     )
@@ -79,11 +81,11 @@ function VerifyEmailContent() {
 
   if (state.status === "error") {
     return (
-      <div className="mt-6 border bg-white p-6 shadow-sm text-center">
-        <p className="text-red-600">{state.message}</p>
+      <div className="mt-6 bg-white dark:bg-gray-900 p-8 shadow-xl text-center">
+        <p className="text-red-600 dark:text-red-400">{state.message}</p>
         <Link
           href="/register"
-          className="mt-4 inline-block text-sm font-medium text-primary-600"
+          className="mt-4 inline-block text-sm font-medium text-primary-600 dark:text-primary-400"
         >
           再度ご登録
         </Link>
@@ -91,19 +93,48 @@ function VerifyEmailContent() {
     )
   }
 
+  if (state.alreadyVerified) {
+    return (
+      <div className="mt-6 bg-white dark:bg-gray-900 p-8 shadow-xl text-center">
+        <p className="text-gray-700 dark:text-gray-200">
+          このメールアドレスは既に確認済みです。
+        </p>
+        <Link
+          href="/login"
+          className="mt-4 inline-block bg-primary-500 px-6 py-2 text-sm font-medium text-white hover:bg-primary-600 transition"
+        >
+          ログインする
+        </Link>
+      </div>
+    )
+  }
+
   return (
-    <div className="mt-6 border bg-white p-6 shadow-sm text-center">
-      <p className="text-green-600 font-medium">
-        {state.alreadyVerified
-          ? "このメールアドレスは既に確認済みです。"
-          : "メールアドレスの確認が完了しました"}
+    <div className="mt-6 bg-white dark:bg-gray-900 p-10 shadow-2xl text-center">
+      <p className="text-3xl sm:text-4xl font-black text-primary-600 dark:text-primary-400 leading-tight">
+        ようこそ、
+        <br className="sm:hidden" />
+        ゲンバキャリアへ!
       </p>
-      <Link
-        href="/login"
-        className="mt-4 inline-block bg-primary-600 px-6 py-2 text-sm font-medium text-white hover:bg-primary-700"
-      >
-        ログインする
-      </Link>
+      <p className="mt-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+        メールアドレスの確認が完了しました。
+        <br />
+        現場で輝くキャリアを、ここから一緒に始めましょう。
+      </p>
+      <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+        <Link
+          href="/login"
+          className="w-full sm:w-auto bg-primary-500 px-8 py-3 text-base font-bold text-white hover:bg-primary-600 shadow-md transition"
+        >
+          ログインして始める
+        </Link>
+        <Link
+          href="/jobs"
+          className="w-full sm:w-auto px-8 py-3 text-base font-medium text-gray-700 dark:text-gray-200 hover:text-primary-600 dark:hover:text-primary-400"
+        >
+          まず求人を見てみる
+        </Link>
+      </div>
     </div>
   )
 }
@@ -111,12 +142,14 @@ function VerifyEmailContent() {
 export default function VerifyEmailPage() {
   return (
     <div className="mx-auto max-w-md px-4 py-16">
-      <h1 className="text-2xl font-bold text-gray-900 text-center">
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 text-center">
         メールアドレスの確認
       </h1>
       <Suspense
         fallback={
-          <div className="mt-6 text-center text-gray-500">読み込み中...</div>
+          <div className="mt-6 text-center text-gray-500 dark:text-gray-400">
+            読み込み中...
+          </div>
         }
       >
         <VerifyEmailContent />
