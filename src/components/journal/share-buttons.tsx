@@ -63,7 +63,7 @@ export function ShareButtons({ url, title, articleId }: Props) {
         rel="noopener noreferrer"
         aria-label="X (Twitter) でシェア"
         onClick={() => logShare("x")}
-        className="flex h-8 w-8 items-center justify-center border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+        className="flex h-8 w-8 items-center justify-center border border-gray-300 hover:bg-gray-50"
       >
         <X className="h-4 w-4" />
       </a>
@@ -83,7 +83,7 @@ export function ShareButtons({ url, title, articleId }: Props) {
         rel="noopener noreferrer"
         aria-label="Facebook でシェア"
         onClick={() => logShare("facebook")}
-        className="flex h-8 w-8 items-center justify-center border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+        className="flex h-8 w-8 items-center justify-center border border-gray-300 hover:bg-gray-50"
       >
         <FacebookLogo className="h-4 w-4" weight="fill" />
       </a>
@@ -91,7 +91,7 @@ export function ShareButtons({ url, title, articleId }: Props) {
         type="button"
         onClick={handleNativeShare}
         aria-label={copied ? "URL をコピーしました" : "その他の方法でシェア"}
-        className="flex h-8 px-3 items-center gap-1 border border-gray-300 dark:border-gray-700 text-xs hover:bg-gray-50 dark:hover:bg-gray-800"
+        className="flex h-8 px-3 items-center gap-1 border border-gray-300 text-xs hover:bg-gray-50"
       >
         <Share2 className="h-3.5 w-3.5" />
         {copied ? "コピー済み" : "その他"}

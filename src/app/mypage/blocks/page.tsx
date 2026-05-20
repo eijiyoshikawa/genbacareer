@@ -51,11 +51,11 @@ export default async function BlocksPage() {
         マイページへ戻る
       </Link>
 
-      <h1 className="mt-4 flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
+      <h1 className="mt-4 flex items-center gap-2 text-2xl font-bold text-gray-900">
         <Shield className="h-6 w-6 text-primary-500" />
         ブロック企業 / NG キーワード
       </h1>
-      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+      <p className="mt-2 text-sm text-gray-500">
         現職や知り合いの会社からの閲覧を防ぐため、特定の企業や
         NG キーワードを含む求人を検索結果から除外できます。
       </p>

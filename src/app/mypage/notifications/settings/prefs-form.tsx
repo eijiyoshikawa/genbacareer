@@ -52,8 +52,8 @@ export function NotificationPrefsForm({ initial }: { initial: NotificationPrefs 
   return (
     <div className="space-y-6">
       {/* チャネル */}
-      <section className="border bg-white dark:bg-gray-900 p-5 space-y-4">
-        <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+      <section className="border bg-white p-5 space-y-4">
+        <h2 className="text-sm font-bold text-gray-900">
           受け取るチャネル
         </h2>
         <Toggle
@@ -77,8 +77,8 @@ export function NotificationPrefsForm({ initial }: { initial: NotificationPrefs 
       </section>
 
       {/* 配信頻度 */}
-      <section className="border bg-white dark:bg-gray-900 p-5 space-y-4">
-        <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+      <section className="border bg-white p-5 space-y-4">
+        <h2 className="text-sm font-bold text-gray-900">
           配信頻度
         </h2>
         <div className="space-y-2">
@@ -93,7 +93,7 @@ export function NotificationPrefsForm({ initial }: { initial: NotificationPrefs 
                 className="mt-1 h-4 w-4 border-gray-300 text-primary-600"
               />
               <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                <p className="text-sm font-medium text-gray-900">
                   {FREQUENCY_LABELS[f]}
                 </p>
                 <p className="text-xs text-gray-500">
@@ -108,11 +108,11 @@ export function NotificationPrefsForm({ initial }: { initial: NotificationPrefs 
       </section>
 
       {/* 静音時間帯 */}
-      <section className="border bg-white dark:bg-gray-900 p-5 space-y-4">
-        <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+      <section className="border bg-white p-5 space-y-4">
+        <h2 className="text-sm font-bold text-gray-900">
           静音時間帯 (任意)
         </h2>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-gray-500">
           設定した時間帯は通知を送らず、終了時刻以降にまとめて配信されます。
           深夜や勤務時間に届かないようにしたい場合に。
         </p>
@@ -125,7 +125,7 @@ export function NotificationPrefsForm({ initial }: { initial: NotificationPrefs 
                 e.target.value === "" ? null : Number(e.target.value)
               )
             }
-            className="border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm"
+            className="border border-gray-300 bg-white px-3 py-2 text-sm"
           >
             <option value="">設定しない</option>
             {hours.map((h) => (
@@ -143,7 +143,7 @@ export function NotificationPrefsForm({ initial }: { initial: NotificationPrefs 
                 e.target.value === "" ? null : Number(e.target.value)
               )
             }
-            className="border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm"
+            className="border border-gray-300 bg-white px-3 py-2 text-sm"
           >
             <option value="">設定しない</option>
             {hours.map((h) => (
@@ -156,12 +156,12 @@ export function NotificationPrefsForm({ initial }: { initial: NotificationPrefs 
       </section>
 
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/30 p-3 text-sm text-red-700 dark:text-red-300">
+        <div className="bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
       {saved && (
-        <div className="bg-green-50 dark:bg-green-900/30 p-3 text-sm text-green-700 dark:text-green-300">
+        <div className="bg-green-50 p-3 text-sm text-green-700">
           通知設定を保存しました
         </div>
       )}
@@ -200,8 +200,8 @@ function Toggle({
         className="mt-1 h-4 w-4 border-gray-300 text-primary-600"
       />
       <div>
-        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{label}</p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">{desc}</p>
+        <p className="text-sm font-medium text-gray-900">{label}</p>
+        <p className="text-xs text-gray-500">{desc}</p>
       </div>
     </label>
   )
