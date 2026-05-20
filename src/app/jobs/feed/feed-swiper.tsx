@@ -192,11 +192,11 @@ function FeedCard({
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
 
       {/* 本文 — 右側のアクション列 + iOS home indicator 分の余白を確保。
-          pr-20 で右下アイコン列 (w-12 + right-4 padding) と本文テキストの
-          重なりを防ぐ。pb は safe-area inset を加味した env() で家機種別の
-          下端見切れを最小化。 */}
+          右側アイコン列 (h-12/w-12, right-3) と確実に分離するため pr-24
+          (96px) を確保し、テキスト末尾とアイコン左端の間に最低 16px 余白を残す。
+          pb は safe-area-inset-bottom を加味して機種別の下端見切れを最小化。 */}
       <div
-        className="relative z-10 flex h-full flex-col justify-end p-6 pr-20"
+        className="relative z-10 flex h-full flex-col justify-end p-5 pr-24 sm:p-6 sm:pr-28"
         style={{
           paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
         }}
@@ -259,9 +259,11 @@ function FeedCard({
       </div>
 
       {/* 右側フローティング アクション
-          (iOS Safari の下部ツールバーに隠れないよう safe-area-inset-bottom を加味) */}
+          - iOS Safari の下部ツールバーに隠れないよう safe-area-inset-bottom を加味
+          - 本文テキストとの重なりを避けるため右端からの位置と幅は控えめに
+          - 強い backdrop-blur + dark/translucent 背景で本文が後ろに透けても視認性確保 */}
       <div
-        className="absolute right-4 z-20 flex flex-col gap-3"
+        className="absolute right-3 z-20 flex flex-col gap-3"
         style={{
           bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
         }}
@@ -271,10 +273,10 @@ function FeedCard({
           onClick={onFavorite}
           aria-label={isFavorite ? "お気に入りから削除" : "お気に入りに追加"}
           aria-pressed={isFavorite}
-          className={`flex h-12 w-12 items-center justify-center border-2 backdrop-blur-sm transition ${
+          className={`flex h-11 w-11 items-center justify-center backdrop-blur-md transition shadow-lg ${
             isFavorite
-              ? "border-red-500 bg-red-500/90 text-white"
-              : "border-white/50 bg-black/30 text-white hover:bg-white/20"
+              ? "bg-red-500/95 text-white"
+              : "bg-black/55 text-white hover:bg-black/70"
           }`}
         >
           <Heart className="h-5 w-5" fill={isFavorite ? "currentColor" : "none"} />
@@ -282,14 +284,14 @@ function FeedCard({
         <Link
           href={`/jobs/${job.id}/apply`}
           aria-label="応募する"
-          className="flex h-12 w-12 items-center justify-center border-2 border-primary-400 bg-primary-500 text-white hover:bg-primary-600"
+          className="flex h-11 w-11 items-center justify-center bg-primary-500/95 text-white hover:bg-primary-600 backdrop-blur-md shadow-lg"
         >
           <MessageCircle className="h-5 w-5" />
         </Link>
         <Link
           href={`/jobs/${job.id}`}
           aria-label="詳細を見る"
-          className="flex h-12 w-12 items-center justify-center border-2 border-white/50 bg-black/30 text-white backdrop-blur-sm hover:bg-white/20"
+          className="flex h-11 w-11 items-center justify-center bg-black/55 text-white backdrop-blur-md shadow-lg hover:bg-black/70"
         >
           <ExternalLink className="h-5 w-5" />
         </Link>
