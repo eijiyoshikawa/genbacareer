@@ -55,7 +55,11 @@ export default function robots(): MetadataRoute.Robots {
         disallow: "/",
       })),
     ],
-    sitemap: `${BASE_URL}/sitemap.xml`,
+    sitemap: [
+      `${BASE_URL}/sitemap.xml`,
+      `${BASE_URL}/image-sitemap.xml`,
+      `${BASE_URL}/video-sitemap.xml`,
+    ],
     host: BASE_URL,
   }
 }
