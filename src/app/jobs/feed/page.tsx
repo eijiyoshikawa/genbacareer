@@ -1,0 +1,67 @@
+/**
+ * 11.5 縦スワイプ求人フィード (TikTok 風)。
+ *
+ * Server Component で初期 10 件を取得し、Client の FeedSwiper に渡す。
+ * 追加読み込みは /api/jobs/feed?cursor=... で行う。
+ *
+ * 1 画面 1 求人のフルスクリーンビュー。
+ * 上下スワイプ (= scroll-snap) で次/前の求人へ。
+ */
+
+import { prisma } from "@/lib/db"
+import type { Metadata } from "next"
+import { FeedSwiper, type FeedJob } from "./feed-swiper"
+
+export const metadata: Metadata = {
+  title: "求人フィード",
+  description: "スワイプで気になる求人を発見。ゲンバキャリアのフィード機能。",
+}
+
+const INITIAL_LIMIT = 10
+
+export default async function JobFeedPage() {
+  const jobs = await prisma.job.findMany({
+    where: { status: "active" },
+    orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+    take: INITIAL_LIMIT,
+    select: {
+      id: true,
+      title: true,
+      prefecture: true,
+      city: true,
+      salaryMin: true,
+      salaryMax: true,
+      salaryType: true,
+      employmentType: true,
+      category: true,
+      tags: true,
+      description: true,
+      company: {
+        select: { name: true, logoUrl: true, photos: true },
+      },
+    },
+  })
+
+  const initial: FeedJob[] = jobs.map((j) => ({
+    id: j.id,
+    title: j.title,
+    prefecture: j.prefecture,
+    city: j.city,
+    salaryMin: j.salaryMin,
+    salaryMax: j.salaryMax,
+    salaryType: j.salaryType,
+    employmentType: j.employmentType,
+    category: j.category,
+    tags: j.tags,
+    description: j.description,
+    companyName: j.company?.name ?? null,
+    companyLogoUrl: j.company?.logoUrl ?? null,
+    companyPhoto: j.company?.photos?.[0] ?? null,
+  }))
+
+  return (
+    <div className="bg-black">
+      <FeedSwiper initialJobs={initial} />
+    </div>
+  )
+}

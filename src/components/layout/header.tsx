@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Search, Newspaper, MessageCircle } from "lucide-react"
+import { Search, Newspaper, MessageCircle, Sparkles } from "lucide-react"
 import { BrandLogo } from "./brand-logo"
 import { LinkButton } from "@/components/ui/button"
 import { HeaderMobileMenu } from "./header-mobile-menu"
@@ -28,6 +28,13 @@ export function Header() {
             >
               <Search className="h-4 w-4" />
               求人を探す
+            </Link>
+            <Link
+              href="/jobs/feed"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
+            >
+              <Sparkles className="h-4 w-4" />
+              フィード
             </Link>
             <Link
               href="/journal"
