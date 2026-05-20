@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   title: "企業管理",
 }
 
+export const dynamic = "force-dynamic"
+
 type StatusFilter = "all" | "pending" | "approved" | "rejected"
 
 const STATUS_LABEL: Record<string, { text: string; className: string }> = {
@@ -36,6 +38,8 @@ export default async function AdminCompaniesPage({
     ...(statusFilter !== "all" ? { status: statusFilter } : {}),
   }
 
+  // _count.applications はテーブルが大きく非常に重いため一覧では取得しない
+  // (詳細ページで取得する)。求人数は使い回しのため残す。
   const [companies, total, pendingCount] = await Promise.all([
     prisma.company.findMany({
       where,
@@ -51,11 +55,7 @@ export default async function AdminCompaniesPage({
         createdAt: true,
         status: true,
         _count: {
-          select: {
-            jobs: true,
-            companyUsers: true,
-            applications: true,
-          },
+          select: { jobs: true },
         },
       },
     }),
@@ -150,8 +150,6 @@ export default async function AdminCompaniesPage({
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">業種</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">地域</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">求人数</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">応募数</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">担当者</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">登録日</th>
               </tr>
             </thead>
@@ -186,12 +184,6 @@ export default async function AdminCompaniesPage({
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {company._count.jobs}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {company._count.applications}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {company._count.companyUsers}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
                       {company.createdAt.toLocaleDateString("ja-JP")}

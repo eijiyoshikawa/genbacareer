@@ -321,6 +321,7 @@ model Company {
   @@unique([source, name], name: "company_source_name_unique")
   @@index([status], name: "idx_companies_status")
   @@index([source], name: "idx_companies_source")
+  @@index([source, status, createdAt(sort: Desc)], name: "idx_companies_admin_list")
   @@index([lastContentUpdatedAt(sort: Desc)], name: "idx_companies_last_content")
   @@map("companies")
 }
@@ -502,6 +503,9 @@ model Application {
   billingEvent BillingEvent?
 
   @@unique([jobId, userId])
+  @@index([companyId, createdAt(sort: Desc)], name: "idx_applications_by_company")
+  @@index([userId, createdAt(sort: Desc)], name: "idx_applications_by_user")
+  @@index([status, createdAt(sort: Desc)], name: "idx_applications_by_status")
   @@map("applications")
 }
 
