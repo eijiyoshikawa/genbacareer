@@ -7,14 +7,7 @@ import { withTimeout } from "@/lib/with-timeout"
 import { diversifyByCompany } from "@/lib/job-diversify"
 import {
   Search,
-  HardHat,
-  Hammer,
-  Wrench,
-  Truck,
   Building2,
-  Shovel,
-  ClipboardCheck,
-  Ruler,
   ArrowRight,
   MapPin,
   Newspaper,
@@ -86,22 +79,79 @@ const FEATURE_BANNERS: Array<{
   },
 ]
 
-// 8 カテゴリ。色とアイコンで視認性を担保。
+// 8 カテゴリ。Unsplash の建設業ストック写真をカード上部に配置し、
+// 画像読み込み失敗時のフォールバックとして bg グラデーションを下に敷く。
 const categories: Array<{
   key: string
   label: string
   sub: string
-  icon: typeof HardHat
+  image: string
   bg: string
 }> = [
-  { key: "construction", label: "建築・躯体", sub: "鳶 / 型枠 / 鉄筋 / 大工", icon: HardHat, bg: "from-amber-400 to-amber-600" },
-  { key: "civil", label: "土木", sub: "土工 / 重機オペ / 舗装", icon: Shovel, bg: "from-orange-400 to-orange-600" },
-  { key: "electrical", label: "電気・設備", sub: "電工 / 配管 / 空調", icon: Wrench, bg: "from-blue-400 to-blue-600" },
-  { key: "interior", label: "内装・仕上げ", sub: "クロス / 塗装 / 左官", icon: Hammer, bg: "from-emerald-400 to-emerald-600" },
-  { key: "demolition", label: "解体・産廃", sub: "解体 / アスベスト", icon: Building2, bg: "from-stone-500 to-stone-700" },
-  { key: "driver", label: "ドライバー・重機", sub: "ダンプ / トレーラー", icon: Truck, bg: "from-cyan-400 to-cyan-600" },
-  { key: "management", label: "施工管理", sub: "現場監督 / 工程", icon: ClipboardCheck, bg: "from-indigo-400 to-indigo-600" },
-  { key: "survey", label: "測量・設計", sub: "測量士 / CAD", icon: Ruler, bg: "from-purple-400 to-purple-600" },
+  {
+    key: "construction",
+    label: "建築・躯体",
+    sub: "鳶 / 型枠 / 鉄筋 / 大工",
+    image:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=600&q=70",
+    bg: "from-amber-400 to-amber-600",
+  },
+  {
+    key: "civil",
+    label: "土木",
+    sub: "土工 / 重機オペ / 舗装",
+    image:
+      "https://images.unsplash.com/photo-1581094288338-2314dddb7ece?auto=format&fit=crop&w=600&q=70",
+    bg: "from-orange-400 to-orange-600",
+  },
+  {
+    key: "electrical",
+    label: "電気・設備",
+    sub: "電工 / 配管 / 空調",
+    image:
+      "https://images.unsplash.com/photo-1621905251918-48416bd8575a?auto=format&fit=crop&w=600&q=70",
+    bg: "from-blue-400 to-blue-600",
+  },
+  {
+    key: "interior",
+    label: "内装・仕上げ",
+    sub: "クロス / 塗装 / 左官",
+    image:
+      "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=600&q=70",
+    bg: "from-emerald-400 to-emerald-600",
+  },
+  {
+    key: "demolition",
+    label: "解体・産廃",
+    sub: "解体 / アスベスト",
+    image:
+      "https://images.unsplash.com/photo-1574359411659-15573a27fd0c?auto=format&fit=crop&w=600&q=70",
+    bg: "from-stone-500 to-stone-700",
+  },
+  {
+    key: "driver",
+    label: "ドライバー・重機",
+    sub: "ダンプ / トレーラー",
+    image:
+      "https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=600&q=70",
+    bg: "from-cyan-400 to-cyan-600",
+  },
+  {
+    key: "management",
+    label: "施工管理",
+    sub: "現場監督 / 工程",
+    image:
+      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=70",
+    bg: "from-indigo-400 to-indigo-600",
+  },
+  {
+    key: "survey",
+    label: "測量・設計",
+    sub: "測量士 / CAD",
+    image:
+      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=600&q=70",
+    bg: "from-purple-400 to-purple-600",
+  },
 ]
 
 const popularAreas = [
@@ -367,14 +417,26 @@ export default async function HomePage() {
         </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {categoriesWithCounts.map(({ key, label, sub, icon: Icon, bg, count }) => (
+            {categoriesWithCounts.map(({ key, label, sub, image, bg, count }) => (
               <Link
                 key={key}
                 href={`/jobs?category=${key}`}
                 className="press group accent-t border border-gray-200 overflow-hidden bg-white hover:border-primary-400 hover:shadow-md transition"
               >
-                <div className={`h-20 sm:h-24 flex items-end p-3 bg-gradient-to-br ${bg}`}>
-                  <Icon className="h-7 w-7 text-white drop-shadow" />
+                {/* 画像読み込み中 / 失敗時のフォールバックとして色グラデを下に敷く */}
+                <div className={`relative h-24 sm:h-28 bg-gradient-to-br ${bg}`}>
+                  <Image
+                    src={image}
+                    alt=""
+                    fill
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                    className="object-cover"
+                  />
+                  {/* テキストとの視覚的な切り替え用に微かな暗いグラデーション */}
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"
+                  />
                 </div>
                 <div className="p-3">
                   <p className="text-sm font-bold text-gray-900 group-hover:text-primary-600">
