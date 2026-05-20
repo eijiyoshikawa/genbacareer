@@ -36,6 +36,7 @@ import type { Metadata } from "next"
 import {
   generateJobPostingSchema,
   generateBreadcrumbSchema,
+  generateVideoObjectSchema,
 } from "@/lib/structured-data"
 import { getCategoryLabel } from "@/lib/categories"
 import { groupTags } from "@/lib/job-enrichment"
@@ -348,6 +349,27 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
       />
+      {/* VideoObject: 動画つき求人で「動画あり」リッチリザルトを狙う */}
+      {job.videoUrls.length > 0 &&
+        job.videoUrls.slice(0, 3).map((videoUrl) => (
+          <script
+            key={videoUrl}
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(
+                generateVideoObjectSchema({
+                  jobId: job.id,
+                  jobTitle: job.title,
+                  videoUrl,
+                  uploadDate: job.publishedAt ?? job.createdAt,
+                  description:
+                    job.description?.slice(0, 280) ??
+                    `${job.title} の紹介動画`,
+                }),
+              ),
+            }}
+          />
+        ))}
 
       {isPreview && (
         <div className="bg-amber-100 border-b border-amber-300">
