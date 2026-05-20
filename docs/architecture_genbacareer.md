@@ -351,8 +351,8 @@ model AnalyticsEvent {
 | 企業 UX | 5.1, 5.2, 5.3, 5.4, 5.5 |
 | 運営 | 6.1, 6.2, 6.5 |
 | 検索 | 11.1, 11.4, 11.8 |
-| 通知 | 10.1, 10.4, 10.5（メール基盤） |
-| SEO | 9.1, 9.2, 13.3 |
+| 通知 | 10.1（SMTP 選定）, 10.3（Nodemailer 実装）, 10.4（オプトアウト）, 10.5（テンプレ管理） |
+| SEO | 9.1（OG画像）, 9.2（JobPosting）, 9.3（sitemap）, 9.4（Organization）, 9.5（ISR）, 13.3 |
 | 法令 | 17.1, 17.2, 17.4 |
 | UX | 16.1（PWA）, 16.3（a11y）, 16.6（テーマ） |
 
@@ -360,9 +360,9 @@ model AnalyticsEvent {
 
 | 区分 | 機能 |
 |---|---|
-| クローラ | 7.1〜7.5, 8.1, 8.2, 8.4 |
+| クローラ | 7.1（カテゴリ分類）, 7.2（差分同期）, 7.3（表記薄め）, 7.4（統計）, 7.5（競合分析）, 8.1, 8.2, 8.4 |
 | 企業 | 12.1, 12.3, 12.5, 12.6 |
-| SEO | 13.1, 13.2 |
+| SEO | 13.1, 13.2, 9.6（Search Console 連携）, 9.7（AI コンテンツ生成） |
 | 検索 | 11.2, 11.5, 11.6, 11.7 |
 | LINE | 3.2, 10.6 |
 | 通知 | 3.3 (Push), 3.4, 16.2 |
@@ -432,12 +432,78 @@ HelloWork クローラ、ランキング、企業ログイン、admin など多�
 
 ---
 
-## 6. 残課題（未確定 / 名称不明）
+## 6. 残課題の確定内容（旧 "名称不明" 11 項目）
 
-下記は決定済みだが項目名がスクショから失われており、設計時に再確認が必要：
+ユーザーへの再確認で全 11 項目が確定。詳細は [feature-decisions.md](./feature-decisions.md) 参照。
 
-- 7.1〜7.4（公共求人 / 管理系の 4 項目）
-- 9.3〜9.6, 9.7（SEO 系の 5 項目）
-- 10.2, 10.3（通知 / メール系の 2 項目）
+### 7.x 公共求人 / 管理系（クローラ周辺）
 
-実装着手前に項目名を確定させること。
+- **7.1 タグ付け・カテゴリ分類** — クロール求人を `Job.industry / occupation` に自動分類
+- **7.2 差分同期・自動更新** — 取り込み済み求人の変更検出と再取り込み
+- **7.3 HelloWork 表記の薄め化・リブランド** — `Job.source = HELLOWORK_HISTORICAL` の UI 表記を自社風に
+- **7.4 HelloWork 取り込み統計ダッシュボード** — admin で取り込み件数・エラー数・重複件数を可視化
+
+### 9.x SEO 系
+
+- **9.3 sitemap.xml 動的生成** — `/sitemap.xml` を 6h ISR で生成
+- **9.4 Organization 構造化データ** — `<head>` に JSON-LD `Organization`（会社名・ロゴ・サポート）を埋め込み
+- **9.5 ISR / ストリーミングレンダリング** — 求人・企業ページに Suspense + ISR
+- **9.6 Search Console 連携・検索データ可視化** — GSC API で検索クエリ・CTR を admin で表示
+- **9.7 AI コンテンツ生成（検索用記事）** — 13.1 ブログ・13.2 LP の本文をテンプレ + LLM 補完で生成
+
+### 10.x 通知 / メール系
+
+- **10.2 SaaS メール送信サービス（Resend 等）** ❌ — 10.1 で Xserver SMTP に決定済みのため不採用
+- **10.3 Nodemailer + SMTP 送信実装** ✅ — `lib/email/sender.ts` 相当（PR #114 で実装済み）
+
+---
+
+## 7. データモデル追加分（残課題確定により追加）
+
+```prisma
+model JobCategoryClassification {
+  // 7.1 タグ付け・カテゴリ分類
+  scrapedJobId String   @id
+  industry     Industry
+  occupation   String
+  confidence   Float    // 0.0-1.0
+  classifiedBy ClassifierType // RULE | LLM | MANUAL
+  classifiedAt DateTime @default(now())
+}
+
+model CrawlerSyncCheckpoint {
+  // 7.2 差分同期
+  source         String   @id // hellowork
+  lastSyncedAt   DateTime
+  lastCursor     String?
+  totalImported  Int
+  totalUpdated   Int
+  totalSkipped   Int
+}
+
+model SearchConsoleSnapshot {
+  // 9.6 Search Console 連携
+  id          String   @id @default(cuid())
+  date        DateTime
+  query       String
+  page        String
+  clicks      Int
+  impressions Int
+  ctr         Float
+  position    Float
+  @@unique([date, query, page])
+}
+
+model AiGeneratedArticle {
+  // 9.7 AI コンテンツ生成
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  topic        String   // 業界 + 職種 + 地域 等
+  prompt       String
+  bodyMarkdown String
+  status       ArticleStatus // DRAFT | REVIEW | PUBLISHED
+  publishedAt  DateTime?
+  // 内部リンク用
+  relatedJobIds String[]
+}
+```
