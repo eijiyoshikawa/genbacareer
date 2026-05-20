@@ -114,19 +114,19 @@ export default async function CompanyRankingPage(props: {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+      <h1 className="text-2xl font-bold text-gray-900">
         企業ランキング
       </h1>
-      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+      <p className="mt-1 text-sm text-gray-500">
         求人数 × 2 + フォロワー数 × 3 + 応募数 × 1 で算出した人気企業ランキング。
       </p>
 
-      <div className="mt-6 flex gap-2 border-b border-gray-200 dark:border-gray-800">
+      <div className="mt-6 flex gap-2 border-b border-gray-200">
         <Link
           href="/companies/ranking?tab=industry"
           className={`border-b-2 px-4 py-2 text-sm font-medium transition ${
             activeTab === "industry"
-              ? "border-primary-600 text-primary-700 dark:text-primary-400"
+              ? "border-primary-600 text-primary-700"
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
@@ -136,7 +136,7 @@ export default async function CompanyRankingPage(props: {
           href="/companies/ranking?tab=prefecture"
           className={`border-b-2 px-4 py-2 text-sm font-medium transition ${
             activeTab === "prefecture"
-              ? "border-primary-600 text-primary-700 dark:text-primary-400"
+              ? "border-primary-600 text-primary-700"
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
@@ -151,8 +151,8 @@ export default async function CompanyRankingPage(props: {
               href="/companies/ranking?tab=industry"
               className={`border px-3 py-1 text-xs ${
                 !industry
-                  ? "border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/30"
-                  : "border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
+                  ? "border-primary-500 bg-primary-50 text-primary-700"
+                  : "border-gray-300 text-gray-600 hover:bg-gray-50"
               }`}
             >
               全業界
@@ -163,8 +163,8 @@ export default async function CompanyRankingPage(props: {
                 href={`/companies/ranking?tab=industry&industry=${c.value}`}
                 className={`border px-3 py-1 text-xs ${
                   industry === c.value
-                    ? "border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/30"
-                    : "border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
+                    ? "border-primary-500 bg-primary-50 text-primary-700"
+                    : "border-gray-300 text-gray-600 hover:bg-gray-50"
                 }`}
               >
                 {c.label}
@@ -178,7 +178,7 @@ export default async function CompanyRankingPage(props: {
               className={`border px-3 py-1 text-xs ${
                 !pref
                   ? "border-primary-500 bg-primary-50 text-primary-700"
-                  : "border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
+                  : "border-gray-300 text-gray-600 hover:bg-gray-50"
               }`}
             >
               全国
@@ -190,7 +190,7 @@ export default async function CompanyRankingPage(props: {
                 className={`border px-3 py-1 text-xs ${
                   pref === p
                     ? "border-primary-500 bg-primary-50 text-primary-700"
-                    : "border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
+                    : "border-gray-300 text-gray-600 hover:bg-gray-50"
                 }`}
               >
                 {p}
@@ -202,14 +202,14 @@ export default async function CompanyRankingPage(props: {
 
       <ol className="mt-6 space-y-3">
         {ranked.length === 0 ? (
-          <li className="border bg-white dark:bg-gray-900 p-8 text-center text-sm text-gray-500">
+          <li className="border bg-white p-8 text-center text-sm text-gray-500">
             該当する企業が見つかりません。
           </li>
         ) : (
           ranked.map((c, idx) => (
             <li
               key={c.id}
-              className="border bg-white dark:bg-gray-900 dark:border-gray-800 p-4 shadow-sm"
+              className="border bg-white p-4 shadow-sm"
             >
               <Link
                 href={`/companies/${c.id}`}
@@ -226,22 +226,22 @@ export default async function CompanyRankingPage(props: {
                     className="h-12 w-12 shrink-0 border object-contain"
                   />
                 ) : (
-                  <div className="h-12 w-12 shrink-0 border bg-gray-100 dark:bg-gray-800" />
+                  <div className="h-12 w-12 shrink-0 border bg-gray-100" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-bold text-gray-900 dark:text-gray-100">
+                  <p className="truncate font-bold text-gray-900">
                     {c.name}
                   </p>
                   {c.tagline && (
-                    <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mt-0.5 truncate text-xs text-gray-500">
                       {c.tagline}
                     </p>
                   )}
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-300">
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
                     <span>公開求人: {c.publishedJobs}</span>
                     <span>フォロワー: {c.followers}</span>
                     <span>応募: {c.applications}</span>
-                    <span className="font-medium text-primary-700 dark:text-primary-400">
+                    <span className="font-medium text-primary-700">
                       スコア: {c.score}
                     </span>
                   </div>

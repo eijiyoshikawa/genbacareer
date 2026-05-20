@@ -79,7 +79,7 @@ export function ReportButton({ targetType, targetId, label = "通報", asLink = 
         <button
           type="button"
           onClick={openDialog}
-          className="text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 underline"
+          className="text-xs text-gray-500 hover:text-red-600 underline"
         >
           {label}
         </button>
@@ -87,7 +87,7 @@ export function ReportButton({ targetType, targetId, label = "通報", asLink = 
         <button
           type="button"
           onClick={openDialog}
-          className="inline-flex items-center gap-1.5 border border-gray-300 dark:border-gray-700 px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+          className="inline-flex items-center gap-1.5 border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
         >
           <Flag className="h-3.5 w-3.5" />
           {label}
@@ -96,14 +96,14 @@ export function ReportButton({ targetType, targetId, label = "通報", asLink = 
 
       <dialog
         ref={dialogRef}
-        className="max-w-md w-full p-0 bg-white dark:bg-gray-900 backdrop:bg-black/50"
+        className="max-w-md w-full p-0 bg-white backdrop:bg-black/50"
         aria-labelledby="report-dialog-title"
       >
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <h2
               id="report-dialog-title"
-              className="text-lg font-bold text-gray-900 dark:text-gray-100"
+              className="text-lg font-bold text-gray-900"
             >
               この投稿を通報する
             </h2>
@@ -111,25 +111,25 @@ export function ReportButton({ targetType, targetId, label = "通報", asLink = 
               type="button"
               onClick={closeDialog}
               aria-label="閉じる"
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              className="text-gray-400 hover:text-gray-600"
             >
               ✕
             </button>
           </div>
 
           {done ? (
-            <div className="bg-green-50 dark:bg-green-900/30 p-4 text-sm text-green-700 dark:text-green-300">
+            <div className="bg-green-50 p-4 text-sm text-green-700">
               通報を受け付けました。運営で内容を確認いたします。
             </div>
           ) : (
             <>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-gray-500">
                 通報内容は運営に届きます。第三者には開示されません。
                 虚偽の通報はアカウント停止の対象となる場合があります。
               </p>
 
               <fieldset className="space-y-2">
-                <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <legend className="text-sm font-medium text-gray-700">
                   通報理由
                 </legend>
                 {REPORT_REASONS.map((r) => (
@@ -142,7 +142,7 @@ export function ReportButton({ targetType, targetId, label = "通報", asLink = 
                       onChange={(e) => setReason(e.target.value)}
                       className="h-4 w-4 border-gray-300 text-primary-600"
                     />
-                    <span className="text-gray-700 dark:text-gray-200">{r.label}</span>
+                    <span className="text-gray-700">{r.label}</span>
                   </label>
                 ))}
               </fieldset>
@@ -150,7 +150,7 @@ export function ReportButton({ targetType, targetId, label = "通報", asLink = 
               <div>
                 <label
                   htmlFor="report-detail"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  className="block text-sm font-medium text-gray-700"
                 >
                   詳細（任意・2000 文字まで）
                 </label>
@@ -160,13 +160,13 @@ export function ReportButton({ targetType, targetId, label = "通報", asLink = 
                   onChange={(e) => setDetail(e.target.value)}
                   maxLength={2000}
                   rows={4}
-                  className="mt-1 block w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+                  className="mt-1 block w-full border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
                   placeholder="具体的な内容があれば記載してください。"
                 />
               </div>
 
               {error && (
-                <div className="bg-red-50 dark:bg-red-900/30 p-3 text-sm text-red-600 dark:text-red-300">
+                <div className="bg-red-50 p-3 text-sm text-red-600">
                   {error}
                 </div>
               )}
@@ -175,7 +175,7 @@ export function ReportButton({ targetType, targetId, label = "通報", asLink = 
                 <button
                   type="button"
                   onClick={closeDialog}
-                  className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                  className="text-sm text-gray-500 hover:text-gray-700"
                 >
                   キャンセル
                 </button>

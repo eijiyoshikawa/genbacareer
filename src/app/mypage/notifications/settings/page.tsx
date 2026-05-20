@@ -40,11 +40,11 @@ export default async function NotificationSettingsPage() {
         マイページへ戻る
       </Link>
 
-      <h1 className="mt-4 flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
+      <h1 className="mt-4 flex items-center gap-2 text-2xl font-bold text-gray-900">
         <Bell className="h-6 w-6 text-primary-500" />
         通知設定
       </h1>
-      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+      <p className="mt-2 text-sm text-gray-500">
         受信したい通知チャネル・頻度・静音時間帯を設定できます。
       </p>
 

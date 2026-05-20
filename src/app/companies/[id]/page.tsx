@@ -518,10 +518,10 @@ export default async function CompanyDetailPage({ params }: Props) {
       <section className="mt-10">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <h2 className="text-lg font-semibold text-gray-900">
               在籍者・経験者の口コミ
             </h2>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-xs text-gray-500">
               {reviewStats._count._all > 0 ? (
                 <>
                   平均評価 <strong>{reviewStats._avg.rating?.toFixed(1) ?? "—"}</strong> /
@@ -541,7 +541,7 @@ export default async function CompanyDetailPage({ params }: Props) {
         {reviews.length > 0 && (
           <ul className="mt-4 space-y-3">
             {reviews.map((r) => (
-              <li key={r.id} className="border bg-white dark:bg-gray-900 dark:border-gray-800 p-4">
+              <li key={r.id} className="border bg-white p-4">
                 <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
                   <span className="font-medium text-amber-600">
                     {"★".repeat(r.rating)}
@@ -553,23 +553,23 @@ export default async function CompanyDetailPage({ params }: Props) {
                   <span>{r.createdAt.toLocaleDateString("ja-JP")}</span>
                 </div>
                 {r.title && (
-                  <p className="font-bold text-gray-900 dark:text-gray-100">{r.title}</p>
+                  <p className="font-bold text-gray-900">{r.title}</p>
                 )}
                 {r.goodPoints && (
-                  <p className="mt-2 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                    <span className="font-bold text-green-700 dark:text-green-400">良い点: </span>
+                  <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">
+                    <span className="font-bold text-green-700">良い点: </span>
                     {r.goodPoints}
                   </p>
                 )}
                 {r.badPoints && (
-                  <p className="mt-1 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                    <span className="font-bold text-rose-700 dark:text-rose-400">改善点: </span>
+                  <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">
+                    <span className="font-bold text-rose-700">改善点: </span>
                     {r.badPoints}
                   </p>
                 )}
                 {r.advice && (
-                  <p className="mt-1 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                    <span className="font-bold text-primary-700 dark:text-primary-400">入社検討者へ: </span>
+                  <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">
+                    <span className="font-bold text-primary-700">入社検討者へ: </span>
                     {r.advice}
                   </p>
                 )}

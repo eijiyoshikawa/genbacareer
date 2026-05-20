@@ -176,15 +176,15 @@ export function JobMapClient({ apiKey, points, center, zoom }: Props) {
     <div className="space-y-2">
       <div
         ref={mapRef}
-        className="h-[70vh] w-full border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-900"
+        className="h-[70vh] w-full border border-gray-300 bg-gray-100"
         aria-label="求人マップ"
       />
       {error && (
-        <div className="border bg-red-50 dark:bg-red-900/30 p-3 text-sm text-red-700 dark:text-red-200">
+        <div className="border bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
-      <p className="text-xs text-gray-500 dark:text-gray-400">
+      <p className="text-xs text-gray-500">
         マーカーをクリックすると、その地域の求人一覧へ移動します。
         マーカーの大きさは掲載件数に比例しています。
       </p>

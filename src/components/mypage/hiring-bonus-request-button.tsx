@@ -36,7 +36,7 @@ export function HiringBonusRequestButton({
 
   if (done) {
     return (
-      <span className="inline-flex items-center gap-1 border border-green-300 bg-green-50 dark:bg-green-900/30 px-3 py-1 text-xs font-bold text-green-700 dark:text-green-300">
+      <span className="inline-flex items-center gap-1 border border-green-300 bg-green-50 px-3 py-1 text-xs font-bold text-green-700">
         <Gift className="h-3.5 w-3.5" />
         お祝い金 申請済み
       </span>
@@ -95,7 +95,7 @@ export function HiringBonusRequestButton({
       <button
         type="button"
         onClick={open}
-        className="press inline-flex items-center gap-1 border border-rose-500 bg-rose-50 dark:bg-rose-900/30 px-3 py-1 text-xs font-bold text-rose-700 dark:text-rose-300 hover:bg-rose-100"
+        className="press inline-flex items-center gap-1 border border-rose-500 bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100"
       >
         <Gift className="h-3.5 w-3.5" />
         お祝い金を申請
@@ -103,14 +103,14 @@ export function HiringBonusRequestButton({
 
       <dialog
         ref={dialogRef}
-        className="max-w-md w-full p-0 bg-white dark:bg-gray-900 backdrop:bg-black/50"
+        className="max-w-md w-full p-0 bg-white backdrop:bg-black/50"
         aria-labelledby="bonus-dialog-title"
       >
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <h2
               id="bonus-dialog-title"
-              className="text-lg font-bold text-gray-900 dark:text-gray-100"
+              className="text-lg font-bold text-gray-900"
             >
               採用お祝い金 申請
             </h2>
@@ -125,12 +125,12 @@ export function HiringBonusRequestButton({
           </div>
 
           {done ? (
-            <div className="bg-green-50 dark:bg-green-900/30 p-4 text-sm text-green-700 dark:text-green-300">
+            <div className="bg-green-50 p-4 text-sm text-green-700">
               申請を受け付けました。運営の確認後、1〜2 週間以内に支払い手続きを行います。
             </div>
           ) : (
             <>
-              <div className="bg-rose-50 dark:bg-rose-900/30 p-3 text-sm text-rose-700 dark:text-rose-300">
+              <div className="bg-rose-50 p-3 text-sm text-rose-700">
                 <p className="font-bold">お祝い金 ¥30,000</p>
                 <p className="text-xs mt-1">
                   採用決定 (status=hired) された応募 1 件につき 1 回申請可能です。
@@ -140,7 +140,7 @@ export function HiringBonusRequestButton({
 
               {/* payoutMethod */}
               <fieldset className="space-y-1">
-                <legend className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                <legend className="text-xs font-medium text-gray-700">
                   受け取り方法
                 </legend>
                 <div className="space-y-1">
@@ -163,7 +163,7 @@ export function HiringBonusRequestButton({
               {/* method 別の詳細入力 */}
               {payoutMethod === "amazon_gift" && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     Amazon ギフト券送付先 メールアドレス
                   </label>
                   <input
@@ -171,14 +171,14 @@ export function HiringBonusRequestButton({
                     value={detailA}
                     onChange={(e) => setDetailA(e.target.value)}
                     placeholder="example@gmail.com"
-                    className="block w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm"
+                    className="block w-full border border-gray-300 bg-white px-3 py-2 text-sm"
                   />
                 </div>
               )}
               {payoutMethod === "bank_transfer" && (
                 <>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
                       振込先口座 (銀行名 / 支店名 / 種別 / 口座番号)
                     </label>
                     <input
@@ -186,11 +186,11 @@ export function HiringBonusRequestButton({
                       value={detailA}
                       onChange={(e) => setDetailA(e.target.value)}
                       placeholder="○○銀行 △△支店 普通 1234567"
-                      className="block w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm"
+                      className="block w-full border border-gray-300 bg-white px-3 py-2 text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
                       口座名義 (カタカナ)
                     </label>
                     <input
@@ -198,14 +198,14 @@ export function HiringBonusRequestButton({
                       value={detailB}
                       onChange={(e) => setDetailB(e.target.value)}
                       placeholder="ヤマダタロウ"
-                      className="block w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm"
+                      className="block w-full border border-gray-300 bg-white px-3 py-2 text-sm"
                     />
                   </div>
                 </>
               )}
               {payoutMethod === "cash" && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     連絡先電話番号 (受け取り日程調整用)
                   </label>
                   <input
@@ -213,13 +213,13 @@ export function HiringBonusRequestButton({
                     value={detailA}
                     onChange={(e) => setDetailA(e.target.value)}
                     placeholder="090-1234-5678"
-                    className="block w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm"
+                    className="block w-full border border-gray-300 bg-white px-3 py-2 text-sm"
                   />
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   申請メモ (任意)
                 </label>
                 <textarea
@@ -228,12 +228,12 @@ export function HiringBonusRequestButton({
                   maxLength={2000}
                   rows={3}
                   placeholder="入社日、その他連絡事項など"
-                  className="block w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm"
+                  className="block w-full border border-gray-300 bg-white px-3 py-2 text-sm"
                 />
               </div>
 
               {error && (
-                <div className="bg-red-50 dark:bg-red-900/30 p-3 text-sm text-red-600 dark:text-red-300">
+                <div className="bg-red-50 p-3 text-sm text-red-600">
                   {error}
                 </div>
               )}

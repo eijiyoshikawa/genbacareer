@@ -54,10 +54,10 @@ export default async function JobMapPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+        <h1 className="text-2xl font-bold text-gray-900">
           地図で求人を探す
         </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-1 text-sm text-gray-500">
           全国 {totalJobs.toLocaleString()} 件の求人を都道府県別に集計。
           ピンをクリックすると該当地域の求人一覧へ移動します。
         </p>

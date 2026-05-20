@@ -3,7 +3,6 @@ import { Search, Newspaper, MessageCircle, Sparkles, Map as MapIcon } from "luci
 import { BrandLogo } from "./brand-logo"
 import { LinkButton } from "@/components/ui/button"
 import { HeaderMobileMenu } from "./header-mobile-menu"
-import { ThemeToggle } from "@/components/theme/theme-toggle"
 
 /**
  * サイト共通ヘッダー。
@@ -13,7 +12,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle"
  */
 export function Header() {
   return (
-    <header className="bg-white dark:bg-gray-950 sticky top-0 z-50 border-b border-gray-100 dark:border-gray-800">
+    <header className="bg-white sticky top-0 z-50 border-b border-gray-100">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <Link href="/" aria-label="ゲンバキャリア トップへ">
@@ -73,9 +72,6 @@ export function Header() {
               <MessageCircle className="h-4 w-4" />
               無料で始める
             </LinkButton>
-            <div className="ml-2">
-              <ThemeToggle />
-            </div>
           </nav>
 
           <HeaderMobileMenu />

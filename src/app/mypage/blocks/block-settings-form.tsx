@@ -87,12 +87,12 @@ export function BlockSettingsForm({
   return (
     <div className="space-y-8">
       {/* ブロック企業リスト */}
-      <section className="border bg-white dark:bg-gray-900 p-5 space-y-4">
+      <section className="border bg-white p-5 space-y-4">
         <div>
-          <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+          <h2 className="text-sm font-bold text-gray-900">
             ブロック中の企業 ({companies.length} / 200)
           </h2>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-xs text-gray-500">
             企業を追加するには、各企業ページの「この企業をブロック」ボタンから設定してください。
           </p>
         </div>
@@ -103,7 +103,7 @@ export function BlockSettingsForm({
             {companies.map((c) => (
               <li
                 key={c.id}
-                className="flex items-center gap-3 border border-gray-200 dark:border-gray-700 p-2"
+                className="flex items-center gap-3 border border-gray-200 p-2"
               >
                 {c.logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -113,10 +113,10 @@ export function BlockSettingsForm({
                     className="h-8 w-8 shrink-0 border object-contain bg-white"
                   />
                 ) : (
-                  <div className="h-8 w-8 shrink-0 border bg-gray-100 dark:bg-gray-800" />
+                  <div className="h-8 w-8 shrink-0 border bg-gray-100" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <p className="truncate text-sm font-medium text-gray-900">
                     {c.name}
                   </p>
                   {c.prefecture && (
@@ -138,12 +138,12 @@ export function BlockSettingsForm({
       </section>
 
       {/* NG キーワード */}
-      <section className="border bg-white dark:bg-gray-900 p-5 space-y-4">
+      <section className="border bg-white p-5 space-y-4">
         <div>
-          <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+          <h2 className="text-sm font-bold text-gray-900">
             NG キーワード ({keywords.length} / 50)
           </h2>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-xs text-gray-500">
             求人タイトル・説明文に含まれていると検索結果から除外されます。
             社名や事業所名を入れておくと現職バレ防止に有効です。
           </p>
@@ -161,12 +161,12 @@ export function BlockSettingsForm({
             }}
             maxLength={50}
             placeholder="例: 株式会社○○、ABC 工務店"
-            className="flex-1 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm"
+            className="flex-1 border border-gray-300 bg-white px-3 py-2 text-sm"
           />
           <button
             type="button"
             onClick={addKeyword}
-            className="bg-gray-700 dark:bg-gray-300 px-4 py-2 text-sm font-medium text-white dark:text-gray-900 hover:opacity-90"
+            className="bg-gray-700 px-4 py-2 text-sm font-medium text-white hover:opacity-90"
           >
             追加
           </button>
@@ -176,14 +176,14 @@ export function BlockSettingsForm({
             {keywords.map((k) => (
               <span
                 key={k}
-                className="inline-flex items-center gap-1 border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/30 px-2 py-1 text-xs text-red-700 dark:text-red-300"
+                className="inline-flex items-center gap-1 border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700"
               >
                 {k}
                 <button
                   type="button"
                   onClick={() => removeKeyword(k)}
                   aria-label={`${k} を削除`}
-                  className="hover:text-red-900 dark:hover:text-red-100"
+                  className="hover:text-red-900"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -194,12 +194,12 @@ export function BlockSettingsForm({
       </section>
 
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/30 p-3 text-sm text-red-700 dark:text-red-300">
+        <div className="bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
       {saved && (
-        <div className="bg-green-50 dark:bg-green-900/30 p-3 text-sm text-green-700 dark:text-green-300">
+        <div className="bg-green-50 p-3 text-sm text-green-700">
           ブロック設定を保存しました
         </div>
       )}
