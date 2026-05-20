@@ -8,6 +8,7 @@ import {
   LICENSE_LPS,
   EMPLOYMENT_LPS,
 } from "@/lib/longtail-lp"
+import { PREFECTURE_SLUGS } from "@/lib/prefectures"
 
 // Vercel ビルド時の prerender をスキップしてリクエスト時生成に切り替える。
 // 多数の Prisma クエリ (Job 5000 + Company 2000 + SeoPage 5000 + Article 2000) を
@@ -45,17 +46,7 @@ const journalSlugs = [
   "demolition-work",
 ]
 
-// 都道府県スラッグ（src/app/[prefecture]/page.tsx と同じセット）
-const PREFECTURE_SLUGS = [
-  "hokkaido", "aomori", "iwate", "miyagi", "akita", "yamagata", "fukushima",
-  "ibaraki", "tochigi", "gunma", "saitama", "chiba", "tokyo", "kanagawa",
-  "niigata", "toyama", "ishikawa", "fukui", "yamanashi", "nagano",
-  "gifu", "shizuoka", "aichi", "mie",
-  "shiga", "kyoto", "osaka", "hyogo", "nara", "wakayama",
-  "tottori", "shimane", "okayama", "hiroshima", "yamaguchi",
-  "tokushima", "kagawa", "ehime", "kochi",
-  "fukuoka", "saga", "nagasaki", "kumamoto", "oita", "miyazaki", "kagoshima", "okinawa",
-]
+// 都道府県スラッグは @/lib/prefectures から取得 (47 件、重複定義の排除)
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
