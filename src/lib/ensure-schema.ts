@@ -5,6 +5,9 @@ import { prisma } from "./db"
 // 通常運用では `prisma db push` 後すべて適用済みなので、
 // IF NOT EXISTS によりほぼ no-op で完了する。
 const STATEMENTS: ReadonlyArray<string> = [
+ // User 求職ステータス (2.6): searching / employed_open / hired
+ `ALTER TABLE "users"
+   ADD COLUMN IF NOT EXISTS "job_search_status" VARCHAR(20) NOT NULL DEFAULT 'searching'`,
  // Company リッチコンテンツ + SNS
  `ALTER TABLE "companies"
  ADD COLUMN IF NOT EXISTS "tagline" VARCHAR(200),

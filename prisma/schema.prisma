@@ -35,6 +35,8 @@ model User {
   resetTokenExpiry  DateTime? @map("reset_token_expiry") @db.Timestamptz()
   // active: 通常 / suspended: 凍結 (管理側で BAN) / deleted: 退会済 (個人情報匿名化済)
   status            String    @default("active") @db.VarChar(20)
+  // 求職ステータス (2.6): searching=求職中 / employed_open=在職中(スカウト/オファー歓迎) / hired=採用済み(一時的に非アクティブ)
+  jobSearchStatus   String    @default("searching") @map("job_search_status") @db.VarChar(20)
   suspendedAt       DateTime? @map("suspended_at") @db.Timestamptz()
   suspendedReason   String?   @map("suspended_reason") @db.VarChar(500)
   deletedAt         DateTime? @map("deleted_at") @db.Timestamptz()
