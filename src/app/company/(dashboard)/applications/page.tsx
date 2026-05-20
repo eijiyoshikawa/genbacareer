@@ -111,9 +111,12 @@ export default async function CompanyApplicationsPage({
               {applications.map((app) => (
                 <tr key={app.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <p className="text-sm font-medium text-gray-900">
+                    <a
+                      href={`/company/applications/${app.id}`}
+                      className="text-sm font-medium text-blue-700 hover:underline"
+                    >
                       {app.user.name ?? "名前未設定"}
-                    </p>
+                    </a>
                     <p className="text-xs text-gray-500">
                       {app.user.prefecture ?? ""}
                     </p>

@@ -38,6 +38,10 @@ const statusConfig: Record<string, { label: string; className: string }> = {
     label: "不採用",
     className: "bg-red-100 text-red-700",
   },
+  withdrawn: {
+    label: "取り下げ",
+    className: "bg-gray-100 text-gray-500",
+  },
 }
 
 export default async function ApplicationsPage({ searchParams }: Props) {
@@ -111,7 +115,7 @@ export default async function ApplicationsPage({ searchParams }: Props) {
             return (
               <Link
                 key={app.id}
-                href={`/jobs/${app.job.id}`}
+                href={`/mypage/applications/${app.id}`}
                 className="block rounded-lg border bg-white p-4 shadow-sm transition hover:shadow-md"
               >
                 <div className="flex items-start justify-between gap-3">

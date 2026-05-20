@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Building2, Briefcase, Mail } from "lucide-react"
 import type { Metadata } from "next"
+import { ScoutResponse } from "@/components/jobs/scout-response"
 
 export const metadata: Metadata = {
   title: "スカウト一覧",
@@ -107,6 +108,8 @@ export default async function ScoutsPage() {
                   {scout.job.title}
                 </Link>
               )}
+
+              <ScoutResponse scoutId={scout.id} currentStatus={scout.status} />
             </div>
           ))}
         </div>
