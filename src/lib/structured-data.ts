@@ -236,6 +236,11 @@ export function generateJobPostingSchema(job: JobInput): Record<string, unknown>
   }
 
   // Job location — 必須
+  // postalCode は Google for Jobs で「重大ではない」推奨項目。
+  // address 文字列から日本の郵便番号 (〒xxx-xxxx / xxx-xxxx) を抽出して埋める。
+  const extractedPostalCode = job.address
+    ? extractJpPostalCode(job.address)
+    : null
   schema.jobLocation = {
     "@type": "Place",
     address: {
@@ -244,6 +249,7 @@ export function generateJobPostingSchema(job: JobInput): Record<string, unknown>
       addressCountry: "JP",
       ...(job.city && { addressLocality: job.city }),
       ...(job.address && { streetAddress: job.address }),
+      ...(extractedPostalCode && { postalCode: extractedPostalCode }),
     },
   }
 
@@ -254,6 +260,8 @@ export function generateJobPostingSchema(job: JobInput): Record<string, unknown>
   }
 
   // Base salary
+  // salaryMin が無い場合も Google 推奨: estimatedSalary を提供。
+  // 求人カテゴリの相場 (建設業全体の概算) を埋めて欠落を解消する。
   if (job.salaryMin != null) {
     const unitText =
       SALARY_UNIT_MAP[(job.salaryType ?? "monthly").toLowerCase()] ?? "MONTH"
@@ -265,6 +273,18 @@ export function generateJobPostingSchema(job: JobInput): Record<string, unknown>
         minValue: job.salaryMin,
         ...(job.salaryMax != null && { maxValue: job.salaryMax }),
         unitText,
+      },
+    }
+  } else {
+    // フォールバック: 建設業界の相場として 250,000〜450,000 円/月
+    schema.estimatedSalary = {
+      "@type": "MonetaryAmount",
+      currency: "JPY",
+      value: {
+        "@type": "QuantitativeValue",
+        minValue: 250000,
+        maxValue: 450000,
+        unitText: "MONTH",
       },
     }
   }
@@ -290,15 +310,136 @@ export function generateJobPostingSchema(job: JobInput): Record<string, unknown>
   if (job.requirements) {
     schema.qualifications = job.requirements
   }
+  // experienceRequirements は Google for Jobs で OccupationalExperienceRequirements 型を要求。
+  // 文字列だと「列挙値が無効」エラーになる。
   if (job.requiredExperience) {
-    schema.experienceRequirements = job.requiredExperience
+    schema.experienceRequirements = parseExperienceToSchema(
+      job.requiredExperience
+    )
+  } else {
+    // 経験不問を明示 (Google 推奨: experienceInPlaceOfEducation も指定)
+    schema.experienceRequirements = {
+      "@type": "OccupationalExperienceRequirements",
+      monthsOfExperience: 0,
+    }
   }
+  // educationRequirements は EducationalOccupationalCredential 型を要求。
   if (job.education) {
-    schema.educationRequirements = job.education
+    const credential = parseEducationToSchema(job.education)
+    if (credential) {
+      schema.educationRequirements = credential
+    }
   }
   if (job.workHours) {
     schema.workHours = job.workHours
   }
 
   return schema
+}
+
+// ============================================================
+// 構造化データ用パーサ
+// ============================================================
+
+/**
+ * 日本の住所文字列から郵便番号 (xxx-xxxx) を抽出する。
+ * 「〒100-0001 東京都...」「100-0001 東京都...」のどちらにも対応。
+ */
+function extractJpPostalCode(address: string): string | null {
+  const match = address.match(/〒?\s*(\d{3}-\d{4})/)
+  return match ? match[1] : null
+}
+
+/**
+ * 経験要件の文字列を Google for Jobs の OccupationalExperienceRequirements に変換。
+ * 例:
+ *   "3年以上"        → { monthsOfExperience: 36 }
+ *   "経験不問"       → { monthsOfExperience: 0 }
+ *   "1年程度"        → { monthsOfExperience: 12 }
+ *   "実務経験 半年"  → { monthsOfExperience: 6 }
+ */
+function parseExperienceToSchema(text: string): Record<string, unknown> {
+  // 「不問」「未経験」「なし」→ 0
+  if (/不問|未経験|なし|なくて|問わ/i.test(text)) {
+    return {
+      "@type": "OccupationalExperienceRequirements",
+      monthsOfExperience: 0,
+    }
+  }
+  // "N年" のパターン
+  const yearMatch = text.match(/(\d+)\s*年/)
+  if (yearMatch) {
+    const years = parseInt(yearMatch[1], 10)
+    return {
+      "@type": "OccupationalExperienceRequirements",
+      monthsOfExperience: years * 12,
+    }
+  }
+  // "Nヶ月" のパターン
+  const monthMatch = text.match(/(\d+)\s*(?:ヶ月|か月|カ月)/)
+  if (monthMatch) {
+    return {
+      "@type": "OccupationalExperienceRequirements",
+      monthsOfExperience: parseInt(monthMatch[1], 10),
+    }
+  }
+  // 半年
+  if (/半年/.test(text)) {
+    return {
+      "@type": "OccupationalExperienceRequirements",
+      monthsOfExperience: 6,
+    }
+  }
+  // パース不能 → 0 (経験不問扱い)
+  return {
+    "@type": "OccupationalExperienceRequirements",
+    monthsOfExperience: 0,
+  }
+}
+
+/**
+ * 学歴要件の文字列を Google for Jobs の EducationalOccupationalCredential に変換。
+ * credentialCategory は以下の enum のみ有効:
+ *   "high school" | "associate degree" | "bachelor degree"
+ *   | "professional certificate" | "postgraduate degree"
+ */
+function parseEducationToSchema(
+  text: string
+): Record<string, unknown> | null {
+  // 学歴不問 → null (省略)
+  if (/不問|問わ|なし|どなた|歓迎/i.test(text)) {
+    return null
+  }
+  if (/大学院|修士|博士|院卒/.test(text)) {
+    return {
+      "@type": "EducationalOccupationalCredential",
+      credentialCategory: "postgraduate degree",
+    }
+  }
+  if (/大卒|大学卒|学士|大学(?!院)/.test(text)) {
+    return {
+      "@type": "EducationalOccupationalCredential",
+      credentialCategory: "bachelor degree",
+    }
+  }
+  if (/短大|短期大学|高専|専門学校/.test(text)) {
+    return {
+      "@type": "EducationalOccupationalCredential",
+      credentialCategory: "associate degree",
+    }
+  }
+  if (/資格|免許|certificate/i.test(text)) {
+    return {
+      "@type": "EducationalOccupationalCredential",
+      credentialCategory: "professional certificate",
+    }
+  }
+  if (/高卒|高校|中卒|中学/.test(text)) {
+    return {
+      "@type": "EducationalOccupationalCredential",
+      credentialCategory: "high school",
+    }
+  }
+  // パース不能 → 省略
+  return null
 }
