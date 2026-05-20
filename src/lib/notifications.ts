@@ -10,7 +10,6 @@ import { pushUserNotification } from "@/lib/line-push-notifier"
 
 export type NotificationType =
   | "application_status"
-  | "scout_received"
   | "system"
   | "promo"
 
@@ -96,24 +95,3 @@ export async function notifyApplicationStatusChange(input: {
   })
 }
 
-/**
- * スカウト受信時の通知。
- */
-export async function notifyScoutReceived(input: {
-  userId: string
-  scoutId: string
-  companyName: string
-  jobTitle: string | null
-}): Promise<void> {
-  const title = input.jobTitle
-    ? `${input.companyName} から「${input.jobTitle}」のスカウトが届きました`
-    : `${input.companyName} からスカウトが届きました`
-  await createNotification({
-    userId: input.userId,
-    type: "scout_received",
-    title,
-    body: "マイページの「スカウト」から内容を確認できます。",
-    linkUrl: "/mypage/scouts",
-    refId: input.scoutId,
-  })
-}

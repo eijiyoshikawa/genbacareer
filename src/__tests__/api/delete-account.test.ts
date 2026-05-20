@@ -72,7 +72,6 @@ describe("削除されるデータ (assertion-only)", () => {
       ],
       retained: [
         "Application (job application records, 職業安定法 1 年保存)",
-        "Scout (企業側の業務記録)",
       ],
     }
     // contract is informational

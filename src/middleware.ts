@@ -154,7 +154,6 @@ export function middleware(request: NextRequest) {
     "/company/dashboard",
     "/company/jobs",
     "/company/applications",
-    "/company/scouts",
     "/company/billing",
     "/company/candidates",
   ]

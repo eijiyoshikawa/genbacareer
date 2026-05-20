@@ -171,31 +171,6 @@ export async function sendApplicationConfirmEmail(
   })
 }
 
-/** スカウト通知メール送信（求職者向け） */
-export async function sendScoutNotificationEmail(
-  email: string,
-  companyName: string
-) {
-  const baseUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
-
-  await sendEmail({
-    to: email,
-    subject: `${companyName} からスカウトが届きました`,
-    html: `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>スカウトが届きました</h2>
-        <p><strong>${companyName}</strong> からスカウトメッセージが届いています。</p>
-        <p>
-          <a href="${baseUrl}/mypage/scouts" style="display: inline-block; padding: 12px 24px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px;">
-            スカウトを確認する
-          </a>
-        </p>
-        <p style="color: #6b7280; font-size: 14px;">ゲンバキャリア</p>
-      </div>
-    `,
-  })
-}
-
 const ADMIN_NOTIFY_EMAIL = "info@let-inc.net"
 
 /** 企業登録時の welcome メール（企業担当者宛・status=pending の旨を案内） */

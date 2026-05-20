@@ -44,7 +44,6 @@ model User {
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
   applications      Application[]
-  scouts            Scout[]
   resume            Resume?
   uploadedFiles     UploadedFile[]
   applicationClicks ApplicationClick[]
@@ -156,7 +155,7 @@ model SavedSearch {
 // 重要な操作（求人の承認/却下、テンプレ編集、企業情報更新、応募ステータス変更 等）
 // を時系列で保存する。
 //   - actorType: admin | company_user | system
-//   - resourceType: company | job | job_template | application | line_lead | scout | ...
+//   - resourceType: company | job | job_template | application | line_lead | ...
 //   - action: create | update | delete | approve | reject | login | …（自由形式 VarChar）
 //   - diff: 任意のスナップショット / 差分 JSON
 model AuditLog {
@@ -219,7 +218,7 @@ model JobTemplate {
 model Notification {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
-  // application_status | scout_received | system | promo
+  // application_status | system | promo
   type      String   @db.VarChar(30)
   title     String   @db.VarChar(200)
   body      String?
@@ -227,7 +226,7 @@ model Notification {
   linkUrl   String?  @map("link_url") @db.VarChar(500)
   // 既読日時。null なら未読。
   readAt    DateTime? @map("read_at") @db.Timestamptz()
-  // 関連リソースの id（applicationId / scoutId / jobId 等）
+  // 関連リソースの id（applicationId / jobId 等）
   refId     String?  @map("ref_id") @db.VarChar(50)
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
@@ -304,7 +303,6 @@ model Company {
   companyUsers  CompanyUser[]
   invitations   CompanyInvitation[]
   jobs          Job[]
-  scouts        Scout[]
   billingEvents BillingEvent[]
   applications  Application[]
   followers     CompanyFollow[]
@@ -438,7 +436,6 @@ model Job {
 
   company           Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
   applications      Application[]
-  scouts            Scout[]
   applicationClicks ApplicationClick[]
   lineLeads         LineLead[]
   jobViews          JobView[]
@@ -607,41 +604,6 @@ model BroadcastLog {
 
   @@index([createdAt(sort: Desc)], name: "idx_broadcast_logs_time")
   @@map("broadcast_logs")
-}
-
-// ========================================
-// スカウト
-// ========================================
-model Scout {
-  id        String    @id @default(uuid()) @db.Uuid
-  companyId String    @map("company_id") @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  jobId     String?   @map("job_id") @db.Uuid
-  message   String?
-  status    String    @default("sent") @db.VarChar(20) // sent | read | replied | declined
-  sentAt    DateTime  @default(now()) @map("sent_at") @db.Timestamptz()
-  readAt    DateTime? @map("read_at") @db.Timestamptz()
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  job     Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
-
-  @@map("scouts")
-}
-
-/// 企業がよく使うスカウト文章のテンプレート。
-/// /company/scout-templates から CRUD し、スカウト送信時に選択して挿入する想定。
-model ScoutTemplate {
-  id        String   @id @default(uuid()) @db.Uuid
-  companyId String   @map("company_id") @db.Uuid
-  name      String   @db.VarChar(80)
-  body      String
-  sortOrder Int      @default(100) @map("sort_order")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-
-  @@index([companyId, sortOrder], name: "idx_scout_template_company")
-  @@map("scout_templates")
 }
 
 /// 検索ログ。/jobs での検索クエリと結果件数を記録し、

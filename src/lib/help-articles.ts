@@ -140,26 +140,6 @@ export const SEEKER_HELP_SECTIONS: HelpSection[] = [
     ],
   },
   {
-    key: "scout",
-    label: "スカウトを受け取る",
-    articles: [
-      {
-        slug: "seeker-scout-overview",
-        title: "スカウトとは",
-        excerpt:
-          "企業の採用担当者からあなたへ直接届く採用提案メッセージです。",
-        subcategory: "scout",
-      },
-      {
-        slug: "seeker-scout-accept-decline",
-        title: "スカウトの承諾・辞退",
-        excerpt:
-          "スカウトを受け取った後の選考フロー。辞退方法も解説します。",
-        subcategory: "scout",
-      },
-    ],
-  },
-  {
     key: "faq",
     label: "よくある質問",
     articles: [
@@ -167,7 +147,7 @@ export const SEEKER_HELP_SECTIONS: HelpSection[] = [
         slug: "seeker-faq",
         title: "よくある質問（求職者向け）",
         excerpt:
-          "登録・応募・スカウト・退会など、求職者の方からよく寄せられる質問への回答集。",
+          "登録・応募・退会など、求職者の方からよく寄せられる質問への回答集。",
         subcategory: "faq",
       },
     ],
@@ -256,33 +236,6 @@ export const EMPLOYER_HELP_SECTIONS: HelpSection[] = [
         excerpt:
           "面接日程の調整・追加質問など、応募者とのコミュニケーション方法。",
         subcategory: "applications",
-      },
-    ],
-  },
-  {
-    key: "scout",
-    label: "スカウト機能",
-    articles: [
-      {
-        slug: "employer-scout-search",
-        title: "候補者検索の使い方",
-        excerpt:
-          "希望条件・スキル・地域などで登録求職者を検索する方法。",
-        subcategory: "scout",
-      },
-      {
-        slug: "employer-scout-send",
-        title: "スカウト送信のコツ",
-        excerpt:
-          "返信率を上げるメッセージ作成のコツとサンプル文。",
-        subcategory: "scout",
-      },
-      {
-        slug: "employer-scout-template",
-        title: "スカウトテンプレートの活用",
-        excerpt:
-          "繰り返し送信する場合のテンプレート保存と編集方法。",
-        subcategory: "scout",
       },
     ],
   },
