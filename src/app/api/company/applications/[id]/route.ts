@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { sendApplicationStatusEmail } from "@/lib/application-notifications"
 import { notifyApplicationStatusChange } from "@/lib/notifications"
+import { syncApplicationToCalendar } from "@/lib/application-calendar-sync"
 
 const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
   applied: ["reviewing", "rejected"],
@@ -239,6 +240,19 @@ export async function PATCH(
         : {}),
     },
   })
+
+  // 14.4 面接情報更新 → Google Calendar 同期 (fire-and-forget)
+  if (
+    data.interviewAt !== undefined ||
+    data.interviewVenue !== undefined ||
+    data.interviewUrl !== undefined
+  ) {
+    syncApplicationToCalendar(id).catch((e) => {
+      console.warn(
+        `[calendar-sync] failed: ${e instanceof Error ? e.message : e}`
+      )
+    })
+  }
 
   return Response.json({ application: updated })
 }

@@ -4,6 +4,9 @@ import { prisma } from "@/lib/db"
 import { ProfileForm } from "./profile-form"
 import { Settings } from "lucide-react"
 import { parseSchedulingUrls } from "@/lib/scheduling-urls"
+import { CalendarConnectPanel } from "@/components/company/calendar-connect-panel"
+import { isCompanyCalendarConnected } from "@/lib/google-calendar"
+import { Suspense } from "react"
 
 export default async function CompanyProfilePage() {
   const session = await auth()
@@ -51,6 +54,10 @@ export default async function CompanyProfilePage() {
     )
   }
 
+  const calendarStatus = await isCompanyCalendarConnected(companyId).catch(
+    () => ({ connected: false as const, email: undefined })
+  )
+
   return (
     <div className="space-y-6">
       <div>
@@ -63,6 +70,13 @@ export default async function CompanyProfilePage() {
           求人一覧の並び順にも影響します（コンテンツが充実 + SNS 登録 + 3 ヶ月以内更新 で上位表示）。
         </p>
       </div>
+
+      <Suspense fallback={null}>
+        <CalendarConnectPanel
+          connected={calendarStatus.connected}
+          email={calendarStatus.email}
+        />
+      </Suspense>
 
       <ProfileForm
         initial={{

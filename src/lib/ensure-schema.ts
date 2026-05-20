@@ -18,6 +18,22 @@ const STATEMENTS: ReadonlyArray<string> = [
  // Application オンライン面接 URL (14.5)
  `ALTER TABLE "applications"
    ADD COLUMN IF NOT EXISTS "interview_url" VARCHAR(500)`,
+ // Application Google Calendar イベント ID (14.4)
+ `ALTER TABLE "applications"
+   ADD COLUMN IF NOT EXISTS "google_calendar_event_id" VARCHAR(200)`,
+ // Google Calendar OAuth トークン保管 (14.4)
+ `CREATE TABLE IF NOT EXISTS "company_calendar_oauth" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "company_id" UUID NOT NULL UNIQUE,
+   "email" VARCHAR(255) NOT NULL,
+   "refresh_token" TEXT NOT NULL,
+   "access_token" TEXT,
+   "token_expires_at" TIMESTAMPTZ,
+   "scope" VARCHAR(500) NOT NULL DEFAULT '',
+   "calendar_id" VARCHAR(200) NOT NULL DEFAULT 'primary',
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
  // Job 重複求人検出 (8.4)
  `ALTER TABLE "jobs"
    ADD COLUMN IF NOT EXISTS "dedupe_key" VARCHAR(64),
