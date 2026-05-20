@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db"
 import Link from "next/link"
 import type { Metadata } from "next"
+import { CompanyAdminActions } from "./actions"
 
 export const metadata: Metadata = {
   title: "企業管理",
@@ -32,6 +33,8 @@ export default async function AdminCompaniesPage({
         industry: true,
         prefecture: true,
         contactEmail: true,
+        approvedAt: true,
+        suspendedAt: true,
         createdAt: true,
         _count: {
           select: {
@@ -85,6 +88,8 @@ export default async function AdminCompaniesPage({
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">応募数</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">担当者</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">登録日</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">状態</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -113,6 +118,28 @@ export default async function AdminCompaniesPage({
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
                     {company.createdAt.toLocaleDateString("ja-JP")}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    {company.suspendedAt ? (
+                      <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                        停止中
+                      </span>
+                    ) : company.approvedAt ? (
+                      <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                        承認済み
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
+                        未承認
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    <CompanyAdminActions
+                      companyId={company.id}
+                      approvedAt={company.approvedAt}
+                      suspendedAt={company.suspendedAt}
+                    />
                   </td>
                 </tr>
               ))}

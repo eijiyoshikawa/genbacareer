@@ -8,11 +8,17 @@ import {
   CreditCard,
   Bot,
   Shield,
+  Briefcase,
+  Users,
+  Mail,
 } from "lucide-react"
 
 const navItems = [
   { href: "/admin", label: "ダッシュボード", icon: LayoutDashboard, exact: true },
   { href: "/admin/companies", label: "企業管理", icon: Building2 },
+  { href: "/admin/jobs", label: "求人モデレーション", icon: Briefcase },
+  { href: "/admin/users", label: "ユーザー", icon: Users },
+  { href: "/admin/contacts", label: "お問い合わせ", icon: Mail },
   { href: "/admin/billing", label: "課金管理", icon: CreditCard },
   { href: "/admin/crawler", label: "クローラー", icon: Bot },
 ]

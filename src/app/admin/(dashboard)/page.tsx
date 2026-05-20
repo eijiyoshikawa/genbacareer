@@ -12,15 +12,19 @@ export default async function AdminDashboard() {
     activeJobs,
     totalUsers,
     totalCompanies,
+    pendingCompanies,
     totalApplications,
+    openContacts,
     recentApplications,
     billingStats,
   ] = await Promise.all([
     prisma.job.count(),
     prisma.job.count({ where: { status: "active" } }),
-    prisma.user.count(),
+    prisma.user.count({ where: { deletedAt: null } }),
     prisma.company.count(),
+    prisma.company.count({ where: { approvedAt: null, suspendedAt: null } }),
     prisma.application.count(),
+    prisma.contactMessage.count({ where: { handledAt: null } }),
     prisma.application.findMany({
       orderBy: { createdAt: "desc" },
       take: 10,
@@ -62,7 +66,7 @@ export default async function AdminDashboard() {
           iconBg="bg-purple-100"
           label="企業数"
           value={totalCompanies.toLocaleString()}
-          sub="登録企業"
+          sub={`未承認 ${pendingCompanies} / 未対応問い合わせ ${openContacts}`}
         />
         <StatCard
           icon={<CreditCard className="h-5 w-5 text-orange-600" />}
