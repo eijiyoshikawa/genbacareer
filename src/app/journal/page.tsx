@@ -45,7 +45,7 @@ export default async function JournalPage({ searchParams }: Props) {
     ...(categoryFilter ? { category: categoryFilter } : {}),
   }
 
-  const [articles, total, featured, categories] = await Promise.all([
+  const [articles, total, featured, categories, popular] = await Promise.all([
     prisma.article.findMany({
       where,
       orderBy: { publishedAt: "desc" },
@@ -67,6 +67,13 @@ export default async function JournalPage({ searchParams }: Props) {
       where: publishedArticleFilter(),
       _count: true,
       orderBy: { _count: { category: "desc" } },
+    }),
+    // 13.1: 人気記事ランキング (viewCount desc, 上位 5 件)
+    prisma.article.findMany({
+      where: publishedArticleFilter(),
+      orderBy: { viewCount: "desc" },
+      take: 5,
+      select: { slug: true, title: true, category: true, viewCount: true },
     }),
   ])
 
@@ -232,6 +239,40 @@ export default async function JournalPage({ searchParams }: Props) {
                 ))}
               </ul>
             </div>
+
+            {/* 人気記事ランキング (13.1) */}
+            {popular.length > 0 && (
+              <div className="border bg-white p-4">
+                <h3 className="font-bold text-sm text-gray-900 border-b pb-2">
+                  よく読まれている記事
+                </h3>
+                <ol className="mt-2 space-y-2">
+                  {popular.map((a, idx) => (
+                    <li key={a.slug} className="flex gap-3">
+                      <span
+                        className={`shrink-0 flex h-6 w-6 items-center justify-center text-xs font-bold ${
+                          idx === 0
+                            ? "bg-amber-400 text-white"
+                            : idx === 1
+                              ? "bg-gray-300 text-white"
+                              : idx === 2
+                                ? "bg-amber-700 text-white"
+                                : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {idx + 1}
+                      </span>
+                      <Link
+                        href={`/journal/${a.slug}`}
+                        className="text-xs text-gray-700 hover:text-primary-600 line-clamp-2 leading-relaxed"
+                      >
+                        {a.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </aside>
         </div>
       </div>
