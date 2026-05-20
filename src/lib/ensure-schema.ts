@@ -235,7 +235,15 @@ let inflight: Promise<boolean> | null = null
 //
 // pg_trgm のように権限不足で失敗しうる文があるため、各 SQL は個別 try/catch。
 // 1 つ落ちても残りは適用される。
+//
+// Vercel の build フェーズ (`NEXT_PHASE=phase-production-build`) ではスキップする。
+// build 時の prerender で複数 worker が並列に ensureSchema を呼ぶと、
+// connection_limit=1 環境で P2024 (接続プール枯渇) を多発させてビルド失敗するため。
+// 本番起動時 (request 処理時) には通常通り走るので DB 反映は問題ない。
 export function ensureSchema(): Promise<boolean> {
+ if (process.env.NEXT_PHASE === "phase-production-build") {
+   return Promise.resolve(true)
+ }
  if (!inflight) {
  inflight = (async () => {
  let allOk = true
