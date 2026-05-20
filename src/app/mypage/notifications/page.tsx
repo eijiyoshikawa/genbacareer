@@ -59,8 +59,14 @@ export default async function NotificationsPage({
             )}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            応募ステータスやスカウトなどの最新情報をここで確認できます。
+            応募ステータスや新着求人などの最新情報をここで確認できます。
           </p>
+          <Link
+            href="/mypage/notifications/settings"
+            className="mt-2 inline-block text-xs text-primary-600 underline hover:text-primary-700"
+          >
+            通知設定 (チャネル / 頻度 / 静音時間) →
+          </Link>
         </div>
         {unreadCount > 0 && (
           <form

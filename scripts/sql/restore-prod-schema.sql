@@ -25,6 +25,12 @@ ALTER TABLE "users"
   ADD COLUMN IF NOT EXISTS "blocked_keywords" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
 
 -- ----------------------------------------------------------------
+-- 3.4 通知頻度・時間帯設定
+-- ----------------------------------------------------------------
+ALTER TABLE "users"
+  ADD COLUMN IF NOT EXISTS "notification_prefs" JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+-- ----------------------------------------------------------------
 -- 6.2 通報・レポート
 -- ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS "reports" (
