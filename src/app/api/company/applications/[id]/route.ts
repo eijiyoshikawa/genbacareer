@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { sendApplicationStatusEmail } from "@/lib/email"
 
 const updateStatusSchema = z.object({
   status: z.enum([
@@ -37,7 +38,14 @@ export async function PUT(
 
   const application = await prisma.application.findUnique({
     where: { id },
-    select: { companyId: true },
+    select: {
+      companyId: true,
+      status: true,
+      userId: true,
+      user: { select: { email: true } },
+      job: { select: { title: true } },
+      company: { select: { name: true } },
+    },
   })
 
   if (!application || application.companyId !== companyId) {
@@ -63,6 +71,36 @@ export async function PUT(
     where: { id },
     data: { status: parsed.data.status },
   })
+
+  // Notify seeker on status change (fire-and-forget)
+  if (
+    application.status !== parsed.data.status &&
+    application.user?.email
+  ) {
+    sendApplicationStatusEmail({
+      to: application.user.email,
+      jobTitle: application.job?.title ?? "求人",
+      companyName: application.company?.name ?? "企業",
+      status: parsed.data.status,
+    }).catch((err) =>
+      console.error(`[applications] failed to notify status change:`, err)
+    )
+
+    // In-app notification
+    prisma.notification
+      .create({
+        data: {
+          userId: application.userId,
+          kind: "application_status",
+          title: "応募ステータスが更新されました",
+          body: `${application.job?.title ?? "求人"} への応募ステータスが更新されました`,
+          linkUrl: "/mypage/applications",
+        },
+      })
+      .catch((err) =>
+        console.error(`[applications] failed to create notification:`, err)
+      )
+  }
 
   // Trigger billing when status changes to "hired"
   if (parsed.data.status === "hired") {

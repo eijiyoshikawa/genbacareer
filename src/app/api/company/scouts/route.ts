@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { sendScoutNotificationEmail } from "@/lib/email"
 
 const scoutSchema = z.object({
   userId: z.string().uuid(),
@@ -88,10 +89,10 @@ export async function POST(request: NextRequest) {
   // Check user exists and profile is public
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { profilePublic: true },
+    select: { profilePublic: true, email: true, deletedAt: true },
   })
 
-  if (!user) {
+  if (!user || user.deletedAt) {
     return Response.json({ error: "ユーザーが見つかりません" }, { status: 404 })
   }
 
@@ -122,6 +123,28 @@ export async function POST(request: NextRequest) {
       status: "sent",
     },
   })
+
+  // Notify seeker via email and in-app
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { name: true },
+  })
+  if (user.email && company) {
+    sendScoutNotificationEmail(user.email, company.name).catch((err) =>
+      console.error(`[scouts] failed to notify seeker:`, err)
+    )
+  }
+  prisma.notification
+    .create({
+      data: {
+        userId,
+        kind: "scout",
+        title: "スカウトが届きました",
+        body: `${company?.name ?? "企業"} からスカウトメッセージが届いています`,
+        linkUrl: "/mypage/scouts",
+      },
+    })
+    .catch((err) => console.error(`[scouts] failed to create notification:`, err))
 
   return Response.json({ scout }, { status: 201 })
 }

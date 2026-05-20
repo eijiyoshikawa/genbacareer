@@ -2,6 +2,11 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import {
+  sendApplicationConfirmEmail,
+  sendNewApplicationToCompanyEmail,
+} from "@/lib/email"
+import { getClientIp, rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 
 const applicationSchema = z.object({
   jobId: z.string().uuid(),
@@ -21,6 +26,12 @@ export async function POST(request: NextRequest) {
       { status: 403 }
     )
   }
+
+  // Per-user rate limit: 30 applications / hour
+  const limit = rateLimit(`apply:${session.user.id}`, 30, 60 * 60 * 1000)
+  if (!limit.ok) return rateLimitResponse(limit.retryAfterMs)
+  const ipLimit = rateLimit(`apply-ip:${getClientIp(request)}`, 60, 60 * 60 * 1000)
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit.retryAfterMs)
 
   let body: unknown
   try {
@@ -42,10 +53,15 @@ export async function POST(request: NextRequest) {
 
   const { jobId, message } = parsed.data
 
-  // Check job exists and is active
   const job = await prisma.job.findUnique({
     where: { id: jobId },
-    select: { id: true, status: true, companyId: true },
+    select: {
+      id: true,
+      status: true,
+      companyId: true,
+      title: true,
+      company: { select: { name: true, contactEmail: true } },
+    },
   })
 
   if (!job) {
@@ -62,7 +78,6 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Check for duplicate application
   const existing = await prisma.application.findUnique({
     where: {
       jobId_userId: {
@@ -88,6 +103,32 @@ export async function POST(request: NextRequest) {
       message: message ?? null,
     },
   })
+
+  const applicant = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true, name: true },
+  })
+
+  // Notifications (fire-and-forget; failures should not break the request)
+  if (applicant?.email) {
+    sendApplicationConfirmEmail(
+      applicant.email,
+      job.title,
+      job.company?.name ?? "企業"
+    ).catch((err) =>
+      console.error("[applications] failed to send confirm email:", err)
+    )
+  }
+  if (job.company?.contactEmail) {
+    sendNewApplicationToCompanyEmail({
+      to: job.company.contactEmail,
+      jobTitle: job.title,
+      applicantName: applicant?.name ?? "求職者",
+      applicationId: application.id,
+    }).catch((err) =>
+      console.error("[applications] failed to notify company:", err)
+    )
+  }
 
   return Response.json({ application }, { status: 201 })
 }
