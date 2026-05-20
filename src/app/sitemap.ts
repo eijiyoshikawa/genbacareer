@@ -258,6 +258,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.5,
   }))
 
+  // タグページ /tags/[tag] — 記事から登場する distinct なタグを抽出
+  // PostgreSQL の text[] カラムから distinct unnest するため $queryRaw を使う
+  const tagRows = await safeFindMany<{ tag: string }>(
+    "articleTags",
+    () =>
+      prisma.$queryRaw<Array<{ tag: string }>>`
+        SELECT DISTINCT UNNEST(tags) AS tag
+        FROM articles
+        WHERE status = 'published'
+          AND published_at <= NOW()
+        LIMIT 500
+      `,
+  )
+
+  const tagPages: MetadataRoute.Sitemap = tagRows
+    .filter((t) => t.tag && t.tag.length > 0)
+    .map((t) => ({
+      url: `${BASE_URL}/tags/${encodeURIComponent(t.tag)}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.5,
+    }))
+
   return [
     ...staticPages,
     ...journalPages,
@@ -268,5 +291,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...companyPages,
     ...helpPages,
     ...authorPages,
+    ...tagPages,
   ]
 }

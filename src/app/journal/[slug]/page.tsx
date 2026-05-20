@@ -3,8 +3,9 @@ import Link from "next/link"
 import { prisma } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
 import { ChevronRight } from "lucide-react"
-import { Buildings } from "@phosphor-icons/react/dist/ssr"
+import { Buildings, Clock, ArrowLeft, ArrowRight, Tag } from "@phosphor-icons/react/dist/ssr"
 import { getAuthorByName } from "@/lib/authors"
+import { estimateReadingMinutes } from "@/lib/reading-time"
 import type { Metadata } from "next"
 import { trackEvent } from "@/lib/track"
 import { ShareButtons } from "@/components/journal/share-buttons"
@@ -145,6 +146,39 @@ export default async function ArticlePage({ params }: Props) {
     take: 5,
   })
 
+  // 前後の記事 (publishedAt 順、同カテゴリ内)
+  const [prevArticle, nextArticle] = await Promise.all([
+    article.publishedAt
+      ? prisma.article
+          .findFirst({
+            where: {
+              ...publishedArticleFilter(),
+              category: article.category,
+              publishedAt: { lt: article.publishedAt },
+            },
+            orderBy: { publishedAt: "desc" },
+            select: { slug: true, title: true },
+          })
+          .catch(() => null)
+      : null,
+    article.publishedAt
+      ? prisma.article
+          .findFirst({
+            where: {
+              ...publishedArticleFilter(),
+              category: article.category,
+              publishedAt: { gt: article.publishedAt },
+            },
+            orderBy: { publishedAt: "asc" },
+            select: { slug: true, title: true },
+          })
+          .catch(() => null)
+      : null,
+  ])
+
+  // 読了時間
+  const readingMinutes = estimateReadingMinutes(article.body)
+
   // 著者プロフィール (Authors テーブルから引く)
   const author = getAuthorByName(article.authorName)
   const authorSlug = author.slug
@@ -240,6 +274,11 @@ export default async function ArticlePage({ params }: Props) {
                 {article.updatedAt.toLocaleDateString("ja-JP")}
               </time>
             </span>
+            <span className="hidden sm:inline text-gray-300">|</span>
+            <span className="hidden sm:inline-flex items-center gap-1">
+              <Clock weight="duotone" className="h-3.5 w-3.5" />
+              読了 {readingMinutes} 分
+            </span>
           </div>
           <ShareButtons
             url={`${SITE_URL}/journal/${article.slug}`}
@@ -247,11 +286,18 @@ export default async function ArticlePage({ params }: Props) {
             articleId={article.id}
           />
         </div>
-        <p className="mt-1.5 sm:hidden text-[11px] text-gray-400">
-          最終更新:{" "}
-          <time dateTime={article.updatedAt.toISOString()}>
-            {article.updatedAt.toLocaleDateString("ja-JP")}
-          </time>
+        <p className="mt-1.5 sm:hidden text-[11px] text-gray-400 inline-flex items-center gap-2">
+          <span>
+            最終更新:{" "}
+            <time dateTime={article.updatedAt.toISOString()}>
+              {article.updatedAt.toLocaleDateString("ja-JP")}
+            </time>
+          </span>
+          <span>·</span>
+          <span className="inline-flex items-center gap-1">
+            <Clock weight="duotone" className="h-3 w-3" />
+            読了 {readingMinutes} 分
+          </span>
         </p>
 
         {/* Top CTA */}
@@ -319,6 +365,81 @@ export default async function ArticlePage({ params }: Props) {
             </Link>
           </div>
         </div>
+
+        {/* タグチップ → /tags/[tag] へリンク */}
+        {article.tags && article.tags.length > 0 && (
+          <div className="mt-10 border-t pt-6">
+            <h2 className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wide">
+              <Tag weight="duotone" className="h-3.5 w-3.5" />
+              タグ
+            </h2>
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {article.tags.map((t) => (
+                <li key={t}>
+                  <Link
+                    href={`/tags/${encodeURIComponent(t)}`}
+                    className="press inline-flex items-center bg-warm-100 hover:bg-primary-50 px-3 py-1 text-xs font-bold text-gray-700 hover:text-primary-700 border border-warm-200 hover:border-primary-300"
+                  >
+                    #{t}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* 前後の記事ナビゲーション */}
+        {(prevArticle || nextArticle) && (
+          <nav
+            className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t pt-6"
+            aria-label="前後の記事"
+          >
+            {prevArticle ? (
+              <Link
+                href={`/journal/${prevArticle.slug}`}
+                rel="prev"
+                className="press card group p-3 flex items-start gap-2"
+              >
+                <ArrowLeft
+                  weight="bold"
+                  className="h-4 w-4 mt-0.5 shrink-0 text-gray-400 group-hover:text-primary-600"
+                />
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+                    前の記事
+                  </p>
+                  <p className="mt-0.5 text-sm font-bold text-gray-900 line-clamp-2 group-hover:text-primary-700 leading-snug">
+                    {prevArticle.title}
+                  </p>
+                </div>
+              </Link>
+            ) : (
+              <div />
+            )}
+            {nextArticle ? (
+              <Link
+                href={`/journal/${nextArticle.slug}`}
+                rel="next"
+                className="press card group p-3 flex items-start gap-2 sm:text-right"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+                    次の記事
+                  </p>
+                  <p className="mt-0.5 text-sm font-bold text-gray-900 line-clamp-2 group-hover:text-primary-700 leading-snug">
+                    {nextArticle.title}
+                  </p>
+                </div>
+                <ArrowRight
+                  weight="bold"
+                  className="h-4 w-4 mt-0.5 shrink-0 text-gray-400 group-hover:text-primary-600"
+                />
+              </Link>
+            ) : (
+              <div />
+            )}
+          </nav>
+        )}
 
         {/* Related articles */}
         {related.length > 0 && (
