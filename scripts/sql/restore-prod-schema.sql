@@ -31,6 +31,12 @@ ALTER TABLE "users"
   ADD COLUMN IF NOT EXISTS "notification_prefs" JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 -- ----------------------------------------------------------------
+-- 14.5 オンライン面接 URL
+-- ----------------------------------------------------------------
+ALTER TABLE "applications"
+  ADD COLUMN IF NOT EXISTS "interview_url" VARCHAR(500);
+
+-- ----------------------------------------------------------------
 -- 8.4 重複求人検出
 -- ----------------------------------------------------------------
 ALTER TABLE "jobs"
