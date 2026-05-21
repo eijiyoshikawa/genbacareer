@@ -12,8 +12,8 @@ test.describe("Security & SEO basics", () => {
     expect(body).toContain("GPTBot")
     expect(body).toContain("ClaudeBot")
     expect(body).toContain("CCBot")
-    // 一般 UA は許可されている
-    expect(body).toContain("User-agent: *")
+    // 一般 UA は許可されている (Next.js MetadataRoute.Robots は "User-Agent" 形式で出力)
+    expect(body).toMatch(/User-Agent:\s*\*/i)
     expect(body).toContain("Disallow: /api/")
   })
 
