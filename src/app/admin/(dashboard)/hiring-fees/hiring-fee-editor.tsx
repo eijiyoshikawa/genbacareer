@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { HIRING_FEE_MIN, HIRING_FEE_MAX } from "@/lib/hiring-fee"
-import { HIRING_FEE_AMOUNT } from "@/lib/stripe"
+import { HIRING_FEE_AMOUNT } from "@/lib/hiring-fee"
 
 /**
  * 求人別 成果報酬単価のインライン編集。

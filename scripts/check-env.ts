@@ -239,21 +239,7 @@ const ENV_DEFS: EnvDef[] = [
     validate: (v) =>
       v.startsWith("$2") || "bcrypt ハッシュ ($2a/2b/2y で始まる) が必要",
   },
-  // ----- Stripe (採用ボーナス決済、任意) -----
-  {
-    name: "STRIPE_SECRET_KEY",
-    required: [],
-    description:
-      "Stripe API (成果報酬を Stripe Invoicing で発行する場合のみ。MoneyForward 一本ならスキップ可)",
-    validate: (v) =>
-      v.startsWith("sk_") || "sk_ で始まる Stripe Secret Key",
-  },
-  {
-    name: "STRIPE_WEBHOOK_SECRET",
-    required: [],
-    description:
-      "Stripe Webhook 認証 (STRIPE_SECRET_KEY を使う場合は必須)",
-  },
+  // Stripe は 2026-05 に廃止 (景品表示法対応の方針見直しに伴い MoneyForward 一本化)。
   // ----- MoneyForward (請求書、任意) -----
   {
     name: "MF_CLIENT_ID",

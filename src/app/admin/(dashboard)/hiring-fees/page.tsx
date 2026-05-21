@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import Link from "next/link"
 import { HiringFeeEditor } from "./hiring-fee-editor"
-import { HIRING_FEE_AMOUNT } from "@/lib/stripe"
+import { HIRING_FEE_AMOUNT } from "@/lib/hiring-fee"
 import { HIRING_FEE_MIN, HIRING_FEE_MAX } from "@/lib/hiring-fee"
 
 /**

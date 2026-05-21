@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
-import { HIRING_FEE_AMOUNT } from "@/lib/stripe"
+import { HIRING_FEE_AMOUNT } from "@/lib/hiring-fee"
 import { resolveHiringFee } from "@/lib/hiring-fee"
 import type { Metadata } from "next"
 

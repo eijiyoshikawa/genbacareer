@@ -72,7 +72,7 @@ async function main() {
       logoUrl: null,
       websiteUrl: "https://example.com",
       contactEmail: COMPANY_EMAIL,
-      paymentMethod: "stripe",
+      paymentMethod: "moneyforward",
       status: "approved",
       approvedAt: new Date(),
       // リッチコンテンツ

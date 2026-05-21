@@ -269,11 +269,12 @@ model Company {
   logoUrl          String?  @map("logo_url") @db.VarChar(500)
   websiteUrl       String?  @map("website_url") @db.VarChar(500)
   contactEmail     String?  @map("contact_email") @db.VarChar(255)
+  // stripeCustomerId は 2026-05 の Stripe 廃止に伴い不使用 (カラムは互換性のため温存)
   stripeCustomerId String?  @map("stripe_customer_id") @db.VarChar(100)
   // マネーフォワード クラウド請求書の取引先 ID
   mfPartnerId      String?  @map("mf_partner_id") @db.VarChar(100)
-  // 支払方法: stripe(カード) | moneyforward(請求書+銀行振込)
-  paymentMethod    String   @default("stripe") @map("payment_method") @db.VarChar(20)
+  // 支払方法: moneyforward(請求書+銀行振込) のみ。Stripe は 2026-05 に廃止。
+  paymentMethod    String   @default("moneyforward") @map("payment_method") @db.VarChar(20)
   // 承認ステータス: pending(申請中) | approved(承認済) | rejected(却下)
   // HelloWork 由来の参照企業は承認フローの対象外なので "approved" 固定
   status           String   @default("pending") @db.VarChar(20)
@@ -666,8 +667,9 @@ model BillingEvent {
   applicationId   String   @unique @map("application_id") @db.Uuid
   eventType       String   @map("event_type") @db.VarChar(20) // hired
   amount          Int // 成果報酬金額（円）
-  // 請求書発行プロバイダ: stripe | moneyforward
-  provider        String   @default("stripe") @db.VarChar(20)
+  // 請求書発行プロバイダ: moneyforward のみ。Stripe は 2026-05 廃止。
+  provider        String   @default("moneyforward") @db.VarChar(20)
+  // stripeInvoiceId は 2026-05 の Stripe 廃止に伴い不使用 (カラムは互換性のため温存)
   stripeInvoiceId String?  @map("stripe_invoice_id") @db.VarChar(100)
   // マネーフォワード クラウド請求書の請求書 ID
   mfBillingId     String?  @map("mf_billing_id") @db.VarChar(100)
