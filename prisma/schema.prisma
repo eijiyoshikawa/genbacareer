@@ -298,6 +298,10 @@ model Company {
   planNotes        String?   @map("plan_notes") @db.VarChar(500)
   // 期限切れ通知 (30 日前) を送ったタイミング。重複送信防止用
   planExpiryNotifiedAt DateTime? @map("plan_expiry_notified_at") @db.Timestamptz()
+  // C8 公平ローテーション用: 日次 cron で更新されるランダム整数 (0-999999)。
+  // 求人一覧の ORDER BY で planTier の次のキーとして使い、同 tier 内の
+  // 表示順を日次でシャッフルする (paid 平等枠の機会均等のため)。
+  rotationKey      Int       @default(0) @map("rotation_key")
   // 承認ステータス: pending(申請中) | approved(承認済) | rejected(却下)
   // HelloWork 由来の参照企業は承認フローの対象外なので "approved" 固定
   status           String   @default("pending") @db.VarChar(20)
@@ -349,8 +353,8 @@ model Company {
   @@index([source], name: "idx_companies_source")
   @@index([source, status, createdAt(sort: Desc)], name: "idx_companies_admin_list")
   @@index([lastContentUpdatedAt(sort: Desc)], name: "idx_companies_last_content")
-  // 求人一覧の上位表示ソート用 (planTier DESC を最優先キーに使う)
-  @@index([planTier(sort: Desc), planPaidUntil], name: "idx_companies_plan_tier")
+  // 求人一覧の上位表示ソート用 (planTier DESC + rotationKey ASC で日次シャッフル)
+  @@index([planTier(sort: Desc), rotationKey], name: "idx_companies_plan_tier_rotation")
   // 期限切れ通知 cron 用
   @@index([planType, planPaidUntil], name: "idx_companies_plan_expiry")
   @@map("companies")
