@@ -64,6 +64,7 @@ model User {
   companyFollows    CompanyFollow[]
   reportsSubmitted  Report[] @relation("ReportReporter")
   scoutsReceived    ScoutMessage[]
+  earlyResignations EarlyResignation[]
 
   @@map("users")
 }
@@ -341,6 +342,7 @@ model Company {
   followers     CompanyFollow[]
   reviews       CompanyReview[]
   scoutsSent    ScoutMessage[]
+  earlyResignations EarlyResignation[]
 
   @@unique([source, name], name: "company_source_name_unique")
   @@index([status], name: "idx_companies_status")
@@ -493,6 +495,7 @@ model Job {
   favorites         JobFavorite[]
   interests         JobInterest[]
   scouts            ScoutMessage[]
+  earlyResignations EarlyResignation[]
 
   @@index([dedupeKey], name: "idx_jobs_dedupe_key")
   @@index([prefecture, category, employmentType, status], name: "idx_jobs_search")
@@ -530,13 +533,17 @@ model Application {
   googleCalendarEventId String? @map("google_calendar_event_id") @db.VarChar(200)
   // ステータス遷移履歴（{ from, to, at, by, note }[]）
   statusHistory Json @default("[]") @map("status_history")
+  // 採用確定日 (status='hired' へ遷移したタイミング)。C3 戻入処理の経過月数計算の基準。
+  // hiredAt は「入社日」として扱う (運用上もこの日を入社日と見做す)。
+  hiredAt   DateTime? @map("hired_at") @db.Timestamptz()
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
-  job          Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company      Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  billingEvent BillingEvent?
+  job             Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company         Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  billingEvent    BillingEvent?
+  earlyResignation EarlyResignation?
 
   @@unique([jobId, userId])
   @@index([companyId, createdAt(sort: Desc)], name: "idx_applications_by_company")
@@ -970,6 +977,77 @@ model HiringBonus {
   @@index([status, createdAt(sort: Desc)], name: "idx_hiring_bonuses_status")
   @@index([userId, createdAt(sort: Desc)], name: "idx_hiring_bonuses_user")
   @@map("hiring_bonuses")
+}
+
+// ========================================
+// 早期退職 / 戻入処理 (C3, 2026-05 追加)
+// ========================================
+// 採用が成立した後、一定期間内 (3 ヶ月以内) に求職者が退職した場合、
+// 企業が運営に支払った成果報酬の一部を返金 (credit note) する制度。
+//
+// 返金率:
+//   入社 1 ヶ月以内: 80%
+//   入社 2 ヶ月以内: 50%
+//   入社 3 ヶ月以内: 20%
+//   入社 4 ヶ月以降: 0% (返金対象外)
+//
+// 流れ:
+//   1. 企業が /company/applications/[id] から退職を報告 → status=reported
+//   2. admin が /admin/early-resignations で内容確認 → 承認 or 却下
+//   3. 承認時、自動で MoneyForward に credit note (返金額計算済) を発行 → status=invoiced
+model EarlyResignation {
+  id               String   @id @default(uuid()) @db.Uuid
+  applicationId    String   @unique @map("application_id") @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  jobId            String   @map("job_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+
+  // 採用確定日のスナップショット (Application.hiredAt から)
+  hiredAt          DateTime @map("hired_at") @db.Timestamptz()
+  // 退職日 (求職者の最終出勤日)
+  resignedAt       DateTime @map("resigned_at") @db.Timestamptz()
+  // 経過月数 (1, 2, 3, 4+)。返金率計算に使う
+  monthsAfterHire  Int      @map("months_after_hire")
+
+  // 返金率 (80 / 50 / 20 / 0)。% 値そのまま保持
+  refundRate       Int      @map("refund_rate")
+  // 元の成果報酬額 (BillingEvent.amount のスナップショット、退職時の単価変動防止)
+  originalFeeAmount Int     @map("original_fee_amount")
+  // 返金額 (originalFeeAmount * refundRate / 100)
+  refundAmount     Int      @map("refund_amount")
+
+  // ステータス: reported(企業申請) | approved(admin 承認) | rejected(admin 却下) | invoiced(返金書発行済)
+  status           String   @default("reported") @db.VarChar(20)
+
+  // 企業のコメント (退職事情等)
+  companyNote      String?  @map("company_note")
+  // admin のコメント (承認 / 却下理由)
+  adminNote        String?  @map("admin_note")
+
+  // 申請者 (CompanyUser、削除時は NULL)
+  reportedBy       String?  @map("reported_by") @db.Uuid
+  // 承認者 (admin user、削除時は NULL)
+  approvedBy       String?  @map("approved_by") @db.Uuid
+  approvedAt       DateTime? @map("approved_at") @db.Timestamptz()
+  // 却下者
+  rejectedBy       String?  @map("rejected_by") @db.Uuid
+  rejectedAt       DateTime? @map("rejected_at") @db.Timestamptz()
+
+  // MoneyForward に発行した credit note ID (連携できない場合は admin 手動で振込)
+  mfCreditNoteId   String?  @map("mf_credit_note_id") @db.VarChar(100)
+  invoicedAt       DateTime? @map("invoiced_at") @db.Timestamptz()
+
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  job         Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status, createdAt(sort: Desc)], name: "idx_early_resignations_company")
+  @@index([status, createdAt(sort: Desc)], name: "idx_early_resignations_status")
+  @@map("early_resignations")
 }
 
 // ========================================

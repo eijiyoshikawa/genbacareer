@@ -86,6 +86,7 @@ export async function PUT(
       userId: true,
       status: true,
       statusHistory: true,
+      hiredAt: true,
       user: { select: { email: true, name: true } },
       job: { select: { title: true } },
       company: { select: { name: true } },
@@ -138,6 +139,10 @@ export async function PUT(
     data: {
       status: newStatus,
       statusHistory: [...history, entry],
+      // 採用確定時に hiredAt を打刻 (C3 戻入処理の経過月数計算の基準)
+      ...(newStatus === "hired" && !application.hiredAt
+        ? { hiredAt: new Date() }
+        : {}),
     },
   })
 
