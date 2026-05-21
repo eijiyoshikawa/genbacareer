@@ -34,13 +34,18 @@ test.describe("Public XML feeds", () => {
     expect(body).toContain("<urlset")
   })
 
-  test("/image-sitemap.xml は image-sitemap の namespace を持つ", async ({
+  test("/image-sitemap.xml は image namespace を持つ", async ({
     request,
   }) => {
     const res = await request.get("/image-sitemap.xml")
     expect(res.ok()).toBe(true)
     const body = await res.text()
-    expect(body).toContain("image-sitemap")
+    // Google 画像サイトマップ namespace
+    expect(body).toContain('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"')
+    // 少なくとも 1 件は <image:image> エントリがある (本番 DB に求人があれば)
+    if (body.includes("<url>")) {
+      expect(body).toContain("<image:")
+    }
   })
 
   test("/robots.txt は AI クローラを Disallow している", async ({ request }) => {

@@ -36,19 +36,25 @@ test.describe("Public job listing routes", () => {
     ).toBeVisible()
   })
 
-  test("/salary/300 がロードされる (給与帯 LP)", async ({ page }) => {
-    await page.goto("/salary/300")
+  test("/salary/300man がロードされる (給与帯 LP)", async ({ page }) => {
+    await page.goto("/salary/300man")
     // 月給 30 万以上 LP の見出し
     await expect(page).toHaveTitle(/30/)
   })
 
-  test("無効な都道府県は 404", async ({ page }) => {
-    const res = await page.goto("/invalid-prefecture-slug")
-    expect(res?.status()).toBe(404)
+  test("無効な都道府県は not-found ページ", async ({ page }) => {
+    // Next.js 15 App Router の notFound() は HTTP 200 を返し
+    // not-found.tsx を render する仕様。content で判定。
+    await page.goto("/invalid-prefecture-slug")
+    await expect(
+      page.getByRole("heading", { name: "ページが見つかりません" }),
+    ).toBeVisible()
   })
 
-  test("無効なカテゴリは 404", async ({ page }) => {
-    const res = await page.goto("/categories/zzznotacat")
-    expect(res?.status()).toBe(404)
+  test("無効なカテゴリは not-found ページ", async ({ page }) => {
+    await page.goto("/categories/zzznotacat")
+    await expect(
+      page.getByRole("heading", { name: "ページが見つかりません" }),
+    ).toBeVisible()
   })
 })
