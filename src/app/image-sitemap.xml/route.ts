@@ -17,6 +17,9 @@ import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
  */
 
 export const revalidate = 86400
+// build 時 prerender でクエリが 60s timeout になると Vercel build 全体が落ちるため、
+// 初回リクエスト時に動的生成して revalidate でキャッシュする方式に切替。
+export const dynamic = "force-dynamic"
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
