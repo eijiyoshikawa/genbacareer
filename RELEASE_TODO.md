@@ -194,6 +194,39 @@ CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pn
 
 ---
 
+## 🆕 求人ボックス / スタンバイ 連携 (2026-05-21 追加)
+
+詳細は `docs/job-feeds.md` 参照。コード側は実装済み (PR #218 周辺)。
+
+### 実装済み
+- `/jobs.xml?source=kyujinbox` (求人ボックス向け、UTM 自動付与)
+- `/jobs.xml?source=stanby` (スタンバイ向け、UTM 自動付与)
+- Indeed 互換 XML 仕様で両プラットフォーム対応
+
+### 手動作業 — 商談ベース (即日登録不可、リードタイム 2-4 週間)
+
+#### 求人ボックス (カカクコム)
+- [ ] https://corp.kakaku.com/service/job/ の問い合わせフォーム送信
+- [ ] 連絡先・フィード URL を提示:
+  - フィード URL: `https://www.genbacareer.jp/jobs.xml?source=kyujinbox`
+  - 会社: 株式会社LET / 27-ユ-304693
+- [ ] 担当者から返信 (3-5 営業日) → 営業 MTG → 審査 → 掲載開始
+- [ ] 料金: クリック課金 (CPC) 25〜200 円想定
+
+#### スタンバイ (Visional)
+- [ ] https://corporate.stanby.co.jp/ の問い合わせフォーム送信
+- [ ] 連絡先・フィード URL を提示:
+  - フィード URL: `https://www.genbacareer.jp/jobs.xml?source=stanby`
+  - 会社: 株式会社LET / 27-ユ-304693
+- [ ] 担当者から返信 (3-5 営業日) → 審査 → 掲載開始
+- [ ] 料金: 無料掲載 + 有料オプション (上位表示 CPC)
+
+### 連携完了後の確認
+- [ ] GA4 で `source/medium = kyujinbox / feed`、`stanby / feed` の流入を計測
+- [ ] 月次レポートで CPA / 採用決定率を ROI 評価
+
+---
+
 ## 🆕 スカウトメッセージ機能 (2026-05-21 追加)
 
 PR #206 で実装。マイナビ転職参考のスカウトメール + 求職者受信トレイ + 企業送信フォーム。
