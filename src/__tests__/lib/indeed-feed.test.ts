@@ -163,6 +163,30 @@ describe("renderIndeedJobEntry", () => {
   })
 })
 
+describe("renderIndeedJobEntry with urlBuilder", () => {
+  it("uses custom urlBuilder when provided (UTM tracking)", () => {
+    const xml = renderIndeedJobEntry({
+      job: sampleJob(),
+      baseUrl: BASE_URL,
+      urlBuilder: (id) => `https://genbacareer.jp/jobs/${id}?utm_source=test`,
+    })
+    expect(xml).toContain(
+      "https://genbacareer.jp/jobs/550e8400-e29b-41d4-a716-446655440000?utm_source=test",
+    )
+  })
+
+  it("falls back to default URL when urlBuilder is not provided", () => {
+    const xml = renderIndeedJobEntry({
+      job: sampleJob(),
+      baseUrl: BASE_URL,
+    })
+    expect(xml).toContain(
+      `${BASE_URL}/jobs/550e8400-e29b-41d4-a716-446655440000`,
+    )
+    expect(xml).not.toContain("utm_source")
+  })
+})
+
 describe("renderIndeedFeed", () => {
   it("contains XML declaration and root <source>", () => {
     const xml = renderIndeedFeed({
