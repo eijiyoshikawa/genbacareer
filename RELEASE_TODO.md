@@ -168,3 +168,93 @@ CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pn
 
 新しい手作業項目が発生したら、上記カテゴリに沿って追加してください。
 私（Claude）への指示時には「RELEASE_TODO.md の N 番」と参照すると話が早いです。
+
+---
+
+## 🛠 ビジネスモデル変更に伴う開発項目 (2026-05-21 追加)
+
+詳細仕様は `docs/business-model-handover.md` 参照。
+
+3 プラン制 (① 成果報酬 ¥498k〜 / ② 月額 12ヶ月 / ③ 月額 24ヶ月) + 特別枠 2 種 (キャンペーン¥0永年 / サクバズSNSクライアント) への構造変更に伴うコード変更タスク。
+
+### C1. Stripe カード決済機能の廃止 【高】
+
+成功報酬・月額掲載どちらも請求書払いに統一する。
+- `src/lib/billing.ts` から Stripe ルート (`createHiringInvoice` の Stripe 分岐) 削除
+- `src/app/api/webhooks/stripe/route.ts` 削除
+- `Company.paymentMethod` enum から `stripe` 削除 (or 残してデフォルトを `moneyforward` に)
+- 環境変数 `STRIPE_*` を Vercel から削除
+- npm パッケージ `stripe` 削除
+
+### C2. 月額掲載プラン (Subscription) の新規実装 【高】
+
+- 新規モデル: `CompanyPlan` (type: `monthly_12` / `monthly_24` / `success_fee` / `campaign_free` / `sns_client`)
+- `paid_until: DateTime` カラムで契約終了日管理
+- `prepaid_full: Boolean` で一括前払いフラグ
+- 中途解約不可ルール (UI 上でも操作不可に)
+- 期間満了前 30 日通知 cron
+
+### C3. 戻入処理 (refund) の実装 【中】
+
+- `EarlyResignation` モデル (jobId, applicationId, resignedAt, monthsAfterHire)
+- 通知 UI: 企業が早期退職を報告する画面
+- 自動部分返金 invoice 発行 (1m: 80% / 2m: 50% / 3m: 20%)
+- 計算基準は `Application.hiredAt` (入社日 = hiredAt と同じ扱い)
+- admin 承認フロー
+
+### C4. hiring_fee_amount レンジ変更 【中】
+
+`src/lib/hiring-fee.ts:20-22` の `HIRING_FEE_MIN = 200_000` を `498_000` に変更:
+```ts
+export const HIRING_FEE_MIN = 498_000  // ← 200_000 から変更
+export const HIRING_FEE_MAX = 2_000_000
+```
+CHECK 制約も `prisma/migrations/manual/jobs_hiring_fee_amount.sql` 相当で更新:
+```sql
+ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_hiring_fee_amount_range;
+ALTER TABLE jobs ADD CONSTRAINT jobs_hiring_fee_amount_range
+  CHECK (hiring_fee_amount IS NULL OR (hiring_fee_amount >= 498000 AND hiring_fee_amount <= 2000000));
+```
+
+### C5. 採用ボーナス ¥50k 固定 + 適用プラン制限 【中】
+
+- `HiringBonus.amount` を `¥50,000` 固定 (admin 設定で可変も維持)
+- 適用対象 = `Company.plan_type IN ('monthly_12', 'monthly_24', 'sns_client')` のみ
+- ① 成果報酬 / キャンペーン (`campaign_free`) では `HiringBonus` レコード作成不可 (UI 上で隠す)
+
+### C6. キャンペーン枠フラグの実装 【低】
+
+- `Company.plan_type = 'campaign_free'` を追加 (C2 と同時実装が望ましい)
+- 掲載期間: 無期限 (将来 `campaign_until` カラム検討)
+
+### C7. サクバズ SNS フラグの実装 【低】
+
+- `Company.plan_type = 'sns_client'` を追加 (C2 と同時)
+- サクバズ SNS の契約と紐付け管理 (admin 手動 OK)
+
+### C8. 上位表示優先ロジックの実装 【中】
+
+`/jobs` の orderBy で以下の優先順位を実装:
+```
+1. 有償平等枠 (① / ② / ③) → ランダム or 公平
+2. SNS 枠 (sns_client)
+3. キャンペーン枠 (campaign_free)
+```
+リリース後 6 ヶ月間は逆順 (キャンペーンが最上位) で運用 → 6 ヶ月後にロジック切替。
+
+### C9. 一括前払い 10% OFF の請求書発行ロジック 【中】
+
+- ② 12 ヶ月 → ¥597,600 を一括 → 10% OFF → ¥537,840 請求書 1 通
+- ③ 24 ヶ月 → ¥720,000 を一括 → 10% OFF → ¥648,000 請求書 1 通
+- 分割契約と一括前払いを `CompanyPlan.prepaid_full` で識別
+- MoneyForward 連携部分で一括前払い用テンプレートを追加
+
+### C10. 利用規約 / プラン詳細ページの更新 【高】
+
+- `/legal/terms` (利用規約) に以下を追記:
+  - 戻入規定 (① プランのみ、1m 80%/2m 50%/3m 20%、入社日基準)
+  - 中途解約不可条項 (② ③ 月額プラン)
+  - 採用ボーナス支給条件 (②③ + サクバズ SNS のみ)
+- `/for-employers` (企業向け LP) のプラン比較表を 3 プラン制に更新
+- 特定商取引法表記 (`/legal/tokutei`) を月額プラン対応に
+
