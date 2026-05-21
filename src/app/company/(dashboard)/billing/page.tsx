@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { HIRING_FEE_AMOUNT } from "@/lib/stripe"
+import { resolveHiringFee } from "@/lib/hiring-fee"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -23,7 +24,7 @@ export default async function CompanyBillingPage({
   const page = Math.max(1, Number(params.page) || 1)
   const perPage = 20
 
-  const [events, total, summaryData] = await Promise.all([
+  const [events, total, summaryData, companyJobs] = await Promise.all([
     prisma.billingEvent.findMany({
       where: { companyId },
       orderBy: { createdAt: "desc" },
@@ -32,7 +33,7 @@ export default async function CompanyBillingPage({
       include: {
         application: {
           include: {
-            job: { select: { title: true } },
+            job: { select: { title: true, hiringFeeAmount: true } },
             user: { select: { name: true } },
           },
         },
@@ -45,7 +46,18 @@ export default async function CompanyBillingPage({
       _sum: { amount: true },
       _count: true,
     }),
+    // 求人ごとの単価範囲を計算するために active 求人の hiringFeeAmount を取得
+    prisma.job.findMany({
+      where: { companyId, status: "active" },
+      select: { hiringFeeAmount: true },
+    }),
   ])
+
+  // 求人別の単価レンジ表示（個別設定が混在しているケースの可視化）
+  const feeAmounts = companyJobs.map((j) => resolveHiringFee(j))
+  const feeMin = feeAmounts.length > 0 ? Math.min(...feeAmounts) : HIRING_FEE_AMOUNT
+  const feeMax = feeAmounts.length > 0 ? Math.max(...feeAmounts) : HIRING_FEE_AMOUNT
+  const feeIsRange = feeMin !== feeMax
 
   const totalPages = Math.ceil(total / perPage)
 
@@ -66,9 +78,13 @@ export default async function CompanyBillingPage({
         <div className="border bg-white p-5 shadow-sm">
           <p className="text-sm text-gray-500">成果報酬単価</p>
           <p className="mt-1 text-2xl font-bold text-gray-900">
-            ¥{HIRING_FEE_AMOUNT.toLocaleString()}
+            {feeIsRange
+              ? `¥${feeMin.toLocaleString()} 〜 ¥${feeMax.toLocaleString()}`
+              : `¥${feeMin.toLocaleString()}`}
           </p>
-          <p className="text-xs text-gray-400">1採用あたり</p>
+          <p className="text-xs text-gray-400">
+            {feeIsRange ? "求人ごとに異なる" : "1採用あたり"}
+          </p>
         </div>
         <div className="border bg-white p-5 shadow-sm">
           <p className="text-sm text-gray-500">支払い済み</p>
