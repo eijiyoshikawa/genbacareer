@@ -63,6 +63,7 @@ model User {
   jobInterests      JobInterest[]
   companyFollows    CompanyFollow[]
   reportsSubmitted  Report[] @relation("ReportReporter")
+  scoutsReceived    ScoutMessage[]
 
   @@map("users")
 }
@@ -318,6 +319,7 @@ model Company {
   applications  Application[]
   followers     CompanyFollow[]
   reviews       CompanyReview[]
+  scoutsSent    ScoutMessage[]
 
   @@unique([source, name], name: "company_source_name_unique")
   @@index([status], name: "idx_companies_status")
@@ -465,6 +467,7 @@ model Job {
   jobViews          JobView[]
   favorites         JobFavorite[]
   interests         JobInterest[]
+  scouts            ScoutMessage[]
 
   @@index([dedupeKey], name: "idx_jobs_dedupe_key")
   @@index([prefecture, category, employmentType, status], name: "idx_jobs_search")
@@ -1027,6 +1030,45 @@ model JobInterest {
   @@index([jobId, createdAt(sort: Desc)], name: "idx_job_interests_by_job")
   @@index([userId, createdAt(sort: Desc)], name: "idx_job_interests_by_user")
   @@map("job_interests")
+}
+
+// ========================================
+// スカウトメッセージ (12.x): 企業 → 求職者の片方向メッセージ
+// ========================================
+/// 企業から求職者に送るスカウトメッセージ。
+/// (companyId, jobId, userId) で実質 UNIQUE だが、期限切れ後の再送を許す
+/// ため partial unique index を manual SQL で別途定義する
+/// (status NOT IN ('expired','declined') の時のみ UNIQUE)。
+model ScoutMessage {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  jobId         String   @map("job_id") @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  // 送信担当者 (監査用)。CompanyUser 削除時は NULL に
+  companyUserId String?  @map("company_user_id") @db.Uuid
+
+  subject       String   @db.VarChar(120)
+  body          String
+
+  // sent → read (求職者が詳細を開いた) → expired (期限切れ) / declined (辞退)
+  status        String   @default("sent") @db.VarChar(20)
+  sentAt        DateTime @default(now()) @map("sent_at") @db.Timestamptz()
+  readAt        DateTime? @map("read_at") @db.Timestamptz()
+  expiresAt     DateTime @map("expires_at") @db.Timestamptz()
+  // 通知メール配信成功時刻。null なら opt-out or 失敗
+  emailSentAt   DateTime? @map("email_sent_at") @db.Timestamptz()
+  declineReason String?  @map("decline_reason") @db.VarChar(200)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  job     Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, sentAt(sort: Desc)], name: "idx_scouts_inbox")
+  @@index([companyId, sentAt(sort: Desc)], name: "idx_scouts_outbox")
+  @@index([expiresAt], name: "idx_scouts_expiry")
+  @@map("scout_messages")
 }
 
 // ========================================

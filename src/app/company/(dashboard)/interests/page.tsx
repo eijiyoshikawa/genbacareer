@@ -112,10 +112,16 @@ export default async function CompanyInterestsPage() {
                     </Link>
                   </p>
                 </div>
-                <div className="text-right shrink-0">
+                <div className="flex flex-col items-end gap-2 text-right shrink-0">
                   <p className="text-xs text-gray-400">
                     {i.createdAt.toLocaleString("ja-JP")}
                   </p>
+                  <Link
+                    href={`/company/scouts/new?userId=${i.user.id}&jobId=${i.job.id}`}
+                    className="inline-flex items-center gap-1 bg-primary-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-700"
+                  >
+                    スカウト送信
+                  </Link>
                 </div>
               </div>
             </li>

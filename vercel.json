@@ -11,6 +11,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/cron/expire-scouts",
+      "schedule": "15 3 * * *"
+    },
+    {
       "path": "/api/cron/hellowork-import?pages=5",
       "schedule": "0 * * * *"
     },
