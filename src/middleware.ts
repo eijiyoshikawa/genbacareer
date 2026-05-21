@@ -117,7 +117,7 @@ export function middleware(request: NextRequest) {
   //    公開ページのみガード（/jobs, /companies, /journal, /, /[prefecture] 等）。
   // ============================================================
   const ua = request.headers.get("user-agent")
-  // LINE webhook / Stripe webhook 等は自前 UA なので /api/webhooks は除外。
+  // LINE webhook 等の外部 webhook は自前 UA なので /api/webhooks は除外。
   // /api/cron も Bearer 認証で守られているので除外。
   const isExempt =
     pathname.startsWith("/api/webhooks") ||

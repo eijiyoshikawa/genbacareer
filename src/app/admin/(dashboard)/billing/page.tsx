@@ -118,7 +118,7 @@ export default async function AdminBillingPage({
                     ¥{event.amount.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-600">
-                    {event.provider === "moneyforward" ? "マネフォ" : "Stripe"}
+                    {event.provider === "moneyforward" ? "マネフォ" : event.provider}
                     {event.invoiceUrl && (
                       <>
                         {" · "}

@@ -406,9 +406,9 @@ model AnalyticsEvent {
 - 13.6 A/B テスト
 - 14.2 ATS / 労務連携
 - 14.3 Slack / Chatwork
-- 15.1 Stripe サブスク
+- 15.1 サブスク (2026-05: Stripe 廃止、月額掲載は MoneyForward 経由請求書発行に移行予定)
 - 15.2 プラン管理
-- 15.4 請求書発行
+- 15.4 請求書発行 (MoneyForward クラウド請求書)
 - 15.5 リファラル
 - 16.4 多言語 i18n
 - 17.5 名刺 OCR
