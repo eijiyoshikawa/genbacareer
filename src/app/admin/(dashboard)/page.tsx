@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   TrendingUp,
   ArrowRight,
+  Receipt,
 } from "lucide-react"
 import type { Metadata } from "next"
 
@@ -75,21 +76,38 @@ export default function AdminDashboard() {
 // 要対応タスク (赤・黄バッジ)
 // =================================================================
 async function UrgentAlertsSection() {
-  const [pendingCompanies, pendingReports, pendingReviews, pendingBonuses] =
-    await Promise.all([
-      prisma.company
-        .count({ where: { source: "direct", status: "pending" } })
-        .catch(() => 0),
-      prisma.report.count({ where: { status: "open" } }).catch(() => 0),
-      prisma.companyReview
-        .count({ where: { status: "pending" } })
-        .catch(() => 0),
-      prisma.hiringBonus
-        .count({ where: { status: "requested" } })
-        .catch(() => 0),
-    ])
+  const [
+    pendingCompanies,
+    pendingReports,
+    pendingReviews,
+    pendingBonuses,
+    pendingBillings,
+    approvedResignations,
+  ] = await Promise.all([
+    prisma.company
+      .count({ where: { source: "direct", status: "pending" } })
+      .catch(() => 0),
+    prisma.report.count({ where: { status: "open" } }).catch(() => 0),
+    prisma.companyReview
+      .count({ where: { status: "pending" } })
+      .catch(() => 0),
+    prisma.hiringBonus
+      .count({ where: { status: "requested" } })
+      .catch(() => 0),
+    prisma.billingEvent
+      .count({ where: { status: "pending" } })
+      .catch(() => 0),
+    prisma.earlyResignation
+      .count({ where: { status: "approved" } })
+      .catch(() => 0),
+  ])
   const totalUrgent =
-    pendingCompanies + pendingReports + pendingReviews + pendingBonuses
+    pendingCompanies +
+    pendingReports +
+    pendingReviews +
+    pendingBonuses +
+    pendingBillings +
+    approvedResignations
 
   return (
     <section>
@@ -104,7 +122,7 @@ async function UrgentAlertsSection() {
           )}
         </h2>
       </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <AlertCard
           href="/admin/companies?status=pending"
           icon={<Building2 className="h-5 w-5" />}
@@ -112,6 +130,22 @@ async function UrgentAlertsSection() {
           count={pendingCompanies}
           tone={pendingCompanies > 0 ? "danger" : "ok"}
           cta="承認画面へ"
+        />
+        <AlertCard
+          href="/admin/billing-todo"
+          icon={<Receipt className="h-5 w-5" />}
+          label="請求書発行待ち"
+          count={pendingBillings + approvedResignations}
+          tone={pendingBillings + approvedResignations > 0 ? "danger" : "ok"}
+          cta="発行リストを見る"
+        />
+        <AlertCard
+          href="/admin/hiring-bonuses"
+          icon={<Gift className="h-5 w-5" />}
+          label="採用ボーナス申請"
+          count={pendingBonuses}
+          tone={pendingBonuses > 0 ? "warn" : "ok"}
+          cta="申請を確認"
         />
         <AlertCard
           href="/admin/reports"
@@ -128,14 +162,6 @@ async function UrgentAlertsSection() {
           count={pendingReviews}
           tone={pendingReviews > 0 ? "warn" : "ok"}
           cta="モデレーションへ"
-        />
-        <AlertCard
-          href="/admin/hiring-bonuses"
-          icon={<Gift className="h-5 w-5" />}
-          label="採用ボーナス申請"
-          count={pendingBonuses}
-          tone={pendingBonuses > 0 ? "warn" : "ok"}
-          cta="申請を確認"
         />
       </div>
     </section>

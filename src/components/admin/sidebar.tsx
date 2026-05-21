@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Gift,
   AlertTriangle,
+  Receipt,
   BookOpen,
 } from "lucide-react"
 
@@ -48,6 +49,7 @@ const navItems = [
   { href: "/admin/search-logs", label: "検索ログ", icon: Search },
   { href: "/admin/search-console", label: "Search Console", icon: Search },
   { href: "/admin/billing", label: "課金管理", icon: CreditCard },
+  { href: "/admin/billing-todo", label: "請求書発行待ち", icon: Receipt },
   { href: "/admin/hiring-fees", label: "求人別 単価設定", icon: Coins },
   { href: "/admin/hiring-bonuses", label: "採用ボーナス", icon: Gift },
   { href: "/admin/early-resignations", label: "戻入申請", icon: AlertTriangle },
