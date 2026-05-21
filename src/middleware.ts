@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import {
+  extractClientIp,
+  isAdminAccessAllowed,
+  parseAllowlist,
+} from "@/lib/admin-ip-allowlist"
 
 const SESSION_COOKIE_NAME = "gc_sid"
 const SESSION_MAX_AGE = 365 * 24 * 60 * 60
@@ -170,6 +175,30 @@ export function middleware(request: NextRequest) {
   const isCompanyRoute = companyRoutes.some((r) => pathname.startsWith(r))
   const isAdminRoute =
     adminRoutes.some((r) => pathname.startsWith(r)) && pathname !== "/admin/login"
+  const isAdminAnyRoute = adminRoutes.some((r) => pathname.startsWith(r))
+
+  // /admin/* への IP allowlist 制御。ADMIN_IP_ALLOWLIST 未設定なら無制限。
+  // 設定済みなら /admin/login 含めて全 /admin パスに適用 (ブルートフォース防御も兼ねる)。
+  if (isAdminAnyRoute) {
+    const allowlist = parseAllowlist(process.env.ADMIN_IP_ALLOWLIST)
+    if (allowlist.length > 0) {
+      const clientIp = extractClientIp(request.headers)
+      const ok = isAdminAccessAllowed({
+        clientIp,
+        allowlist,
+        isDevelopment: process.env.NODE_ENV !== "production",
+      })
+      if (!ok) {
+        return new NextResponse("Forbidden", {
+          status: 403,
+          headers: {
+            "X-Robots-Tag": "noindex, nofollow",
+            "Cache-Control": "no-store",
+          },
+        })
+      }
+    }
+  }
 
   /** すべての応答に gc_sid Cookie + 必要なら noindex ヘッダを乗せるヘルパー。 */
   function withTrackingCookie(res: NextResponse): NextResponse {
