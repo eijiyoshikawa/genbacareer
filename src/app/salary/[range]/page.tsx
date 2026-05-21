@@ -14,11 +14,12 @@ import {
   generateItemListSchema,
 } from "@/lib/structured-data"
 
+// build 高速化: SSG 時に prerender せず、初回リクエストで生成 → ISR キャッシュ
 export const revalidate = 21600 // 6 hours
-export const dynamicParams = false
+export const dynamicParams = true
 
 export function generateStaticParams() {
-  return SALARY_RANGES.map((r) => ({ range: r.slug }))
+  return []
 }
 
 type Props = {

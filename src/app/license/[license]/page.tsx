@@ -16,11 +16,16 @@ import {
 } from "@/lib/structured-data"
 import { Certificate, BookOpen } from "@phosphor-icons/react/dist/ssr"
 
+// ビルド時の SSG prerender は走らせない (description / requirements の
+// contains 検索が重く 60s タイムアウトする実績あり)。
+// 初回リクエスト時に生成 → ISR 6h でキャッシュする運用に切替。
 export const revalidate = 21600
-export const dynamicParams = false
+export const dynamicParams = true
 
 export function generateStaticParams() {
-  return LICENSE_LPS.map((l) => ({ license: l.slug }))
+  // 空配列を返してビルド時 prerender を回避
+  // dynamicParams = true なので、未生成 slug への初回 GET で SSR + ISR キャッシュされる
+  return []
 }
 
 type Props = {
@@ -49,13 +54,12 @@ export default async function LicenseLpPage({ params }: Props) {
   const lp = getLicenseLpBySlug(license)
   if (!lp) notFound()
 
-  // タイトル / requirements / tags / description に資格名が含まれる求人を抽出。
-  // searchTerms (例: "1級施工管理技士", "一級施工管理技士") のいずれかにマッチ。
+  // タイトル / tags に資格名が含まれる求人を抽出。
+  // requirements / description の contains は LIKE %term% で巨大テーブルに対して
+  // 60s タイムアウトする実績があるため、tags (GIN index 高速) と title のみに絞る。
   const OR: Prisma.JobWhereInput[] = lp.searchTerms.flatMap((term) => [
-    { title: { contains: term, mode: "insensitive" } },
-    { requirements: { contains: term, mode: "insensitive" } },
-    { description: { contains: term, mode: "insensitive" } },
     { tags: { has: term } },
+    { title: { contains: term, mode: "insensitive" } },
   ])
 
   const jobs = await prisma.job
@@ -66,7 +70,7 @@ export default async function LicenseLpPage({ params }: Props) {
         OR,
       },
       orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
-      take: 60,
+      take: 30,
       select: {
         id: true,
         title: true,
