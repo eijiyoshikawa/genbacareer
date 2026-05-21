@@ -10,6 +10,7 @@ import { WithdrawButton } from "@/components/applications/withdraw-button"
 import { HiringBonusRequestButton } from "@/components/mypage/hiring-bonus-request-button"
 import { StopPropagationWrapper } from "@/components/mypage/stop-propagation-wrapper"
 import { Skeleton } from "@/components/ui/skeleton"
+import { isPlanEligibleForBonus } from "@/lib/plans"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -106,7 +107,7 @@ async function ApplicationsList({
             prefecture: true,
             city: true,
             company: {
-              select: { name: true },
+              select: { name: true, planType: true },
             },
           },
         },
@@ -187,14 +188,15 @@ async function ApplicationsList({
                     応募日: {app.createdAt.toLocaleDateString("ja-JP")}
                   </p>
                   <div className="flex items-center gap-2">
-                    {app.status === "hired" && (
-                      <StopPropagationWrapper>
-                        <HiringBonusRequestButton
-                          applicationId={app.id}
-                          alreadyRequested={bonusApplicationIds.has(app.id)}
-                        />
-                      </StopPropagationWrapper>
-                    )}
+                    {app.status === "hired" &&
+                      isPlanEligibleForBonus(app.job?.company?.planType) && (
+                        <StopPropagationWrapper>
+                          <HiringBonusRequestButton
+                            applicationId={app.id}
+                            alreadyRequested={bonusApplicationIds.has(app.id)}
+                          />
+                        </StopPropagationWrapper>
+                      )}
                     <WithdrawButton
                       applicationId={app.id}
                       status={app.status}
