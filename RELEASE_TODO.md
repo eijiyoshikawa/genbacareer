@@ -98,7 +98,7 @@ CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pn
 
 ### 9. Stripe Invoicing 連携（成果報酬の請求書発行）
 
-採用 1 件あたり成果報酬 ¥50,000 を Stripe Invoicing で発行する設計。
+採用 1 件あたり成果報酬 ¥498,000〜（職種による）を Stripe Invoicing で発行する設計。
 **月額サブスクリプションは使いません**（コードも対応済み）。
 
 - [ ] Stripe Dashboard でアカウント作成 + 法人 KYC（1〜2 営業日）

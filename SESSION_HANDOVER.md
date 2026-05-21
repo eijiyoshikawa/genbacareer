@@ -289,7 +289,7 @@ pnpm analyze                # バンドル可視化 (ANALYZE=true)
 - `EmptyJobsState` などの components は **direct のみフィルタ** されることが多い
 
 ### 課金モデル
-- **成果報酬モデル**（採用 1 件あたり ¥50,000、`HIRING_FEE_AMOUNT`）
+- **成果報酬モデル**（採用 1 件あたり ¥498,000〜（職種による）、`HIRING_FEE_AMOUNT`）
 - 月額サブスクは無し
 - Stripe Invoicing (`collection_method: "send_invoice"`) で請求書発行
 - MoneyForward クラウド請求書も併用可（`lib/billing.ts`）

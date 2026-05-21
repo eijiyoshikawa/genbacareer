@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 // 1 件採用あたりのモデル単価 (13.5 コスパ計算用)。
 // 将来は Company 単位の設定値や BillingEvent 実績から算出するが、
 // 現段階は業界中央値を仮値として表示する。
-const ASSUMED_HIRING_FEE_JPY = 300_000
+const ASSUMED_HIRING_FEE_JPY = 498_000
 
 export default async function JobPerformancePage({
   params,
