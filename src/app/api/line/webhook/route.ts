@@ -158,7 +158,7 @@ function autoReplyText(input: string): string | null {
       "",
       "💴 ご利用料金（企業様）",
       "・掲載料: 無料キャンペーン中",
-      "・成果報酬: 1 名 29.8 万円〜",
+      "・成果報酬: 1 名 49.8 万円〜（職種による）",
       "",
       `詳しくは: ${SITE_URL}/for-employers`,
     ].join("\n")

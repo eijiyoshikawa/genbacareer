@@ -19,5 +19,5 @@ export const stripe = new Proxy({} as Stripe, {
   },
 })
 
-/** 成果報酬の金額（円）— 1採用あたり */
-export const HIRING_FEE_AMOUNT = 50000
+/** 成果報酬の金額（円）— 1採用あたり（職種による最低金額） */
+export const HIRING_FEE_AMOUNT = 498000
