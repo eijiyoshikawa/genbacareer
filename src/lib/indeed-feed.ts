@@ -97,13 +97,17 @@ export function mapEmploymentTypeToIndeed(t: string | null): string {
   return INDEED_JOB_TYPE[t] ?? ""
 }
 
-/** 1 件の <job> XML 文字列を生成 */
+/** 1 件の <job> XML 文字列を生成。urlBuilder で UTM 等を付与可能 */
 export function renderIndeedJobEntry(args: {
   job: IndeedFeedJob
   baseUrl: string
+  /** デフォルトは `${baseUrl}/jobs/${id}`。指定すると UTM 等を付与できる */
+  urlBuilder?: (jobId: string) => string
 }): string {
   const { job, baseUrl } = args
-  const jobUrl = `${baseUrl}/jobs/${job.id}`
+  const jobUrl = args.urlBuilder
+    ? args.urlBuilder(job.id)
+    : `${baseUrl}/jobs/${job.id}`
   const date = job.publishedAt ?? new Date()
   const salary = formatSalaryForIndeed({
     min: job.salaryMin,
@@ -134,12 +138,21 @@ export function renderIndeedFeed(args: {
   baseUrl: string
   publisherName?: string
   generatedAt?: Date
+  /** 各求人 URL を組み立てる関数 (UTM パラメータ付与等)。
+   *  指定しなければデフォルトは `${baseUrl}/jobs/${id}`。 */
+  urlBuilder?: (jobId: string) => string
 }): string {
   const publisher = args.publisherName ?? "ゲンバキャリア"
   const builtAt = args.generatedAt ?? new Date()
 
   const entries = args.jobs
-    .map((job) => renderIndeedJobEntry({ job, baseUrl: args.baseUrl }))
+    .map((job) =>
+      renderIndeedJobEntry({
+        job,
+        baseUrl: args.baseUrl,
+        urlBuilder: args.urlBuilder,
+      }),
+    )
     .join("\n")
 
   return `<?xml version="1.0" encoding="utf-8"?>
