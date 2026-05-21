@@ -37,7 +37,7 @@ export const dynamic = "force-dynamic"
 
 const DEFAULT_PAGES_PER_RUN = 2
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
