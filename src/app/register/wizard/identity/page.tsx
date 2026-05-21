@@ -10,6 +10,7 @@ import {
   clearAnswers,
 } from "@/lib/registration/wizard-state"
 import { getStepBySlug } from "@/lib/registration/steps"
+import { normalizePhone, isMobilePhone } from "@/lib/registration/phone"
 
 export default function IdentityStepPage() {
   const router = useRouter()
@@ -20,6 +21,7 @@ export default function IdentityStepPage() {
   const [lastKana, setLastKana] = useState("")
   const [firstKana, setFirstKana] = useState("")
   const [phone, setPhone] = useState("")
+  const [password, setPassword] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
 
@@ -35,33 +37,33 @@ export default function IdentityStepPage() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const isKana = (s: string) => /^[ァ-ヶー぀-ゟ]+$/.test(s)
-  const isPhone = (s: string) => /^0\d{9,10}$/.test(s.replace(/-/g, ""))
 
-  // 必須: 氏名 + カナ + 携帯番号
+  // 必須: 氏名 + カナ + 携帯番号 + パスワード
   const canProceed =
     last.trim() !== "" &&
     first.trim() !== "" &&
     isKana(lastKana) &&
     isKana(firstKana) &&
-    isPhone(phone)
+    isMobilePhone(phone) &&
+    password.length >= 8
 
   const handleSubmit = async () => {
     setError("")
     setSubmitting(true)
 
-    // ステートを保存
+    const normalizedPhone = normalizePhone(phone)
+
     saveAnswers({
       nameLast: last.trim(),
       nameFirst: first.trim(),
       nameLastKana: lastKana.trim(),
       nameFirstKana: firstKana.trim(),
-      phone: phone.replace(/-/g, ""),
+      phone: normalizedPhone,
     })
 
     const answers = loadAnswers()
-    const tmpPw = sessionStorage.getItem("genba-registration-tmp-pw")
 
-    if (!answers.email || !tmpPw) {
+    if (!answers.email) {
       setError(
         "セッションが切れています。お手数ですが最初からやり直してください。",
       )
@@ -76,22 +78,22 @@ export default function IdentityStepPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: answers.email,
-          password: tmpPw,
-          answers,
+          password,
+          answers: { ...answers, phone: normalizedPhone },
         }),
       })
 
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
         setError(data.error ?? "登録に失敗しました。時間をおいてお試しください。")
         setSubmitting(false)
         return
       }
 
-      // 成功 → セッション破棄 → 完了画面へ
-      sessionStorage.removeItem("genba-registration-tmp-pw")
+      // 成功 → セッション破棄 → 完了画面へ (メール送信状態を query で受け渡し)
       clearAnswers()
-      router.push("/register/wizard/done")
+      const emailSent = data.emailSent !== false
+      router.push(`/register/wizard/done?emailSent=${emailSent ? "1" : "0"}`)
     } catch {
       setError("通信エラーが発生しました。時間をおいてお試しください。")
       setSubmitting(false)
@@ -186,9 +188,35 @@ export default function IdentityStepPage() {
             autoComplete="tel"
             className="block w-full border border-gray-300 px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
           />
-          {phone && !isPhone(phone) && (
+          {phone && !isMobilePhone(phone) && (
             <p className="mt-1 text-[11px] text-rose-600">
-              ハイフン無しの 10〜11 桁で入力してください (例: 09012345678)
+              携帯番号 (070 / 080 / 090) を入力してください
+            </p>
+          )}
+        </div>
+
+        {/* パスワード */}
+        <div className="mt-4">
+          <label htmlFor="wizard-password" className="block text-xs font-bold text-gray-700 mb-1.5">
+            パスワード <span className="text-rose-600">*</span>
+            <span className="ml-2 text-[10px] font-normal text-gray-500">
+              8 文字以上
+            </span>
+          </label>
+          <input
+            id="wizard-password"
+            type="password"
+            required
+            minLength={8}
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="block w-full border border-gray-300 px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            placeholder="パスワードを入力"
+          />
+          {password.length > 0 && password.length < 8 && (
+            <p className="mt-1 text-[11px] text-rose-600">
+              8 文字以上で入力してください
             </p>
           )}
         </div>

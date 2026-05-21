@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { ArrowRight, SkipForward, ArrowLeft } from "lucide-react"
-import { useTransition } from "react"
+import { useState, useTransition } from "react"
 
 /**
  * 各ステップの共通レイアウト:
@@ -42,10 +42,22 @@ export function StepShell({
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  // onNext の await 中も「戻る/次へ」を抑止するためのフラグ。
+  const [submitting, setSubmitting] = useState(false)
+  const busy = pending || submitting
 
   const handleNext = async () => {
+    if (busy) return
     if (onNext) {
-      await onNext()
+      setSubmitting(true)
+      try {
+        await onNext()
+      } catch (err) {
+        // 呼び出し側でエラー表示する想定なのでログのみ。
+        console.warn("[step-shell] onNext threw:", err)
+      } finally {
+        setSubmitting(false)
+      }
     }
     if (nextHref) {
       startTransition(() => router.push(nextHref))
@@ -61,12 +73,13 @@ export function StepShell({
   return (
     <div className="bg-warm-50 min-h-[calc(100dvh-180px)]">
       <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
-        {/* 戻る */}
+        {/* 戻る — 送信中 (pending or canProceed=false 直前の処理中) は無効化 */}
         {prevHref && (
           <button
             type="button"
             onClick={() => router.push(prevHref)}
-            className="press inline-flex items-center gap-1 text-xs text-gray-500 hover:text-primary-600 mb-3"
+            disabled={busy}
+            className="press inline-flex items-center gap-1 text-xs text-gray-500 hover:text-primary-600 mb-3 disabled:opacity-40 disabled:pointer-events-none"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             前に戻る
@@ -92,7 +105,7 @@ export function StepShell({
             <button
               type="button"
               onClick={handleSkip}
-              disabled={pending}
+              disabled={busy}
               className="press border-2 border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-700 hover:border-primary-400 hover:text-primary-700 transition disabled:opacity-50 sm:order-1 inline-flex items-center justify-center gap-1.5"
             >
               <SkipForward className="h-4 w-4" />
@@ -102,7 +115,7 @@ export function StepShell({
           <button
             type="button"
             onClick={handleNext}
-            disabled={!canProceed || pending}
+            disabled={!canProceed || busy}
             className={`press inline-flex items-center justify-center gap-1.5 px-5 py-3 text-sm font-extrabold text-white shadow-sm transition ${
               required && !skipHref ? "col-span-full" : "sm:order-2"
             } ${
@@ -111,7 +124,7 @@ export function StepShell({
                 : "bg-gray-300 cursor-not-allowed"
             }`}
           >
-            {pending ? "..." : nextLabel}
+            {busy ? "..." : nextLabel}
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>

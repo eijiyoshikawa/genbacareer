@@ -10,6 +10,7 @@ import {
   rateLimitResponse,
 } from "@/lib/rate-limit"
 import { trackEvent } from "@/lib/track"
+import { normalizePhone, isMobilePhone } from "@/lib/registration/phone"
 
 /**
  * 求職者ウィザード登録 API (POST /api/registration/wizard)。
@@ -23,8 +24,8 @@ import { trackEvent } from "@/lib/track"
 const VERIFICATION_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000
 
 const wizardSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
+  email: z.string().email("メールアドレスの形式が正しくありません"),
+  password: z.string().min(8, "パスワードは 8 文字以上で入力してください"),
   answers: z.object({
     prefecture: z.string().optional(),
     city: z.string().optional(),
@@ -35,11 +36,16 @@ const wizardSchema = z.object({
     desiredPrefectures: z.array(z.string()).optional(),
     desiredSalaryMin: z.number().optional(),
     desiredTransferTiming: z.string().optional(),
-    nameLast: z.string().min(1),
-    nameFirst: z.string().min(1),
-    nameLastKana: z.string().min(1),
-    nameFirstKana: z.string().min(1),
-    phone: z.string().regex(/^0\d{9,10}$/),
+    nameLast: z.string().min(1, "姓を入力してください"),
+    nameFirst: z.string().min(1, "名を入力してください"),
+    nameLastKana: z.string().min(1, "セイを入力してください"),
+    nameFirstKana: z.string().min(1, "メイを入力してください"),
+    // 全角・ハイフン混入を許容しつつサーバ側で正規化 + 070/080/090 のみ受理
+    phone: z
+      .string()
+      .refine((v) => isMobilePhone(v), {
+        message: "携帯番号 (070 / 080 / 090) を入力してください",
+      }),
   }),
 })
 
@@ -78,16 +84,20 @@ export async function POST(request: Request) {
     )
 
     const name = `${answers.nameLast} ${answers.nameFirst}`
+    const normalizedPhone = normalizePhone(answers.phone)
 
     const user = await prisma.user.create({
       data: {
         email,
         passwordHash,
         name,
-        phone: answers.phone,
+        phone: normalizedPhone,
         prefecture: answers.prefecture,
         city: answers.city,
-        desiredCategories: answers.experiencedCategories ?? [],
+        // 「経験あり」と「希望」は別概念。Phase 2 で希望カテゴリ入力ステップを
+        // 追加するまでは空配列で保存し、experiencedCategories は Phase 2 で
+        // 別カラム or metadata jsonb に格納する。
+        desiredCategories: [],
         desiredSalaryMin: answers.desiredSalaryMin,
         authProvider: "email",
         verificationToken,
@@ -97,13 +107,18 @@ export async function POST(request: Request) {
       },
     })
 
-    // 確認メール送信 (失敗しても登録は成功扱い、ユーザーには再送案内可能)
-    sendEmailVerificationEmail(email, verificationToken).catch((e) => {
+    // 確認メール送信。失敗しても User 作成は成立しているので、
+    // クライアントには emailSent: false で通知し、再送導線を表示する。
+    let emailSent = true
+    try {
+      await sendEmailVerificationEmail(email, verificationToken)
+    } catch (e) {
+      emailSent = false
       console.warn(
         `[wizard-register] verification email failed for ${email}:`,
         e instanceof Error ? e.message : e,
       )
-    })
+    }
 
     // イベント計測
     void trackEvent({
@@ -113,14 +128,17 @@ export async function POST(request: Request) {
         hasExperience:
           (answers.experiencedSubcategories?.length ?? 0) > 0,
         desiredPrefCount: answers.desiredPrefectures?.length ?? 0,
+        emailSent,
       },
     })
 
     return NextResponse.json({
       ok: true,
       email,
-      message:
-        "確認メールを送信しました。メール内の URL をクリックして登録を完了してください。",
+      emailSent,
+      message: emailSent
+        ? "確認メールを送信しました。メール内の URL をクリックして登録を完了してください。"
+        : "登録は完了しましたが、確認メールの送信に失敗しました。完了画面の再送ボタンからお試しください。",
     })
   } catch (err) {
     console.error("[wizard-register] failed:", err)

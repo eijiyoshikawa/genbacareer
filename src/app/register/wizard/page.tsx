@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Mail, ArrowRight } from "lucide-react"
 import { LineLoginButton } from "@/components/auth/line-login-button"
-import { saveAnswers } from "@/lib/registration/wizard-state"
+import { loadAnswers, saveAnswers } from "@/lib/registration/wizard-state"
 
 /**
  * ウィザード入口 (/register/wizard)。
@@ -19,25 +19,17 @@ import { saveAnswers } from "@/lib/registration/wizard-state"
 export default function WizardEntryPage() {
   const router = useRouter()
   const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [error, setError] = useState("")
   const [pending, setPending] = useState(false)
 
   // セッションにメアドが残っていれば再開
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem("genba-registration-wizard")
-      if (raw) {
-        const data = JSON.parse(raw)
-        if (data.email) {
-          // sessionStorage からの単発初期化は React 外の永続化反映のため effect で setState する
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setEmail(data.email)
-        }
-      }
-    } catch {
-      // 無視
+    const a = loadAnswers()
+    if (a.email) {
+      // sessionStorage からの単発初期化は React 外の永続化反映のため effect で setState する
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEmail(a.email)
     }
   }, [])
 
@@ -49,20 +41,15 @@ export default function WizardEntryPage() {
       setError("メールアドレスを正しく入力してください")
       return
     }
-    if (password.length < 8) {
-      setError("パスワードは 8 文字以上で入力してください")
-      return
-    }
     if (!agreeTerms) {
       setError("利用規約・プライバシーポリシーへの同意が必要です")
       return
     }
 
     setPending(true)
+    // パスワードは sessionStorage に保存せず、最終ステップ (identity) で受け取る。
+    // 平文残留 (XSS / 他拡張からの読み出し) のリスクを避ける。
     saveAnswers({ email })
-    // パスワードは sessionStorage に書かず、完了時 API POST のフォームで再入力させる
-    // (途中離脱→再開時のセキュリティ配慮)
-    sessionStorage.setItem("genba-registration-tmp-pw", password)
     router.push("/register/wizard/address")
   }
 
@@ -121,22 +108,9 @@ export default function WizardEntryPage() {
           </div>
         </div>
 
-        <div>
-          <label htmlFor="password" className="block text-xs font-bold text-gray-700">
-            パスワード <span className="text-gray-400">(8 文字以上)</span>
-          </label>
-          <input
-            id="password"
-            type="password"
-            required
-            minLength={8}
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 block w-full border border-gray-300 px-3 py-2.5 text-sm text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-            placeholder="パスワードを入力"
-          />
-        </div>
+        <p className="text-[11px] text-gray-500 leading-relaxed">
+          ※ パスワードは最後のステップでお預かりします。途中離脱しても、メールアドレスから再開できます。
+        </p>
 
         <label className="flex items-start gap-2 text-xs text-gray-700 cursor-pointer">
           <input
