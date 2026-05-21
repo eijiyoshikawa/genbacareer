@@ -91,10 +91,16 @@ export function middleware(request: NextRequest) {
   //     後段の withTrackingCookie で noindex ヘッダを必ず付ける。
   // ============================================================
   const isVercelHost = host.endsWith(".vercel.app")
+  // /api/cron/* と /api/webhooks/* は Vercel Cron / 外部 Webhook が deployment URL
+  // を直接叩く。canonical へ 301 すると Authorization ヘッダが落ちて認証失敗するため
+  // ホスト書き換えからは除外する（後段の noindex は引き続き付与）。
+  const isInfraEndpoint =
+    pathname.startsWith("/api/cron") || pathname.startsWith("/api/webhooks")
   if (
     process.env.VERCEL_ENV === "production" &&
     isVercelHost &&
-    !CANONICAL_HOSTS.has(host)
+    !CANONICAL_HOSTS.has(host) &&
+    !isInfraEndpoint
   ) {
     const canonicalUrl = new URL(request.nextUrl)
     // www を canonical にしておくと apex→www の 301 を 1 ホップ省ける。
