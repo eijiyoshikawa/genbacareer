@@ -56,15 +56,17 @@
 - [x] `POST /api/cron/hellowork-import?pages=5` — 毎時 0 分
 - [x] `POST /api/cron/saved-search-alerts` — 毎日 09:00 UTC
 - [x] `POST /api/cron/refresh-gbiz` — **毎月 1 日 03:00 UTC（GbizINFO 月次更新）**
-- [ ] 環境変数 `CRON_SECRET` を Vercel に設定（未設定だと認証スキップで誰でも叩ける）
+- [x] 環境変数 `CRON_SECRET` を Vercel に設定（2026-05-21 完了）
 - 各 Cron には `Authorization: Bearer ${CRON_SECRET}` を Vercel が自動付与
 
-### 6. Google Search Console 登録
+### 6. Google Search Console 登録 ✅ 済
 
-- [ ] https://search.google.com/search-console から `genbacareer.jp` を追加
-- [ ] DNS TXT レコードまたは HTML タグで所有権確認
-- [ ] `https://genbacareer.jp/sitemap.xml` を Sitemap 送信
-- [ ] `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` を Vercel 環境変数に追加（HTML タグ方式の場合）
+- [x] サイト追加 + 所有権確認 (2026-05-21 完了)
+- [ ] **リリース直前の最終チェック項目**:
+  - [ ] `https://www.genbacareer.jp/sitemap.xml` の最新求人が反映されているか
+  - [ ] Indexed Pages 数の推移 (リリース後の追跡)
+  - [ ] Coverage Report で 404 / Soft 404 が発生していないか
+  - [ ] Core Web Vitals (LCP / CLS / INP) のスコア
 
 ---
 
@@ -83,11 +85,10 @@ pnpm test:e2e:ui        # UI モード（ステップ追跡）
 
 CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pnpm test:e2e` で本番に対しても回せます。
 
-### 7. Google Analytics 4 / Vercel Analytics 接続確認
+### 7. Google Analytics 4 / Vercel Analytics 接続確認 ✅ 済
 
-- [ ] `NEXT_PUBLIC_GA_ID` を Vercel に設定（既存の `<GoogleAnalytics />` が読む）
-- [ ] Cookie 同意バナーで「すべて受け入れる」を選択 → GA リアルタイムレポートで自身を確認
-- [ ] Vercel → Analytics タブで PV / Web Vitals が記録され始めているか確認
+- [x] `NEXT_PUBLIC_GA_ID` 設定 + 動作確認 (2026-05-21 完了)
+- [x] Vercel Analytics 動作確認
 
 ### 8. LINE 公式アカウント連携
 
@@ -163,6 +164,33 @@ CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pn
 
 新しい手作業項目が発生したら、上記カテゴリに沿って追加してください。
 私（Claude）への指示時には「RELEASE_TODO.md の N 番」と参照すると話が早いです。
+
+---
+
+## 🆕 Indeed 連携 Phase A (2026-05-21 追加)
+
+詳細仕様は `docs/indeed-integration.md` 参照。
+
+### 実装済み (PR #212)
+- `/jobs.xml` ルート (Indeed 公式 XML フィード仕様準拠)
+- 配信対象: direct + active + 課金プラン (campaign_free 除外)
+- 最大 5,000 件 / 1 時間キャッシュ
+- 単体テスト 21 件
+
+### マージ後の手動作業 (Indeed 側)
+- [ ] Indeed for Employers ダッシュボードでログイン
+  - https://employers.indeed.com/
+- [ ] 「Source Posting」または「XML Feed」設定を開く
+- [ ] Feed URL = `https://www.genbacareer.jp/jobs.xml` を登録
+- [ ] Refresh schedule = Daily に設定
+- [ ] 初回 Indeed 側検証 (1-3 営業日) 待ち
+- [ ] Active になったことを確認 → indeed.com 検索で求人タイトル等で表示されるか確認
+
+### Phase B: Indeed Apply 連携 (リリース後対応)
+
+- Indeed Apply API 利用申請 (約 1-2 ヶ月のリードタイム)
+- 応募データ Webhook 受け取り → Application モデルに自動レコード作成
+- Indeed 側の Apply ボタン表示審査
 
 ---
 
