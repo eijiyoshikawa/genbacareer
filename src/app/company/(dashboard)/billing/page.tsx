@@ -3,6 +3,12 @@ import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { HIRING_FEE_AMOUNT } from "@/lib/hiring-fee"
 import { resolveHiringFee } from "@/lib/hiring-fee"
+import {
+  PLAN_LABELS,
+  isPlanActive,
+  daysUntilPlanExpiry,
+  type PlanType,
+} from "@/lib/plans"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -24,7 +30,7 @@ export default async function CompanyBillingPage({
   const page = Math.max(1, Number(params.page) || 1)
   const perPage = 20
 
-  const [events, total, summaryData, companyJobs] = await Promise.all([
+  const [events, total, summaryData, companyJobs, company] = await Promise.all([
     prisma.billingEvent.findMany({
       where: { companyId },
       orderBy: { createdAt: "desc" },
@@ -51,6 +57,15 @@ export default async function CompanyBillingPage({
       where: { companyId, status: "active" },
       select: { hiringFeeAmount: true },
     }),
+    prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        planType: true,
+        planPaidUntil: true,
+        planActivatedAt: true,
+        planPrepaidFull: true,
+      },
+    }),
   ])
 
   // 求人別の単価レンジ表示（個別設定が混在しているケースの可視化）
@@ -69,9 +84,74 @@ export default async function CompanyBillingPage({
       (summaryData.find((s) => s.status === "invoiced")?._sum.amount ?? 0)
   const totalHired = summaryData.reduce((sum, s) => sum + s._count, 0)
 
+  const planLabel = company
+    ? PLAN_LABELS[company.planType as PlanType] ?? company.planType
+    : null
+  const planActive = company
+    ? isPlanActive({
+        planType: company.planType,
+        planPaidUntil: company.planPaidUntil,
+      })
+    : false
+  const daysLeft = company
+    ? daysUntilPlanExpiry(company.planPaidUntil)
+    : null
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900">課金履歴</h1>
+
+      {/* 現在のプラン */}
+      {company && (
+        <div
+          className={`mt-6 border p-5 shadow-sm ${
+            planActive ? "bg-white" : "border-red-300 bg-red-50"
+          }`}
+        >
+          <p className="text-xs font-bold text-gray-500">現在の掲載プラン</p>
+          <p className="mt-1 text-lg font-bold text-gray-900">{planLabel}</p>
+          <div className="mt-2 text-sm text-gray-600">
+            {company.planActivatedAt && (
+              <p>
+                適用開始:{" "}
+                {company.planActivatedAt.toLocaleDateString("ja-JP", {
+                  timeZone: "Asia/Tokyo",
+                })}
+              </p>
+            )}
+            {company.planPaidUntil && (
+              <p>
+                契約終了:{" "}
+                {company.planPaidUntil.toLocaleDateString("ja-JP", {
+                  timeZone: "Asia/Tokyo",
+                })}
+                {daysLeft !== null && daysLeft > 0 && (
+                  <span
+                    className={`ml-2 ${
+                      daysLeft <= 30 ? "text-amber-600 font-bold" : "text-gray-500"
+                    }`}
+                  >
+                    (残り {daysLeft} 日)
+                  </span>
+                )}
+                {daysLeft !== null && daysLeft <= 0 && (
+                  <span className="ml-2 font-bold text-red-700">⚠ 期限切れ</span>
+                )}
+              </p>
+            )}
+            {company.planPrepaidFull && (
+              <p className="text-xs text-gray-400">
+                一括前払い済 (中途解約不可)
+              </p>
+            )}
+          </div>
+          {!planActive && (
+            <p className="mt-3 border border-red-300 bg-red-100 p-2 text-xs text-red-800">
+              現在プランが有効ではありません。継続をご希望の場合は info@let-inc.net までご連絡ください。
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Summary */}
       <div className="mt-6 grid gap-4 sm:grid-cols-3">

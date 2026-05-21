@@ -10,11 +10,10 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { HIRING_BONUS_AMOUNT } from "@/lib/hiring-bonus"
+import { isPlanEligibleForBonus } from "@/lib/plans"
 
 export const dynamic = "force-dynamic"
-
-// 1 件あたりの祝い金 (JPY)。将来は Company ごとに設定可能にする想定。
-const DEFAULT_AMOUNT = 30000
 
 const schema = z.object({
   applicationId: z.string().uuid(),
@@ -47,7 +46,11 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       status: "hired",
     },
-    select: { id: true, companyId: true },
+    select: {
+      id: true,
+      companyId: true,
+      company: { select: { planType: true } },
+    },
   })
   if (!app) {
     return Response.json(
@@ -59,6 +62,17 @@ export async function POST(request: NextRequest) {
     return Response.json(
       { error: "応募データに企業情報が紐付いていません" },
       { status: 400 }
+    )
+  }
+
+  // C5: 採用ボーナスは月額プラン / SNS 枠の企業からの採用のみ対象
+  if (!isPlanEligibleForBonus(app.company?.planType)) {
+    return Response.json(
+      {
+        error:
+          "この採用は採用ボーナスの対象外です (月額プラン または SNS 連携プラン企業の採用のみ対象)",
+      },
+      { status: 403 }
     )
   }
 
@@ -79,7 +93,7 @@ export async function POST(request: NextRequest) {
       applicationId: app.id,
       userId: session.user.id,
       companyId: app.companyId,
-      amount: DEFAULT_AMOUNT,
+      amount: HIRING_BONUS_AMOUNT,
       payoutMethod: parsed.data.payoutMethod,
       payoutDetails: parsed.data.payoutDetails ?? undefined,
       requestNote: parsed.data.requestNote ?? null,

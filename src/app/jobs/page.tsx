@@ -585,11 +585,16 @@ function buildOrderBy(sort: string) {
       return { publishedAt: "desc" as const }
     case "recommended":
     default:
-      // 出典 (direct = "d" < hellowork = "h") で direct を優先。
-      // 続いて SNS 登録数 / 文字量 / 写真数 / 3 ヶ月以内更新 を加点した rankScore。
-      // 同点の場合は新しい求人を上位に。
+      // C8 上位表示: 企業の planTier を最優先キーにする。
+      //   3 (paid: success_fee / monthly_12 / monthly_24)
+      //   > 2 (sns_client)
+      //   > 1 (campaign_free)
+      //   > 0 (HelloWork 取り込み等)
+      // 同 tier 内では既存の rankScore (SNS 数 / 文字量 / 写真数 / 更新鮮度) +
+      // publishedAt の順序。出典 (direct < hellowork) は planTier に吸収される
+      // (HelloWork 由来は Company.planTier=0 が default なので)。
       return [
-        { source: "asc" as const },
+        { company: { planTier: "desc" as const } },
         { rankScore: "desc" as const },
         { publishedAt: "desc" as const },
       ]

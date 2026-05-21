@@ -276,6 +276,27 @@ model Company {
   mfPartnerId      String?  @map("mf_partner_id") @db.VarChar(100)
   // 支払方法: moneyforward(請求書+銀行振込) のみ。Stripe は 2026-05 に廃止。
   paymentMethod    String   @default("moneyforward") @map("payment_method") @db.VarChar(20)
+
+  // === 掲載プラン (C2-C8, 2026-05 追加) =================================
+  // success_fee:   成果報酬 ¥498k〜 (default)
+  // monthly_12:    12 ヶ月月額一括前払い
+  // monthly_24:    24 ヶ月月額一括前払い
+  // campaign_free: キャンペーン枠 ¥0 無期限
+  // sns_client:    サクバズ SNS クライアント (¥0、契約期間有限)
+  planType         String    @default("success_fee") @map("plan_type") @db.VarChar(20)
+  // 月額プランの契約終了日。null なら期限なし (success_fee / campaign_free)
+  planPaidUntil    DateTime? @map("plan_paid_until") @db.Timestamptz()
+  // プラン適用開始日 (admin が手動設定)
+  planActivatedAt  DateTime? @map("plan_activated_at") @db.Timestamptz()
+  // 一括前払いフラグ (monthly_12 / monthly_24 は常に true、中途解約不可)
+  planPrepaidFull  Boolean   @default(true) @map("plan_prepaid_full")
+  // 求人一覧の上位表示優先度。planType の denormalized cache。
+  // 3: paid (success_fee / monthly_12 / monthly_24) / 2: sns_client / 1: campaign_free / 0: それ以外
+  planTier         Int       @default(3) @map("plan_tier")
+  // admin メモ (契約書 ID / 営業担当 / 注釈)
+  planNotes        String?   @map("plan_notes") @db.VarChar(500)
+  // 期限切れ通知 (30 日前) を送ったタイミング。重複送信防止用
+  planExpiryNotifiedAt DateTime? @map("plan_expiry_notified_at") @db.Timestamptz()
   // 承認ステータス: pending(申請中) | approved(承認済) | rejected(却下)
   // HelloWork 由来の参照企業は承認フローの対象外なので "approved" 固定
   status           String   @default("pending") @db.VarChar(20)
@@ -326,6 +347,10 @@ model Company {
   @@index([source], name: "idx_companies_source")
   @@index([source, status, createdAt(sort: Desc)], name: "idx_companies_admin_list")
   @@index([lastContentUpdatedAt(sort: Desc)], name: "idx_companies_last_content")
+  // 求人一覧の上位表示ソート用 (planTier DESC を最優先キーに使う)
+  @@index([planTier(sort: Desc), planPaidUntil], name: "idx_companies_plan_tier")
+  // 期限切れ通知 cron 用
+  @@index([planType, planPaidUntil], name: "idx_companies_plan_expiry")
   @@map("companies")
 }
 

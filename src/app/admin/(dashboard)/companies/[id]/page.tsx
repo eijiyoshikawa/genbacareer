@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db"
 import { CompanyApprovalActions } from "./approval-actions"
 import { PaymentMethodSelector } from "./payment-method-selector"
 import { InvitationManager } from "./invitation-manager"
+import { PlanEditor } from "./plan-editor"
+import { PLAN_LABELS, isPlanActive } from "@/lib/plans"
 
 export const metadata: Metadata = {
   title: "企業詳細",
@@ -111,6 +113,31 @@ export default async function AdminCompanyDetailPage({
         <PaymentMethodSelector
           companyId={company.id}
           currentMethod={company.paymentMethod}
+        />
+      </div>
+
+      {/* 掲載プラン (C2) */}
+      <div className="border bg-white p-6 shadow-sm">
+        <h2 className="font-bold text-gray-900">掲載プラン</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          現在のプラン:{" "}
+          <strong>{PLAN_LABELS[company.planType as keyof typeof PLAN_LABELS] ?? company.planType}</strong>
+          {isPlanActive({
+            planType: company.planType,
+            planPaidUntil: company.planPaidUntil,
+          })
+            ? " (アクティブ)"
+            : " ⚠️ 期限切れ / 未契約"}
+        </p>
+        <PlanEditor
+          companyId={company.id}
+          initial={{
+            planType: company.planType,
+            planPaidUntil: company.planPaidUntil?.toISOString() ?? null,
+            planActivatedAt: company.planActivatedAt?.toISOString() ?? null,
+            planPrepaidFull: company.planPrepaidFull,
+            planNotes: company.planNotes,
+          }}
         />
       </div>
 

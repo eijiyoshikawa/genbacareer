@@ -15,6 +15,10 @@
       "schedule": "15 3 * * *"
     },
     {
+      "path": "/api/cron/plan-expiry-notice",
+      "schedule": "0 4 * * *"
+    },
+    {
       "path": "/api/cron/hellowork-import?pages=5",
       "schedule": "0 * * * *"
     },

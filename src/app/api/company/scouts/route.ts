@@ -27,6 +27,7 @@ import {
 } from "@/lib/scouts"
 import { sendScoutEmail } from "@/lib/email"
 import { parsePrefs } from "@/lib/notification-prefs"
+import { canSendScoutByPlan, isPlanActive } from "@/lib/plans"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -83,11 +84,35 @@ export async function POST(request: NextRequest) {
       status: true,
       title: true,
       companyId: true,
-      company: { select: { name: true } },
+      company: {
+        select: { name: true, planType: true, planPaidUntil: true },
+      },
     },
   })
   if (!job || job.companyId !== auth.companyId) {
     return NextResponse.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
+
+  // プラン適格性チェック (C2-C8 連動)
+  if (!canSendScoutByPlan(job.company?.planType)) {
+    return NextResponse.json(
+      {
+        error:
+          "現在のプランではスカウト送信できません (キャンペーン枠は対象外)",
+      },
+      { status: 403 },
+    )
+  }
+  if (
+    !isPlanActive({
+      planType: job.company?.planType,
+      planPaidUntil: job.company?.planPaidUntil,
+    })
+  ) {
+    return NextResponse.json(
+      { error: "プランが期限切れです。契約更新をお願いします" },
+      { status: 403 },
+    )
   }
 
   // 2. 求職者の状態 + 通知設定を取得
