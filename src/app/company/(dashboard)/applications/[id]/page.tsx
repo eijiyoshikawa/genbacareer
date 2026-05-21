@@ -7,6 +7,7 @@ import type { Metadata } from "next"
 import { ApplicationActionPanel } from "@/components/company/application-action-panel"
 import { SchedulingUrlsPanel } from "@/components/company/scheduling-urls-panel"
 import { parseSchedulingUrls } from "@/lib/scheduling-urls"
+import { EarlyResignationButton } from "@/components/company/early-resignation-button"
 
 export const metadata: Metadata = {
   title: "応募者詳細",
@@ -56,7 +57,10 @@ export default async function ApplicationDetailPage({
       statusHistory: true,
       createdAt: true,
       updatedAt: true,
+      hiredAt: true,
       companyId: true,
+      billingEvent: { select: { amount: true } },
+      earlyResignation: { select: { id: true, status: true } },
       job: { select: { id: true, title: true } },
       company: { select: { schedulingUrls: true } },
       user: {
@@ -223,6 +227,24 @@ export default async function ApplicationDetailPage({
             interviewUrl={app.interviewUrl ?? ""}
           />
           <SchedulingUrlsPanel urls={schedulingUrls} />
+
+          {/* C3 戻入処理: 採用済みかつ請求済みの場合のみ表示 */}
+          {app.status === "hired" && app.hiredAt && app.billingEvent && (
+            <div className="border bg-white p-4 shadow-sm">
+              <p className="text-xs font-bold text-gray-500">早期退職 (戻入処理)</p>
+              <p className="mt-1 text-xs text-gray-500">
+                入社後 3 ヶ月以内の退職時は成果報酬の一部が返金されます。
+              </p>
+              <div className="mt-3">
+                <EarlyResignationButton
+                  applicationId={app.id}
+                  hiredAt={app.hiredAt.toISOString()}
+                  originalFeeAmount={app.billingEvent.amount}
+                  alreadyReported={!!app.earlyResignation}
+                />
+              </div>
+            </div>
+          )}
         </aside>
       </div>
     </div>

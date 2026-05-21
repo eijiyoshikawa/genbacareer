@@ -25,6 +25,7 @@ import {
   MessageSquare,
   RefreshCw,
   Gift,
+  AlertTriangle,
   BookOpen,
 } from "lucide-react"
 
@@ -49,6 +50,7 @@ const navItems = [
   { href: "/admin/billing", label: "課金管理", icon: CreditCard },
   { href: "/admin/hiring-fees", label: "求人別 単価設定", icon: Coins },
   { href: "/admin/hiring-bonuses", label: "採用ボーナス", icon: Gift },
+  { href: "/admin/early-resignations", label: "戻入申請", icon: AlertTriangle },
   { href: "/admin/audit-log", label: "監査ログ", icon: History },
   { href: "/admin/crawler", label: "クローラー", icon: Bot },
   { href: "/admin/crawler-sync", label: "同期 / 重複マージ", icon: RefreshCw },
