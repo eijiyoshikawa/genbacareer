@@ -37,7 +37,7 @@ export async function PUT(
 
   const application = await prisma.application.findUnique({
     where: { id },
-    select: { companyId: true },
+    select: { companyId: true, status: true },
   })
 
   if (!application || application.companyId !== companyId) {
@@ -64,8 +64,8 @@ export async function PUT(
     data: { status: parsed.data.status },
   })
 
-  // Trigger billing when status changes to "hired"
-  if (parsed.data.status === "hired") {
+  // Trigger billing only when transitioning TO "hired" (not when already hired)
+  if (parsed.data.status === "hired" && application.status !== "hired") {
     try {
       const { createHiringInvoice } = await import("@/lib/billing")
       await createHiringInvoice(id)

@@ -7,7 +7,7 @@ import { PREFECTURES } from "@/lib/constants";
 const companyRegisterSchema = z.object({
   companyName: z.string().min(1, "会社名は必須です。"),
   industry: z.string().min(1, "業種は必須です。"),
-  prefecture: z.enum(PREFECTURES, "有効な都道府県を選択してください。"),
+  prefecture: z.enum(PREFECTURES),
   contactEmail: z.string().email("有効なメールアドレスを入力してください。"),
   password: z.string().min(8, "パスワードは8文字以上で入力してください。"),
 });

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { PREFECTURES } from "@/lib/constants"
 
@@ -76,6 +76,8 @@ export function JobForm({
 
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  // useRef to capture submit intent synchronously before React flushes state
+  const submitStatusRef = useRef<string>(form.status)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -101,7 +103,7 @@ export function JobForm({
       tags: form.tags
         ? form.tags.split(",").map((s) => s.trim()).filter(Boolean)
         : [],
-      status: form.status,
+      status: submitStatusRef.current,
     }
 
     try {
@@ -366,7 +368,7 @@ export function JobForm({
           type="submit"
           name="status"
           disabled={loading}
-          onClick={() => setForm({ ...form, status: "active" })}
+          onClick={() => { submitStatusRef.current = "active" }}
           className="rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {loading ? "保存中..." : isEditing ? "更新して公開" : "公開する"}
@@ -374,7 +376,7 @@ export function JobForm({
         <button
           type="submit"
           disabled={loading}
-          onClick={() => setForm({ ...form, status: "draft" })}
+          onClick={() => { submitStatusRef.current = "draft" }}
           className="rounded-md border bg-white px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
         >
           下書き保存

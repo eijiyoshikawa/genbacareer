@@ -68,21 +68,6 @@ const CATEGORIES: Record<string, string> = {
   other: "その他",
 }
 
-// Popular combos for static generation
-const POPULAR_PREFECTURES = [
-  "tokyo",
-  "osaka",
-  "aichi",
-  "fukuoka",
-  "kanagawa",
-  "saitama",
-  "chiba",
-  "hokkaido",
-  "hyogo",
-  "hiroshima",
-]
-const POPULAR_CATEGORIES = ["driver", "construction", "manufacturing", "logistics", "nursing"]
-
 type Props = {
   params: Promise<{ prefecture: string; category: string }>
 }
