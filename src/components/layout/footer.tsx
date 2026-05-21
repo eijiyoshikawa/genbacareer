@@ -25,7 +25,7 @@ export function Footer() {
 
           <div className="flex flex-wrap items-start gap-3">
             <LinkButton
-              href="/register"
+              href="/register/wizard"
               variant="primary"
               size="md"
               className="bg-primary-500 hover:bg-primary-600"
@@ -51,7 +51,7 @@ export function Footer() {
             <h3 className="text-sm font-semibold text-white">求職者の方へ</h3>
             <ul className="mt-3 space-y-2">
               <li><Link href="/jobs" className="text-xs text-gray-400 hover:text-primary-300 transition">求人検索</Link></li>
-              <li><Link href="/register" className="text-xs text-gray-400 hover:text-primary-300 transition">会員登録</Link></li>
+              <li><Link href="/register/wizard" className="text-xs text-gray-400 hover:text-primary-300 transition">会員登録</Link></li>
               <li><Link href="/login" prefetch={false} className="text-xs text-gray-400 hover:text-primary-300 transition">ログイン</Link></li>
               <li><Link href="/faq" prefetch={false} className="text-xs text-gray-400 hover:text-primary-300 transition">よくある質問</Link></li>
             </ul>

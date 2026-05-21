@@ -116,7 +116,7 @@ export function HeaderMobileMenu() {
 
             <div className="pt-6 mt-4 border-t border-gray-100 space-y-3">
               <LinkButton
-                href="/register"
+                href="/register/wizard"
                 variant="primary"
                 size="lg"
                 fullWidth
