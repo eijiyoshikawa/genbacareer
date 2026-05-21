@@ -466,6 +466,8 @@ model Job {
   @@index([status, publishedAt(sort: Desc)], name: "idx_jobs_status_published")
   @@index([status, rankScore(sort: Desc), publishedAt(sort: Desc)], name: "idx_jobs_status_rank")
   @@index([industryMajorCode], name: "idx_jobs_industry_major")
+  // 企業ダッシュボード KPI 集計 (status 別カウント / aggregate viewCount) 高速化
+  @@index([companyId, status], name: "idx_jobs_company_status")
   @@map("jobs")
 }
 
