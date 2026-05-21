@@ -64,7 +64,7 @@ export function Header() {
               ログイン
             </LinkButton>
             <LinkButton
-              href="/register"
+              href="/register/wizard"
               variant="primary"
               size="md"
               className="bg-primary-500 hover:bg-primary-600 shadow-sm"

@@ -80,7 +80,7 @@ export function MemberCta() {
             />
             {/* メール登録 */}
             <Link
-              href="/register"
+              href="/register/wizard"
               className="press inline-flex items-center justify-center gap-1.5 bg-primary-600 px-5 py-3 text-sm font-extrabold text-white shadow hover:bg-primary-700"
             >
               メールで無料登録
