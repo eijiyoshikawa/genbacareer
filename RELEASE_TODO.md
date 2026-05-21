@@ -96,22 +96,17 @@ CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pn
 - [ ] チャネルアクセストークン / シークレットを `LINE_CHANNEL_*` に
 - [ ] リッチメニュー登録: `pnpm tsx scripts/setup-line-rich-menu.ts`
 
-### 9. Stripe Invoicing 連携（成果報酬の請求書発行）
+### 9. MoneyForward クラウド請求書 連携（成果報酬の請求書発行）
 
-採用 1 件あたり成果報酬 ¥498,000〜（職種による）を Stripe Invoicing で発行する設計。
+採用 1 件あたり成果報酬 ¥498,000〜（職種による）を MoneyForward クラウド請求書で発行する設計。
 **月額サブスクリプションは使いません**（コードも対応済み）。
+**Stripe カード決済は 2026-05 PR #204 で廃止済み**（景品表示法対応の方針見直しに伴う）。
 
-- [ ] Stripe Dashboard でアカウント作成 + 法人 KYC（1〜2 営業日）
-- [ ] **Settings → Invoicing → Send via email** を有効化（顧客にメールで請求書送付）
-- [ ] **Developers → API keys → Secret key** をコピー
-- [ ] `STRIPE_SECRET_KEY=sk_live_...` を Vercel に設定（Production / Preview）
-- [ ] **Developers → Webhooks → Add endpoint**
-  - URL: `https://genbacareer.jp/api/webhooks/stripe`
-  - Events: `invoice.payment_succeeded` / `invoice.payment_failed` / `invoice.finalized`
-- [ ] Signing secret `whsec_...` をコピーして `STRIPE_WEBHOOK_SECRET` に設定
-
-代替: **MoneyForward クラウド請求書** を使う場合は `MONEYFORWARD_API_TOKEN` を設定。
-両方無効化したい場合は環境変数を入れず、admin が手動で請求書を発行する運用にできます。
+- [ ] MoneyForward クラウド請求書アカウント作成 + 事業者情報設定
+- [ ] OAuth2 Client 設定（B2B 用途、Client Credentials Grant）
+- [ ] `MF_CLIENT_ID` / `MF_CLIENT_SECRET` / `MF_OFFICE_ID` を Vercel に設定
+- [ ] テスト用取引先で billing 作成 → PDF 発行確認
+- [ ] 環境変数未設定時は admin 手動 invoice 発行運用にフォールバック可能
 
 ### 10. Sentry プロジェクト作成
 
@@ -177,14 +172,15 @@ CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pn
 
 3 プラン制 (① 成果報酬 ¥498k〜 / ② 月額 12ヶ月 / ③ 月額 24ヶ月) + 特別枠 2 種 (キャンペーン¥0永年 / サクバズSNSクライアント) への構造変更に伴うコード変更タスク。
 
-### C1. Stripe カード決済機能の廃止 【高】
+### C1. Stripe カード決済機能の廃止 【高】 ✅ PR #204 (2026-05-21)
 
 成功報酬・月額掲載どちらも請求書払いに統一する。
-- `src/lib/billing.ts` から Stripe ルート (`createHiringInvoice` の Stripe 分岐) 削除
-- `src/app/api/webhooks/stripe/route.ts` 削除
-- `Company.paymentMethod` enum から `stripe` 削除 (or 残してデフォルトを `moneyforward` に)
-- 環境変数 `STRIPE_*` を Vercel から削除
-- npm パッケージ `stripe` 削除
+- [x] `src/lib/billing.ts` から Stripe 分岐削除、MoneyForward 一本化
+- [x] `src/app/api/webhooks/stripe/route.ts` 削除
+- [x] `Company.paymentMethod` デフォルトを `moneyforward` に変更
+- [ ] **環境変数 `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` を Vercel から削除** (手動作業残)
+- [x] npm パッケージ `stripe` 削除 + lockfile 更新
+- [x] /legal /privacy /faq /help-articles から Stripe 記述を除去 (PR #cleanup)
 
 ### C2. 月額掲載プラン (Subscription) の新規実装 【高】
 
@@ -202,19 +198,19 @@ CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pn
 - 計算基準は `Application.hiredAt` (入社日 = hiredAt と同じ扱い)
 - admin 承認フロー
 
-### C4. hiring_fee_amount レンジ変更 【中】
+### C4. hiring_fee_amount レンジ変更 【中】 ✅ PR #204 (2026-05-21)
 
-`src/lib/hiring-fee.ts:20-22` の `HIRING_FEE_MIN = 200_000` を `498_000` に変更:
-```ts
-export const HIRING_FEE_MIN = 498_000  // ← 200_000 から変更
-export const HIRING_FEE_MAX = 2_000_000
-```
-CHECK 制約も `prisma/migrations/manual/jobs_hiring_fee_amount.sql` 相当で更新:
-```sql
-ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_hiring_fee_amount_range;
-ALTER TABLE jobs ADD CONSTRAINT jobs_hiring_fee_amount_range
-  CHECK (hiring_fee_amount IS NULL OR (hiring_fee_amount >= 498000 AND hiring_fee_amount <= 2000000));
-```
+- [x] `src/lib/hiring-fee.ts` の `HIRING_FEE_MIN` を `200_000` → `498_000` に変更
+- [x] 新規 SQL `prisma/migrations/manual/jobs_hiring_fee_amount_range_498k.sql` 追加
+- [ ] **本番 DB に SQL 実行** (手動作業残):
+  ```bash
+  psql "$DIRECT_URL" -f prisma/migrations/manual/jobs_hiring_fee_amount_range_498k.sql
+  ```
+  事前確認:
+  ```sql
+  SELECT id, title, hiring_fee_amount FROM jobs
+  WHERE hiring_fee_amount IS NOT NULL AND hiring_fee_amount < 498000;
+  ```
 
 ### C5. 採用ボーナス ¥50k 固定 + 適用プラン制限 【中】
 
@@ -249,12 +245,14 @@ ALTER TABLE jobs ADD CONSTRAINT jobs_hiring_fee_amount_range
 - 分割契約と一括前払いを `CompanyPlan.prepaid_full` で識別
 - MoneyForward 連携部分で一括前払い用テンプレートを追加
 
-### C10. 利用規約 / プラン詳細ページの更新 【高】
+### C10. 利用規約 / プラン詳細ページの更新 【高】 ⏳ 一部 PR #204
 
-- `/legal/terms` (利用規約) に以下を追記:
+- [x] `/for-employers` (企業向け LP) のプラン比較表を 3 プラン制に更新 (PR #204)
+- [x] `/for-employers` に 3 プラン詳細カードセクション追加 (PR #204)
+- [ ] **`/legal/terms` (利用規約) に以下を追記** (弁護士確認必要):
   - 戻入規定 (① プランのみ、1m 80%/2m 50%/3m 20%、入社日基準)
   - 中途解約不可条項 (② ③ 月額プラン)
   - 採用ボーナス支給条件 (②③ + サクバズ SNS のみ)
-- `/for-employers` (企業向け LP) のプラン比較表を 3 プラン制に更新
-- 特定商取引法表記 (`/legal/tokutei`) を月額プラン対応に
+- [ ] **特定商取引法表記 (`/legal`) を月額プラン対応に** (弁護士確認必要)
+- [ ] **`/privacy` (プライバシーポリシー) の委託先記述見直し** (弁護士確認必要)
 

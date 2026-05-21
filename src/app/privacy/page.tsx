@@ -88,7 +88,7 @@ export default function PrivacyPage() {
               <strong>Sentry (Functional Software, Inc.)</strong>（米国）— エラー監視
             </li>
             <li>
-              <strong>Stripe Payments Japan 株式会社</strong>（日本）— 課金・請求書発行
+              <strong>マネーフォワード株式会社</strong>（日本）— 請求書発行・課金管理
             </li>
             <li>
               <strong>LINE Corporation</strong>（日本）— 応募者連絡 (Messaging API)

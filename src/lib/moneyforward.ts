@@ -6,7 +6,7 @@
  * 認証: OAuth2 Client Credentials Grant（B2B 用途のため refresh token は不要）
  * - .env: MF_CLIENT_ID / MF_CLIENT_SECRET / MF_OFFICE_ID
  *
- * Stripe と並行運用するため、必要最小限の機能のみ実装：
+ * 2026-05 以降、課金プロバイダはマネフォ一本化。必要最小限の機能のみ実装：
  *   - 取引先（partner）登録
  *   - 請求書（billing）作成・送付
  */

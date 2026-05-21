@@ -259,9 +259,9 @@ export const EMPLOYER_HELP_SECTIONS: HelpSection[] = [
       },
       {
         slug: "employer-billing-payment",
-        title: "支払い方法の登録・変更",
+        title: "支払い方法について",
         excerpt:
-          "Stripe を経由したクレジットカード登録・変更手順。",
+          "マネーフォワード クラウド請求書経由の銀行振込について。",
         subcategory: "billing",
       },
     ],
