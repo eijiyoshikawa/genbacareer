@@ -19,10 +19,13 @@ test.describe("Error pages", () => {
 
   test("404 ページは noindex メタを持つ", async ({ page }) => {
     await page.goto("/this-route-also-does-not-exist-99999")
-    // metadata.robots = { index: false } が <meta name="robots" content="noindex,nofollow"> として出る
-    const robots = await page
+    // metadata.robots = { index: false } が <meta name="robots" content="noindex"> として出る。
+    // ルートレイアウトの "index, follow" もマッチするため、noindex を持つものが少なくとも 1 つあることを確認する。
+    const contents = await page
       .locator('meta[name="robots"]')
-      .getAttribute("content")
-    expect(robots).toMatch(/noindex/i)
+      .evaluateAll((nodes) =>
+        nodes.map((n) => n.getAttribute("content") ?? ""),
+      )
+    expect(contents.some((c) => /noindex/i.test(c))).toBe(true)
   })
 })
