@@ -9,6 +9,13 @@
 --   - ADD COLUMN ... NULL は PostgreSQL では即座に完了（テーブル書き換え無し）
 --   - 既存求人は全て NULL になり、ランタイムでフォールバック値が使われる
 --   - prisma db push でも同じカラムが宣言されるため、新規環境では本 SQL は不要
+--   - Supabase session pooler の statement_timeout (15s) で ALTER がロック取得待ち中に
+--     中断されることがあるので、明示的に解除する
+
+-- ロック取得待ちは 30s で諦める (他のセッションが詰まっているなら時間を置いて再実行)。
+-- ALTER 自体は瞬時に終わるので statement_timeout は無制限にして安全側に倒す。
+SET statement_timeout = 0;
+SET lock_timeout = '30s';
 
 ALTER TABLE jobs
   ADD COLUMN IF NOT EXISTS hiring_fee_amount integer;
