@@ -11,6 +11,8 @@
 import { prisma } from "@/lib/db"
 import type { Metadata } from "next"
 import { FeedSwiper, type FeedJob } from "./feed-swiper"
+import { auth } from "@/lib/auth"
+import { GUEST_LIMIT } from "@/lib/guest-job-access"
 
 // ビルド時 prerender をスキップ。
 // Supabase 接続プールが build フェーズで枯渇し P2024 で失敗するのを回避
@@ -25,10 +27,16 @@ export const metadata: Metadata = {
 const INITIAL_LIMIT = 10
 
 export default async function JobFeedPage() {
+  // 求職者ログイン時のみ全件閲覧可。未ログインは GUEST_LIMIT (15) 件で打ち切り。
+  // 追加読み込み API も 401 を返すので、それ以上スワイプしても求人は出ない。
+  const session = await auth().catch(() => null)
+  const loggedIn = !!session?.user?.id
+  const initialLimit = loggedIn ? INITIAL_LIMIT : GUEST_LIMIT
+
   const jobs = await prisma.job.findMany({
     where: { status: "active" },
     orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
-    take: INITIAL_LIMIT,
+    take: initialLimit,
     select: {
       id: true,
       title: true,

@@ -6,8 +6,16 @@ import { JobCard } from "@/components/jobs/job-card"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { buildPrefectureDescription } from "@/lib/seo-text"
 import { PREFECTURE_SLUG_TO_LABEL as PREFECTURES } from "@/lib/prefectures"
+import { auth } from "@/lib/auth"
+import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import {
+  GuestSignupCta,
+  GuestTrialBanner,
+} from "@/components/jobs/guest-signup-cta"
 
-export const revalidate = 21600 // 6 hours ISR
+// auth() で cookie を読むため、自動的に dynamic レンダリングになる。
+// ISR 設定は無効になるので削除し、明示的に force-dynamic を宣言する。
+export const dynamic = "force-dynamic"
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
@@ -66,16 +74,23 @@ export default async function PrefecturePage({ params }: Props) {
     notFound()
   }
 
+  // 求職者ログイン時のみ全件閲覧可。未ログインは GUEST_LIMIT (15) 件で打ち切り。
+  const session = await auth().catch(() => null)
+  const loggedIn = !!session?.user?.id
+  const fullLimit = 100
+  const limit = loggedIn ? fullLimit : GUEST_LIMIT
+
+  const where = {
+    status: "active",
+    prefecture: prefLabel,
+    category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
+  }
+
   // DB 未到達でもページが落ちないよう、try/catch で空配列にフォールバック。
-  // ISR の revalidate で次回以降に正常データが取得される。
-  const [jobs, categoryCounts] = await Promise.all([
+  const [jobs, total, categoryCounts] = await Promise.all([
     prisma.job
       .findMany({
-        where: {
-          status: "active",
-          prefecture: prefLabel,
-          category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
-        },
+        where,
         select: {
           id: true,
           title: true,
@@ -93,17 +108,14 @@ export default async function PrefecturePage({ params }: Props) {
           },
         },
         orderBy: { publishedAt: "desc" },
-        take: 100,
+        take: limit,
       })
       .catch(() => []),
+    prisma.job.count({ where }).catch(() => 0),
     prisma.job
       .groupBy({
         by: ["category"],
-        where: {
-          status: "active",
-          prefecture: prefLabel,
-          category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
-        },
+        where,
         _count: { _all: true },
       })
       .catch(() => [] as Array<{ category: string; _count: { _all: number } }>),
@@ -153,8 +165,19 @@ export default async function PrefecturePage({ params }: Props) {
       </h1>
       <p className="mt-2 text-gray-600">
         {prefLabel}で現在募集中の求人は{" "}
-        <span className="font-semibold text-primary-600">{jobs.length}</span> 件です。
+        <span className="font-semibold text-primary-600">{total}</span> 件です。
+        {!loggedIn && total > GUEST_LIMIT && (
+          <span className="ml-1 text-xs text-gray-500">
+            （上位 {GUEST_LIMIT} 件のみお試し表示）
+          </span>
+        )}
       </p>
+
+      {!loggedIn && total > GUEST_LIMIT && (
+        <div className="mt-4">
+          <GuestTrialBanner limit={GUEST_LIMIT} total={total} />
+        </div>
+      )}
 
       {/* カテゴリ別ナビ */}
       {categoryCounts.length > 0 && (
@@ -199,11 +222,22 @@ export default async function PrefecturePage({ params }: Props) {
             </Link>
           </div>
         ) : (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {jobs.map((job) => (
-              <JobCard key={job.id} job={job} />
-            ))}
-          </div>
+          <>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {jobs.map((job) => (
+                <JobCard key={job.id} job={job} loggedIn={loggedIn} />
+              ))}
+            </div>
+            {!loggedIn && total > jobs.length && (
+              <div className="mt-6">
+                <GuestSignupCta
+                  total={total}
+                  shown={jobs.length}
+                  callbackUrl={`/${prefecture}`}
+                />
+              </div>
+            )}
+          </>
         )}
       </section>
     </div>

@@ -9,8 +9,15 @@ import {
   isConstructionCategory,
 } from "@/lib/categories"
 import { PREFECTURE_LABEL_TO_SLUG } from "@/lib/prefectures"
+import { auth } from "@/lib/auth"
+import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import {
+  GuestSignupCta,
+  GuestTrialBanner,
+} from "@/components/jobs/guest-signup-cta"
 
-export const revalidate = 21600 // 6 hours ISR
+// auth() で cookie を読むため、自動的に dynamic レンダリングになる。
+export const dynamic = "force-dynamic"
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
@@ -49,6 +56,12 @@ export default async function CategoryPage({ params }: Props) {
     notFound()
   }
 
+  // 求職者ログイン時のみ全件閲覧可。未ログインは GUEST_LIMIT (15) 件で打ち切り。
+  const session = await auth().catch(() => null)
+  const loggedIn = !!session?.user?.id
+  const fullLimit = 50
+  const limit = loggedIn ? fullLimit : GUEST_LIMIT
+
   const [jobs, prefectureCounts, totalCount] = await Promise.all([
     prisma.job
       .findMany({
@@ -68,7 +81,7 @@ export default async function CategoryPage({ params }: Props) {
           company: { select: { name: true, logoUrl: true, gbizData: true } },
         },
         orderBy: { publishedAt: "desc" },
-        take: 50,
+        take: limit,
       })
       .catch(() => []),
     prisma.job
@@ -137,7 +150,18 @@ export default async function CategoryPage({ params }: Props) {
         全国で現在募集中の{cat.label}の求人は{" "}
         <span className="font-semibold text-primary-600">{totalCount}</span>{" "}
         件です。
+        {!loggedIn && totalCount > GUEST_LIMIT && (
+          <span className="ml-1 text-xs text-gray-500">
+            （上位 {GUEST_LIMIT} 件のみお試し表示）
+          </span>
+        )}
       </p>
+
+      {!loggedIn && totalCount > GUEST_LIMIT && (
+        <div className="mt-4">
+          <GuestTrialBanner limit={GUEST_LIMIT} total={totalCount} />
+        </div>
+      )}
 
       {/* 都道府県別ナビ */}
       {prefectureCounts.length > 0 && (
@@ -189,11 +213,22 @@ export default async function CategoryPage({ params }: Props) {
             </Link>
           </div>
         ) : (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {jobs.map((job) => (
-              <JobCard key={job.id} job={job} />
-            ))}
-          </div>
+          <>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {jobs.map((job) => (
+                <JobCard key={job.id} job={job} loggedIn={loggedIn} />
+              ))}
+            </div>
+            {!loggedIn && totalCount > jobs.length && (
+              <div className="mt-6">
+                <GuestSignupCta
+                  total={totalCount}
+                  shown={jobs.length}
+                  callbackUrl={`/categories/${category}`}
+                />
+              </div>
+            )}
+          </>
         )}
       </section>
 
