@@ -25,7 +25,7 @@ test.describe("Guest gate (未ログイン時の 15 件制限)", () => {
     if (await banner.isVisible().catch(() => false)) {
       await expect(banner).toBeVisible()
       await expect(
-        page.getByText(/上位\s*15\s*件のみ表示/),
+        page.getByText(/上位\s*15\s*件のみ表示/).first(),
       ).toBeVisible()
     }
   })
