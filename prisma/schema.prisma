@@ -411,6 +411,11 @@ model Job {
   // 取り込み時 / 企業プロフィール保存時に再計算される。
   rankScore      Int       @default(0) @map("rank_score")
 
+  // 成果報酬単価（円）。求人ごとに admin が個別設定する想定。
+  // NULL の場合は HIRING_FEE_AMOUNT 定数（既定 498,000）にフォールバック。
+  // 有効レンジ: 200,000 〜 2,000,000（UI / API の Zod バリデーションで担保）
+  hiringFeeAmount Int?     @map("hiring_fee_amount")
+
   // 8.4 重複求人検出用ハッシュ (title 正規化 + companyId or 会社名 + prefecture から生成)
   // 同一 dedupeKey の求人は 1 つだけ active で表示、他は status=closed に降格される
   dedupeKey      String?  @map("dedupe_key") @db.VarChar(64)

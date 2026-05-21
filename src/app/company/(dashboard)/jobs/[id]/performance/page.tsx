@@ -4,15 +4,11 @@ import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Eye, MessageCircle, MousePointerClick, TrendingUp, Users, Coins } from "lucide-react"
 import type { Metadata } from "next"
+import { resolveHiringFee } from "@/lib/hiring-fee"
 
 export const metadata: Metadata = {
   title: "求人パフォーマンス",
 }
-
-// 1 件採用あたりのモデル単価 (13.5 コスパ計算用)。
-// 将来は Company 単位の設定値や BillingEvent 実績から算出するが、
-// 現段階は業界中央値を仮値として表示する。
-const ASSUMED_HIRING_FEE_JPY = 498_000
 
 export default async function JobPerformancePage({
   params,
@@ -34,9 +30,13 @@ export default async function JobPerformancePage({
       publishedAt: true,
       viewCount: true,
       rankScore: true,
+      hiringFeeAmount: true,
     },
   })
   if (!job) notFound()
+
+  // 推定 CPA 計算用の単価。Job 個別設定が無ければ定数フォールバック。
+  const hiringFeeJpy = resolveHiringFee(job)
 
   const now = new Date()
   const d7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -94,7 +94,7 @@ export default async function JobPerformancePage({
 
   const cpa28d =
     applications28d > 0
-      ? Math.round(ASSUMED_HIRING_FEE_JPY / Math.max(1, applications28d))
+      ? Math.round(hiringFeeJpy / Math.max(1, applications28d))
       : 0
 
   return (
@@ -205,9 +205,10 @@ export default async function JobPerformancePage({
       </section>
 
       <p className="text-xs text-gray-500 leading-relaxed">
-        ※ 推定 CPA は採用単価を ¥{ASSUMED_HIRING_FEE_JPY.toLocaleString()} と仮定した時の
-        「応募 1 件あたりの想定コスト」です。実際の課金は採用決定時の成果報酬制で、
-        BillingEvent ベースの実値表示は近日対応予定。
+        ※ 推定 CPA はこの求人の採用単価 ¥{hiringFeeJpy.toLocaleString()}
+        {job.hiringFeeAmount == null && "（既定値）"}
+        を基準に「応募 1 件あたりの想定コスト」を算出しています。
+        実際の課金は採用決定時の成果報酬制で、BillingEvent ベースの実値表示は近日対応予定。
       </p>
     </div>
   )

@@ -1,6 +1,7 @@
 import { prisma } from "./db"
-import { stripe, HIRING_FEE_AMOUNT } from "./stripe"
+import { stripe } from "./stripe"
 import { createMfPartner, createMfBilling } from "./moneyforward"
+import { resolveHiringFee } from "./hiring-fee"
 
 /**
  * 採用確定時に成果報酬の請求書を作成する。
@@ -20,7 +21,7 @@ export async function createHiringInvoice(applicationId: string) {
     where: { id: applicationId },
     include: {
       company: true,
-      job: { select: { title: true } },
+      job: { select: { title: true, hiringFeeAmount: true } },
       user: { select: { name: true } },
     },
   })
@@ -33,12 +34,15 @@ export async function createHiringInvoice(applicationId: string) {
     ? "moneyforward"
     : "stripe"
 
+  // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ定数フォールバック
+  const feeAmount = resolveHiringFee(application.job)
+
   const billingEvent = await prisma.billingEvent.create({
     data: {
       companyId: application.company.id,
       applicationId,
       eventType: "hired",
-      amount: HIRING_FEE_AMOUNT,
+      amount: feeAmount,
       provider,
       status: "pending",
     },
@@ -51,6 +55,7 @@ export async function createHiringInvoice(applicationId: string) {
         company: application.company,
         jobTitle: application.job.title,
         userName: application.user?.name ?? "求職者",
+        amount: feeAmount,
       })
     }
     return await invoiceViaStripe({
@@ -59,6 +64,7 @@ export async function createHiringInvoice(applicationId: string) {
       jobTitle: application.job.title,
       userName: application.user?.name ?? "求職者",
       applicationId,
+      amount: feeAmount,
     })
   } catch (error) {
     await prisma.billingEvent.update({
@@ -84,12 +90,14 @@ type InvoiceArgs = {
   }
   jobTitle: string
   userName: string
+  /** Job 個別設定 or HIRING_FEE_AMOUNT 定数からの解決済み金額 */
+  amount: number
 }
 
 async function invoiceViaStripe(
   args: InvoiceArgs & { applicationId: string }
 ) {
-  const { billingEventId, company, jobTitle, userName, applicationId } = args
+  const { billingEventId, company, jobTitle, userName, applicationId, amount } = args
 
   let stripeCustomerId = company.stripeCustomerId
   if (!stripeCustomerId) {
@@ -108,7 +116,7 @@ async function invoiceViaStripe(
 
   await stripe.invoiceItems.create({
     customer: stripeCustomerId,
-    amount: HIRING_FEE_AMOUNT,
+    amount,
     currency: "jpy",
     description: `成果報酬 — ${jobTitle}（${userName}の採用）`,
     metadata: {
@@ -144,7 +152,7 @@ async function invoiceViaStripe(
 // ----------------------------------------------------------------------------
 
 async function invoiceViaMoneyForward(args: InvoiceArgs) {
-  const { billingEventId, company, jobTitle, userName } = args
+  const { billingEventId, company, jobTitle, userName, amount } = args
 
   let partnerId = company.mfPartnerId
   if (!partnerId) {
@@ -164,7 +172,7 @@ async function invoiceViaMoneyForward(args: InvoiceArgs) {
     partnerId,
     title: "成果報酬請求書",
     itemName: `成果報酬 — ${jobTitle}（${userName}様の採用決定）`,
-    amount: HIRING_FEE_AMOUNT,
+    amount,
     daysUntilDue: 30,
     metadata: {
       billingEventId,
