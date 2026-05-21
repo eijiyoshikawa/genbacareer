@@ -8,8 +8,15 @@ import { HwPagination } from "@/components/hw-jobs/hw-pagination"
 import { HwLastSynced } from "@/components/hw-jobs/hw-last-synced"
 import { HwEmptyState } from "@/components/hw-jobs/hw-empty-state"
 import { HwApiUnavailable } from "@/components/hw-jobs/hw-api-unavailable"
+import { auth } from "@/lib/auth"
+import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import {
+  GuestSignupCta,
+  GuestTrialBanner,
+} from "@/components/jobs/guest-signup-cta"
 
-export const revalidate = 300
+// auth() で cookie を読むため、自動的に dynamic レンダリングになる。
+export const dynamic = "force-dynamic"
 
 type SearchParams = Record<string, string | undefined>
 
@@ -37,8 +44,15 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
 
 export default async function HwJobsPage({ searchParams }: PageProps) {
   const params = await searchParams
-  const offset = clampInt(params.offset, 0, 0)
-  const limit = clampInt(params.limit, DEFAULT_LIMIT, DEFAULT_LIMIT)
+
+  // 求職者ログイン時のみ全件閲覧可。未ログインは GUEST_LIMIT (15) 件で固定。
+  // offset / limit パラメータも無視して 1 ページ目を返す。
+  const session = await auth().catch(() => null)
+  const loggedIn = !!session?.user?.id
+  const offset = loggedIn ? clampInt(params.offset, 0, 0) : 0
+  const limit = loggedIn
+    ? clampInt(params.limit, DEFAULT_LIMIT, DEFAULT_LIMIT)
+    : GUEST_LIMIT
 
   const result = await safeFetch(() =>
     listHwJobs({
@@ -97,6 +111,14 @@ export default async function HwJobsPage({ searchParams }: PageProps) {
 
         {result.ok && result.data.items.length > 0 && (
           <>
+            {!loggedIn && result.data.pagination.total > GUEST_LIMIT && (
+              <div className="mb-4">
+                <GuestTrialBanner
+                  limit={GUEST_LIMIT}
+                  total={result.data.pagination.total}
+                />
+              </div>
+            )}
             <ul className="space-y-3">
               {result.data.items.map((job) => (
                 <li key={job.kjno}>
@@ -105,19 +127,31 @@ export default async function HwJobsPage({ searchParams }: PageProps) {
               ))}
             </ul>
 
-            <HwPagination
-              basePath="/hw-jobs"
-              baseQuery={{
-                prefecture: params.prefecture,
-                jobType: params.jobType,
-                employmentType: params.employmentType,
-                minSalary: params.minSalary,
-                q: params.q,
-              }}
-              offset={offset}
-              limit={limit}
-              total={result.data.pagination.total}
-            />
+            {loggedIn ? (
+              <HwPagination
+                basePath="/hw-jobs"
+                baseQuery={{
+                  prefecture: params.prefecture,
+                  jobType: params.jobType,
+                  employmentType: params.employmentType,
+                  minSalary: params.minSalary,
+                  q: params.q,
+                }}
+                offset={offset}
+                limit={limit}
+                total={result.data.pagination.total}
+              />
+            ) : (
+              result.data.pagination.total > result.data.items.length && (
+                <div className="mt-6">
+                  <GuestSignupCta
+                    total={result.data.pagination.total}
+                    shown={result.data.items.length}
+                    callbackUrl="/hw-jobs"
+                  />
+                </div>
+              )
+            )}
           </>
         )}
       </section>

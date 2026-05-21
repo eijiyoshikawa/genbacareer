@@ -10,10 +10,20 @@
 
 import { type NextRequest } from "next/server"
 import { prisma } from "@/lib/db"
+import { auth } from "@/lib/auth"
 
 const PAGE_SIZE = 10
 
 export async function GET(request: NextRequest) {
+  // 求職者ログイン必須。未ログインは初期 15 件以降は閲覧不可。
+  const session = await auth().catch(() => null)
+  if (!session?.user?.id) {
+    return Response.json(
+      { error: "ログインが必要です", jobs: [] },
+      { status: 401 },
+    )
+  }
+
   const { searchParams } = request.nextUrl
   const cursor = searchParams.get("cursor")
 

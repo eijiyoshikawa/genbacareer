@@ -9,13 +9,20 @@ import {
 } from "@/lib/categories"
 import { buildPrefectureCategoryDescription } from "@/lib/seo-text"
 import { PREFECTURE_SLUG_TO_LABEL as PREFECTURES } from "@/lib/prefectures"
+import { auth } from "@/lib/auth"
+import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import {
+  GuestSignupCta,
+  GuestTrialBanner,
+} from "@/components/jobs/guest-signup-cta"
 
 // /[prefecture]/[category] の category は建設業のみ受け付ける（"other" は除外）。
 const CONSTRUCTION_CATEGORY_SET: ReadonlySet<string> = new Set(
   CONSTRUCTION_CATEGORY_VALUES
 )
 
-export const revalidate = 21600 // 6 hours ISR
+// auth() で cookie を読むため、自動的に dynamic レンダリングになる。
+export const dynamic = "force-dynamic"
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
@@ -76,33 +83,44 @@ export default async function PrefectureCategoryPage({ params }: Props) {
     notFound()
   }
 
-  const jobs = await prisma.job
-    .findMany({
-      where: {
-        status: "active",
-        prefecture: prefLabel,
-        category,
-      },
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        employmentType: true,
-        salaryMin: true,
-        salaryMax: true,
-        salaryType: true,
-        prefecture: true,
-        city: true,
-        source: true,
-        tags: true,
-        company: {
-          select: { name: true, logoUrl: true, gbizData: true },
+  // 求職者ログイン時のみ全件閲覧可。未ログインは GUEST_LIMIT (15) 件で打ち切り。
+  const session = await auth().catch(() => null)
+  const loggedIn = !!session?.user?.id
+  const fullLimit = 100
+  const limit = loggedIn ? fullLimit : GUEST_LIMIT
+
+  const where = {
+    status: "active",
+    prefecture: prefLabel,
+    category,
+  }
+
+  const [jobs, total] = await Promise.all([
+    prisma.job
+      .findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          category: true,
+          employmentType: true,
+          salaryMin: true,
+          salaryMax: true,
+          salaryType: true,
+          prefecture: true,
+          city: true,
+          source: true,
+          tags: true,
+          company: {
+            select: { name: true, logoUrl: true, gbizData: true },
+          },
         },
-      },
-      orderBy: { publishedAt: "desc" },
-      take: 100,
-    })
-    .catch(() => [])
+        orderBy: { publishedAt: "desc" },
+        take: limit,
+      })
+      .catch(() => []),
+    prisma.job.count({ where }).catch(() => 0),
+  ])
 
   const breadcrumb = {
     "@context": "https://schema.org",
@@ -158,8 +176,19 @@ export default async function PrefectureCategoryPage({ params }: Props) {
       </h1>
       <p className="mt-2 text-gray-600">
         {prefLabel}で現在募集中の{catLabel}の求人は{" "}
-        <span className="font-semibold text-primary-600">{jobs.length}</span> 件です。
+        <span className="font-semibold text-primary-600">{total}</span> 件です。
+        {!loggedIn && total > GUEST_LIMIT && (
+          <span className="ml-1 text-xs text-gray-500">
+            （上位 {GUEST_LIMIT} 件のみお試し表示）
+          </span>
+        )}
       </p>
+
+      {!loggedIn && total > GUEST_LIMIT && (
+        <div className="mt-4">
+          <GuestTrialBanner limit={GUEST_LIMIT} total={total} />
+        </div>
+      )}
 
       {jobs.length === 0 ? (
         <div className="mt-12 text-center">
@@ -174,11 +203,22 @@ export default async function PrefectureCategoryPage({ params }: Props) {
           </Link>
         </div>
       ) : (
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {jobs.map((job) => (
-            <JobCard key={job.id} job={job} />
-          ))}
-        </div>
+        <>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            {jobs.map((job) => (
+              <JobCard key={job.id} job={job} loggedIn={loggedIn} />
+            ))}
+          </div>
+          {!loggedIn && total > jobs.length && (
+            <div className="mt-6">
+              <GuestSignupCta
+                total={total}
+                shown={jobs.length}
+                callbackUrl={`/${prefecture}/${category}`}
+              />
+            </div>
+          )}
+        </>
       )}
     </div>
   )

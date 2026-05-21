@@ -8,6 +8,8 @@ import {
   getClientIp,
   rateLimitResponse,
 } from "@/lib/rate-limit"
+import { auth } from "@/lib/auth"
+import { GUEST_LIMIT } from "@/lib/guest-job-access"
 import { type NextRequest } from "next/server"
 
 export async function GET(request: NextRequest) {
@@ -21,13 +23,22 @@ export async function GET(request: NextRequest) {
 
   const searchParams = request.nextUrl.searchParams
 
+  // 求職者ログイン時のみ全件閲覧可。未ログインは GUEST_LIMIT (15) 件 + page=1 固定。
+  const session = await auth().catch(() => null)
+  const loggedIn = !!session?.user?.id
+
   const prefecture = searchParams.get("prefecture")
   const category = searchParams.get("category")
   const employmentType = searchParams.get("employment_type")
   const salaryMin = searchParams.get("salary_min")
   const q = searchParams.get("q")
-  const page = Math.max(1, Number(searchParams.get("page") ?? "1"))
-  const limit = Math.min(50, Math.max(1, Number(searchParams.get("limit") ?? "20")))
+  const rawPage = Math.max(1, Number(searchParams.get("page") ?? "1"))
+  const rawLimit = Math.min(
+    50,
+    Math.max(1, Number(searchParams.get("limit") ?? "20")),
+  )
+  const page = loggedIn ? rawPage : 1
+  const limit = loggedIn ? rawLimit : Math.min(rawLimit, GUEST_LIMIT)
   const sort = searchParams.get("sort") ?? "published_at"
 
   // 建設業特化サイトのため、非建設業カテゴリは常に除外する。
