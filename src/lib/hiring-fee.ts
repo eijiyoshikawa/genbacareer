@@ -1,4 +1,5 @@
-import { HIRING_FEE_AMOUNT } from "./stripe"
+/** 成果報酬の金額（円）— 1 採用あたり（職種による最低金額） */
+export const HIRING_FEE_AMOUNT = 498_000
 
 /**
  * 求人ごとの成果報酬単価を解決する。
@@ -18,7 +19,7 @@ export function resolveHiringFee(
 }
 
 /** 設定可能な金額範囲。Zod / フォーム / DB CHECK 制約と揃える。 */
-export const HIRING_FEE_MIN = 200_000
+export const HIRING_FEE_MIN = 498_000
 export const HIRING_FEE_MAX = 2_000_000
 
 /** 入力値が許容レンジに収まっているか */

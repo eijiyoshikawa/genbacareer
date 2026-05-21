@@ -106,7 +106,7 @@ export default async function AdminCompanyDetailPage({
       <div className="border bg-white p-6 shadow-sm">
         <h2 className="font-bold text-gray-900">支払方法</h2>
         <p className="mt-1 text-sm text-gray-500">
-          採用確定時の請求書発行先プロバイダを選択してください。
+          採用確定時の請求書発行先プロバイダ。Stripe 廃止に伴い MoneyForward 一本化。
         </p>
         <PaymentMethodSelector
           companyId={company.id}

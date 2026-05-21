@@ -106,7 +106,6 @@ export default async function AdminStatusPage() {
     CRON_SECRET: !!process.env.CRON_SECRET,
     GBIZ_API_TOKEN: isGbizConfigured(),
     SMTP: !!process.env.SMTP_USER && !!process.env.SMTP_PASS,
-    STRIPE: !!process.env.STRIPE_SECRET_KEY,
     SENTRY: !!process.env.SENTRY_DSN,
     GA: !!process.env.NEXT_PUBLIC_GA_ID,
   }

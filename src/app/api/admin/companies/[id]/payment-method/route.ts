@@ -2,7 +2,10 @@
  * 企業の支払方法を切り替える（管理者専用）
  *
  * PATCH /api/admin/companies/:id/payment-method
- * Body: { paymentMethod: "stripe" | "moneyforward" }
+ * Body: { paymentMethod: "moneyforward" }
+ *
+ * Stripe カード決済は廃止済み。現状は MoneyForward のみ受理する。
+ * 将来別プロバイダを追加した際に enum を拡張する。
  */
 import { type NextRequest } from "next/server"
 import { z } from "zod"
@@ -10,7 +13,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 
 const schema = z.object({
-  paymentMethod: z.enum(["stripe", "moneyforward"]),
+  paymentMethod: z.enum(["moneyforward"]),
 })
 
 async function requireAdmin() {
@@ -42,7 +45,7 @@ export async function PATCH(
   const parsed = schema.safeParse(body)
   if (!parsed.success) {
     return Response.json(
-      { error: "paymentMethod は stripe または moneyforward を指定してください" },
+      { error: "paymentMethod は moneyforward を指定してください" },
       { status: 400 }
     )
   }
