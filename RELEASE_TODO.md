@@ -265,21 +265,23 @@ PR #206 で実装。マイナビ転職参考のスカウトメール + 求職者
 - [x] npm パッケージ `stripe` 削除 + lockfile 更新
 - [x] /legal /privacy /faq /help-articles から Stripe 記述を除去 (PR #cleanup)
 
-### C2. 月額掲載プラン (Subscription) の新規実装 【高】
+### C2. 月額掲載プラン (Subscription) の新規実装 【高】 ✅ 実装済み
 
-- 新規モデル: `CompanyPlan` (type: `monthly_12` / `monthly_24` / `success_fee` / `campaign_free` / `sns_client`)
-- `paid_until: DateTime` カラムで契約終了日管理
-- `prepaid_full: Boolean` で一括前払いフラグ
-- 中途解約不可ルール (UI 上でも操作不可に)
-- 期間満了前 30 日通知 cron
+- [x] `Company` に `planType` / `planPaidUntil` / `planActivatedAt` / `planPrepaidFull` / `planTier` / `planNotes` / `planExpiryNotifiedAt` カラム追加 (`prisma/migrations/manual/company_plan_columns.sql`)
+- [x] `src/lib/plans.ts` でドメインロジック (PlanType / planTier / isPlanActive / canPostJob 等) を一元化
+- [x] `/admin/companies/[id]` の `PlanEditor` で plan_type / paid_until / activated_at / prepaid_full / notes を編集可能
+- [x] 期間満了前 30 日通知 cron (`/api/cron/plan-expiry-notice`, 04:00 UTC)
+- [x] **満了後の planTier 降格 cron (`/api/cron/expire-plans`, 05:00 UTC)** ← PR #222 で追加
+- [x] 単体テスト `src/__tests__/lib/plans.test.ts` + `src/__tests__/api/cron-expire-plans.test.ts`
 
-### C3. 戻入処理 (refund) の実装 【中】
+### C3. 戻入処理 (refund) の実装 【中】 ✅ 実装済み
 
-- `EarlyResignation` モデル (jobId, applicationId, resignedAt, monthsAfterHire)
-- 通知 UI: 企業が早期退職を報告する画面
-- 自動部分返金 invoice 発行 (1m: 80% / 2m: 50% / 3m: 20%)
-- 計算基準は `Application.hiredAt` (入社日 = hiredAt と同じ扱い)
-- admin 承認フロー
+- [x] `EarlyResignation` モデル (jobId, applicationId, resignedAt, monthsAfterHire 等) を schema に追加
+- [x] manual SQL `prisma/migrations/manual/early_resignations.sql`
+- [x] 企業向け早期退職報告 UI
+- [x] `/admin/early-resignations` で admin 承認フロー (reported → approved → invoiced / rejected)
+- [x] 返金率自動計算 (1m: 80% / 2m: 50% / 3m: 20%)、`Application.hiredAt` を基準
+- [x] `/admin/billing-todo` で credit note 発行待ちを一覧表示
 
 ### C4. hiring_fee_amount レンジ変更 【中】 ✅ PR #204 (2026-05-21)
 
@@ -295,31 +297,36 @@ PR #206 で実装。マイナビ転職参考のスカウトメール + 求職者
   WHERE hiring_fee_amount IS NOT NULL AND hiring_fee_amount < 498000;
   ```
 
-### C5. 採用ボーナス ¥50k 固定 + 適用プラン制限 【中】
+### C5. 採用ボーナス ¥50k 固定 + 適用プラン制限 【中】 ✅ 実装済み
 
-- `HiringBonus.amount` を `¥50,000` 固定 (admin 設定で可変も維持)
-- 適用対象 = `Company.plan_type IN ('monthly_12', 'monthly_24', 'sns_client')` のみ
-- ① 成果報酬 / キャンペーン (`campaign_free`) では `HiringBonus` レコード作成不可 (UI 上で隠す)
+- [x] `src/lib/hiring-bonus.ts` で `HIRING_BONUS_AMOUNT = 50_000` 固定
+- [x] `isPlanEligibleForBonus(planType)` で `monthly_12 / monthly_24 / sns_client` のみ true
+- [x] `HiringBonusRequestButton` で対象外プランの企業では非表示
+- [x] `/admin/hiring-bonuses` で申請ワークフロー (requested → approved → paid / rejected)
+- [x] 単体テスト `src/__tests__/lib/hiring-bonus.test.ts`
 
-### C6. キャンペーン枠フラグの実装 【低】
+### C6. キャンペーン枠フラグの実装 【低】 ✅ 実装済み
 
-- `Company.plan_type = 'campaign_free'` を追加 (C2 と同時実装が望ましい)
-- 掲載期間: 無期限 (将来 `campaign_until` カラム検討)
+- [x] `PLAN_TYPES` に `campaign_free` を追加 (`src/lib/plans.ts`)
+- [x] `planTier('campaign_free')` → 1 (SNS よりは下、HW より上)
+- [x] `isPlanActive('campaign_free')` → 期限なし、常に true
+- [x] `/admin/companies/[id]` の `PlanEditor` から選択可能
 
-### C7. サクバズ SNS フラグの実装 【低】
+### C7. サクバズ SNS フラグの実装 【低】 ✅ 実装済み
 
-- `Company.plan_type = 'sns_client'` を追加 (C2 と同時)
-- サクバズ SNS の契約と紐付け管理 (admin 手動 OK)
+- [x] `PLAN_TYPES` に `sns_client` を追加
+- [x] `planTier('sns_client')` → 2 (paid 平等枠の下、キャンペーンの上)
+- [x] `isPlanEligibleForBonus('sns_client')` → 採用ボーナス対象
+- [x] `canSendScoutByPlan('sns_client')` → スカウト送信可
+- [x] `/admin/companies/[id]` の `PlanEditor` から選択可能
 
-### C8. 上位表示優先ロジックの実装 【中】
+### C8. 上位表示優先ロジックの実装 【中】 ✅ 実装済み
 
-`/jobs` の orderBy で以下の優先順位を実装:
-```
-1. 有償平等枠 (① / ② / ③) → ランダム or 公平
-2. SNS 枠 (sns_client)
-3. キャンペーン枠 (campaign_free)
-```
-リリース後 6 ヶ月間は逆順 (キャンペーンが最上位) で運用 → 6 ヶ月後にロジック切替。
+- [x] `/jobs` の orderBy で `company.planTier desc → company.rotationKey asc → rankScore desc → publishedAt desc` (`src/app/jobs/page.tsx`)
+- [x] `rotationKey` の日次更新 cron (`/api/cron/rotate-companies`, 03:30 UTC) で paid 平等枠の機会均等を実現
+- [x] tier mapping: paid (success_fee / monthly_12 / monthly_24) = 3, sns_client = 2, campaign_free = 1, HW = 0
+
+  ※ RELEASE_TODO 初版にあった「6 ヶ月間はキャンペーンを最上位で運用」のロジック切替は admin から手動で `planTier` を上書き運用 (`PlanEditor.planNotes` で履歴残す)。コード固定にはしない。
 
 ### C9. 一括前払い 10% OFF の請求書発行ロジック 【中】
 
