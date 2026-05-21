@@ -585,16 +585,15 @@ function buildOrderBy(sort: string) {
       return { publishedAt: "desc" as const }
     case "recommended":
     default:
-      // C8 上位表示: 企業の planTier を最優先キーにする。
-      //   3 (paid: success_fee / monthly_12 / monthly_24)
-      //   > 2 (sns_client)
-      //   > 1 (campaign_free)
-      //   > 0 (HelloWork 取り込み等)
-      // 同 tier 内では既存の rankScore (SNS 数 / 文字量 / 写真数 / 更新鮮度) +
-      // publishedAt の順序。出典 (direct < hellowork) は planTier に吸収される
-      // (HelloWork 由来は Company.planTier=0 が default なので)。
+      // C8 上位表示 + 公平ローテーション:
+      //   1. company.planTier desc — プラン優先度 (3=paid / 2=SNS / 1=キャンペーン / 0=HW)
+      //   2. company.rotationKey asc — 日次でランダム化 (paid 平等枠の機会均等)
+      //   3. rankScore desc — 同 rotationKey 内では既存のコンテンツ品質順
+      //   4. publishedAt desc — タイブレーク
+      // rotationKey は /api/cron/rotate-companies が毎日 03:30 UTC に更新する。
       return [
         { company: { planTier: "desc" as const } },
+        { company: { rotationKey: "asc" as const } },
         { rankScore: "desc" as const },
         { publishedAt: "desc" as const },
       ]
