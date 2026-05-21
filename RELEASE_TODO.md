@@ -166,6 +166,28 @@ CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pn
 
 ---
 
+## 🆕 スカウトメッセージ機能 (2026-05-21 追加)
+
+PR #206 で実装。マイナビ転職参考のスカウトメール + 求職者受信トレイ + 企業送信フォーム。
+
+### マージ後の手動作業
+- [ ] **本番 DB に SQL 実行**:
+  ```bash
+  psql "$DIRECT_URL" -f prisma/migrations/manual/scout_messages.sql
+  ```
+  `prisma db push` で `scout_messages` テーブル自体は作られるが、partial unique index と CHECK 制約は manual SQL で別途定義する必要あり。
+- [ ] Vercel Cron Jobs に `/api/cron/expire-scouts` が登録されているか確認 (vercel.json 反映後)
+- [ ] スモークテスト: 企業 → 求職者にスカウト送信 → メール受信 → `/mypage/scouts/[id]` で既読確認
+
+### 仕様メモ
+- 有効期限: 30 日 (sentAt + 30d で auto expire)
+- 件名: 固定書式 (企業はカスタマイズ不可)
+- 本文: 20〜2,000 文字
+- 再送制限: アクティブな (sent/read) スカウトが存在中は同じ求人で同じ求職者への再送不可、expired/declined 後は再送可
+- 配信抑制: 求職者の `NotificationPrefs.scoutEnabled = false` でメール抑制 (サイト内通知は記録)
+
+---
+
 ## 🛠 ビジネスモデル変更に伴う開発項目 (2026-05-21 追加)
 
 詳細仕様は `docs/business-model-handover.md` 参照。

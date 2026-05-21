@@ -12,6 +12,7 @@ import {
   Star,
   Sparkles,
   Shield,
+  Mail,
 } from "lucide-react"
 import { Suspense } from "react"
 import type { Metadata } from "next"
@@ -208,6 +209,7 @@ async function QuickLinkCounts({ userId }: { userId: string }) {
     savedSearchCount,
     favoriteCount,
     companyFollowCount,
+    activeScoutCount,
   ] = await Promise.all([
     prisma.application.count({ where: { userId } }),
     prisma.notification
@@ -216,6 +218,9 @@ async function QuickLinkCounts({ userId }: { userId: string }) {
     prisma.savedSearch.count({ where: { userId } }).catch(() => 0),
     prisma.jobFavorite.count({ where: { userId } }).catch(() => 0),
     prisma.companyFollow.count({ where: { userId } }).catch(() => 0),
+    prisma.scoutMessage
+      .count({ where: { userId, status: { in: ["sent", "read"] } } })
+      .catch(() => 0),
   ])
 
   return (
@@ -252,6 +257,28 @@ async function QuickLinkCounts({ userId }: { userId: string }) {
         <div>
           <p className="font-semibold text-gray-900">応募一覧</p>
           <p className="text-sm text-gray-500">{applicationCount} 件の応募</p>
+        </div>
+      </Link>
+
+      <Link
+        href="/mypage/scouts"
+        className="flex items-center gap-4 border bg-white p-5 shadow-sm transition hover:shadow-md"
+      >
+        <div className="relative flex h-10 w-10 items-center justify-center bg-orange-100">
+          <Mail className="h-5 w-5 text-orange-700" />
+          {activeScoutCount > 0 && (
+            <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-[20px] items-center justify-center bg-red-500 px-1 text-[10px] font-bold text-white">
+              {activeScoutCount}
+            </span>
+          )}
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900">スカウト</p>
+          <p className="text-sm text-gray-500">
+            {activeScoutCount > 0
+              ? `${activeScoutCount} 件のスカウトを受信中`
+              : "企業からの直接スカウトを受信"}
+          </p>
         </div>
       </Link>
 

@@ -12,6 +12,7 @@ import {
   Settings,
   Shield,
   Eye,
+  Send,
 } from "lucide-react"
 
 const navItems = [
@@ -19,6 +20,7 @@ const navItems = [
   { href: "/company/jobs", label: "求人管理", icon: Briefcase },
   { href: "/company/applications", label: "応募者管理", icon: Users },
   { href: "/company/interests", label: "気になる候補", icon: Eye },
+  { href: "/company/scouts", label: "スカウト送信履歴", icon: Send },
   { href: "/company/line-leads", label: "LINE 応募", icon: MessageCircle },
   { href: "/company/billing", label: "課金履歴", icon: CreditCard },
   { href: "/company/profile", label: "企業情報・SNS", icon: Settings },

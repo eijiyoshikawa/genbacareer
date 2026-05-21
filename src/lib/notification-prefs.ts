@@ -19,6 +19,8 @@ export interface NotificationPrefs {
   quietHoursStart: number | null
   /** 静音時間終了 (JST 0-23、null なら無効) */
   quietHoursEnd: number | null
+  /** スカウト受信メール ON/OFF (デフォルト true) */
+  scoutEnabled: boolean
 }
 
 export const DEFAULT_PREFS: NotificationPrefs = {
@@ -28,6 +30,7 @@ export const DEFAULT_PREFS: NotificationPrefs = {
   frequency: "immediate",
   quietHoursStart: null,
   quietHoursEnd: null,
+  scoutEnabled: true,
 }
 
 export const FREQUENCY_LABELS: Record<NotificationFrequency, string> = {
@@ -59,6 +62,7 @@ export function parsePrefs(value: unknown): NotificationPrefs {
       typeof v.quietHoursEnd === "number" && v.quietHoursEnd >= 0 && v.quietHoursEnd <= 23
         ? v.quietHoursEnd
         : null,
+    scoutEnabled: typeof v.scoutEnabled === "boolean" ? v.scoutEnabled : DEFAULT_PREFS.scoutEnabled,
   }
 }
 

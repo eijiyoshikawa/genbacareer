@@ -282,6 +282,111 @@ export async function sendCompanyRejectionEmail(
   })
 }
 
+/**
+ * 12.x スカウト着信通知メール (マイナビ転職参考の構成)。
+ *
+ * 件名: 「{企業名}からスカウトが届きました！[ゲンバキャリア / スカウト着信通知]」
+ * 本文構成: 期限明示 → 自動送信注意 → 宛名 → イントロ → CTA → 期限 → [企業名][職種名]
+ *           → 本文抜粋 → 続きを読む → 他のスカウト → 配信停止 → フッター
+ */
+export async function sendScoutEmail(args: {
+  to: string
+  userName: string
+  companyName: string
+  jobTitle: string
+  subject: string
+  bodyExcerpt: string
+  scoutId: string
+  expiresAt: Date
+}) {
+  const baseUrl =
+    process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
+  const detailUrl = `${baseUrl}/mypage/scouts/${args.scoutId}`
+  const inboxUrl = `${baseUrl}/mypage/scouts`
+  const settingsUrl = `${baseUrl}/mypage/notifications/settings`
+  const helpUrl = `${baseUrl}/help`
+  const expireDate = formatDateJa(args.expiresAt)
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic UI', sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
+      <div style="background: #18181b; color: #facc15; padding: 16px 24px; font-weight: bold; font-size: 18px;">ゲンバキャリア</div>
+
+      <div style="padding: 24px;">
+        <p style="font-size: 14px; color: #525252; margin: 0 0 8px;">
+          【希望職種】にマッチ！ <strong style="color: #b91c1c;">${escapeHtml(expireDate)}</strong> が期限につき今すぐご確認ください！
+        </p>
+        <p style="font-size: 12px; color: #737373; margin: 0 0 4px;">
+          ※このメールは「ゲンバキャリア」のシステムから自動送信しています。
+        </p>
+        <p style="font-size: 12px; color: #737373; margin: 0 0 24px;">
+          ※この通知メールへご返信いただいても、企業へは届きませんのでご注意ください。
+        </p>
+
+        <p style="margin: 0 0 8px;">${escapeHtml(args.userName)} 様</p>
+        <p style="margin: 0 0 16px;">
+          いつもゲンバキャリアをご利用いただき、ありがとうございます。<br>
+          ${escapeHtml(args.userName)} 様に企業からあなたの【希望職種】にマッチした求人のスカウトが届きました。
+        </p>
+
+        <p style="margin: 0 0 8px; font-weight: bold;">▼メッセージをチェック</p>
+        <p style="margin: 0 0 24px;">
+          <a href="${detailUrl}" style="display: inline-block; padding: 12px 24px; background: #f59e0b; color: #18181b; text-decoration: none; border-radius: 6px; font-weight: bold;">
+            メッセージを開く
+          </a>
+        </p>
+
+        <p style="font-size: 14px; margin: 0 0 4px;">メッセージの有効期限：<strong>${escapeHtml(expireDate)}</strong></p>
+        <p style="font-size: 12px; color: #737373; margin: 0 0 24px;">
+          ※有効期限前に応募を締め切る場合がありますのでお早めにご対応ください。
+        </p>
+
+        <div style="border-top: 1px solid #e5e5e5; margin: 24px 0; padding-top: 24px;">
+          <p style="margin: 0 0 4px;"><strong>[企業名]</strong> ${escapeHtml(args.companyName)}</p>
+          <p style="margin: 0 0 16px;"><strong>[職種名]</strong> ${escapeHtml(args.jobTitle)}</p>
+
+          <p style="font-weight: bold; margin: 0 0 8px;">メッセージの内容</p>
+          <p style="margin: 0 0 8px; color: #404040; white-space: pre-line;">${escapeHtml(args.bodyExcerpt)}</p>
+          <p style="margin: 0 0 24px;">
+            <a href="${detailUrl}" style="color: #2563eb;">▼続きを読む</a>
+          </p>
+        </div>
+
+        <p style="margin: 0 0 24px;">
+          <a href="${inboxUrl}" style="color: #2563eb;">他のスカウトもチェック！</a>
+        </p>
+
+        <div style="border-top: 1px solid #e5e5e5; padding-top: 16px;">
+          <p style="font-size: 12px; color: #737373; margin: 0 0 4px;">※このメールの配信を停止する場合</p>
+          <p style="font-size: 12px; color: #737373; margin: 0 0 24px;">
+            <a href="${settingsUrl}" style="color: #2563eb;">通知設定</a>から「スカウト受信メール」を OFF に変更してください。
+          </p>
+        </div>
+
+        <div style="border-top: 1px solid #e5e5e5; padding-top: 16px; font-size: 12px; color: #737373;">
+          <p style="margin: 0 0 4px;"><strong>株式会社LET</strong></p>
+          <p style="margin: 0 0 4px;">ゲンバキャリア <a href="${baseUrl}" style="color: #2563eb;">${baseUrl}</a></p>
+          <p style="margin: 0;">ヘルプ・よくある質問 <a href="${helpUrl}" style="color: #2563eb;">${helpUrl}</a></p>
+        </div>
+      </div>
+    </div>
+  `
+
+  await sendEmail({
+    to: args.to,
+    subject: args.subject,
+    html,
+  })
+}
+
+/** 日付を「2026年5月21日（木）」形式に整形 */
+function formatDateJa(d: Date): string {
+  const y = d.getFullYear()
+  const m = d.getMonth() + 1
+  const day = d.getDate()
+  const weekday = ["日", "月", "火", "水", "木", "金", "土"][d.getDay()]
+  return `${y}年${m}月${day}日（${weekday}）`
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")

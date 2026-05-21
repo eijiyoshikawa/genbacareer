@@ -74,6 +74,12 @@ export function NotificationPrefsForm({ initial }: { initial: NotificationPrefs 
           checked={prefs.pushEnabled}
           onChange={(v) => update("pushEnabled", v)}
         />
+        <Toggle
+          label="スカウト受信メール"
+          desc="企業からの直接スカウトをメールで通知 (OFF にすると受信トレイへのサイト内通知のみ)"
+          checked={prefs.scoutEnabled}
+          onChange={(v) => update("scoutEnabled", v)}
+        />
       </section>
 
       {/* 配信頻度 */}
