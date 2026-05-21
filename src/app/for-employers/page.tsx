@@ -94,7 +94,7 @@ const comparisonRows = [
   },
   {
     label: "費用",
-    ours: "成果報酬 1 名 49.8 万円〜（職種による）\n掲載料 無料キャンペーン中（求人数無制限）",
+    ours: "選べる 3 プラン\n①成果報酬 49.8 万円〜（職種による）\n②月額 49,800 円 / 12ヶ月\n③月額 30,000 円 / 24ヶ月\n※掲載料 無料キャンペーン中",
     major: "月額30万円〜\n1求人ごとに費用が発生",
     niche: "月額6万円〜\n1求人ごとに費用が発生",
   },
@@ -422,6 +422,112 @@ export default function ForEmployersPage() {
             </table>
           </div>
           </AnimateOnScroll>
+        </div>
+      </section>
+
+      {/* Plans Section - 3 プラン詳細 */}
+      <section className="border-t border-warm-200 bg-warm-50 py-12">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+          <AnimateOnScroll>
+            <h2 className="text-center text-2xl font-black text-ink-900 tracking-tight">
+              選べる<span className="text-primary-600">3 つのプラン</span>
+            </h2>
+            <p className="mt-2 text-center text-sm text-gray-600">
+              ※ リリース直近は掲載料 ¥0 キャンペーン実施中。下記プランは通常料金です。
+            </p>
+          </AnimateOnScroll>
+
+          <AnimateOnScroll animation="stagger">
+            <div className="mt-8 grid gap-6 md:grid-cols-3">
+              {/* ① 成果報酬 */}
+              <div className="border-2 border-ink-900 bg-white p-6 shadow-sm">
+                <p className="text-xs font-bold text-primary-600">プラン ①</p>
+                <h3 className="mt-1 text-lg font-black text-ink-900 tracking-tight">
+                  成果報酬プラン
+                </h3>
+                <p className="mt-4 text-2xl font-black text-ink-900">
+                  ¥498,000
+                  <span className="text-sm font-bold text-gray-500">〜 / 名</span>
+                </p>
+                <p className="mt-1 text-xs text-gray-500">職種により金額変動</p>
+                <ul className="mt-4 space-y-2 text-sm text-gray-700">
+                  <li className="flex gap-2">
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-500" />
+                    <span>掲載料 ¥0、採用決定時のみ請求</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-500" />
+                    <span>戻入規定あり (早期退職時の安心)</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-500" />
+                    <span>初期費用なし</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* ② 月額 12ヶ月 */}
+              <div className="border-2 border-ink-900 bg-white p-6 shadow-sm relative">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-yellow-500 px-3 py-0.5 text-xs font-extrabold text-ink-900 tracking-wider">
+                  人気プラン
+                </span>
+                <p className="text-xs font-bold text-primary-600">プラン ②</p>
+                <h3 className="mt-1 text-lg font-black text-ink-900 tracking-tight">
+                  月額掲載 12 ヶ月
+                </h3>
+                <p className="mt-4 text-2xl font-black text-ink-900">
+                  ¥49,800
+                  <span className="text-sm font-bold text-gray-500">/ 月</span>
+                </p>
+                <p className="mt-1 text-xs text-gray-500">年契約・一括前払いで 10% OFF</p>
+                <ul className="mt-4 space-y-2 text-sm text-gray-700">
+                  <li className="flex gap-2">
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-500" />
+                    <span>採用ボーナス ¥50,000 を求職者へ</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-500" />
+                    <span>応募率向上・若手取り込み強化</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-500" />
+                    <span>初期費用 ¥150,000 (キャンペーン中無料)</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* ③ 月額 24ヶ月 */}
+              <div className="border-2 border-ink-900 bg-white p-6 shadow-sm">
+                <p className="text-xs font-bold text-primary-600">プラン ③</p>
+                <h3 className="mt-1 text-lg font-black text-ink-900 tracking-tight">
+                  月額掲載 24 ヶ月
+                </h3>
+                <p className="mt-4 text-2xl font-black text-ink-900">
+                  ¥30,000
+                  <span className="text-sm font-bold text-gray-500">/ 月</span>
+                </p>
+                <p className="mt-1 text-xs text-gray-500">長期契約・一括前払いで 10% OFF</p>
+                <ul className="mt-4 space-y-2 text-sm text-gray-700">
+                  <li className="flex gap-2">
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-500" />
+                    <span>採用ボーナス ¥50,000 を求職者へ</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-500" />
+                    <span>長期掲載でコスト最適化</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-500" />
+                    <span>初期費用 ¥150,000 (キャンペーン中無料)</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </AnimateOnScroll>
+
+          <p className="mt-6 text-center text-xs text-gray-500">
+            ※ 月額プランは中途解約不可。全プラン請求書払い・銀行振込のみ。
+          </p>
         </div>
       </section>
 
