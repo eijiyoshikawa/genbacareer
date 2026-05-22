@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hashSync } from "bcryptjs";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { PREFECTURES } from "@/lib/constants";
 import { generateToken } from "@/lib/tokens";
@@ -82,19 +83,34 @@ export async function POST(request: Request) {
       Date.now() + VERIFICATION_TOKEN_EXPIRY_MS
     );
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-        prefecture,
-        birthDate: birthDateObj,
-        verificationToken,
-        verificationTokenExpiry,
-        termsAcceptedAt: new Date(),
-      },
-      select: { id: true },
-    });
+    let user: { id: string };
+    try {
+      user = await prisma.user.create({
+        data: {
+          name,
+          email,
+          passwordHash,
+          prefecture,
+          birthDate: birthDateObj,
+          verificationToken,
+          verificationTokenExpiry,
+          termsAcceptedAt: new Date(),
+        },
+        select: { id: true },
+      });
+    } catch (e) {
+      // 直前の findUnique を通過後に同じメールで登録が来た場合（レースコンディション）
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2002"
+      ) {
+        return NextResponse.json(
+          { error: "このメールアドレスは既に登録されています。" },
+          { status: 409 }
+        );
+      }
+      throw e;
+    }
 
     // 13.4 独自イベントトラッキング
     void trackEvent({

@@ -77,7 +77,7 @@ export async function createNotification(input: {
 
   // 即時配信のみ LINE Push 発火 (daily/weekly は cron でバッチ送信、未実装)
   if (prefs.frequency === "immediate" && prefs.lineEnabled) {
-    pushUserNotification({
+    void pushUserNotification({
       userId: input.userId,
       title: input.title,
       body: input.body,

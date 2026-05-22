@@ -1,5 +1,6 @@
 import { randomBytes, randomInt } from "crypto"
 import bcrypt from "bcryptjs"
+import { Prisma } from "@prisma/client"
 import { prisma } from "./db"
 import { sendEmail } from "./email"
 
@@ -128,30 +129,41 @@ export async function acceptInvitation({
   const inv = await findValidInvitation(token)
   if (!inv) return { ok: false, reason: "invalid" }
 
-  const existing = await prisma.companyUser.findUnique({
-    where: { email: inv.email },
-  })
-  if (existing) return { ok: false, reason: "email_taken" }
-
   const passwordHash = await bcrypt.hash(password, 10)
 
-  const created = await prisma.$transaction(async (tx) => {
-    const user = await tx.companyUser.create({
-      data: {
-        companyId: inv.companyId,
-        email: inv.email,
-        passwordHash,
-        name: name ?? null,
-        role: inv.role,
-        mustChangePassword: false,
-      },
-    })
-    await tx.companyInvitation.update({
-      where: { id: inv.id },
-      data: { acceptedAt: new Date() },
-    })
-    return user
-  })
+  try {
+    const created = await prisma.$transaction(async (tx) => {
+      // acceptedAt を条件付きで更新し、他の並行リクエストによる二重受諾を防ぐ
+      const claimed = await tx.companyInvitation.updateMany({
+        where: { id: inv.id, acceptedAt: null },
+        data: { acceptedAt: new Date() },
+      })
+      if (claimed.count === 0) {
+        throw Object.assign(new Error("already_accepted"), { code: "already_accepted" })
+      }
 
-  return { ok: true, companyUserId: created.id }
+      return tx.companyUser.create({
+        data: {
+          companyId: inv.companyId,
+          email: inv.email,
+          passwordHash,
+          name: name ?? null,
+          role: inv.role,
+          mustChangePassword: false,
+        },
+      })
+    })
+    return { ok: true, companyUserId: created.id }
+  } catch (e) {
+    if (e instanceof Error && (e as NodeJS.ErrnoException).code === "already_accepted") {
+      return { ok: false, reason: "invalid" }
+    }
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === "P2002"
+    ) {
+      return { ok: false, reason: "email_taken" }
+    }
+    throw e
+  }
 }

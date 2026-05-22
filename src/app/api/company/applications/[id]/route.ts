@@ -123,9 +123,6 @@ export async function PUT(
     )
   }
 
-  const history = Array.isArray(application.statusHistory)
-    ? (application.statusHistory as unknown as StatusHistoryEntry[])
-    : []
   const entry: StatusHistoryEntry = {
     from: currentStatus,
     to: newStatus,
@@ -134,17 +131,35 @@ export async function PUT(
     ...(parsed.data.note ? { note: parsed.data.note } : {}),
   }
 
-  const updated = await prisma.application.update({
-    where: { id },
-    data: {
-      status: newStatus,
-      statusHistory: [...history, entry],
-      // 採用確定時に hiredAt を打刻 (C3 戻入処理の経過月数計算の基準)
-      ...(newStatus === "hired" && !application.hiredAt
-        ? { hiredAt: new Date() }
-        : {}),
-    },
-  })
+  // statusHistory の追記をトランザクション内で再取得して行うことで
+  // 並行リクエストによる履歴エントリの上書き消失を防ぐ
+  let updated: Awaited<ReturnType<typeof prisma.application.update>>
+  try {
+    updated = await prisma.$transaction(async (tx) => {
+      const fresh = await tx.application.findUnique({
+        where: { id },
+        select: { statusHistory: true, hiredAt: true },
+      })
+      if (!fresh) throw new Error("not_found")
+      const freshHistory = Array.isArray(fresh.statusHistory)
+        ? (fresh.statusHistory as unknown as StatusHistoryEntry[])
+        : []
+      return tx.application.update({
+        where: { id },
+        data: {
+          status: newStatus,
+          statusHistory: [...freshHistory, entry],
+          // 採用確定時に hiredAt を打刻 (C3 戻入処理の経過月数計算の基準)
+          ...(newStatus === "hired" && !fresh.hiredAt
+            ? { hiredAt: new Date() }
+            : {}),
+        },
+      })
+    })
+  } catch (e) {
+    console.error(`[application-update] failed for id=${id}:`, e)
+    return Response.json({ error: "ステータスの更新に失敗しました" }, { status: 500 })
+  }
 
   // 採用確定時の自動請求
   if (newStatus === "hired") {
