@@ -53,11 +53,11 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="mt-6 rounded-lg border bg-white p-6 shadow-sm text-center">
+      <div className="mt-6  border bg-white p-6 shadow-sm text-center">
         <p className="text-red-600">無効なリセットリンクです。</p>
         <Link
           href="/forgot-password"
-          className="mt-4 inline-block text-sm font-medium text-blue-600"
+          className="mt-4 inline-block text-sm font-medium text-primary-600"
         >
           パスワードリセットを再リクエスト
         </Link>
@@ -67,13 +67,13 @@ function ResetPasswordForm() {
 
   if (success) {
     return (
-      <div className="mt-6 rounded-lg border bg-white p-6 shadow-sm text-center">
+      <div className="mt-6  border bg-white p-6 shadow-sm text-center">
         <p className="text-green-600 font-medium">
           パスワードが正常にリセットされました
         </p>
         <Link
           href="/login"
-          className="mt-4 inline-block rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="mt-4 inline-block  bg-primary-600 px-6 py-2 text-sm font-medium text-white hover:bg-primary-700"
         >
           ログインする
         </Link>
@@ -82,9 +82,9 @@ function ResetPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-6 rounded-lg border bg-white p-6 shadow-sm space-y-4">
+    <form onSubmit={handleSubmit} className="mt-6  border bg-white p-6 shadow-sm space-y-4">
       {error && (
-        <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">
+        <div className=" bg-red-50 p-3 text-sm text-red-600">
           {error}
         </div>
       )}
@@ -99,7 +99,7 @@ function ResetPasswordForm() {
           minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="mt-1 block w-full rounded-md border px-3 py-2 text-sm shadow-sm"
+          className="mt-1 block w-full  border px-3 py-2 text-sm shadow-sm"
         />
       </div>
 
@@ -113,14 +113,14 @@ function ResetPasswordForm() {
           minLength={8}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          className="mt-1 block w-full rounded-md border px-3 py-2 text-sm shadow-sm"
+          className="mt-1 block w-full  border px-3 py-2 text-sm shadow-sm"
         />
       </div>
 
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        className="w-full  bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
       >
         {loading ? "リセット中..." : "パスワードをリセット"}
       </button>

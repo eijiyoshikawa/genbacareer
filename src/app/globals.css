@@ -2,25 +2,292 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #18181b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  /* Brand orange (CTA) */
+  --color-primary-50:  #fff7ed;
+  --color-primary-100: #ffedd5;
+  --color-primary-200: #fed7aa;
+  --color-primary-300: #fdba74;
+  --color-primary-400: #fb923c;
+  --color-primary-500: #f37524;
+  --color-primary-600: #e25c0e;
+  --color-primary-700: #c2410c;
+  --color-primary-800: #9a3412;
+  --color-primary-900: #7c2d12;
+  /* Brand yellow (hero band, search box, theme grid band) */
+  --color-brand-yellow-50:  #fffbeb;
+  --color-brand-yellow-100: #fef3c7;
+  --color-brand-yellow-200: #fde68a;
+  --color-brand-yellow-300: #fcd34d;
+  --color-brand-yellow-400: #fbbf24;
+  --color-brand-yellow-500: #f5b400;
+  --color-brand-yellow-600: #d99e00;
+  --color-brand-yellow-700: #b48108;
+  /* Brand ink (hero overlay, easy-search header, footer) */
+  --color-ink-700: #2a2d31;
+  --color-ink-800: #1f2226;
+  --color-ink-900: #14181b;
+  --color-warm-50:  #fafaf9;
+  --color-warm-100: #f5f5f4;
+  --color-warm-200: #e7e5e4;
+  --color-accent: #2563eb;
+  --font-sans: var(--font-noto-jp), "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* `overflow-x: hidden` を html に当てると position: sticky のスクロールコンテキストを
+   壊して SP でヘッダー追従が効かなくなる。clip は同等の効果を持ちつつ sticky を
+   破壊しないため、html/body ともに clip を採用する。
+   refs: https://caniuse.com/css-overflow (clip は主要ブラウザ全対応) */
+html {
+  overflow-x: clip;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-noto-jp), -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+  font-feature-settings: "palt";
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: 0.01em;
+  overflow-x: clip;
+}
+
+/* Scroll animation - subtle fade only */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.animate-on-scroll.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Stagger - limited to first 6 children */
+.stagger-children > * {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.stagger-children.is-visible > *:nth-child(1) { opacity: 1; transform: translateY(0); transition-delay: 0s; }
+.stagger-children.is-visible > *:nth-child(2) { opacity: 1; transform: translateY(0); transition-delay: 0.08s; }
+.stagger-children.is-visible > *:nth-child(3) { opacity: 1; transform: translateY(0); transition-delay: 0.16s; }
+.stagger-children.is-visible > *:nth-child(4) { opacity: 1; transform: translateY(0); transition-delay: 0.24s; }
+.stagger-children.is-visible > *:nth-child(5) { opacity: 1; transform: translateY(0); transition-delay: 0.32s; }
+.stagger-children.is-visible > *:nth-child(n+6) { opacity: 1; transform: translateY(0); transition-delay: 0.36s; }
+
+/* Logo slider */
+@keyframes logo-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.logo-slider {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
+}
+.logo-slider-track {
+  display: flex;
+  gap: 2.5rem;
+  width: max-content;
+  animation: logo-scroll 40s linear infinite;
+}
+
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Hero yellow accent stripes (top + bottom edges) */
+.hero-stripe-top,
+.hero-stripe-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: var(--color-brand-yellow-500);
+  pointer-events: none;
+}
+.hero-stripe-top { top: 0; }
+.hero-stripe-bottom { bottom: 0; }
+
+/* Hover lift effect for cards */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* === カード共通スタイル =========================================
+   角丸無し方針はキープしつつ、border を薄くして box-shadow 主体で
+   立体感を出す。素人感の出やすい「黒線で四角く囲む」見た目を回避。
+   既存の border bg-white から .card に置き換えると統一感が出る。 */
+.card {
+  background: #ffffff;
+  border: 1px solid rgba(229, 231, 235, 0.7); /* gray-200 を半透明化 */
+  box-shadow: 0 1px 2px rgba(15, 17, 21, 0.04), 0 1px 1px rgba(15, 17, 21, 0.03);
+  transition: border-color 150ms ease, box-shadow 200ms ease, transform 200ms ease;
+}
+.card:hover {
+  border-color: rgba(243, 117, 36, 0.4); /* primary-500/40 */
+  box-shadow: 0 6px 16px rgba(15, 17, 21, 0.08), 0 2px 4px rgba(15, 17, 21, 0.04);
+}
+.card-elevated {
+  background: #ffffff;
+  border: 1px solid rgba(229, 231, 235, 0.4);
+  box-shadow: 0 4px 12px rgba(15, 17, 21, 0.06), 0 2px 4px rgba(15, 17, 21, 0.04);
+  transition: border-color 150ms ease, box-shadow 200ms ease, transform 200ms ease;
+}
+.card-elevated:hover {
+  box-shadow: 0 8px 20px rgba(15, 17, 21, 0.10), 0 3px 6px rgba(15, 17, 21, 0.06);
+}
+/* 静かな区切り (border のみ、shadow なし) — 一覧の行など軽量な区切り用 */
+.card-flat {
+  background: #ffffff;
+  border: 1px solid rgba(229, 231, 235, 0.7);
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.card-flat:hover {
+  border-color: rgba(243, 117, 36, 0.4);
+  background-color: rgba(255, 247, 237, 0.5); /* primary-50/50 */
+}
+
+/* === ボタン / リンクの「押してる」タップモーション ===================
+   角丸無し方針なので「沈み込み + 縮小 + 薄暗くなる」3 段で触り心地を担保。
+   release 時は cubic-bezier で軽くオーバーシュートさせて、硬さを軽減する。
+
+   - press: transform + opacity を 80ms で即時下げ
+   - release: 220ms かけてバネっぽく戻す
+   - hover: 浮き上がり (translateY -1px) で「触れる前のお誘い」
+*/
+button,
+.press {
+  transition:
+    transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 200ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease,
+    filter 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  will-change: transform;
+}
+/* hover: 軽く浮き上がる (PC) */
+@media (hover: hover) {
+  button:not(:disabled):hover,
+  .press:hover {
+    transform: translateY(-1px);
+  }
+}
+/* press: 沈み込み + 縮小 + うっすら暗く */
+button:active:not(:disabled),
+.press:active {
+  transform: translateY(1px) scale(0.96);
+  filter: brightness(0.94);
+  transition-duration: 80ms;
+  box-shadow: none !important;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* === シャープなコーナーに「デザイン性」を付与 ==================
+   角丸をなくしたカードに左 3px / 上 3px の brand カラーアクセント。
+   フラット感を保ちつつ単調にしないための装飾。 */
+.accent-l { position: relative; }
+.accent-l::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--color-primary-500);
+  pointer-events: none;
+}
+.accent-t {
+  position: relative;
+  border-top: 3px solid var(--color-primary-500);
+}
+
+/* セクション見出し用の左バー（角ばった四角） */
+.section-bar { display: inline-flex; align-items: center; }
+.section-bar::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 1.1em;
+  background: var(--color-primary-500);
+  margin-right: 8px;
+  pointer-events: none;
+}
+
+/* Article body styles */
+.article-body h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #111827;
+  border-left: 4px solid #ea580c;
+  padding-left: 0.75rem;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+.article-body h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+.article-body p {
+  font-size: 0.875rem;
+  color: #374151;
+  line-height: 1.8;
+  margin-top: 0.75rem;
+}
+.article-body ul, .article-body ol {
+  font-size: 0.875rem;
+  color: #374151;
+  line-height: 1.8;
+  margin-top: 0.5rem;
+  padding-left: 1.5rem;
+}
+.article-body ul { list-style-type: disc; }
+.article-body ol { list-style-type: decimal; }
+.article-body li { margin-top: 0.25rem; }
+.article-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+.article-body th, .article-body td {
+  border: 1px solid #e5e7eb;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.article-body th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+.article-body a {
+  color: #ea580c;
+  text-decoration: underline;
+}
+.article-body a:hover { color: #c2410c; }
+.article-body strong { font-weight: 600; }
+.article-body blockquote {
+  border-left: 3px solid #d1d5db;
+  padding-left: 1rem;
+  color: #6b7280;
+  font-style: italic;
+  margin-top: 1rem;
 }

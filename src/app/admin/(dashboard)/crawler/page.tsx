@@ -19,9 +19,14 @@ const PREFECTURES = [
 ]
 
 const CATEGORIES = [
-  { value: "driver", label: "ドライバー" },
-  { value: "construction", label: "建設" },
-  { value: "manufacturing", label: "製造" },
+  { value: "construction", label: "建築・躯体" },
+  { value: "civil", label: "土木" },
+  { value: "electrical", label: "電気・設備" },
+  { value: "interior", label: "内装・仕上げ" },
+  { value: "demolition", label: "解体・産廃" },
+  { value: "driver", label: "ドライバー・重機" },
+  { value: "management", label: "施工管理" },
+  { value: "survey", label: "測量・設計" },
   { value: "", label: "全職種" },
 ]
 
@@ -31,6 +36,7 @@ interface ImportResult {
     created: number
     updated: number
     closed: number
+    skipped?: number
     errors: number
     totalProcessed: number
     durationMs: number
@@ -43,6 +49,7 @@ export default function AdminCrawlerPage() {
   const [category, setCategory] = useState("driver")
   const [maxPages, setMaxPages] = useState("3")
   const [dryRun, setDryRun] = useState(true)
+  const [closeOrphans, setCloseOrphans] = useState(false)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
 
@@ -59,6 +66,7 @@ export default function AdminCrawlerPage() {
           category: category || undefined,
           maxPages: Number(maxPages),
           dryRun,
+          closeOrphans,
         }),
       })
 
@@ -83,10 +91,10 @@ export default function AdminCrawlerPage() {
         ハローワークインターネットサービスからの求人取り込み
       </p>
 
-      <div className="mt-6 rounded-lg border bg-white p-6 shadow-sm">
+      <div className="mt-6 border bg-white p-6 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-            <Bot className="h-5 w-5 text-blue-600" />
+          <div className="flex h-10 w-10 items-center justify-center bg-primary-100">
+            <Bot className="h-5 w-5 text-primary-600" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
@@ -106,7 +114,7 @@ export default function AdminCrawlerPage() {
             <select
               value={prefecture}
               onChange={(e) => setPrefecture(e.target.value)}
-              className="mt-1 block w-full rounded-md border px-3 py-2 text-sm"
+              className="mt-1 block w-full border px-3 py-2 text-sm"
             >
               {PREFECTURES.map((p) => (
                 <option key={p.code} value={p.code}>
@@ -123,7 +131,7 @@ export default function AdminCrawlerPage() {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="mt-1 block w-full rounded-md border px-3 py-2 text-sm"
+              className="mt-1 block w-full border px-3 py-2 text-sm"
             >
               {CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -143,7 +151,7 @@ export default function AdminCrawlerPage() {
               max={20}
               value={maxPages}
               onChange={(e) => setMaxPages(e.target.value)}
-              className="mt-1 block w-full rounded-md border px-3 py-2 text-sm"
+              className="mt-1 block w-full border px-3 py-2 text-sm"
             />
           </div>
 
@@ -153,10 +161,31 @@ export default function AdminCrawlerPage() {
                 type="checkbox"
                 checked={dryRun}
                 onChange={(e) => setDryRun(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                className="h-4 w-4 border-gray-300 text-primary-600"
               />
               <span className="text-sm text-gray-700">
                 ドライラン（DB変更なし）
+              </span>
+            </label>
+          </div>
+
+          <div className="sm:col-span-2 border border-amber-300 bg-amber-50 p-3">
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={closeOrphans}
+                onChange={(e) => setCloseOrphans(e.target.checked)}
+                className="mt-0.5 h-4 w-4 border-amber-400 text-amber-600"
+              />
+              <span className="text-sm text-amber-900">
+                <strong>closeOrphans を有効にする（破壊的・通常 OFF）</strong>
+                <span className="mt-1 block text-xs text-amber-800">
+                  ON にすると、この 1 回のバッチに含まれない HW 求人すべてが
+                  <code className="mx-1 bg-amber-100 px-1">
+                    status=closed
+                  </code>
+                  に書き換わります。週次 fullSweep など全件取得時のみ使用してください。
+                </span>
               </span>
             </label>
           </div>
@@ -166,7 +195,7 @@ export default function AdminCrawlerPage() {
           <button
             onClick={handleRun}
             disabled={loading}
-            className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="inline-flex items-center gap-2 bg-primary-600 px-6 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -180,7 +209,7 @@ export default function AdminCrawlerPage() {
         {/* Result */}
         {result && (
           <div
-            className={`mt-6 rounded-md p-4 ${
+            className={`mt-6  p-4 ${
               result.success ? "bg-green-50" : "bg-red-50"
             }`}
           >
@@ -197,8 +226,8 @@ export default function AdminCrawlerPage() {
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-blue-600">更新</dt>
-                    <dd className="text-lg font-bold text-blue-800">
+                    <dt className="text-primary-600">更新</dt>
+                    <dd className="text-lg font-bold text-primary-800">
                       {result.stats.updated} 件
                     </dd>
                   </div>
@@ -206,6 +235,12 @@ export default function AdminCrawlerPage() {
                     <dt className="text-gray-600">終了 (closed)</dt>
                     <dd className="text-lg font-bold text-gray-800">
                       {result.stats.closed} 件
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-amber-600">スキップ (非建設業)</dt>
+                    <dd className="text-lg font-bold text-amber-800">
+                      {result.stats.skipped ?? 0} 件
                     </dd>
                   </div>
                   <div>
@@ -236,7 +271,7 @@ export default function AdminCrawlerPage() {
       </div>
 
       {/* Info */}
-      <div className="mt-6 rounded-lg border bg-white p-6 shadow-sm">
+      <div className="mt-6 border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900">注意事項</h2>
         <ul className="mt-3 space-y-2 text-sm text-gray-600">
           <li>

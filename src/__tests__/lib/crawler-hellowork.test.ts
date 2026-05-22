@@ -1,67 +1,112 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import {
-  parseSalary,
-  normalizePrefecture,
-  categoryToHelloworkCode,
+  fetchKyujinByDataId,
+  splitPrefectureCity,
 } from "@/lib/crawler/hellowork"
 
-describe("parseSalary", () => {
-  it("parses monthly salary range", () => {
-    const result = parseSalary("月額 200,000円 〜 300,000円")
-    expect(result.min).toBe(200000)
-    expect(result.max).toBe(300000)
-    expect(result.type).toBe("monthly")
+describe("splitPrefectureCity", () => {
+  it("extracts prefecture from standard prefix", () => {
+    expect(splitPrefectureCity("東京都千代田区丸の内1-1-1")).toEqual({
+      prefecture: "東京都",
+      city: "千代田区丸の内1-1-1",
+    })
+    expect(splitPrefectureCity("北海道札幌市中央区")).toEqual({
+      prefecture: "北海道",
+      city: "札幌市中央区",
+    })
+    expect(splitPrefectureCity("大阪府大阪市北区")).toEqual({
+      prefecture: "大阪府",
+      city: "大阪市北区",
+    })
+    expect(splitPrefectureCity("京都府京都市左京区")).toEqual({
+      prefecture: "京都府",
+      city: "京都市左京区",
+    })
   })
 
-  it("parses hourly salary", () => {
-    const result = parseSalary("時給 1,200円 〜 1,500円")
-    expect(result.min).toBe(1200)
-    expect(result.max).toBe(1500)
-    expect(result.type).toBe("hourly")
+  it("recovers from leading postal code or whitespace", () => {
+    expect(
+      splitPrefectureCity("〒100-0001 東京都千代田区丸の内")
+    ).toEqual({ prefecture: "東京都", city: "千代田区丸の内" })
+    expect(splitPrefectureCity(" 　大阪府大阪市中央区")).toEqual({
+      prefecture: "大阪府",
+      city: "大阪市中央区",
+    })
   })
 
-  it("parses annual salary", () => {
-    const result = parseSalary("年俸 4,000,000円")
-    expect(result.min).toBe(4000000)
-    expect(result.max).toBeNull()
-    expect(result.type).toBe("annual")
+  it("falls back to '不明' when no prefecture can be found", () => {
+    const r = splitPrefectureCity("ABC company HQ, Building 5F")
+    expect(r.prefecture).toBe("不明")
+    expect(r.city).toBe("ABC company HQ, Building 5F")
   })
 
-  it("parses daily salary and converts to monthly", () => {
-    const result = parseSalary("日給 10,000円 〜 12,000円")
-    expect(result.min).toBe(220000) // 10000 * 22
-    expect(result.max).toBe(264000) // 12000 * 22
-    expect(result.type).toBe("monthly")
+  it("treats null/empty input as '不明'", () => {
+    expect(splitPrefectureCity(null)).toEqual({
+      prefecture: "不明",
+      city: null,
+    })
+    expect(splitPrefectureCity("")).toEqual({
+      prefecture: "不明",
+      city: null,
+    })
   })
 
-  it("returns null for empty string", () => {
-    const result = parseSalary("")
-    expect(result.min).toBeNull()
-    expect(result.max).toBeNull()
-    expect(result.type).toBeNull()
+  it("never produces prefecture longer than 4 chars (DB VarChar(20) safe)", () => {
+    const long = "X".repeat(500)
+    const r = splitPrefectureCity(long)
+    expect(r.prefecture.length).toBeLessThanOrEqual(4) // 神奈川県 = 4 chars max
+    // city は 100 字まで切られる
+    expect((r.city ?? "").length).toBeLessThanOrEqual(100)
+  })
+
+  it("trims whitespace around city", () => {
+    expect(splitPrefectureCity("東京都 千代田区  ")).toEqual({
+      prefecture: "東京都",
+      city: "千代田区",
+    })
   })
 })
 
-describe("normalizePrefecture", () => {
-  it("converts code to prefecture name", () => {
-    expect(normalizePrefecture("13")).toBe("東京都")
-    expect(normalizePrefecture("27")).toBe("大阪府")
-    expect(normalizePrefecture("01")).toBe("北海道")
+describe("fetchKyujinByDataId", () => {
+  const realFetch = globalThis.fetch
+  const realEnv = { user: process.env.HELLOWORK_API_USER, pass: process.env.HELLOWORK_API_PASS }
+
+  beforeEach(() => {
+    process.env.HELLOWORK_API_USER = "test-user"
+    process.env.HELLOWORK_API_PASS = "test-pass"
   })
 
-  it("returns code as-is for unknown codes", () => {
-    expect(normalizePrefecture("99")).toBe("99")
-  })
-})
-
-describe("categoryToHelloworkCode", () => {
-  it("maps known categories", () => {
-    expect(categoryToHelloworkCode("driver")).toBe("65")
-    expect(categoryToHelloworkCode("construction")).toBe("D")
-    expect(categoryToHelloworkCode("it")).toBe("B2")
+  afterEach(() => {
+    globalThis.fetch = realFetch
+    process.env.HELLOWORK_API_USER = realEnv.user
+    process.env.HELLOWORK_API_PASS = realEnv.pass
+    vi.restoreAllMocks()
   })
 
-  it("returns empty string for unknown categories", () => {
-    expect(categoryToHelloworkCode("unknown")).toBe("")
+  it("returns [] when API responds 404 (page out of range)", async () => {
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response("Not Found", {
+          status: 404,
+          statusText: "Not Found",
+        })
+    ) as typeof fetch
+
+    const jobs = await fetchKyujinByDataId("dummy-token", "M105", 5)
+    expect(jobs).toEqual([])
+  })
+
+  it("re-throws on non-404 errors (e.g. 500)", async () => {
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response("Internal Server Error", {
+          status: 500,
+          statusText: "Internal Server Error",
+        })
+    ) as typeof fetch
+
+    await expect(
+      fetchKyujinByDataId("dummy-token", "M100", 1)
+    ).rejects.toThrow(/500/)
   })
 })

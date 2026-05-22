@@ -1,93 +1,59 @@
+/**
+ * 旧: フォーム経由の応募 API
+ *
+ * 応募導線を LINE 公式アカウントへ集約したため、本エンドポイントは廃止。
+ * POST すると 410 Gone を返し、新しい LINE 導線 (/jobs/[id]/apply) へ誘導する。
+ *
+ * GET は /api/users/me/applications で代用する（旧データの参照用に残す）。
+ */
+
 import { type NextRequest } from "next/server"
-import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 
-const applicationSchema = z.object({
-  jobId: z.string().uuid(),
-  message: z.string().max(2000).optional(),
-})
+export const dynamic = "force-dynamic"
 
-export async function POST(request: NextRequest) {
+export function POST() {
+  return Response.json(
+    {
+      error: "gone",
+      message:
+        "メール応募は廃止されました。求人詳細ページの「LINE で応募」から、公式 LINE 経由でお問い合わせください。",
+      replacement: "/jobs/[id]/apply",
+    },
+    { status: 410 }
+  )
+}
+
+/**
+ * GET は引き続き「自分の応募履歴」を返す（既存データの参照用）。
+ * 新規応募はすべて LINE 経由のため、本一覧は時間とともに静的になる。
+ */
+export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session?.user?.id) {
     return Response.json({ error: "ログインが必要です" }, { status: 401 })
   }
 
-  const role = (session.user as { role?: string }).role
-  if (role && role !== "seeker") {
-    return Response.json(
-      { error: "求職者アカウントでログインしてください" },
-      { status: 403 }
-    )
-  }
+  const url = new URL(request.url)
+  const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") ?? "20")))
 
-  let body: unknown
-  try {
-    body = await request.json()
-  } catch {
-    return Response.json(
-      { error: "リクエストの形式が正しくありません" },
-      { status: 400 }
-    )
-  }
-
-  const parsed = applicationSchema.safeParse(body)
-  if (!parsed.success) {
-    return Response.json(
-      { error: "入力内容に誤りがあります", details: parsed.error.issues },
-      { status: 400 }
-    )
-  }
-
-  const { jobId, message } = parsed.data
-
-  // Check job exists and is active
-  const job = await prisma.job.findUnique({
-    where: { id: jobId },
-    select: { id: true, status: true, companyId: true },
-  })
-
-  if (!job) {
-    return Response.json(
-      { error: "指定された求人が見つかりません" },
-      { status: 404 }
-    )
-  }
-
-  if (job.status !== "active") {
-    return Response.json(
-      { error: "この求人は現在募集を停止しています" },
-      { status: 400 }
-    )
-  }
-
-  // Check for duplicate application
-  const existing = await prisma.application.findUnique({
-    where: {
-      jobId_userId: {
-        jobId,
-        userId: session.user.id,
+  const applications = await prisma.application.findMany({
+    where: { userId: session.user.id },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: {
+      job: {
+        select: {
+          id: true,
+          title: true,
+          prefecture: true,
+          city: true,
+          company: { select: { name: true } },
+        },
       },
     },
   })
 
-  if (existing) {
-    return Response.json(
-      { error: "この求人にはすでに応募済みです" },
-      { status: 409 }
-    )
-  }
-
-  const application = await prisma.application.create({
-    data: {
-      jobId,
-      userId: session.user.id,
-      companyId: job.companyId,
-      status: "applied",
-      message: message ?? null,
-    },
-  })
-
-  return Response.json({ application }, { status: 201 })
+  return Response.json({ applications })
 }

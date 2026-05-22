@@ -3,8 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // ランタイム用（Supabase pooler / pgbouncer 経由・port 6543）
+  url       = env("DATABASE_URL")
+  // マイグレーション用（pgbouncer は prepared statement 非対応のため
+  // db push / migrate dev は direct connection・port 5432 を使う）
+  directUrl = env("DIRECT_URL")
 }
 
 // ========================================
@@ -21,18 +25,227 @@ model User {
   birthDate         DateTime? @map("birth_date") @db.Date
   desiredCategories String[]  @default([]) @map("desired_categories")
   desiredSalaryMin  Int?      @map("desired_salary_min")
+  // 17.3 ブロック企業 / NG キーワード: 求職者が現職バレ防止用に設定
+  blockedCompanyIds String[]  @default([]) @map("blocked_company_ids")
+  blockedKeywords   String[]  @default([]) @map("blocked_keywords")
+  // 3.4 通知頻度・時間帯設定 (Json): emailEnabled / lineEnabled / pushEnabled /
+  // frequency (immediate | daily | weekly) / quietHoursStart-End (0-23, JST)
+  notificationPrefs Json      @default("{}") @map("notification_prefs")
   resumeUrl         String?   @map("resume_url") @db.VarChar(500)
   profilePublic     Boolean   @default(false) @map("profile_public")
   authProvider      String    @default("email") @map("auth_provider") @db.VarChar(20)
+  emailVerified     DateTime? @map("email_verified") @db.Timestamptz()
+  verificationToken String?   @unique @map("verification_token") @db.VarChar(64)
+  verificationTokenExpiry DateTime? @map("verification_token_expiry") @db.Timestamptz()
   resetToken        String?   @unique @map("reset_token") @db.VarChar(64)
   resetTokenExpiry  DateTime? @map("reset_token_expiry") @db.Timestamptz()
+  // active: 通常 / suspended: 凍結 (管理側で BAN) / deleted: 退会済 (個人情報匿名化済)
+  status            String    @default("active") @db.VarChar(20)
+  // 求職ステータス (2.6): searching=求職中 / employed_open=在職中(スカウト/オファー歓迎) / hired=採用済み(一時的に非アクティブ)
+  jobSearchStatus   String    @default("searching") @map("job_search_status") @db.VarChar(20)
+  suspendedAt       DateTime? @map("suspended_at") @db.Timestamptz()
+  suspendedReason   String?   @map("suspended_reason") @db.VarChar(500)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz()
+  // 退会フォームで利用規約に同意した時刻 / 18 歳以上であることの確認時刻
+  termsAcceptedAt   DateTime? @map("terms_accepted_at") @db.Timestamptz()
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
-  applications Application[]
-  scouts       Scout[]
+  applications      Application[]
+  resume            Resume?
+  uploadedFiles     UploadedFile[]
+  applicationClicks ApplicationClick[]
+  jobViews          JobView[]
+  notifications     Notification[]
+  savedSearches     SavedSearch[]
+  messageTemplates  ApplicationMessageTemplate[]
+  jobFavorites      JobFavorite[]
+  jobInterests      JobInterest[]
+  companyFollows    CompanyFollow[]
+  reportsSubmitted  Report[] @relation("ReportReporter")
+  scoutsReceived    ScoutMessage[]
+  earlyResignations EarlyResignation[]
 
   @@map("users")
+}
+
+// ========================================
+// 企業フォロー
+// ========================================
+// 求職者が気になる企業をフォロー → その企業の新着求人が出たら通知される。
+model CompanyFollow {
+  userId    String   @map("user_id") @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  // 最後にスキャンした時刻（saved-search-alerts cron で更新）
+  lastNotifiedAt DateTime? @map("last_notified_at") @db.Timestamptz()
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, companyId])
+  @@index([userId, createdAt(sort: Desc)], name: "idx_company_follows_user")
+  @@index([companyId], name: "idx_company_follows_company")
+  @@map("company_follows")
+}
+
+// ========================================
+// 応募メッセージ テンプレート
+// ========================================
+// 求職者が応募フォームの「ご質問・希望条件」欄にすばやく挿入できる定型文。
+// 1 ユーザーあたり 10 件まで（API で制限）。
+model ApplicationMessageTemplate {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String   @db.VarChar(60)
+  body      String
+  sortOrder Int      @default(100) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sortOrder], name: "idx_app_msg_tpl_user")
+  @@map("application_message_templates")
+}
+
+// ========================================
+// 求人お気に入り（保存して後で見る）
+// ========================================
+model JobFavorite {
+  userId    String   @map("user_id") @db.Uuid
+  jobId     String   @map("job_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@id([userId, jobId])
+  @@index([userId, createdAt(sort: Desc)], name: "idx_job_favorites_user")
+  @@index([jobId], name: "idx_job_favorites_job")
+  @@map("job_favorites")
+}
+
+// ========================================
+// 検索保存・新着アラート
+// ========================================
+// 求職者が条件を保存し、日次バッチで新着求人をマッチさせて inbox / LINE に通知する。
+model SavedSearch {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  // ユーザーが見つけやすいよう自分で付ける名前。空なら自動生成。
+  name           String   @db.VarChar(100)
+  // フィルタ条件（/jobs のクエリと同じ意味論）
+  q              String?  @db.VarChar(200)
+  prefecture     String?  @db.VarChar(20)
+  city           String?  @db.VarChar(100)
+  category       String?  @db.VarChar(50)
+  employmentType String?  @map("employment_type") @db.VarChar(20)
+  salaryMin      Int?     @map("salary_min")
+  source         String?  @db.VarChar(20) // direct | hellowork、null なら両方
+  // 求人の tags のいずれかが含まれる場合にマッチ（OR）
+  tags           String[] @default([])
+  // 求人の title / description にこれらの語が含まれる場合は除外（AND NOT）
+  excludeKeywords String[] @default([]) @map("exclude_keywords")
+  // 通知設定
+  alertEnabled   Boolean  @default(true) @map("alert_enabled")
+  // 最後にスキャンした時刻。これより新しい publishedAt を新着とみなす。
+  lastNotifiedAt DateTime? @map("last_notified_at") @db.Timestamptz()
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)], name: "idx_saved_searches_user")
+  @@index([alertEnabled, lastNotifiedAt], name: "idx_saved_searches_alert")
+  @@map("saved_searches")
+}
+
+// ========================================
+// 管理者・企業ユーザーの監査ログ
+// ========================================
+// 重要な操作（求人の承認/却下、テンプレ編集、企業情報更新、応募ステータス変更 等）
+// を時系列で保存する。
+//   - actorType: admin | company_user | system
+//   - resourceType: company | job | job_template | application | line_lead | ...
+//   - action: create | update | delete | approve | reject | login | …（自由形式 VarChar）
+//   - diff: 任意のスナップショット / 差分 JSON
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  actorType    String   @map("actor_type") @db.VarChar(20)
+  actorId      String?  @map("actor_id") @db.VarChar(64)
+  actorEmail   String?  @map("actor_email") @db.VarChar(255)
+  resourceType String   @map("resource_type") @db.VarChar(40)
+  resourceId   String?  @map("resource_id") @db.VarChar(64)
+  action       String   @db.VarChar(40)
+  // 1 行サマリ（一覧に出すラベル）
+  summary      String?  @db.VarChar(500)
+  // 任意の追加情報・差分（前後の値、IP、UA など）
+  diff         Json?
+  ipAddress    String?  @map("ip_address") @db.VarChar(45)
+  userAgent    String?  @map("user_agent") @db.VarChar(500)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([resourceType, resourceId, createdAt(sort: Desc)], name: "idx_audit_resource")
+  @@index([actorType, actorId, createdAt(sort: Desc)], name: "idx_audit_actor")
+  @@index([createdAt(sort: Desc)], name: "idx_audit_created")
+  @@map("audit_logs")
+}
+
+// ========================================
+// 求人投稿テンプレート（管理者運用）
+// ========================================
+// 求人投稿ウィザードで利用できるカテゴリ別ひな型。
+// 静的データとして src/lib/job-templates.ts に持っていたものを DB 化し、
+// 管理者画面から自由に編集できるようにしたもの。
+model JobTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  // 一意な slug（旧静的データ互換のため、初回 seed では "construction-tobi" 等）
+  slug        String   @unique @db.VarChar(100)
+  name        String   @db.VarChar(100)
+  category    String   @db.VarChar(50)
+  description String
+  requirements String?
+  benefits    String[] @default([])
+  tags        String[] @default([])
+  salaryMin   Int?     @map("salary_min")
+  salaryMax   Int?     @map("salary_max")
+  hint        String?  @db.VarChar(500)
+  // 並び順（数値小さい順、同点はカテゴリ → 名前）
+  sortOrder   Int      @default(100) @map("sort_order")
+  // 利用可否（false にすると wizard には出ない）
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@index([isActive, sortOrder], name: "idx_job_templates_listing")
+  @@map("job_templates")
+}
+
+// ========================================
+// 求職者向け通知
+// ========================================
+// マイページの通知センターに表示する inbox 行。
+// メール / LINE への配信は別経路で行い、本テーブルは「未読・既読」を管理する。
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  // application_status | system | promo
+  type      String   @db.VarChar(30)
+  title     String   @db.VarChar(200)
+  body      String?
+  // クリック時の遷移先（/mypage/applications/<id> 等）
+  linkUrl   String?  @map("link_url") @db.VarChar(500)
+  // 既読日時。null なら未読。
+  readAt    DateTime? @map("read_at") @db.Timestamptz()
+  // 関連リソースの id（applicationId / jobId 等）
+  refId     String?  @map("ref_id") @db.VarChar(50)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt(sort: Desc)], name: "idx_notifications_user_inbox")
+  @@map("notifications")
 }
 
 // ========================================
@@ -40,7 +253,15 @@ model User {
 // ========================================
 model Company {
   id               String   @id @default(uuid()) @db.Uuid
+  // 掲載元: direct(自社掲載企業) | hellowork(HelloWork API 由来の参照データ)
+  source           String   @default("direct") @db.VarChar(20)
   name             String   @db.VarChar(200)
+  // 13 桁の法人番号（国税庁 / GbizINFO API 連携用、本登録は任意）
+  corporateNumber  String?  @unique @map("corporate_number") @db.VarChar(13)
+  // GbizINFO から最後に取得した日時（バッチで定期更新）
+  gbizSyncedAt     DateTime? @map("gbiz_synced_at") @db.Timestamptz()
+  // GbizINFO 取得結果のキャッシュ（建設業許可・表彰歴等を JSON で保持）
+  gbizData         Json?    @map("gbiz_data")
   industry         String?  @db.VarChar(100)
   prefecture       String?  @db.VarChar(10)
   city             String?  @db.VarChar(50)
@@ -50,15 +271,92 @@ model Company {
   logoUrl          String?  @map("logo_url") @db.VarChar(500)
   websiteUrl       String?  @map("website_url") @db.VarChar(500)
   contactEmail     String?  @map("contact_email") @db.VarChar(255)
+  // stripeCustomerId は 2026-05 の Stripe 廃止に伴い不使用 (カラムは互換性のため温存)
   stripeCustomerId String?  @map("stripe_customer_id") @db.VarChar(100)
+  // マネーフォワード クラウド請求書の取引先 ID
+  mfPartnerId      String?  @map("mf_partner_id") @db.VarChar(100)
+  // 支払方法: moneyforward(請求書+銀行振込) のみ。Stripe は 2026-05 に廃止。
+  paymentMethod    String   @default("moneyforward") @map("payment_method") @db.VarChar(20)
+
+  // === 掲載プラン (C2-C8, 2026-05 追加) =================================
+  // success_fee:   成果報酬 ¥498k〜 (default)
+  // monthly_12:    12 ヶ月月額一括前払い
+  // monthly_24:    24 ヶ月月額一括前払い
+  // campaign_free: キャンペーン枠 ¥0 無期限
+  // sns_client:    サクバズ SNS クライアント (¥0、契約期間有限)
+  planType         String    @default("success_fee") @map("plan_type") @db.VarChar(20)
+  // 月額プランの契約終了日。null なら期限なし (success_fee / campaign_free)
+  planPaidUntil    DateTime? @map("plan_paid_until") @db.Timestamptz()
+  // プラン適用開始日 (admin が手動設定)
+  planActivatedAt  DateTime? @map("plan_activated_at") @db.Timestamptz()
+  // 一括前払いフラグ (monthly_12 / monthly_24 は常に true、中途解約不可)
+  planPrepaidFull  Boolean   @default(true) @map("plan_prepaid_full")
+  // 求人一覧の上位表示優先度。planType の denormalized cache。
+  // 3: paid (success_fee / monthly_12 / monthly_24) / 2: sns_client / 1: campaign_free / 0: それ以外
+  planTier         Int       @default(3) @map("plan_tier")
+  // admin メモ (契約書 ID / 営業担当 / 注釈)
+  planNotes        String?   @map("plan_notes") @db.VarChar(500)
+  // 期限切れ通知 (30 日前) を送ったタイミング。重複送信防止用
+  planExpiryNotifiedAt DateTime? @map("plan_expiry_notified_at") @db.Timestamptz()
+  // C8 公平ローテーション用: 日次 cron で更新されるランダム整数 (0-999999)。
+  // 求人一覧の ORDER BY で planTier の次のキーとして使い、同 tier 内の
+  // 表示順を日次でシャッフルする (paid 平等枠の機会均等のため)。
+  rotationKey      Int       @default(0) @map("rotation_key")
+  // 承認ステータス: pending(申請中) | approved(承認済) | rejected(却下)
+  // HelloWork 由来の参照企業は承認フローの対象外なので "approved" 固定
+  status           String   @default("pending") @db.VarChar(20)
+  approvedAt       DateTime? @map("approved_at") @db.Timestamptz()
+  rejectedAt       DateTime? @map("rejected_at") @db.Timestamptz()
+  rejectionReason  String?   @map("rejection_reason")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
+  // 求人詳細ページ用のリッチコンテンツ。すべて nullable。
+  // tagline はメガホン枠の 1 行キャッチコピー
+  tagline           String? @db.VarChar(200)
+  // 「こんなトコロがすごい！」自社の魅力ポイント
+  pitchHighlights   String? @map("pitch_highlights")
+  // 「こんな人が向いています！」求める人物像
+  idealCandidate    String? @map("ideal_candidate")
+  // 「働いている社員の声」employee voice
+  employeeVoice     String? @map("employee_voice")
+  // 求人写真ギャラリー（最大 12 枚想定、URL のみ保持。ストレージ上限は別途運用で管理）
+  photos            String[] @default([])
+
+  // SNS リンク（5 種）
+  instagramUrl      String? @map("instagram_url") @db.VarChar(500)
+  tiktokUrl         String? @map("tiktok_url") @db.VarChar(500)
+  facebookUrl       String? @map("facebook_url") @db.VarChar(500)
+  xUrl              String? @map("x_url") @db.VarChar(500)
+  youtubeUrl        String? @map("youtube_url") @db.VarChar(500)
+
+  // 求人一覧のソート順決定に使う。リッチコンテンツが最後に更新された日時。
+  // 3 ヶ月以内に更新されているかが「活性企業」の指標になる。
+  lastContentUpdatedAt DateTime? @map("last_content_updated_at") @db.Timestamptz()
+
+  // 面接調整ツールへのリンク（Google Cal / TimeRex / Calendly / 役員専用 等）。
+  // 形式: [{ name: string, url: string, primary?: boolean }]
+  // 役員専用 URL も含めて自由に複数登録できる。
+  schedulingUrls Json @default("[]") @map("scheduling_urls")
+
   companyUsers  CompanyUser[]
+  invitations   CompanyInvitation[]
   jobs          Job[]
-  scouts        Scout[]
   billingEvents BillingEvent[]
   applications  Application[]
+  followers     CompanyFollow[]
+  reviews       CompanyReview[]
+  scoutsSent    ScoutMessage[]
+  earlyResignations EarlyResignation[]
 
+  @@unique([source, name], name: "company_source_name_unique")
+  @@index([status], name: "idx_companies_status")
+  @@index([source], name: "idx_companies_source")
+  @@index([source, status, createdAt(sort: Desc)], name: "idx_companies_admin_list")
+  @@index([lastContentUpdatedAt(sort: Desc)], name: "idx_companies_last_content")
+  // 求人一覧の上位表示ソート用 (planTier DESC + rotationKey ASC で日次シャッフル)
+  @@index([planTier(sort: Desc), rotationKey], name: "idx_companies_plan_tier_rotation")
+  // 期限切れ通知 cron 用
+  @@index([planType, planPaidUntil], name: "idx_companies_plan_expiry")
   @@map("companies")
 }
 
@@ -72,11 +370,41 @@ model CompanyUser {
   passwordHash String   @map("password_hash") @db.VarChar(255)
   name         String?  @db.VarChar(100)
   role         String   @default("member") @db.VarChar(20) // admin | member
+  // TOTP 2FA (RFC 6238). 有効化後はログイン時に 6 桁コードが必須。
+  // totpSecret は base32 エンコード（otplib のデフォルト）。
+  totpSecret      String?  @map("totp_secret") @db.VarChar(64)
+  totpEnabled     Boolean  @default(false) @map("totp_enabled")
+  totpEnabledAt   DateTime? @map("totp_enabled_at") @db.Timestamptz()
+  // 1 回限りのリカバリコード（ハッシュ化 [bcrypt] して保存。1 件 60 char 程度）
+  totpRecoveryCodes String[] @default([]) @map("totp_recovery_codes")
+  // 直接発行 (admin が仮 PW 手渡し) で作成された場合 true。
+  // 初回ログイン直後に /company/change-password へ強制リダイレクト。
+  mustChangePassword Boolean @default(false) @map("must_change_password")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("company_users")
+}
+
+// 企業ユーザー招待。admin が /admin/companies/[id] から発行する。
+// token は 64 桁 hex。期限 7 日。accept されると acceptedAt がセットされる。
+model CompanyInvitation {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  email       String    @db.VarChar(255)
+  token       String    @unique @db.VarChar(64)
+  role        String    @default("admin") @db.VarChar(20) // admin | member
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz()
+  acceptedAt  DateTime? @map("accepted_at") @db.Timestamptz()
+  invitedById String?   @map("invited_by_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId], name: "idx_company_invitations_company_id")
+  @@index([email], name: "idx_company_invitations_email")
+  @@map("company_invitations")
 }
 
 // ========================================
@@ -87,7 +415,7 @@ model Job {
   companyId      String?   @map("company_id") @db.Uuid
   source         String    @default("direct") @db.VarChar(20) // direct | hellowork
   helloworkId    String?   @unique @map("hellowork_id") @db.VarChar(50)
-  title          String    @db.VarChar(200)
+  title          String    @db.VarChar(500)
   category       String    @db.VarChar(50) // driver | construction | manufacturing | other
   subcategory    String?   @db.VarChar(50)
   employmentType String?   @map("employment_type") @db.VarChar(20) // full_time | part_time | contract
@@ -96,25 +424,91 @@ model Job {
   salaryMin      Int?      @map("salary_min")
   salaryMax      Int?      @map("salary_max")
   salaryType     String?   @map("salary_type") @db.VarChar(20) // monthly | hourly | annual
-  prefecture     String    @db.VarChar(10)
-  city           String?   @db.VarChar(50)
+  prefecture     String    @db.VarChar(20)
+  city           String?   @db.VarChar(100)
   address        String?
   benefits       String[]  @default([])
   tags           String[]  @default([])
+  // 動画求人用の埋め込み URL（YouTube / TikTok / Vimeo を想定、最大 6 本）
+  videoUrls      String[]  @default([]) @map("video_urls")
   status         String    @default("active") @db.VarChar(20) // draft | active | closed
   publishedAt    DateTime? @map("published_at") @db.Timestamptz()
   expiresAt      DateTime? @map("expires_at") @db.Timestamptz()
+  // true: expiresAt 到達時に cron が +30 日延長して active 維持
+  autoRenew      Boolean   @default(false) @map("auto_renew")
   viewCount      Int       @default(0) @map("view_count")
+  // 下書き状態でも社内チェック用に共有できるプレビュートークン（hex）。
+  // 未設定なら「プレビュー URL を発行」ボタンで生成する。
+  previewToken   String?   @unique @map("preview_token") @db.VarChar(64)
+  // 求人一覧の「おすすめ順」で使うスコア。
+  // 内容量・SNS 登録数・写真数・3 ヶ月以内更新を加点で評価する（ranking.ts 参照）。
+  // 取り込み時 / 企業プロフィール保存時に再計算される。
+  rankScore      Int       @default(0) @map("rank_score")
+
+  // 成果報酬単価（円）。求人ごとに admin が個別設定する想定。
+  // NULL の場合は HIRING_FEE_AMOUNT 定数（既定 498,000）にフォールバック。
+  // 有効レンジ: 200,000 〜 2,000,000（UI / API の Zod バリデーションで担保）
+  hiringFeeAmount Int?     @map("hiring_fee_amount")
+
+  // 8.4 重複求人検出用ハッシュ (title 正規化 + companyId or 会社名 + prefecture から生成)
+  // 同一 dedupeKey の求人は 1 つだけ active で表示、他は status=closed に降格される
+  dedupeKey      String?  @map("dedupe_key") @db.VarChar(64)
+  // この求人が他求人の重複として close された場合、その代表求人の id
+  dedupedTo      String?  @map("deduped_to") @db.Uuid
+
+  // ハローワーク API 由来の拡張フィールド（C案ハイブリッド: 主要項目を個別カラム化）
+  occupationTitle        String?   @map("occupation_title") @db.VarChar(100)
+  jobConditionNotes      String?   @map("job_condition_notes")
+  industryCode           String?   @map("industry_code") @db.VarChar(10)
+  industryMajorCode      String?   @map("industry_major_code") @db.VarChar(5)
+  occupationCode         String?   @map("occupation_code") @db.VarChar(10)
+  occupationCategoryName String?   @map("occupation_category_name") @db.VarChar(50)
+  jobTypeName            String?   @map("job_type_name") @db.VarChar(20)
+  baseSalary             String?   @map("base_salary") @db.VarChar(50)
+  bonus                  String?   @db.VarChar(100)
+  commuteAllowance       String?   @map("commute_allowance") @db.VarChar(50)
+  fixedOvertime          String?   @map("fixed_overtime") @db.VarChar(100)
+  workHours              String?   @map("work_hours") @db.VarChar(100)
+  workHoursNotes         String?   @map("work_hours_notes") @db.VarChar(255)
+  holidays               String?   @db.VarChar(50)
+  holidaysOther          String?   @map("holidays_other") @db.VarChar(200)
+  annualHolidays         Int?      @map("annual_holidays")
+  insurance              String?   @db.VarChar(50)
+  smokingPolicy          String?   @map("smoking_policy") @db.VarChar(20)
+  trialPeriod            String?   @map("trial_period") @db.VarChar(100)
+  requiredExperience     String?   @map("required_experience") @db.VarChar(500)
+  education              String?   @db.VarChar(50)
+  recruitmentCount       String?   @map("recruitment_count") @db.VarChar(10)
+  recruitmentReason      String?   @map("recruitment_reason") @db.VarChar(20)
+  companyFeatures        String?   @map("company_features")
+  businessContent        String?   @map("business_content")
+  companyUrl             String?   @map("company_url") @db.VarChar(255)
+  validUntil             DateTime? @map("valid_until") @db.Date
+  receivedDate           DateTime? @map("received_date") @db.Date
+  // 上記以外の API タグを丸ごと格納
+  rawData                Json?     @map("raw_data")
+
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
-  company      Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  applications Application[]
-  scouts       Scout[]
+  company           Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  applications      Application[]
+  applicationClicks ApplicationClick[]
+  lineLeads         LineLead[]
+  jobViews          JobView[]
+  favorites         JobFavorite[]
+  interests         JobInterest[]
+  scouts            ScoutMessage[]
+  earlyResignations EarlyResignation[]
 
+  @@index([dedupeKey], name: "idx_jobs_dedupe_key")
   @@index([prefecture, category, employmentType, status], name: "idx_jobs_search")
   @@index([salaryMin, salaryMax], name: "idx_jobs_salary")
   @@index([status, publishedAt(sort: Desc)], name: "idx_jobs_status_published")
+  @@index([status, rankScore(sort: Desc), publishedAt(sort: Desc)], name: "idx_jobs_status_rank")
+  @@index([industryMajorCode], name: "idx_jobs_industry_major")
+  // 企業ダッシュボード KPI 集計 (status 別カウント / aggregate viewCount) 高速化
+  @@index([companyId, status], name: "idx_jobs_company_status")
   @@map("jobs")
 }
 
@@ -128,36 +522,179 @@ model Application {
   companyId String?  @map("company_id") @db.Uuid
   status    String   @default("applied") @db.VarChar(20) // applied | reviewing | interview | offered | hired | rejected
   message   String?
+  // 企業担当者用の社内メモ。求職者には公開しない。
+  internalNotes String? @map("internal_notes")
+  // 面接候補日時。複数候補をサポートするため Timestamptz[] で保持する（NULL = 未調整）。
+  interviewSlots DateTime[] @default([]) @map("interview_slots") @db.Timestamptz()
+  // 最終的に確定した面接日時。1 つだけ。
+  interviewAt   DateTime? @map("interview_at") @db.Timestamptz()
+  // 面接場所 / 案内
+  interviewVenue String? @map("interview_venue") @db.VarChar(500)
+  // 14.5 オンライン面接 URL (Zoom / Google Meet 等)。
+  // 既存の interviewVenue とは別に持ち、企業ダッシュボードで明示的に管理。
+  interviewUrl   String? @map("interview_url") @db.VarChar(500)
+  // 14.4 Google Calendar 連携で作成したイベント ID。null = 未連携 / 削除済み
+  googleCalendarEventId String? @map("google_calendar_event_id") @db.VarChar(200)
+  // ステータス遷移履歴（{ from, to, at, by, note }[]）
+  statusHistory Json @default("[]") @map("status_history")
+  // 採用確定日 (status='hired' へ遷移したタイミング)。C3 戻入処理の経過月数計算の基準。
+  // hiredAt は「入社日」として扱う (運用上もこの日を入社日と見做す)。
+  hiredAt   DateTime? @map("hired_at") @db.Timestamptz()
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
-  job          Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company      Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  billingEvent BillingEvent?
+  job             Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company         Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  billingEvent    BillingEvent?
+  earlyResignation EarlyResignation?
 
   @@unique([jobId, userId])
+  @@index([companyId, createdAt(sort: Desc)], name: "idx_applications_by_company")
+  @@index([userId, createdAt(sort: Desc)], name: "idx_applications_by_user")
+  @@index([status, createdAt(sort: Desc)], name: "idx_applications_by_status")
   @@map("applications")
 }
 
 // ========================================
-// スカウト
+// 応募ボタンクリック計測（LINE 集約導線）
 // ========================================
-model Scout {
-  id        String    @id @default(uuid()) @db.Uuid
-  companyId String    @map("company_id") @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  jobId     String?   @map("job_id") @db.Uuid
-  message   String?
-  status    String    @default("sent") @db.VarChar(20) // sent | read | replied | declined
-  sentAt    DateTime  @default(now()) @map("sent_at") @db.Timestamptz()
-  readAt    DateTime? @map("read_at") @db.Timestamptz()
+// 「LINE で応募」ボタンが押された瞬間に記録する。
+// 実際の応募成立は LINE 上で運営が確認するため、本テーブルは「興味を持った数」
+// （リード）の指標として使う。userId は未ログイン時 null。
+model ApplicationClick {
+  id        String   @id @default(uuid()) @db.Uuid
+  jobId     String   @map("job_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  // 匿名ユーザーの追跡用 cookie (gc_sid) と GA4 client_id を紐付ける
+  sessionId String?  @map("session_id") @db.VarChar(50)
+  source    String   @default("job_detail") @db.VarChar(20) // job_card | job_detail | apply_page
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.VarChar(500)
+  referer   String?  @db.VarChar(500)
+  clickedAt DateTime @default(now()) @map("clicked_at") @db.Timestamptz()
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  job     Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  job  Job   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  @@map("scouts")
+  @@index([jobId, clickedAt(sort: Desc)], name: "idx_app_clicks_job_time")
+  @@index([userId, clickedAt(sort: Desc)], name: "idx_app_clicks_user_time")
+  @@map("application_clicks")
+}
+
+// ========================================
+// LINE 応募ミニフォームから生成されるリード
+// ========================================
+// 求人詳細から「LINE で応募」を押すと、まずミニフォーム（氏名 / 電話 / メール 必須）
+// を経由して当 LeadCapture に保存し、その後 LINE 公式アカウントへ遷移する。
+// LINE 友だち追加後の Webhook で lineUserId が後追いで紐付く。
+model LineLead {
+  id              String   @id @default(uuid()) @db.Uuid
+  jobId           String?  @map("job_id") @db.Uuid
+  name            String   @db.VarChar(100)
+  phone           String   @db.VarChar(30)
+  email           String   @db.VarChar(255)
+  prefecture      String?  @db.VarChar(10)
+  experienceYears Int?     @map("experience_years")
+  notes           String?
+  // 匿名ユーザーの追跡用 cookie (gc_sid)。閲覧履歴との照合に使う
+  sessionId       String?  @map("session_id") @db.VarChar(50)
+  // 流入分析: UTM パラメータをサーバ側でも保存
+  utmSource       String?  @map("utm_source") @db.VarChar(100)
+  utmMedium       String?  @map("utm_medium") @db.VarChar(100)
+  utmCampaign     String?  @map("utm_campaign") @db.VarChar(100)
+  referer         String?  @db.VarChar(500)
+  // 配信オプトアウト（true なら一括配信から除外）
+  optedOut        Boolean  @default(false) @map("opted_out")
+  optedOutAt      DateTime? @map("opted_out_at") @db.Timestamptz()
+  // 'admin' | 'webhook' | 'manual'
+  optedOutSource  String?  @map("opted_out_source") @db.VarChar(20)
+  // LINE 友だち追加後の Webhook でセットされる
+  lineUserId      String?  @map("line_user_id") @db.VarChar(50)
+  lineDisplayName String?  @map("line_display_name") @db.VarChar(100)
+  // pending | line_added | contacted | qualified | converted | rejected
+  status          String   @default("pending") @db.VarChar(20)
+  ipAddress       String?  @map("ip_address") @db.VarChar(45)
+  userAgent       String?  @map("user_agent") @db.VarChar(500)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  job Job? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([jobId, createdAt(sort: Desc)], name: "idx_line_leads_job")
+  @@index([lineUserId], name: "idx_line_leads_line_user")
+  @@index([status, createdAt(sort: Desc)], name: "idx_line_leads_status")
+  @@index([sessionId], name: "idx_line_leads_session")
+  @@map("line_leads")
+}
+
+// ========================================
+// 求人詳細ページの閲覧ログ
+// ========================================
+// 求人詳細ページ /jobs/[id] が表示されるたびに 1 行 INSERT。
+// 匿名ユーザーを sessionId (gc_sid cookie) で同一識別し、
+// lead 化前にどの求人を見ていたかをトラックする。
+// admin 画面で「この lead がこれまで見た求人」一覧を表示する用途。
+// 求人ごとの人気度集計にも使える。
+model JobView {
+  id          String   @id @default(uuid()) @db.Uuid
+  jobId       String   @map("job_id") @db.Uuid
+  sessionId   String?  @map("session_id") @db.VarChar(50)
+  userId      String?  @map("user_id") @db.Uuid
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  userAgent   String?  @map("user_agent") @db.VarChar(500)
+  referer     String?  @db.VarChar(500)
+  utmSource   String?  @map("utm_source") @db.VarChar(100)
+  utmMedium   String?  @map("utm_medium") @db.VarChar(100)
+  utmCampaign String?  @map("utm_campaign") @db.VarChar(100)
+  viewedAt    DateTime @default(now()) @map("viewed_at") @db.Timestamptz()
+
+  job  Job   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([jobId, viewedAt(sort: Desc)], name: "idx_job_views_job_time")
+  @@index([sessionId, viewedAt(sort: Desc)], name: "idx_job_views_session_time")
+  @@map("job_views")
+}
+
+// ========================================
+// 一括 LINE Push 配信ログ
+// ========================================
+// admin から「セグメント配信」を実行したときの記録。
+// 配信パラメータ + 結果（成功 / 失敗 / スキップ数）を残す。
+model BroadcastLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  // 配信時のセグメント条件（JSON: utm_source, category, prefecture, status, since, until 等）
+  segment       Json
+  // 配信対象求人 ID（最大 5 件）
+  jobIds        String[] @map("job_ids") @db.Uuid
+  freeText      String?  @map("free_text")
+  // 集計
+  targetCount   Int      @map("target_count")
+  successCount  Int      @map("success_count")
+  failureCount  Int      @map("failure_count")
+  skippedCount  Int      @map("skipped_count") // line bind 未済等
+  triggeredBy   String?  @map("triggered_by") @db.Uuid // 操作した admin user id
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([createdAt(sort: Desc)], name: "idx_broadcast_logs_time")
+  @@map("broadcast_logs")
+}
+
+/// 検索ログ。/jobs での検索クエリと結果件数を記録し、
+/// admin が「人気キーワード」「ゼロヒットクエリ」を可視化する。
+model SearchLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  query        String?  @db.VarChar(200)
+  prefecture   String?  @db.VarChar(20)
+  category     String?  @db.VarChar(50)
+  resultCount  Int      @map("result_count")
+  sessionId    String?  @map("session_id") @db.VarChar(50)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([createdAt(sort: Desc)], name: "idx_search_logs_time")
+  @@index([query, createdAt(sort: Desc)], name: "idx_search_logs_query")
+  @@map("search_logs")
 }
 
 // ========================================
@@ -169,7 +706,14 @@ model BillingEvent {
   applicationId   String   @unique @map("application_id") @db.Uuid
   eventType       String   @map("event_type") @db.VarChar(20) // hired
   amount          Int // 成果報酬金額（円）
+  // 請求書発行プロバイダ: moneyforward のみ。Stripe は 2026-05 廃止。
+  provider        String   @default("moneyforward") @db.VarChar(20)
+  // stripeInvoiceId は 2026-05 の Stripe 廃止に伴い不使用 (カラムは互換性のため温存)
   stripeInvoiceId String?  @map("stripe_invoice_id") @db.VarChar(100)
+  // マネーフォワード クラウド請求書の請求書 ID
+  mfBillingId     String?  @map("mf_billing_id") @db.VarChar(100)
+  // 請求書 PDF / Web 公開 URL
+  invoiceUrl      String?  @map("invoice_url") @db.VarChar(500)
   status          String   @default("pending") @db.VarChar(20) // pending | invoiced | paid | failed
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
@@ -177,6 +721,114 @@ model BillingEvent {
   application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   @@map("billing_events")
+}
+
+// ========================================
+// 履歴書・職務経歴書（アプリ内作成）
+// ========================================
+model Resume {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @unique @map("user_id") @db.Uuid
+
+  // 基本情報
+  fullName      String?  @map("full_name") @db.VarChar(100)
+  furigana      String?  @db.VarChar(100)
+  birthDate     DateTime? @map("birth_date") @db.Date
+  gender        String?  @db.VarChar(10)
+  postalCode    String?  @map("postal_code") @db.VarChar(10)
+  address       String?
+  phone         String?  @db.VarChar(20)
+  email         String?  @db.VarChar(255)
+  photo         String?  @db.VarChar(500) // 証明写真URL
+
+  // 学歴・職歴 (JSON配列)
+  educationHistory Json? @map("education_history") @db.JsonB // [{year, month, content}]
+  workHistory      Json? @map("work_history") @db.JsonB      // [{year, month, content}]
+
+  // 免許・資格 (JSON配列)
+  licenses Json? @db.JsonB // [{year, month, name}]
+
+  // 志望動機・自己PR
+  motivation String?
+  selfPr     String? @map("self_pr")
+
+  // 職務経歴書
+  careerSummary    String?  @map("career_summary")  // 職務要約
+  careerDetails    Json?    @map("career_details") @db.JsonB // [{company, period, position, description}]
+  skills           String[] @default([])              // 保有スキル
+  qualifications   String[] @default([])              // 資格一覧
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("resumes")
+}
+
+// ========================================
+// アップロードファイル
+// ========================================
+model UploadedFile {
+  id       String @id @default(uuid()) @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+  fileName String @map("file_name") @db.VarChar(255)
+  fileType String @map("file_type") @db.VarChar(20) // resume | cv | other
+  fileUrl  String @map("file_url") @db.VarChar(500)
+  fileSize Int    @map("file_size") // bytes
+  mimeType String @map("mime_type") @db.VarChar(100)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("uploaded_files")
+}
+
+// ========================================
+// マガジン記事
+// ========================================
+model Article {
+  id              String    @id @default(uuid()) @db.Uuid
+  slug            String    @unique @db.VarChar(200)
+  title           String    @db.VarChar(200)
+  excerpt         String?   @db.VarChar(500)
+  body            String    // HTML本文
+  category        String    @db.VarChar(50) // career, salary, license, job-type, industry, interview
+  subcategory     String?   @db.VarChar(50) // construction: civil | building | equipment | electrical | plumbing | demolition | interior | exterior | reinforcing | heavy_equipment | surveying | safety | tips
+  tags            String[]  @default([])
+  imageUrl        String?   @map("image_url") @db.VarChar(500)
+  metaDescription String?   @map("meta_description") @db.VarChar(300)
+  authorName      String    @default("建設求人ポータル編集部") @map("author_name") @db.VarChar(100)
+  status          String    @default("published") @db.VarChar(20) // draft | published
+  featured        Boolean   @default(false)
+  viewCount       Int       @default(0) @map("view_count")
+  publishedAt     DateTime? @map("published_at") @db.Timestamptz()
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@index([status, publishedAt(sort: Desc)], name: "idx_articles_published")
+  @@index([category, status], name: "idx_articles_category")
+  @@map("articles")
+}
+
+// ========================================
+// 外部 API 取り込み進捗
+// HelloWork 全国 36 万件の (dataId, page) ローテーション状態を保持する
+// ========================================
+model ImportProgress {
+  id           String    @id @default(uuid()) @db.Uuid
+  source       String    @db.VarChar(20)  // "hellowork"
+  dataId       String    @map("data_id") @db.VarChar(20)  // e.g. "M100"
+  lastPage     Int       @default(0) @map("last_page")  // 直近で完了したページ番号 (0=未着手)
+  exhausted    Boolean   @default(false)  // 末尾ページに到達したら true
+  totalFetched Int       @default(0) @map("total_fetched")
+  lastRunAt    DateTime? @map("last_run_at") @db.Timestamptz()
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@unique([source, dataId])
+  @@map("import_progress")
 }
 
 // ========================================
@@ -195,4 +847,377 @@ model SeoPage {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
   @@map("seo_pages")
+}
+
+// ========================================
+// 通報・レポート (6.2)
+// ========================================
+/// 求人 / 企業 / ユーザー / 口コミ等への通報。
+/// targetType + targetId のシンプル多態。reporterId は匿名通報 (null) も許可。
+/// admin が status を resolved / dismissed に更新して処理。
+model Report {
+  id          String    @id @default(uuid()) @db.Uuid
+  targetType  String    @map("target_type") @db.VarChar(20) // job | company | user | review
+  targetId    String    @map("target_id") @db.Uuid
+  reporterId  String?   @map("reporter_id") @db.Uuid
+  reporterIp  String?   @map("reporter_ip") @db.VarChar(45)
+  reason      String    @db.VarChar(100) // 規約違反 | 虚偽情報 | 不適切な表現 | 個人情報 | その他
+  detail      String?
+  status      String    @default("open") @db.VarChar(20) // open | resolved | dismissed
+  resolvedAt  DateTime? @map("resolved_at") @db.Timestamptz()
+  resolvedBy  String?   @map("resolved_by") @db.Uuid // admin user id
+  resolution  String?   @db.VarChar(500)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  reporter User? @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)], name: "idx_reports_status_time")
+  @@index([targetType, targetId], name: "idx_reports_target")
+  @@map("reports")
+}
+
+// ========================================
+// クローラ求人のカテゴリ分類 (7.1)
+// ========================================
+/// 取り込んだ Job に対して、ルール / LLM / 手動で
+/// 業界・職種を判定した結果。Job 1:1。
+model JobCategoryClassification {
+  jobId        String   @id @map("job_id") @db.Uuid
+  industry     String   @db.VarChar(50)
+  occupation   String   @db.VarChar(50)
+  confidence   Float    // 0.0-1.0
+  classifiedBy String   @map("classified_by") @db.VarChar(20) // rule | llm | manual
+  classifiedAt DateTime @default(now()) @map("classified_at") @db.Timestamptz()
+
+  @@index([industry, occupation], name: "idx_job_classification")
+  @@map("job_category_classifications")
+}
+
+// ========================================
+// クローラ差分同期 (7.2)
+// ========================================
+/// 外部ソース別の最終同期チェックポイント。
+/// 次回クロール時に lastCursor / lastSyncedAt から差分のみ取り込む。
+model CrawlerSyncCheckpoint {
+  source         String   @id @db.VarChar(50) // hellowork | indeed | ...
+  lastSyncedAt   DateTime @map("last_synced_at") @db.Timestamptz()
+  lastCursor     String?  @map("last_cursor") @db.VarChar(200)
+  totalImported  Int      @default(0) @map("total_imported")
+  totalUpdated   Int      @default(0) @map("total_updated")
+  totalSkipped   Int      @default(0) @map("total_skipped")
+  totalErrors    Int      @default(0) @map("total_errors")
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("crawler_sync_checkpoints")
+}
+
+// ========================================
+// Search Console スナップショット (9.6)
+// ========================================
+/// GSC API で日次取得する検索クエリ別のパフォーマンス。
+/// admin の /admin/search-console で可視化する。
+model SearchConsoleSnapshot {
+  id          String   @id @default(uuid()) @db.Uuid
+  date        DateTime @db.Date
+  query       String   @db.VarChar(200)
+  page        String   @db.VarChar(500)
+  clicks      Int
+  impressions Int
+  ctr         Float
+  position    Float
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@unique([date, query, page], name: "uniq_gsc_dimensions")
+  @@index([date(sort: Desc), clicks(sort: Desc)], name: "idx_gsc_top")
+  @@map("search_console_snapshots")
+}
+
+// ========================================
+// AI 生成記事 (9.7)
+// ========================================
+/// 13.1 ブログ / 13.2 地域×職種 LP の本文を LLM で
+/// 補完生成。admin がレビューして published にする運用。
+model AiGeneratedArticle {
+  id            String    @id @default(uuid()) @db.Uuid
+  slug          String    @unique @db.VarChar(200)
+  topic         String    @db.VarChar(200) // 業界 + 職種 + 地域 等
+  prompt        String
+  bodyMarkdown  String    @map("body_markdown")
+  status        String    @default("draft") @db.VarChar(20) // draft | review | published
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz()
+  relatedJobIds String[]  @default([]) @map("related_job_ids")
+  modelName     String?   @map("model_name") @db.VarChar(50) // 生成に使った LLM モデル名
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@index([status, publishedAt(sort: Desc)], name: "idx_ai_articles_status")
+  @@map("ai_generated_articles")
+}
+
+// ========================================
+// 採用決定ボーナス (15.6)
+// ========================================
+/// 応募 → 採用決定時に求職者へ支払う祝い金 (現金 / Amazon ギフトカード / 振込)。
+/// 申請から admin 承認・支払までのワークフローを記録。
+model HiringBonus {
+  id              String    @id @default(uuid()) @db.Uuid
+  applicationId   String    @unique @map("application_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  amount          Int       // JPY
+  payoutMethod    String    @map("payout_method") @db.VarChar(30) // amazon_gift | bank_transfer | cash
+  payoutDetails   Json?     @map("payout_details") // 振込先 / メールアドレス等
+  status          String    @default("requested") @db.VarChar(20) // requested | approved | paid | rejected
+  requestNote     String?   @map("request_note")
+  approvedAt      DateTime? @map("approved_at") @db.Timestamptz()
+  approvedBy      String?   @map("approved_by") @db.Uuid
+  paidAt          DateTime? @map("paid_at") @db.Timestamptz()
+  paidBy          String?   @map("paid_by") @db.Uuid
+  rejectedAt      DateTime? @map("rejected_at") @db.Timestamptz()
+  rejectionReason String?   @map("rejection_reason") @db.VarChar(500)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@index([status, createdAt(sort: Desc)], name: "idx_hiring_bonuses_status")
+  @@index([userId, createdAt(sort: Desc)], name: "idx_hiring_bonuses_user")
+  @@map("hiring_bonuses")
+}
+
+// ========================================
+// 早期退職 / 戻入処理 (C3, 2026-05 追加)
+// ========================================
+// 採用が成立した後、一定期間内 (3 ヶ月以内) に求職者が退職した場合、
+// 企業が運営に支払った成果報酬の一部を返金 (credit note) する制度。
+//
+// 返金率:
+//   入社 1 ヶ月以内: 80%
+//   入社 2 ヶ月以内: 50%
+//   入社 3 ヶ月以内: 20%
+//   入社 4 ヶ月以降: 0% (返金対象外)
+//
+// 流れ:
+//   1. 企業が /company/applications/[id] から退職を報告 → status=reported
+//   2. admin が /admin/early-resignations で内容確認 → 承認 or 却下
+//   3. 承認時、自動で MoneyForward に credit note (返金額計算済) を発行 → status=invoiced
+model EarlyResignation {
+  id               String   @id @default(uuid()) @db.Uuid
+  applicationId    String   @unique @map("application_id") @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  jobId            String   @map("job_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+
+  // 採用確定日のスナップショット (Application.hiredAt から)
+  hiredAt          DateTime @map("hired_at") @db.Timestamptz()
+  // 退職日 (求職者の最終出勤日)
+  resignedAt       DateTime @map("resigned_at") @db.Timestamptz()
+  // 経過月数 (1, 2, 3, 4+)。返金率計算に使う
+  monthsAfterHire  Int      @map("months_after_hire")
+
+  // 返金率 (80 / 50 / 20 / 0)。% 値そのまま保持
+  refundRate       Int      @map("refund_rate")
+  // 元の成果報酬額 (BillingEvent.amount のスナップショット、退職時の単価変動防止)
+  originalFeeAmount Int     @map("original_fee_amount")
+  // 返金額 (originalFeeAmount * refundRate / 100)
+  refundAmount     Int      @map("refund_amount")
+
+  // ステータス: reported(企業申請) | approved(admin 承認) | rejected(admin 却下) | invoiced(返金書発行済)
+  status           String   @default("reported") @db.VarChar(20)
+
+  // 企業のコメント (退職事情等)
+  companyNote      String?  @map("company_note")
+  // admin のコメント (承認 / 却下理由)
+  adminNote        String?  @map("admin_note")
+
+  // 申請者 (CompanyUser、削除時は NULL)
+  reportedBy       String?  @map("reported_by") @db.Uuid
+  // 承認者 (admin user、削除時は NULL)
+  approvedBy       String?  @map("approved_by") @db.Uuid
+  approvedAt       DateTime? @map("approved_at") @db.Timestamptz()
+  // 却下者
+  rejectedBy       String?  @map("rejected_by") @db.Uuid
+  rejectedAt       DateTime? @map("rejected_at") @db.Timestamptz()
+
+  // MoneyForward に発行した credit note ID (連携できない場合は admin 手動で振込)
+  mfCreditNoteId   String?  @map("mf_credit_note_id") @db.VarChar(100)
+  invoicedAt       DateTime? @map("invoiced_at") @db.Timestamptz()
+
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  job         Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status, createdAt(sort: Desc)], name: "idx_early_resignations_company")
+  @@index([status, createdAt(sort: Desc)], name: "idx_early_resignations_status")
+  @@map("early_resignations")
+}
+
+// ========================================
+// Google Calendar 連携 (14.4)
+// ========================================
+/// 企業ごとに 1 件。OAuth で取得したリフレッシュトークン等を保管。
+/// 面接日時 (Application.interviewAt) の保存時に該当企業の Google Calendar にイベントを作成/更新/削除する。
+model CompanyCalendarOauth {
+  id             String   @id @default(uuid()) @db.Uuid
+  companyId      String   @unique @map("company_id") @db.Uuid
+  email          String   @db.VarChar(255) // 連携先 Google アカウント
+  refreshToken   String   @map("refresh_token")
+  accessToken    String?  @map("access_token")
+  tokenExpiresAt DateTime? @map("token_expires_at") @db.Timestamptz()
+  scope          String   @default("") @db.VarChar(500)
+  calendarId     String   @default("primary") @map("calendar_id") @db.VarChar(200)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("company_calendar_oauth")
+}
+
+// ========================================
+// 企業口コミ・レビュー (12.2)
+// ========================================
+/// 求職者が在籍/元在籍経験から企業を評価する口コミ。
+/// admin モデレーションを通過したものだけ公開。
+model CompanyReview {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid // 匿名投稿許可するため nullable
+  // 雇用状態: current(現在在籍) / former(元従業員) / interview(面接のみ)
+  employmentStatus String @map("employment_status") @db.VarChar(20)
+  // 1-5 の総合星評価
+  rating      Int
+  // 詳細評価 (任意): 給与 / 働きやすさ / 成長 / 福利厚生
+  ratingSalary       Int? @map("rating_salary")
+  ratingWorkLife     Int? @map("rating_work_life")
+  ratingGrowth       Int? @map("rating_growth")
+  ratingBenefits     Int? @map("rating_benefits")
+  // 自由記述 (3 セクション)
+  title       String?  @db.VarChar(200)
+  goodPoints  String?  @map("good_points") // 良い点
+  badPoints   String?  @map("bad_points")  // 改善点
+  advice      String?  // 入社を検討する人へのアドバイス
+  // モデレーション: pending(審査中) / approved(公開) / rejected(非公開)
+  status      String   @default("pending") @db.VarChar(20)
+  // 表示名（ハンドル）。匿名なら "建設業界の方" 等
+  displayName String?  @map("display_name") @db.VarChar(50)
+  // 投稿時 IP (連投検知用)
+  reporterIp  String?  @map("reporter_ip") @db.VarChar(45)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  // モデレーション結果
+  moderatedAt   DateTime? @map("moderated_at") @db.Timestamptz()
+  moderatedBy   String?   @map("moderated_by") @db.Uuid
+  moderationNote String?  @map("moderation_note") @db.VarChar(500)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status, createdAt(sort: Desc)], name: "idx_company_reviews_by_company")
+  @@index([status, createdAt(sort: Desc)], name: "idx_company_reviews_moderation")
+  @@map("company_reviews")
+}
+
+// ========================================
+// 気になる (ライト応募 12.3)
+// ========================================
+/// JobFavorite (お気に入り) より軽い意思表示。
+/// 「気になる」と押すと企業側で「気になられた」リストに表示され、
+/// 企業から「会いたい」アプローチを受けられる可能性がある。
+model JobInterest {
+  userId    String   @map("user_id") @db.Uuid
+  jobId     String   @map("job_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  // 企業が見たかどうか (既読フラグ)
+  seenByCompanyAt DateTime? @map("seen_by_company_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@id([userId, jobId])
+  @@index([jobId, createdAt(sort: Desc)], name: "idx_job_interests_by_job")
+  @@index([userId, createdAt(sort: Desc)], name: "idx_job_interests_by_user")
+  @@map("job_interests")
+}
+
+// ========================================
+// スカウトメッセージ (12.x): 企業 → 求職者の片方向メッセージ
+// ========================================
+/// 企業から求職者に送るスカウトメッセージ。
+/// (companyId, jobId, userId) で実質 UNIQUE だが、期限切れ後の再送を許す
+/// ため partial unique index を manual SQL で別途定義する
+/// (status NOT IN ('expired','declined') の時のみ UNIQUE)。
+model ScoutMessage {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  jobId         String   @map("job_id") @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  // 送信担当者 (監査用)。CompanyUser 削除時は NULL に
+  companyUserId String?  @map("company_user_id") @db.Uuid
+
+  subject       String   @db.VarChar(120)
+  body          String
+
+  // sent → read (求職者が詳細を開いた) → expired (期限切れ) / declined (辞退)
+  status        String   @default("sent") @db.VarChar(20)
+  sentAt        DateTime @default(now()) @map("sent_at") @db.Timestamptz()
+  readAt        DateTime? @map("read_at") @db.Timestamptz()
+  expiresAt     DateTime @map("expires_at") @db.Timestamptz()
+  // 通知メール配信成功時刻。null なら opt-out or 失敗
+  emailSentAt   DateTime? @map("email_sent_at") @db.Timestamptz()
+  declineReason String?  @map("decline_reason") @db.VarChar(200)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  job     Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, sentAt(sort: Desc)], name: "idx_scouts_inbox")
+  @@index([companyId, sentAt(sort: Desc)], name: "idx_scouts_outbox")
+  @@index([expiresAt], name: "idx_scouts_expiry")
+  @@map("scout_messages")
+}
+
+// ========================================
+// 除外キーワード (8.1)
+// ========================================
+/// クローラ取り込み時の除外フィルタ。
+/// keyword が job.title / description / company.name に含まれる
+/// 求人を取り込みから除外する。admin が管理。
+model Blocklist {
+  id          String   @id @default(uuid()) @db.Uuid
+  keyword     String   @db.VarChar(100)
+  // 適用範囲: title | description | company | any (default any)
+  scope       String   @default("any") @db.VarChar(20)
+  // 説明 (なぜこの語をブロックするか)
+  note        String?  @db.VarChar(500)
+  // 有効/無効: 一時的にオフにしたい時のため
+  enabled     Boolean  @default(true)
+  // 実際に何件除外したかの累計
+  hitCount    Int      @default(0) @map("hit_count")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  createdBy   String?  @map("created_by") @db.Uuid // admin user id
+
+  @@index([enabled, scope], name: "idx_blocklist_enabled_scope")
+  @@map("blocklists")
+}
+
+// ========================================
+// アナリティクスイベント (13.4)
+// ========================================
+/// GA4 と並行して持つ独自イベントログ。
+/// search / view_job / apply / interest_click / scout_click 等。
+/// payload は Json で柔軟に。admin の /admin/analytics で可視化。
+model AnalyticsEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  sessionId String?  @map("session_id") @db.VarChar(50)
+  name      String   @db.VarChar(50) // search | view_job | apply | ...
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([name, createdAt(sort: Desc)], name: "idx_analytics_name_time")
+  @@index([userId, createdAt(sort: Desc)], name: "idx_analytics_user_time")
+  @@map("analytics_events")
 }

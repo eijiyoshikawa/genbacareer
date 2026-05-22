@@ -1,83 +1,134 @@
 /**
- * HelloWork (ハローワークインターネットサービス) 求人クローラー
+ * ハローワーク求人情報提供 API クライアント
  *
- * ハローワークインターネットサービスから求人情報を取得・パースするモジュール。
- * standard fetch API を使用し、HTML レスポンスを解析して構造化データに変換する。
+ * 厚生労働省「ハローワーク求人・求職情報提供サービス」の公式 API を呼び出し、
+ * XML レスポンスをパースして構造化データに変換するモジュール。
  *
- * -----------------------------------------------------------------
- * ハローワーク求人情報転載 コンプライアンスチェックリスト:
- * -----------------------------------------------------------------
- * [x] robots.txt を事前に確認し、クロール許可パスのみアクセスする
- * [x] リクエスト間隔を1秒以上空ける（サーバー負荷軽減）
- * [x] 出所を明記する（「出典: ハローワークインターネットサービス」）
- * [x] 求人情報の改変を行わない（原文を保持）
- * [x] 個人情報（担当者名・電話番号等）の取り扱いに注意する
- * [x] 厚生労働省の利用規約を遵守する
- * [x] 掲載期限切れの求人を速やかに非公開にする
- * -----------------------------------------------------------------
+ * 公式 API ベース URL: https://teikyo.hellowork.mhlw.go.jp/teikyo/api/2.0/
  *
- * @module hellowork-crawler
+ * 利用フロー:
+ *   1. getToken(id, pass) でトークン発行
+ *   2. fetchKyujinIdList(token) でデータ ID リストを取得
+ *   3. fetchKyujinByDataId(token, dataId, page) で求人 XML を取得（最大1,000件/ページ）
+ *   4. delToken(token) でトークン破棄
+ *
+ * トークンは発行当日のみ有効。日跨ぎで再発行が必要。
+ *
+ * @module hellowork-api
  */
 
+import { XMLParser } from "fast-xml-parser"
+
 // ========================================
-// 型定義
+// 型定義（import-batch.ts と互換維持）
 // ========================================
 
-/** クローラーに渡す検索パラメータ */
-export interface HelloworkSearchParams {
-  /** 都道府県コード (例: "13" = 東京都) */
-  prefecture: string
-  /** 職種カテゴリ (例: "driver", "construction") */
-  category?: string
-  /** 検索キーワード */
-  keyword?: string
-  /** 取得ページ番号 (1-based) */
-  page?: number
+/** API 用の認証情報 */
+export interface HelloworkCredentials {
+  id: string
+  pass: string
 }
 
-/** ハローワークからパースされた求人データ */
+/** ハローワーク API からパースされた求人データ */
 export interface HelloworkJobData {
-  /** ハローワーク求人番号 (例: "13010-12345671") */
   helloworkId: string
-  /** 求人タイトル（職種名） */
   title: string
-  /** 会社名 */
   companyName: string
-  /** 給与下限（月額・円） */
   salaryMin: number | null
-  /** 給与上限（月額・円） */
   salaryMax: number | null
-  /** 給与種別: monthly | hourly | annual */
-  salaryType: "monthly" | "hourly" | "annual" | null
-  /** 都道府県 */
+  salaryType: "monthly" | "hourly" | "annual" | "daily" | null
   prefecture: string
-  /** 市区町村 */
   city: string | null
-  /** 詳細住所 */
   address: string | null
-  /** 雇用形態: full_time | part_time | contract */
   employmentType: "full_time" | "part_time" | "contract" | null
-  /** 仕事内容 */
   description: string | null
-  /** 応募要件 */
   requirements: string | null
-  /** データソース識別子 */
   source: "hellowork"
-  /** 出典表記 */
   attribution: string
+
+  // ハローワーク API 拡張フィールド
+  occupationTitle: string | null
+  jobConditionNotes: string | null
+  industryCode: string | null
+  industryMajorCode: string | null
+  occupationCode: string | null
+  occupationCategoryName: string | null
+  jobTypeName: string | null
+  baseSalary: string | null
+  bonus: string | null
+  commuteAllowance: string | null
+  fixedOvertime: string | null
+  workHours: string | null
+  workHoursNotes: string | null
+  holidays: string | null
+  holidaysOther: string | null
+  annualHolidays: number | null
+  insurance: string | null
+  smokingPolicy: string | null
+  trialPeriod: string | null
+  requiredExperience: string | null
+  education: string | null
+  recruitmentCount: string | null
+  recruitmentReason: string | null
+  companyFeatures: string | null
+  businessContent: string | null
+  companyUrl: string | null
+  validUntil: Date | null
+  receivedDate: Date | null
+  /** 個別カラムに抽出していない全 API タグ（未加工値） */
+  rawData: Record<string, unknown>
 }
+
+/** 個別カラム化済みの API タグ。`rawData` ではここに無いタグだけを残す。 */
+const EXTRACTED_TAGS = new Set([
+  "kjno",
+  "shigoto_ny",
+  "jgshmei",
+  "koyokeitai_n",
+  "koyokeitai_c",
+  "shgbsjusho",
+  "jgshjusho_n",
+  "shgbsjusho1_n",
+  "chgnkeitai_kagen",
+  "chgnkeitai_jgn",
+  "chgnkeitai",
+  "menkyo_skku3_n",
+  "sksu",
+  "kjjknktkjk",
+  "skgybrui1_c",
+  "skgybruicode1_dai_c",
+  "sngbrui_c",
+  "sngbrui_n",
+  "kjkbn1_n",
+  "khky",
+  "shoyo",
+  "tskntat",
+  "ktizangydi",
+  "shgjn",
+  "shgjn_tkjk",
+  "kyjs",
+  "kyjstosnta",
+  "nenkankjsu_n",
+  "knyhkn",
+  "okni_jdktentisk_n",
+  "sykkn",
+  "hynakiknt",
+  "grki",
+  "saiyoninzu_n",
+  "boshury_n",
+  "kaishatokucho",
+  "jigyony",
+  "jgshhp",
+  "kjyukoymd",
+  "uktkymd_seireki",
+])
 
 /** クローラーの取得結果 */
 export interface CrawlResult {
-  /** パース済み求人データ配列 */
   jobs: HelloworkJobData[]
-  /** 検索結果の総件数 */
   totalCount: number
-  /** 現在のページ番号 */
   currentPage: number
-  /** 総ページ数 */
   totalPages: number
-  /** クロール実行日時 */
   crawledAt: Date
 }
 
@@ -85,388 +136,407 @@ export interface CrawlResult {
 // 定数
 // ========================================
 
-/** ハローワークインターネットサービスのベースURL */
-const HELLOWORK_BASE_URL = "https://www.hellowork.mhlw.go.jp"
+const DEFAULT_API_BASE =
+  "https://teikyo.hellowork.mhlw.go.jp/teikyo/api/2.0"
 
-/** 求人検索エンドポイント */
-const SEARCH_ENDPOINT = "/kensaku/GECA110010.do"
+const ATTRIBUTION =
+  "出典: ハローワーク求人・求職情報提供サービス (https://teikyo.hellowork.mhlw.go.jp)"
 
-/** リクエスト間隔（ミリ秒） - サーバー負荷軽減のため1秒以上 */
 const REQUEST_INTERVAL_MS = 1000
 
-/** User-Agent ヘッダー（bot であることを明示） */
-const USER_AGENT =
-  "Mozilla/5.0 (compatible; JobCrawlerBot/1.0; +https://example.com/bot)"
-
-/** 出典表記（転載時に必須） */
-const ATTRIBUTION =
-  "出典: ハローワークインターネットサービス (https://www.hellowork.mhlw.go.jp)"
-
-/**
- * 都道府県コード → 都道府県名の正規化マッピング
- * ハローワークは独自の都道府県コードを使用するため、標準名に変換する
- */
-const PREFECTURE_CODE_MAP: Record<string, string> = {
-  "01": "北海道",
-  "02": "青森県",
-  "03": "岩手県",
-  "04": "宮城県",
-  "05": "秋田県",
-  "06": "山形県",
-  "07": "福島県",
-  "08": "茨城県",
-  "09": "栃木県",
-  "10": "群馬県",
-  "11": "埼玉県",
-  "12": "千葉県",
-  "13": "東京都",
-  "14": "神奈川県",
-  "15": "新潟県",
-  "16": "富山県",
-  "17": "石川県",
-  "18": "福井県",
-  "19": "山梨県",
-  "20": "長野県",
-  "21": "岐阜県",
-  "22": "静岡県",
-  "23": "愛知県",
-  "24": "三重県",
-  "25": "滋賀県",
-  "26": "京都府",
-  "27": "大阪府",
-  "28": "兵庫県",
-  "29": "奈良県",
-  "30": "和歌山県",
-  "31": "鳥取県",
-  "32": "島根県",
-  "33": "岡山県",
-  "34": "広島県",
-  "35": "山口県",
-  "36": "徳島県",
-  "37": "香川県",
-  "38": "愛媛県",
-  "39": "高知県",
-  "40": "福岡県",
-  "41": "佐賀県",
-  "42": "長崎県",
-  "43": "熊本県",
-  "44": "大分県",
-  "45": "宮崎県",
-  "46": "鹿児島県",
-  "47": "沖縄県",
-}
-
-/**
- * 当サービスの職種カテゴリ → ハローワーク職種コードのマッピング
- * ハローワークの職種大分類コードに対応させる
- */
-const CATEGORY_CODE_MAP: Record<string, string> = {
-  driver: "65", // 自動車運転の職業
-  construction: "D", // 建設・採掘の職業
-  manufacturing: "H", // 生産工程の職業
-  office: "B", // 事務的職業
-  sales: "C", // 販売の職業
-  service: "E", // サービスの職業
-  it: "B2", // IT・情報処理
-  medical: "F", // 専門的・技術的職業（医療系）
-  other: "", // 全職種
+function getApiBase(): string {
+  return process.env.HELLOWORK_API_BASE ?? DEFAULT_API_BASE
 }
 
 // ========================================
 // レート制限
 // ========================================
 
-/** 最後にリクエストを送信した時刻 */
 let lastRequestTime = 0
 
-/**
- * レート制限を適用する。
- * 前回のリクエストから REQUEST_INTERVAL_MS ミリ秒経過するまで待機する。
- *
- * @returns 待機完了後に resolve する Promise
- */
 async function enforceRateLimit(): Promise<void> {
   const now = Date.now()
   const elapsed = now - lastRequestTime
   if (elapsed < REQUEST_INTERVAL_MS) {
-    const waitTime = REQUEST_INTERVAL_MS - elapsed
-    await new Promise((resolve) => setTimeout(resolve, waitTime))
+    await new Promise((r) => setTimeout(r, REQUEST_INTERVAL_MS - elapsed))
   }
   lastRequestTime = Date.now()
 }
 
 // ========================================
-// robots.txt チェック
+// HTTP ユーティリティ
 // ========================================
 
-/** robots.txt のキャッシュ（プロセス内） */
-let robotsTxtCache: string | null = null
+async function postForm(
+  url: string,
+  params: Record<string, string>
+): Promise<string> {
+  await enforceRateLimit()
 
-/**
- * robots.txt を取得してキャッシュする。
- *
- * @returns robots.txt の内容文字列
- */
-async function fetchRobotsTxt(): Promise<string> {
-  if (robotsTxtCache !== null) {
-    return robotsTxtCache
-  }
+  const body = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) body.append(k, v)
 
-  const response = await fetch(`${HELLOWORK_BASE_URL}/robots.txt`, {
-    headers: { "User-Agent": USER_AGENT },
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
   })
 
-  if (!response.ok) {
-    // robots.txt が存在しない場合は全パス許可とみなす（RFC 9309 準拠）
-    robotsTxtCache = ""
-    return robotsTxtCache
+  if (!res.ok) {
+    throw new Error(
+      `HelloWork API リクエスト失敗: ${res.status} ${res.statusText} (${url})`
+    )
   }
+  return await res.text()
+}
 
-  robotsTxtCache = await response.text()
-  return robotsTxtCache
+const xmlParser = new XMLParser({
+  ignoreAttributes: false,
+  trimValues: true,
+  parseTagValue: false,
+})
+
+function parseXml<T = unknown>(xml: string): T {
+  return xmlParser.parse(xml) as T
+}
+
+// ========================================
+// 認証
+// ========================================
+
+/**
+ * トークン発行 (POST /auth/getToken)
+ */
+export async function getToken(creds: HelloworkCredentials): Promise<string> {
+  const xml = await postForm(`${getApiBase()}/auth/getToken`, {
+    id: creds.id,
+    pass: creds.pass,
+  })
+  const parsed = parseXml<Record<string, unknown>>(xml)
+  const token = extractToken(parsed)
+  if (!token) {
+    throw new Error(
+      `トークン取得に失敗: レスポンスから token を抽出できません: ${xml.slice(0, 200)}`
+    )
+  }
+  return token
 }
 
 /**
- * 指定パスが robots.txt でクロール許可されているか確認する。
- *
- * 簡易パーサーで User-agent: * のルールを確認する。
- * Disallow に該当するパスの場合は false を返す。
- *
- * @param path - チェックするURLパス (例: "/kensaku/GECA110010.do")
- * @returns クロール許可されている場合 true
+ * <root><token>...</token></root> 構造から token を抽出する。
+ * フォールバックとして、十分な長さ (>=16) の文字列値を再帰探索する。
  */
-export async function isPathAllowed(path: string): Promise<boolean> {
-  const robotsTxt = await fetchRobotsTxt()
-  if (!robotsTxt) return true
+function extractToken(parsed: unknown): string | null {
+  const direct = (parsed as { root?: { token?: unknown } } | null)?.root?.token
+  if (typeof direct === "string" && direct.trim()) return direct.trim()
 
-  const lines = robotsTxt.split("\n")
-  let inWildcardBlock = false
-  const disallowedPaths: string[] = []
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim().toLowerCase()
-
-    // User-agent ブロックの判定
-    if (line.startsWith("user-agent:")) {
-      const agent = line.slice("user-agent:".length).trim()
-      inWildcardBlock = agent === "*"
-      continue
+  let best: string | null = null
+  walk(parsed)
+  return best
+  function walk(n: unknown): void {
+    if (!n || typeof n !== "object") return
+    if (Array.isArray(n)) {
+      n.forEach(walk)
+      return
     }
-
-    // User-agent: * ブロック内の Disallow ルールを収集
-    if (inWildcardBlock && line.startsWith("disallow:")) {
-      const disallowed = line.slice("disallow:".length).trim()
-      if (disallowed) {
-        disallowedPaths.push(disallowed)
+    for (const [k, v] of Object.entries(n as Record<string, unknown>)) {
+      if (k.startsWith("?")) continue
+      if (typeof v === "string") {
+        const t = v.trim()
+        if (t.length >= 16 && (!best || t.length > best.length)) best = t
+      } else if (typeof v === "object") {
+        walk(v)
       }
     }
   }
-
-  // パスが Disallow リストに前方一致するか確認
-  const normalizedPath = path.toLowerCase()
-  return !disallowedPaths.some((dp) => normalizedPath.startsWith(dp))
-}
-
-// ========================================
-// HTML パーサー
-// ========================================
-
-/**
- * テキストから余分な空白・改行を除去して正規化する。
- *
- * @param text - 正規化対象のテキスト
- * @returns 空白を正規化した文字列
- */
-function normalizeWhitespace(text: string): string {
-  return text.replace(/\s+/g, " ").trim()
 }
 
 /**
- * 給与テキストをパースして数値と種別に分解する。
- *
- * ハローワークの給与表記パターン:
- * - "月額 200,000円 〜 300,000円"
- * - "時給 1,200円 〜 1,500円"
- * - "年俸 4,000,000円"
- * - "日給 10,000円 〜 12,000円"
- *
- * @param salaryText - ハローワークの給与テキスト
- * @returns パース結果 { min, max, type }
+ * トークン破棄 (POST /auth/delToken)
  */
-export function parseSalary(salaryText: string): {
-  min: number | null
-  max: number | null
-  type: "monthly" | "hourly" | "annual" | null
+export async function delToken(token: string): Promise<void> {
+  await postForm(`${getApiBase()}/auth/delToken`, { token })
+}
+
+// ========================================
+// 求人データ取得
+// ========================================
+
+/**
+ * 求人一覧データID取得 (POST /kyujin)
+ * 求人情報データの取得が可能なデータ ID のリストを返す。
+ */
+export async function fetchKyujinIdList(token: string): Promise<string[]> {
+  const xml = await postForm(`${getApiBase()}/kyujin`, { token })
+  const parsed = parseXml<Record<string, unknown>>(xml)
+  return collectStrings(parsed, /^(data_id|dataId|id)$/i)
+}
+
+/**
+ * 指定求人データ取得 (POST /kyujin/{dataId}/{page})
+ * 指定したデータ ID に紐づく求人情報（最大1,000件/ページ）を取得する。
+ *
+ * dataId のページ範囲を超えた page 番号を指定すると HelloWork API は 404 を返す。
+ * これは「データが空」と等価のシグナルなので空配列に正規化し、
+ * 呼び出し元 (`fetchPagesFromDataId`) で `exhausted=true` 判定に委ねる。
+ */
+export async function fetchKyujinByDataId(
+  token: string,
+  dataId: string,
+  page = 1
+): Promise<HelloworkJobData[]> {
+  try {
+    const xml = await postForm(
+      `${getApiBase()}/kyujin/${encodeURIComponent(dataId)}/${page}`,
+      { token }
+    )
+    const parsed = parseXml<Record<string, unknown>>(xml)
+    return parseJobsFromKyujinXml(parsed)
+  } catch (err) {
+    if (err instanceof Error && /\b404\b/.test(err.message)) {
+      return []
+    }
+    throw err
+  }
+}
+
+// ========================================
+// XML パース
+// ========================================
+
+function collectStrings(node: unknown, keyPattern: RegExp): string[] {
+  const out: string[] = []
+  walk(node)
+  return out
+  function walk(n: unknown): void {
+    if (!n || typeof n !== "object") return
+    if (Array.isArray(n)) {
+      n.forEach(walk)
+      return
+    }
+    for (const [k, v] of Object.entries(n as Record<string, unknown>)) {
+      if (keyPattern.test(k)) {
+        if (typeof v === "string" && v.trim()) out.push(v.trim())
+        else if (Array.isArray(v)) {
+          for (const item of v) {
+            if (typeof item === "string" && item.trim()) out.push(item.trim())
+          }
+        }
+      }
+      walk(v)
+    }
+  }
+}
+
+/**
+ * /kyujin/{dataId}/{page} レスポンスから求人レコード配列を抽出する。
+ * 想定構造: <root><kyujin><data>...</data><data>...</data></kyujin></root>
+ */
+function parseJobsFromKyujinXml(parsed: unknown): HelloworkJobData[] {
+  const dataNode = (parsed as { root?: { kyujin?: { data?: unknown } } } | null)
+    ?.root?.kyujin?.data
+  if (!dataNode) return []
+  const records = Array.isArray(dataNode) ? dataNode : [dataNode]
+  return records
+    .map((r) => toHelloworkJobData(r as Record<string, unknown>))
+    .filter((j): j is HelloworkJobData => j !== null)
+}
+
+function toHelloworkJobData(
+  record: Record<string, unknown>
+): HelloworkJobData | null {
+  const helloworkId = str(record.kjno)
+  if (!helloworkId) return null
+
+  const description = str(record.shigoto_ny)
+  const companyName = str(record.jgshmei) ?? "不明"
+  const employmentType = parseEmploymentType(str(record.koyokeitai_n) ?? "")
+  const address =
+    str(record.shgbsjusho) ?? str(record.jgshjusho_n) ?? null
+
+  // 都道府県・市区町村は shgbsjusho1_n → shgbsjusho → jgshjusho_n の順でフォールバック
+  const locText =
+    str(record.shgbsjusho1_n) ??
+    str(record.shgbsjusho) ??
+    str(record.jgshjusho_n)
+  const { prefecture, city } = splitPrefectureCity(locText)
+
+  const salaryMin = numericOrNull(record.chgnkeitai_kagen)
+  const salaryMax = numericOrNull(record.chgnkeitai_jgn)
+  const salaryType =
+    inferSalaryType(str(record.chgnkeitai)) ??
+    inferSalaryTypeFromAmount(salaryMin ?? salaryMax)
+
+  const requirements = str(record.menkyo_skku3_n)
+
+  // 職種名 (sksu) を title に採用。無ければ仕事内容の冒頭を流用。
+  const occupationTitle = str(record.sksu)
+  const title = occupationTitle ?? (description ? description.slice(0, 80) : "求人")
+
+  // 拡張フィールド抽出
+  const rawData: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(record)) {
+    if (!EXTRACTED_TAGS.has(k)) rawData[k] = v
+  }
+
+  return {
+    helloworkId,
+    title,
+    companyName,
+    salaryMin,
+    salaryMax,
+    salaryType,
+    prefecture,
+    city,
+    address,
+    employmentType,
+    description,
+    requirements,
+    source: "hellowork",
+    attribution: ATTRIBUTION,
+
+    occupationTitle,
+    jobConditionNotes: str(record.kjjknktkjk),
+    industryCode: str(record.skgybrui1_c),
+    industryMajorCode: str(record.skgybruicode1_dai_c),
+    occupationCode: str(record.sngbrui_c),
+    occupationCategoryName: str(record.sngbrui_n),
+    jobTypeName: str(record.kjkbn1_n),
+    baseSalary: str(record.khky),
+    bonus: str(record.shoyo),
+    commuteAllowance: str(record.tskntat),
+    fixedOvertime: str(record.ktizangydi),
+    workHours: str(record.shgjn),
+    workHoursNotes: str(record.shgjn_tkjk),
+    holidays: str(record.kyjs),
+    holidaysOther: str(record.kyjstosnta),
+    annualHolidays: numericOrNull(record.nenkankjsu_n),
+    insurance: str(record.knyhkn),
+    smokingPolicy: str(record.okni_jdktentisk_n),
+    trialPeriod: str(record.sykkn),
+    requiredExperience: str(record.hynakiknt),
+    education: str(record.grki),
+    recruitmentCount: str(record.saiyoninzu_n),
+    recruitmentReason: str(record.boshury_n),
+    companyFeatures: str(record.kaishatokucho),
+    businessContent: str(record.jigyony),
+    companyUrl: str(record.jgshhp),
+    validUntil: parseDate(str(record.kjyukoymd)),
+    receivedDate: parseDate(str(record.uktkymd_seireki)),
+    rawData,
+  }
+}
+
+/** "YYYY-MM-DD" / "YYYYMMDD" / "YYYY/MM/DD" を Date に変換。失敗時は null。 */
+function parseDate(s: string | null): Date | null {
+  if (!s) return null
+  // 区切り文字を統一して 8 桁の数字を抽出
+  const digits = s.replace(/\D/g, "")
+  if (digits.length !== 8) return null
+  const y = parseInt(digits.slice(0, 4), 10)
+  const m = parseInt(digits.slice(4, 6), 10)
+  const d = parseInt(digits.slice(6, 8), 10)
+  if (!y || !m || !d) return null
+  const date = new Date(Date.UTC(y, m - 1, d))
+  return isNaN(date.getTime()) ? null : date
+}
+
+// ========================================
+// 値ヘルパー
+// ========================================
+
+function str(v: unknown): string | null {
+  if (typeof v === "string") {
+    const t = v.trim()
+    return t || null
+  }
+  if (typeof v === "number") return String(v)
+  return null
+}
+
+function numericOrNull(v: unknown): number | null {
+  const s = str(v)
+  if (!s) return null
+  const cleaned = s.replace(/,/g, "").replace(/，/g, "")
+  const m = cleaned.match(/-?\d+/)
+  if (!m) return null
+  const n = parseInt(m[0], 10)
+  return isNaN(n) ? null : n
+}
+
+function inferSalaryType(
+  formatText: string | null
+): "monthly" | "hourly" | "annual" | "daily" | null {
+  if (!formatText) return null
+  if (/月給|月額/.test(formatText)) return "monthly"
+  if (/時給|時間額/.test(formatText)) return "hourly"
+  if (/年俸|年額|年収/.test(formatText)) return "annual"
+  if (/日給|日額/.test(formatText)) return "daily"
+  return null
+}
+
+/**
+ * 賃金タグから種別が判定できないとき、金額レンジから推定する。
+ * 凡そのレンジ:
+ *   - 時給: 〜 5,000 円
+ *   - 日給: 5,000 〜 30,000 円
+ *   - 月給: 30,000 〜 1,500,000 円
+ *   - 年俸: 1,500,000 円以上
+ */
+function inferSalaryTypeFromAmount(
+  amount: number | null
+): "monthly" | "hourly" | "annual" | "daily" | null {
+  if (amount === null || amount <= 0) return null
+  if (amount < 5_000) return "hourly"
+  if (amount < 30_000) return "daily"
+  if (amount < 1_500_000) return "monthly"
+  return "annual"
+}
+
+/** 全 47 都道府県名（正式表記）。`splitPrefectureCity` のフォールバック検索に使う。 */
+const ALL_PREFECTURES = [
+  "北海道",
+  "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+  "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+  "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県",
+  "岐阜県", "静岡県", "愛知県", "三重県",
+  "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県",
+  "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+  "徳島県", "香川県", "愛媛県", "高知県",
+  "福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
+] as const
+
+export function splitPrefectureCity(text: string | null): {
+  prefecture: string
+  city: string | null
 } {
-  if (!salaryText) return { min: null, max: null, type: null }
+  if (!text) return { prefecture: "不明", city: null }
 
-  const normalized = salaryText.replace(/,/g, "").replace(/，/g, "")
+  // 1) 先頭が都道府県プレフィックスにマッチする標準形式
+  const head = text.match(/^(北海道|東京都|(?:大阪|京都)府|.{2,3}県)(.*)$/)
+  if (head) {
+    const city = head[2].trim()
+    return { prefecture: head[1], city: city || null }
+  }
 
-  // 給与種別の判定
-  let type: "monthly" | "hourly" | "annual" | null = null
-  if (/月額|月給/.test(normalized)) type = "monthly"
-  else if (/時給|時間額/.test(normalized)) type = "hourly"
-  else if (/年俸|年額|年収/.test(normalized)) type = "annual"
-  else if (/日給/.test(normalized)) {
-    // 日給は月額に換算（月22日勤務想定）
-    type = "monthly"
-    const dailyNumbers = normalized.match(/(\d+)/g)
-    if (dailyNumbers) {
-      const min = parseInt(dailyNumbers[0], 10) * 22
-      const max = dailyNumbers.length > 1 ? parseInt(dailyNumbers[1], 10) * 22 : null
-      return { min, max, type }
+  // 2) 〒xxx-xxxx や全角空白で先頭が崩れているケースを救済：
+  //    住所文字列のどこかに 47 都道府県名が含まれていれば抽出する
+  for (const pref of ALL_PREFECTURES) {
+    const idx = text.indexOf(pref)
+    if (idx >= 0) {
+      const after = text.slice(idx + pref.length).trim()
+      return { prefecture: pref, city: after || null }
     }
   }
 
-  // 数値を抽出（円の前の数値群を取得）
-  const numbers = normalized.match(/(\d+)/g)
-  if (!numbers || numbers.length === 0) return { min: null, max: null, type }
-
-  const min = parseInt(numbers[0], 10)
-  const max = numbers.length > 1 ? parseInt(numbers[1], 10) : null
-
-  return { min, max, type }
-}
-
-/**
- * 都道府県コードを標準の都道府県名に正規化する。
- *
- * @param code - 都道府県コード (例: "13")
- * @returns 都道府県名 (例: "東京都")。不明なコードはそのまま返す
- */
-export function normalizePrefecture(code: string): string {
-  return PREFECTURE_CODE_MAP[code] ?? code
-}
-
-/**
- * 当サービスのカテゴリ名をハローワーク職種コードに変換する。
- *
- * @param category - 当サービスの職種カテゴリ (例: "driver")
- * @returns ハローワーク職種コード (例: "65")
- */
-export function categoryToHelloworkCode(category: string): string {
-  return CATEGORY_CODE_MAP[category] ?? ""
-}
-
-/**
- * HTMLレスポンスから求人一覧をパースする。
- *
- * ハローワークの検索結果ページ構造を解析し、各求人の基本情報を抽出する。
- * DOM パーサーが使えない環境のため、正規表現ベースで抽出する。
- *
- * 注意: ハローワークのHTML構造が変更された場合はパターンの修正が必要。
- * HTML 構造は定期的に検証すること。
- *
- * @param html - ハローワーク検索結果ページのHTML文字列
- * @param prefectureCode - 検索に使用した都道府県コード
- * @returns パース済み求人データの配列
- */
-export function parseJobListHtml(
-  html: string,
-  prefectureCode: string
-): HelloworkJobData[] {
-  const jobs: HelloworkJobData[] = []
-
-  // -------------------------------------------------------
-  // 求人カードブロックを抽出
-  // ハローワークの検索結果は <div class="kyujin_..."> 系のブロックで囲まれている
-  // -------------------------------------------------------
-  const jobBlockPattern =
-    /<div[^>]*class="[^"]*kyujin[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?=<div[^>]*class="[^"]*kyujin|$)/gi
-  let blockMatch: RegExpExecArray | null
-
-  while ((blockMatch = jobBlockPattern.exec(html)) !== null) {
-    const block = blockMatch[1]
-
-    // 求人番号の抽出 (形式: XX010-XXXXXXXX)
-    const idMatch = block.match(
-      /(\d{5}-\d{7,8}\d?)/
-    )
-    if (!idMatch) continue
-
-    const helloworkId = idMatch[1]
-
-    // 求人タイトル（職種名）の抽出
-    const titleMatch = block.match(
-      /<(?:span|div|td)[^>]*class="[^"]*(?:job-title|shokushu)[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|td)>/i
-    )
-    const title = titleMatch
-      ? normalizeWhitespace(titleMatch[1].replace(/<[^>]*>/g, ""))
-      : "不明"
-
-    // 会社名の抽出
-    const companyMatch = block.match(
-      /<(?:span|div|td)[^>]*class="[^"]*(?:company|jigyosho)[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|td)>/i
-    )
-    const companyName = companyMatch
-      ? normalizeWhitespace(companyMatch[1].replace(/<[^>]*>/g, ""))
-      : "不明"
-
-    // 給与の抽出
-    const salaryMatch = block.match(
-      /<(?:span|div|td)[^>]*class="[^"]*(?:salary|chingin)[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|td)>/i
-    )
-    const salaryText = salaryMatch
-      ? normalizeWhitespace(salaryMatch[1].replace(/<[^>]*>/g, ""))
-      : ""
-    const salary = parseSalary(salaryText)
-
-    // 勤務地の抽出
-    const locationMatch = block.match(
-      /<(?:span|div|td)[^>]*class="[^"]*(?:location|kinmuchi)[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|td)>/i
-    )
-    const locationText = locationMatch
-      ? normalizeWhitespace(locationMatch[1].replace(/<[^>]*>/g, ""))
-      : ""
-    // 市区町村を勤務地テキストから分離
-    const cityMatch = locationText.match(
-      /(?:北海道|東京都|(?:大阪|京都)府|.{2,3}県)\s*(.+?)(?:\s|$)/
-    )
-
-    // 雇用形態の抽出
-    const typeMatch = block.match(
-      /<(?:span|div|td)[^>]*class="[^"]*(?:employment-type|koyou)[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|td)>/i
-    )
-    const typeText = typeMatch
-      ? normalizeWhitespace(typeMatch[1].replace(/<[^>]*>/g, ""))
-      : ""
-    const employmentType = parseEmploymentType(typeText)
-
-    // 仕事内容の抽出
-    const descMatch = block.match(
-      /<(?:span|div|td)[^>]*class="[^"]*(?:description|shigoto)[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|td)>/i
-    )
-    const description = descMatch
-      ? normalizeWhitespace(descMatch[1].replace(/<[^>]*>/g, ""))
-      : null
-
-    jobs.push({
-      helloworkId,
-      title,
-      companyName,
-      salaryMin: salary.min,
-      salaryMax: salary.max,
-      salaryType: salary.type,
-      prefecture: normalizePrefecture(prefectureCode),
-      city: cityMatch?.[1]?.trim() ?? null,
-      address: locationText || null,
-      employmentType,
-      description,
-      requirements: null, // 一覧ページには要件が含まれないことが多い
-      source: "hellowork",
-      attribution: ATTRIBUTION,
-    })
+  // 3) 都道府県を一切特定できない場合は city に原文（先頭 100 字）を残し、
+  //    prefecture は "不明" にする。これにより VarChar(20) を絶対超えない。
+  return {
+    prefecture: "不明",
+    city: text.slice(0, 100) || null,
   }
-
-  return jobs
 }
 
-/**
- * 雇用形態テキストを正規化された enum 値に変換する。
- *
- * @param text - 雇用形態テキスト (例: "正社員", "パートタイム")
- * @returns 正規化された雇用形態 or null
- */
 function parseEmploymentType(
   text: string
 ): "full_time" | "part_time" | "contract" | null {
@@ -477,194 +547,148 @@ function parseEmploymentType(
   return null
 }
 
-/**
- * 検索結果の総件数をHTMLからパースする。
- *
- * @param html - 検索結果ページの HTML
- * @returns 総件数。取得できなかった場合は 0
- */
-function parseTotalCount(html: string): number {
-  // "全 1,234 件" のようなパターンを検索
-  const match = html.match(/全\s*([\d,]+)\s*件/)
-  if (!match) return 0
-  return parseInt(match[1].replace(/,/g, ""), 10)
-}
+// ========================================
+// 後方互換: 旧 parseSalary を残す（テキスト→数値変換用）
+// ========================================
 
-/**
- * 総ページ数をHTMLからパースする。
- *
- * @param html - 検索結果ページの HTML
- * @returns 総ページ数。取得できなかった場合は 1
- */
-function parseTotalPages(html: string): number {
-  // ページネーションリンクの最大値を取得
-  const pageMatches = html.match(/page=(\d+)/g)
-  if (!pageMatches || pageMatches.length === 0) return 1
-
-  const pageNumbers = pageMatches.map((m) => {
-    const num = m.match(/\d+/)
-    return num ? parseInt(num[0], 10) : 0
-  })
-
-  return Math.max(...pageNumbers, 1)
+export function parseSalary(salaryText: string): {
+  min: number | null
+  max: number | null
+  type: "monthly" | "hourly" | "annual" | "daily" | null
+} {
+  if (!salaryText) return { min: null, max: null, type: null }
+  const normalized = salaryText.replace(/,/g, "").replace(/，/g, "")
+  const type = inferSalaryType(normalized)
+  const numbers = normalized.match(/(\d+)/g)
+  if (!numbers || numbers.length === 0) return { min: null, max: null, type }
+  const min = parseInt(numbers[0], 10)
+  const max = numbers.length > 1 ? parseInt(numbers[1], 10) : null
+  return { min, max, type }
 }
 
 // ========================================
-// メインクローラー関数
+// オーケストレーション
 // ========================================
 
 /**
- * ハローワークインターネットサービスから求人情報を取得する。
+ * ID/パスから全求人を取得する高レベル関数。
+ *   1. getToken
+ *   2. fetchKyujinIdList
+ *   3. 各 dataId について fetchKyujinByDataId をページングしながら取得
+ *   4. delToken
  *
- * 処理フロー:
- * 1. robots.txt でクロール許可を確認
- * 2. レート制限を適用
- * 3. 検索パラメータを組み立てて HTTP リクエストを送信
- * 4. HTML レスポンスをパースして構造化データに変換
- *
- * @param params - 検索パラメータ（都道府県、カテゴリ、キーワード、ページ）
- * @returns クロール結果（求人データ配列 + ページネーション情報）
- * @throws {Error} robots.txt でクロールが禁止されている場合
- * @throws {Error} HTTP リクエストが失敗した場合
- *
- * @example
- * ```typescript
- * const result = await fetchHelloworkJobs({
- *   prefecture: "13", // 東京都
- *   category: "driver",
- *   page: 1,
- * });
- * console.log(`取得件数: ${result.jobs.length}`);
- * console.log(`総件数: ${result.totalCount}`);
- * ```
+ * @param creds - API 認証情報。省略時は環境変数から取得
+ * @param options.maxPagesPerDataId - 各 dataId あたりの最大ページ数（デフォルト: 50）
+ * @param options.maxJobs - 取得する求人の上限（デフォルト: 無制限）
  */
-export async function fetchHelloworkJobs(
-  params: HelloworkSearchParams
+export async function fetchAllJobs(
+  creds?: HelloworkCredentials,
+  options: { maxPagesPerDataId?: number; maxJobs?: number } = {}
 ): Promise<CrawlResult> {
-  const { prefecture, category, keyword, page = 1 } = params
+  const { maxPagesPerDataId = 50, maxJobs = Infinity } = options
+  const credentials = creds ?? readCredentialsFromEnv()
+  const token = await getToken(credentials)
 
-  // -------------------------------------------------------
-  // Step 1: robots.txt 準拠チェック
-  // -------------------------------------------------------
-  const allowed = await isPathAllowed(SEARCH_ENDPOINT)
-  if (!allowed) {
-    throw new Error(
-      `クロール禁止: robots.txt により ${SEARCH_ENDPOINT} へのアクセスが禁止されています。` +
-        "ハローワークの利用規約を確認してください。"
-    )
-  }
+  try {
+    const dataIds = await fetchKyujinIdList(token)
+    const allJobs: HelloworkJobData[] = []
 
-  // -------------------------------------------------------
-  // Step 2: レート制限の適用
-  // -------------------------------------------------------
-  await enforceRateLimit()
+    outer: for (const dataId of dataIds) {
+      for (let page = 1; page <= maxPagesPerDataId; page++) {
+        const jobs = await fetchKyujinByDataId(token, dataId, page)
+        if (jobs.length === 0) break
+        allJobs.push(...jobs)
+        if (allJobs.length >= maxJobs) {
+          allJobs.length = maxJobs
+          break outer
+        }
+      }
+    }
 
-  // -------------------------------------------------------
-  // Step 3: 検索リクエストの組み立て
-  // -------------------------------------------------------
-  const searchUrl = new URL(`${HELLOWORK_BASE_URL}${SEARCH_ENDPOINT}`)
-  searchUrl.searchParams.set("screenId", "GECA110010")
-  searchUrl.searchParams.set("action", "searchAction")
-
-  // 都道府県コード
-  searchUrl.searchParams.set("tDFK1CmbBox", prefecture)
-
-  // 職種コード（カテゴリ指定がある場合）
-  if (category) {
-    const hwCode = categoryToHelloworkCode(category)
-    if (hwCode) {
-      searchUrl.searchParams.set("tSKGYCmbBox", hwCode)
+    return {
+      jobs: allJobs,
+      totalCount: allJobs.length,
+      currentPage: 1,
+      totalPages: 1,
+      crawledAt: new Date(),
+    }
+  } finally {
+    try {
+      await delToken(token)
+    } catch (e) {
+      console.error(
+        `[hellowork] トークン破棄に失敗: ${e instanceof Error ? e.message : e}`
+      )
     }
   }
-
-  // フリーワード検索
-  if (keyword) {
-    searchUrl.searchParams.set("freeWordInput", keyword)
-  }
-
-  // ページネーション
-  searchUrl.searchParams.set("iPage", String(page))
-
-  // -------------------------------------------------------
-  // Step 4: HTTP リクエスト送信
-  // -------------------------------------------------------
-  const response = await fetch(searchUrl.toString(), {
-    method: "GET",
-    headers: {
-      "User-Agent": USER_AGENT,
-      Accept: "text/html,application/xhtml+xml",
-      "Accept-Language": "ja",
-    },
-    // リダイレクトに追従する
-    redirect: "follow",
-  })
-
-  if (!response.ok) {
-    throw new Error(
-      `ハローワークへのリクエストが失敗しました: HTTP ${response.status} ${response.statusText}`
-    )
-  }
-
-  const html = await response.text()
-
-  // -------------------------------------------------------
-  // Step 5: HTML パース
-  // -------------------------------------------------------
-  const jobs = parseJobListHtml(html, prefecture)
-  const totalCount = parseTotalCount(html)
-  const totalPages = parseTotalPages(html)
-
-  return {
-    jobs,
-    totalCount,
-    currentPage: page,
-    totalPages,
-    crawledAt: new Date(),
-  }
 }
 
 /**
- * 複数ページにわたって求人を取得する。
+ * 指定 dataId の指定ページから連続で N ページ分だけ取得する。
+ * 全国36万件取り込みのページローテーション戦略で使用する。
  *
- * 全ページを順次取得し、結果を結合して返す。
- * 各リクエスト間にはレート制限が自動適用される。
- *
- * @param params - 検索パラメータ（page フィールドは無視される）
- * @param maxPages - 最大取得ページ数（デフォルト: 10）
- * @returns 全ページの求人データを結合した CrawlResult
- *
- * @example
- * ```typescript
- * const allJobs = await fetchAllPages(
- *   { prefecture: "13", category: "driver" },
- *   5 // 最大5ページ
- * );
- * ```
+ * @returns
+ *   - jobs: 取得できた求人配列
+ *   - lastPage: 実際に最後まで取れたページ番号（0 件ページに当たった直前のページ）
+ *   - exhausted: 0 件ページに到達したか（= この dataId の取り尽くし完了）
  */
-export async function fetchAllPages(
-  params: Omit<HelloworkSearchParams, "page">,
-  maxPages = 10
-): Promise<CrawlResult> {
+export async function fetchPagesFromDataId(
+  token: string,
+  dataId: string,
+  startPage: number,
+  pageCount: number
+): Promise<{
+  jobs: HelloworkJobData[]
+  lastPage: number
+  exhausted: boolean
+}> {
   const allJobs: HelloworkJobData[] = []
-  let totalCount = 0
-  let totalPages = 1
+  let lastPage = startPage - 1
+  let exhausted = false
 
-  for (let page = 1; page <= Math.min(maxPages, totalPages); page++) {
-    const result = await fetchHelloworkJobs({ ...params, page })
-
-    allJobs.push(...result.jobs)
-    totalCount = result.totalCount
-    totalPages = result.totalPages
-
-    // 取得件数が0なら最終ページに達したとみなす
-    if (result.jobs.length === 0) break
+  for (let i = 0; i < pageCount; i++) {
+    const page = startPage + i
+    const jobs = await fetchKyujinByDataId(token, dataId, page)
+    if (jobs.length === 0) {
+      exhausted = true
+      break
+    }
+    allJobs.push(...jobs)
+    lastPage = page
   }
 
-  return {
-    jobs: allJobs,
-    totalCount,
-    currentPage: 1,
-    totalPages,
-    crawledAt: new Date(),
+  return { jobs: allJobs, lastPage, exhausted }
+}
+
+/**
+ * dataId リストのみを取得する軽量ヘルパー（getToken / delToken 含む）。
+ * 進捗テーブルの初期化用。
+ */
+export async function fetchDataIds(
+  creds?: HelloworkCredentials
+): Promise<string[]> {
+  const credentials = creds ?? readCredentialsFromEnv()
+  const token = await getToken(credentials)
+  try {
+    return await fetchKyujinIdList(token)
+  } finally {
+    try {
+      await delToken(token)
+    } catch (e) {
+      console.error(
+        `[hellowork] トークン破棄に失敗: ${e instanceof Error ? e.message : e}`
+      )
+    }
   }
+}
+
+function readCredentialsFromEnv(): HelloworkCredentials {
+  const id = process.env.HELLOWORK_API_USER
+  const pass = process.env.HELLOWORK_API_PASS
+  if (!id || !pass) {
+    throw new Error(
+      "HelloWork API 認証情報が未設定: HELLOWORK_API_USER / HELLOWORK_API_PASS を環境変数に設定してください"
+    )
+  }
+  return { id, pass }
 }

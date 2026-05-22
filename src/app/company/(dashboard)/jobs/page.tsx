@@ -2,7 +2,9 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { Plus, Pencil } from "lucide-react"
+import { Plus, Pencil, BarChart3 } from "lucide-react"
+import { Pagination } from "@/components/pagination"
+import { DuplicateJobButton } from "@/components/company/duplicate-job-button"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -58,7 +60,7 @@ export default async function CompanyJobsPage({
         <h1 className="text-2xl font-bold text-gray-900">求人管理</h1>
         <Link
           href="/company/jobs/new"
-          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="inline-flex items-center gap-2 bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
         >
           <Plus className="h-4 w-4" />
           新規作成
@@ -76,9 +78,9 @@ export default async function CompanyJobsPage({
           <Link
             key={opt.value}
             href={`/company/jobs?status=${opt.value}`}
-            className={`rounded-full px-3 py-1 text-sm font-medium ${
+            className={` px-3 py-1 text-sm font-medium ${
               statusFilter === opt.value
-                ? "bg-blue-600 text-white"
+                ? "bg-primary-600 text-white"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
@@ -89,18 +91,18 @@ export default async function CompanyJobsPage({
 
       {/* Jobs table */}
       {jobs.length === 0 ? (
-        <div className="mt-8 rounded-lg border bg-white p-8 text-center shadow-sm">
+        <div className="mt-8 border bg-white p-8 text-center shadow-sm">
           <p className="text-gray-500">求人がありません。</p>
           <Link
             href="/company/jobs/new"
-            className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+            className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700"
           >
             <Plus className="h-4 w-4" />
             最初の求人を作成する
           </Link>
         </div>
       ) : (
-        <div className="mt-4 overflow-hidden rounded-lg border bg-white shadow-sm">
+        <div className="mt-4 overflow-hidden border bg-white shadow-sm">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -144,13 +146,23 @@ export default async function CompanyJobsPage({
                     {job.createdAt.toLocaleDateString("ja-JP")}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/company/jobs/${job.id}/edit`}
-                      className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      編集
-                    </Link>
+                    <div className="flex items-center justify-end gap-4">
+                      <Link
+                        href={`/company/jobs/${job.id}/performance`}
+                        className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
+                      >
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        成果
+                      </Link>
+                      <DuplicateJobButton jobId={job.id} />
+                      <Link
+                        href={`/company/jobs/${job.id}/edit`}
+                        className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        編集
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -160,23 +172,9 @@ export default async function CompanyJobsPage({
       )}
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="mt-4 flex justify-center gap-2">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-            <Link
-              key={p}
-              href={`/company/jobs?status=${statusFilter}&page=${p}`}
-              className={`rounded-md px-3 py-1 text-sm ${
-                p === page
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-600 border hover:bg-gray-50"
-              }`}
-            >
-              {p}
-            </Link>
-          ))}
-        </div>
-      )}
+      <div className="mt-4">
+        <Pagination currentPage={page} totalPages={totalPages} basePath="/company/jobs" searchParams={{ status: statusFilter }} />
+      </div>
     </div>
   )
 }
@@ -195,7 +193,7 @@ function JobStatusBadge({ status }: { status: string }) {
 
   return (
     <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${className}`}
+      className={`inline-flex px-2 py-0.5 text-xs font-medium ${className}`}
     >
       {label}
     </span>

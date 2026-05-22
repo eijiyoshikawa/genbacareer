@@ -1,21 +1,25 @@
 import { prisma } from "./db"
-import { stripe, HIRING_FEE_AMOUNT } from "./stripe"
+import { createMfPartner, createMfBilling } from "./moneyforward"
+import { resolveHiringFee } from "./hiring-fee"
 
 /**
  * 採用確定時に成果報酬の請求書を作成する。
  *
- * 処理フロー:
- * 1. BillingEvent を pending で作成
- * 2. Stripe Customer を取得 or 作成
- * 3. InvoiceItem + Invoice を作成して自動送付
- * 4. BillingEvent を invoiced に更新
+ * 全企業共通: マネーフォワード クラウド請求書 (銀行振込) で発行する。
+ * （景品表示法・過大広告対応の方針見直しに伴い Stripe カード決済は廃止）
+ *
+ * 共通フロー:
+ *   1. BillingEvent を pending で作成
+ *   2. MoneyForward で取引先を取得 or 作成
+ *   3. 請求書を作成・送付
+ *   4. BillingEvent を invoiced に更新（失敗時は failed）
  */
 export async function createHiringInvoice(applicationId: string) {
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
     include: {
       company: true,
-      job: { select: { title: true } },
+      job: { select: { title: true, hiringFeeAmount: true } },
       user: { select: { name: true } },
     },
   })
@@ -24,77 +28,92 @@ export async function createHiringInvoice(applicationId: string) {
     throw new Error(`Application ${applicationId} not found or has no company`)
   }
 
-  // Create billing event
+  // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ定数フォールバック
+  const feeAmount = resolveHiringFee(application.job)
+
   const billingEvent = await prisma.billingEvent.create({
     data: {
       companyId: application.company.id,
       applicationId,
       eventType: "hired",
-      amount: HIRING_FEE_AMOUNT,
+      amount: feeAmount,
+      provider: "moneyforward",
       status: "pending",
     },
   })
 
   try {
-    // Get or create Stripe customer
-    let stripeCustomerId = application.company.stripeCustomerId
-
-    if (!stripeCustomerId) {
-      const customer = await stripe.customers.create({
-        name: application.company.name,
-        email: application.company.contactEmail ?? undefined,
-        metadata: { companyId: application.company.id },
-      })
-      stripeCustomerId = customer.id
-
-      await prisma.company.update({
-        where: { id: application.company.id },
-        data: { stripeCustomerId },
-      })
-    }
-
-    // Create invoice item
-    await stripe.invoiceItems.create({
-      customer: stripeCustomerId,
-      amount: HIRING_FEE_AMOUNT,
-      currency: "jpy",
-      description: `成果報酬 — ${application.job.title}（${application.user?.name ?? "求職者"}の採用）`,
-      metadata: {
-        billingEventId: billingEvent.id,
-        applicationId,
-        companyId: application.company.id,
-      },
+    return await invoiceViaMoneyForward({
+      billingEventId: billingEvent.id,
+      company: application.company,
+      jobTitle: application.job.title,
+      userName: application.user?.name ?? "求職者",
+      amount: feeAmount,
     })
-
-    // Create and finalize invoice
-    const invoice = await stripe.invoices.create({
-      customer: stripeCustomerId,
-      auto_advance: true, // Auto-finalize
-      collection_method: "send_invoice",
-      days_until_due: 30,
-      metadata: {
-        billingEventId: billingEvent.id,
-      },
-    })
-
-    await stripe.invoices.finalizeInvoice(invoice.id)
-
-    // Update billing event
-    await prisma.billingEvent.update({
-      where: { id: billingEvent.id },
-      data: {
-        stripeInvoiceId: invoice.id,
-        status: "invoiced",
-      },
-    })
-
-    return { billingEvent, invoiceId: invoice.id }
   } catch (error) {
-    // Mark as failed
     await prisma.billingEvent.update({
       where: { id: billingEvent.id },
       data: { status: "failed" },
     })
     throw error
+  }
+}
+
+type InvoiceArgs = {
+  billingEventId: string
+  company: {
+    id: string
+    name: string
+    contactEmail: string | null
+    mfPartnerId: string | null
+  }
+  jobTitle: string
+  userName: string
+  /** Job 個別設定 or HIRING_FEE_AMOUNT 定数からの解決済み金額 */
+  amount: number
+}
+
+async function invoiceViaMoneyForward(args: InvoiceArgs) {
+  const { billingEventId, company, jobTitle, userName, amount } = args
+
+  let partnerId = company.mfPartnerId
+  if (!partnerId) {
+    const partner = await createMfPartner({
+      name: company.name,
+      email: company.contactEmail ?? undefined,
+    })
+    partnerId = partner.id
+
+    await prisma.company.update({
+      where: { id: company.id },
+      data: { mfPartnerId: partnerId },
+    })
+  }
+
+  const billing = await createMfBilling({
+    partnerId,
+    title: "成果報酬請求書",
+    itemName: `成果報酬 — ${jobTitle}（${userName}様の採用決定）`,
+    amount,
+    daysUntilDue: 30,
+    metadata: {
+      billingEventId,
+      companyId: company.id,
+    },
+  })
+
+  const billingEvent = await prisma.billingEvent.update({
+    where: { id: billingEventId },
+    data: {
+      mfBillingId: billing.id,
+      invoiceUrl: billing.pdf_url ?? billing.web_url ?? billing.document_url ?? null,
+      status: "invoiced",
+    },
+  })
+
+  return {
+    billingEvent,
+    invoiceId: billing.id,
+    provider: "moneyforward" as const,
   }
 }

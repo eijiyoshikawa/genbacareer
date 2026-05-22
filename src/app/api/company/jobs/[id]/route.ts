@@ -18,7 +18,14 @@ const updateJobSchema = z.object({
   address: z.string().nullable().optional(),
   benefits: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
+  videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
   status: z.enum(["draft", "active", "closed"]).optional(),
+  /**
+   * 楽観ロック用 ISO timestamp。GET で取得した updatedAt をそのまま PUT に
+   * 渡すと、別タブ / 別ユーザーが同じレコードを編集した場合に競合検出して
+   * 409 を返す（強制上書きを防ぐ）。
+   */
+  expectedUpdatedAt: z.string().datetime().optional(),
 })
 
 async function getCompanySession() {
@@ -66,7 +73,7 @@ export async function PUT(
 
   const existing = await prisma.job.findUnique({
     where: { id },
-    select: { companyId: true, status: true, publishedAt: true },
+    select: { companyId: true, status: true, publishedAt: true, updatedAt: true },
   })
   if (!existing || existing.companyId !== ctx.companyId) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
@@ -87,7 +94,24 @@ export async function PUT(
     )
   }
 
-  const data = parsed.data
+  const { expectedUpdatedAt, ...data } = parsed.data
+
+  // 楽観ロック: クライアントが取得した時点から変わっていなければ更新を許可
+  if (expectedUpdatedAt) {
+    const expected = new Date(expectedUpdatedAt).getTime()
+    const actual = existing.updatedAt.getTime()
+    if (Math.abs(actual - expected) > 1000) {
+      // 1 秒以上ズレていたら別の編集が入った可能性
+      return Response.json(
+        {
+          error: "他の編集が反映されています。最新の内容を読み込み直してから保存してください",
+          code: "STALE_UPDATE",
+          currentUpdatedAt: existing.updatedAt.toISOString(),
+        },
+        { status: 409 }
+      )
+    }
+  }
 
   // Set publishedAt when first publishing
   const publishedAt =
@@ -102,6 +126,20 @@ export async function PUT(
       ...(publishedAt ? { publishedAt } : {}),
     },
   })
+
+  // GbizINFO リマインダー: draft → active への初回公開で法人番号未登録なら
+  // 観測ログ。UI バナーで既に注意喚起しているため、ここでは記録のみ。
+  if (publishedAt) {
+    const company = await prisma.company.findUnique({
+      where: { id: existing.companyId ?? "" },
+      select: { corporateNumber: true, name: true },
+    })
+    if (company && !company.corporateNumber) {
+      console.info(
+        `[gbiz-reminder] job published without corporateNumber: companyId=${existing.companyId} name=${company.name} jobId=${id}`
+      )
+    }
+  }
 
   return Response.json({ job })
 }

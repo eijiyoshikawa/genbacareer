@@ -1,138 +1,153 @@
+/**
+ * 12.x スカウト受信トレイ。
+ *
+ * 求職者本人宛のスカウト一覧を新しい順に表示。
+ * 期限切れ (expired) と辞退済み (declined) は別カードでまとめてグレー表示。
+ */
+
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { Building2, Briefcase, Mail } from "lucide-react"
+import { Building2, Mail, MailOpen, Clock, XCircle } from "lucide-react"
 import type { Metadata } from "next"
 
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
-  title: "スカウト一覧",
+  title: "スカウト受信トレイ",
 }
 
-export default async function ScoutsPage() {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/login")
+const STATUS_CONFIG: Record<
+  string,
+  { label: string; className: string; icon: typeof Mail }
+> = {
+  sent: { label: "未読", className: "bg-amber-100 text-amber-700", icon: Mail },
+  read: { label: "既読", className: "bg-gray-100 text-gray-600", icon: MailOpen },
+  expired: { label: "期限切れ", className: "bg-gray-100 text-gray-400", icon: Clock },
+  declined: { label: "辞退済み", className: "bg-gray-100 text-gray-400", icon: XCircle },
+}
 
-  const scouts = await prisma.scout.findMany({
-    where: { userId: session.user.id },
-    orderBy: { sentAt: "desc" },
-    include: {
-      company: { select: { name: true, industry: true } },
-      job: { select: { id: true, title: true } },
+export default async function ScoutsInboxPage() {
+  const session = await auth()
+  if (!session?.user) redirect("/login")
+  const userId = (session.user as { id?: string }).id
+  if (!userId) redirect("/login")
+
+  const scouts = await prisma.scoutMessage.findMany({
+    where: { userId },
+    orderBy: [{ status: "asc" }, { sentAt: "desc" }],
+    take: 100,
+    select: {
+      id: true,
+      subject: true,
+      status: true,
+      sentAt: true,
+      expiresAt: true,
+      job: { select: { id: true, title: true, prefecture: true } },
+      company: { select: { id: true, name: true, logoUrl: true } },
     },
   })
 
-  // Mark unread scouts as read
-  const unreadIds = scouts
-    .filter((s) => s.status === "sent")
-    .map((s) => s.id)
-  if (unreadIds.length > 0) {
-    await prisma.scout.updateMany({
-      where: { id: { in: unreadIds } },
-      data: { status: "read", readAt: new Date() },
-    })
-  }
+  const active = scouts.filter((s) => s.status === "sent" || s.status === "read")
+  const past = scouts.filter((s) => s.status === "expired" || s.status === "declined")
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">スカウト一覧</h1>
-        <Link
-          href="/mypage"
-          className="text-sm font-medium text-blue-600 hover:text-blue-700"
-        >
-          ← マイページ
-        </Link>
-      </div>
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
+      <h1 className="text-2xl font-black text-ink-900 tracking-tight">
+        スカウト受信トレイ
+      </h1>
+      <p className="mt-1 text-sm text-gray-500">
+        企業から届いた直接スカウトの一覧。有効期限内に確認してください。
+      </p>
 
-      {scouts.length === 0 ? (
-        <div className="mt-8 rounded-lg border bg-white p-8 text-center shadow-sm">
+      {active.length === 0 ? (
+        <div className="mt-8 border border-dashed border-gray-300 bg-warm-50 p-8 text-center">
           <Mail className="mx-auto h-10 w-10 text-gray-300" />
-          <p className="mt-3 text-gray-500">スカウトはまだ届いていません。</p>
-          <p className="mt-1 text-sm text-gray-400">
-            プロフィールを公開すると企業からスカウトが届く場合があります。
+          <p className="mt-3 text-sm text-gray-500">現在、有効なスカウトはありません</p>
+          <p className="mt-1 text-xs text-gray-400">
+            プロフィールを充実させると、スカウトが届きやすくなります。
           </p>
           <Link
             href="/mypage/profile"
-            className="mt-4 inline-block text-sm font-medium text-blue-600 hover:text-blue-700"
+            className="mt-4 inline-block bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
           >
-            プロフィールを編集する →
+            プロフィールを編集
           </Link>
         </div>
       ) : (
-        <div className="mt-6 space-y-4">
-          {scouts.map((scout) => (
-            <div
-              key={scout.id}
-              className={`rounded-lg border bg-white p-5 shadow-sm ${
-                scout.status === "sent" ? "border-blue-200 bg-blue-50/30" : ""
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                    <Building2 className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">
-                      {scout.company.name}
-                    </p>
-                    {scout.company.industry && (
-                      <p className="text-xs text-gray-500">
-                        {scout.company.industry}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <ScoutStatusBadge status={scout.status} />
-                  <p className="mt-1 text-xs text-gray-400">
-                    {scout.sentAt.toLocaleDateString("ja-JP")}
-                  </p>
-                </div>
-              </div>
-
-              {scout.message && (
-                <p className="mt-3 text-sm text-gray-700 whitespace-pre-wrap">
-                  {scout.message}
-                </p>
-              )}
-
-              {scout.job && (
+        <ul className="mt-6 space-y-3">
+          {active.map((s) => {
+            const sc = STATUS_CONFIG[s.status]
+            const Icon = sc.icon
+            return (
+              <li key={s.id}>
                 <Link
-                  href={`/jobs/${scout.job.id}`}
-                  className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700"
+                  href={`/mypage/scouts/${s.id}`}
+                  className="block border border-warm-200 bg-white p-4 hover:border-primary-500 hover:shadow-sm"
                 >
-                  <Briefcase className="h-3.5 w-3.5" />
-                  {scout.job.title}
+                  <div className="flex items-start gap-3">
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center ${sc.className}`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold ${sc.className}`}>
+                          {sc.label}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          有効期限 {formatDate(s.expiresAt)}
+                        </span>
+                      </div>
+                      <p className="mt-1 font-bold text-ink-900 truncate">
+                        {s.company?.name ?? "企業"}
+                      </p>
+                      <p className="text-sm text-gray-600 truncate">
+                        <Building2 className="inline-block h-3.5 w-3.5 align-text-bottom" />{" "}
+                        {s.job?.title ?? "求人情報"}
+                      </p>
+                    </div>
+                  </div>
                 </Link>
-              )}
-            </div>
-          ))}
-        </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {past.length > 0 && (
+        <details className="mt-8 group">
+          <summary className="cursor-pointer text-sm text-gray-500">
+            過去のスカウト ({past.length} 件) を表示
+          </summary>
+          <ul className="mt-3 space-y-2">
+            {past.map((s) => {
+              const sc = STATUS_CONFIG[s.status]
+              return (
+                <li key={s.id}>
+                  <Link
+                    href={`/mypage/scouts/${s.id}`}
+                    className="block border border-warm-200 bg-warm-50 p-3 text-sm text-gray-500 hover:border-gray-400"
+                  >
+                    <span className={`inline-flex items-center px-2 py-0.5 text-xs ${sc.className}`}>
+                      {sc.label}
+                    </span>{" "}
+                    <span className="ml-2">{s.company?.name ?? "企業"}</span>
+                    <span className="ml-2 text-gray-400">— {s.job?.title}</span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </details>
       )}
     </div>
   )
 }
 
-function ScoutStatusBadge({ status }: { status: string }) {
-  const config: Record<string, { label: string; className: string }> = {
-    sent: { label: "未読", className: "bg-blue-100 text-blue-700" },
-    read: { label: "既読", className: "bg-gray-100 text-gray-600" },
-    replied: { label: "返信済み", className: "bg-green-100 text-green-700" },
-    declined: { label: "辞退", className: "bg-red-100 text-red-600" },
-  }
-
-  const { label, className } = config[status] ?? {
-    label: status,
-    className: "bg-gray-100 text-gray-600",
-  }
-
-  return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${className}`}
-    >
-      {label}
-    </span>
-  )
+function formatDate(d: Date): string {
+  return `${d.getFullYear()}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d
+    .getDate()
+    .toString()
+    .padStart(2, "0")}`
 }

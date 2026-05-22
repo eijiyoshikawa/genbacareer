@@ -3,12 +3,21 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { generateToken, TOKEN_EXPIRY_MS } from "@/lib/tokens"
 import { sendPasswordResetEmail } from "@/lib/email"
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 
 const schema = z.object({
   email: z.string().email(),
 })
 
 export async function POST(request: NextRequest) {
+  // レート制限: 同一 IP から 15 分間に 3 回まで
+  const rl = checkRateLimit({
+    key: `forgot-password:${getClientIp(request)}`,
+    limit: 3,
+    windowMs: 15 * 60 * 1000,
+  })
+  if (!rl.allowed) return rateLimitResponse(rl)
+
   let body: unknown
   try {
     body = await request.json()

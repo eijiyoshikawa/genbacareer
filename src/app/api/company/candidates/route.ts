@@ -44,17 +44,10 @@ export async function GET(request: NextRequest) {
         desiredCategories: true,
         desiredSalaryMin: true,
         createdAt: true,
-        _count: { select: { scouts: { where: { companyId } } } },
       },
     }),
     prisma.user.count({ where }),
   ])
 
-  const candidates = users.map((u) => ({
-    ...u,
-    alreadyScouted: u._count.scouts > 0,
-    _count: undefined,
-  }))
-
-  return Response.json({ candidates, total, page, perPage })
+  return Response.json({ candidates: users, total, page, perPage })
 }

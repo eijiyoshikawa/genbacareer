@@ -2,6 +2,10 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { CATEGORIES } from "@/lib/categories"
+import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
+
+const VALID_CATEGORIES = CATEGORIES.map((c) => c.value)
 
 const jobSchema = z.object({
   title: z.string().min(1).max(200),
@@ -18,6 +22,7 @@ const jobSchema = z.object({
   address: z.string().nullable().optional(),
   benefits: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
+  videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
   status: z.enum(["draft", "active", "closed"]).optional(),
 })
 
@@ -64,9 +69,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const ctx = await getCompanySession()
-  if (!ctx) {
-    return Response.json({ error: "企業アカウントでログインしてください" }, { status: 401 })
+  // 求人投稿は status=approved の企業のみ許可
+  const ctx = await requireCompanyAuth({ requireApproved: true })
+  if (isCompanyAuthError(ctx)) {
+    return Response.json({ error: ctx.error }, { status: ctx.status })
   }
 
   let body: unknown
@@ -86,6 +92,13 @@ export async function POST(request: NextRequest) {
 
   const data = parsed.data
 
+  if (!(VALID_CATEGORIES as readonly string[]).includes(data.category)) {
+    return Response.json(
+      { error: `無効なカテゴリです。有効な値: ${VALID_CATEGORIES.join(", ")}` },
+      { status: 400 }
+    )
+  }
+
   const job = await prisma.job.create({
     data: {
       companyId: ctx.companyId,
@@ -104,10 +117,26 @@ export async function POST(request: NextRequest) {
       address: data.address ?? null,
       benefits: data.benefits ?? [],
       tags: data.tags ?? [],
+      videoUrls: data.videoUrls ?? [],
       status: data.status ?? "draft",
       publishedAt: data.status === "active" ? new Date() : null,
     },
   })
+
+  // GbizINFO リマインダー: 法人番号未登録の企業が active 求人を公開した場合、
+  // 観測用ログを出す（将来的にメール通知 / Slack 通知につなげる足場）。
+  // UI 側のバナーで既に注意喚起済みなので、ここでは強制せずログのみ。
+  if (data.status === "active") {
+    const company = await prisma.company.findUnique({
+      where: { id: ctx.companyId },
+      select: { corporateNumber: true, name: true },
+    })
+    if (company && !company.corporateNumber) {
+      console.info(
+        `[gbiz-reminder] job published without corporateNumber: companyId=${ctx.companyId} name=${company.name} jobId=${job.id}`
+      )
+    }
+  }
 
   return Response.json({ job }, { status: 201 })
 }

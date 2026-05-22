@@ -1,5 +1,21 @@
 import Link from "next/link"
-import { MapPin, Banknote, Building2, Clock } from "lucide-react"
+import {
+  MapPin,
+  Money,
+  Buildings,
+  HardHat,
+  CaretRight,
+  CalendarCheck,
+  ShieldCheck,
+  SealCheck,
+  Bank,
+} from "@phosphor-icons/react/dist/ssr"
+import { getCategoryLabel } from "@/lib/categories"
+import { computeHasConstructionPermit } from "@/lib/gbizinfo"
+import { TagChip } from "./tag-chip"
+import { FavoriteButton } from "./favorite-button"
+import { CompareAddButton } from "./compare-add-button"
+import { JobCardActions } from "./job-card-actions"
 
 type JobCardProps = {
   id: string
@@ -13,66 +29,164 @@ type JobCardProps = {
   city: string | null
   source: string
   tags: string[]
-  company: { name: string; logoUrl: string | null } | null
+  annualHolidays?: number | null
+  insurance?: string | null
+  company:
+    | {
+        name: string
+        logoUrl: string | null
+        /**
+         * GbizINFO 由来の JSONB データ。
+         * 渡すと JobCard 内で建設業許可の有無を判定して、保有時は
+         * バッジを表示する。callsite は prisma select で
+         * `company: { select: { ..., gbizData: true } }` を追加するだけで OK。
+         */
+        gbizData?: unknown
+      }
+    | null
 }
 
-export function JobCard({ job }: { job: JobCardProps }) {
+export function JobCard({
+  job,
+  isFavorite = false,
+  loggedIn = false,
+}: {
+  job: JobCardProps
+  isFavorite?: boolean
+  loggedIn?: boolean
+}) {
+  const tagsToShow = job.tags.slice(0, 5)
+  const hasConstructionPermit = computeHasConstructionPermit(
+    job.company?.gbizData
+  )
+
   return (
     <Link
       href={`/jobs/${job.id}`}
-      className="block rounded-lg border bg-white p-4 shadow-sm transition hover:shadow-md hover:border-blue-300"
+      className="group flex gap-4 border bg-white p-4 transition hover:border-primary-400 hover:shadow-sm"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold text-gray-900 line-clamp-2">
-            {job.title}
-          </h3>
-          {job.company && (
-            <p className="mt-1 flex items-center gap-1 text-sm text-gray-600">
-              <Building2 className="h-3.5 w-3.5 shrink-0" />
-              {job.company.name}
-            </p>
+      <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center bg-gray-100 group-hover:bg-primary-50 transition">
+        <HardHat weight="duotone" className="h-6 w-6 text-primary-500" />
+      </div>
+
+      <div className="flex-1 min-w-0">
+        {/* メタ: 出典バッジ + カテゴリ + 雇用形態 */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {job.source === "direct" ? (
+            <span
+              className="inline-flex items-center gap-1 bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800"
+              title="掲載企業から直接募集中の認定求人。応募内容は LINE で当社経由で企業に届きます。"
+            >
+              <SealCheck weight="fill" className="h-3.5 w-3.5" />
+              認定企業
+            </span>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-500"
+              title="公共職業安定所が公開している公共求人。応募は当社経由で手続き案内が届きます。"
+            >
+              <Bank weight="duotone" className="h-3 w-3" />
+              公共求人
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1 bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700">
+            {getCategoryLabel(job.category)}
+          </span>
+          {job.employmentType && (
+            <span className="bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+              {employmentTypeLabel(job.employmentType)}
+            </span>
           )}
         </div>
-        {job.source === "hellowork" && (
-          <span className="shrink-0 rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-            HW
-          </span>
-        )}
-      </div>
 
-      <div className="mt-3 flex flex-wrap gap-3 text-sm text-gray-600">
-        <span className="flex items-center gap-1">
-          <MapPin className="h-3.5 w-3.5" />
-          {job.prefecture}
-          {job.city && ` ${job.city}`}
-        </span>
-        {job.salaryMin && (
-          <span className="flex items-center gap-1">
-            <Banknote className="h-3.5 w-3.5" />
-            {formatSalary(job.salaryMin, job.salaryMax, job.salaryType)}
-          </span>
-        )}
-        {job.employmentType && (
-          <span className="flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" />
-            {employmentTypeLabel(job.employmentType)}
-          </span>
-        )}
-      </div>
+        {/* タイトル */}
+        <h3 className="mt-1.5 text-base font-semibold text-gray-900 line-clamp-2 group-hover:text-primary-600 transition">
+          {job.title}
+        </h3>
 
-      {job.tags.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {job.tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
-            >
-              {tag}
+        {/* 給与・勤務地（重要情報を 1 行で目立たせる） */}
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          {job.salaryMin ? (
+            <span className="inline-flex items-center gap-1 text-lg font-extrabold text-primary-700 tracking-tight">
+              <Money weight="fill" className="h-5 w-5 text-primary-500" />
+              {formatSalary(job.salaryMin, job.salaryMax, job.salaryType)}
             </span>
-          ))}
+          ) : (
+            <span className="inline-flex items-center gap-1 text-sm text-gray-500">
+              <Money weight="duotone" className="h-4 w-4" />
+              給与応相談
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1 text-sm text-gray-700">
+            <MapPin weight="duotone" className="h-4 w-4 text-gray-400" />
+            {job.prefecture}
+            {job.city && ` ${job.city}`}
+          </span>
         </div>
-      )}
+
+        {/* 会社名（小さく） + 建設業許可バッジ */}
+        {job.company && (
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-500">
+            <Buildings weight="duotone" className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{job.company.name}</span>
+            {hasConstructionPermit && (
+              <span
+                className="ml-1 inline-flex shrink-0 items-center gap-0.5 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-xs font-bold text-emerald-700"
+                title="GbizINFO で建設業許可を確認済みの企業です"
+              >
+                <SealCheck weight="fill" className="h-3 w-3" />
+                建設業許可
+              </span>
+            )}
+          </p>
+        )}
+
+        {/* 構造化バッジ（年間休日 / 保険） */}
+        {(job.annualHolidays != null || job.insurance) && (
+          <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
+            {job.annualHolidays != null && (
+              <span className="inline-flex items-center gap-1">
+                <CalendarCheck weight="duotone" className="h-3.5 w-3.5 text-primary-500" />
+                年間休日 {job.annualHolidays}日
+              </span>
+            )}
+            {job.insurance && (
+              <span className="inline-flex items-center gap-1">
+                <ShieldCheck weight="duotone" className="h-3.5 w-3.5 text-primary-500" />
+                {truncate(job.insurance, 20)}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* 待遇チップ（自動抽出されたタグを 5 件まで、デザインシステム TagChip 統一）*/}
+        {tagsToShow.length > 0 && (
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {tagsToShow.map((tag) => (
+              <TagChip key={tag} size="sm">
+                {tag}
+              </TagChip>
+            ))}
+            {job.tags.length > tagsToShow.length && (
+              <span className="text-xs text-gray-400 self-center">
+                +{job.tags.length - tagsToShow.length}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col items-end justify-between gap-1 sm:items-center sm:flex-row">
+        <JobCardActions>
+          <CompareAddButton jobId={job.id} />
+          <FavoriteButton
+            jobId={job.id}
+            initialIsFavorite={isFavorite}
+            loggedIn={loggedIn}
+          />
+        </JobCardActions>
+        <CaretRight weight="duotone" className="hidden sm:block h-5 w-5 text-gray-300 group-hover:text-primary-500 transition" />
+      </div>
     </Link>
   )
 }
@@ -82,12 +196,30 @@ function formatSalary(
   max: number | null,
   type: string | null
 ): string {
-  const unit = type === "hourly" ? "時給" : type === "annual" ? "年収" : "月給"
+  const unit = salaryUnitLabel(type)
+  // 時給・日給は 1 万未満が大半なので万円表記しない
+  const useManYen = type !== "hourly" && type !== "daily"
   const fmt = (n: number) =>
-    n >= 10000 ? `${(n / 10000).toFixed(0)}万` : `${n.toLocaleString()}`
+    useManYen && n >= 10000
+      ? `${(n / 10000).toFixed(0)}万`
+      : `${n.toLocaleString()}`
   if (min && max) return `${unit} ${fmt(min)}〜${fmt(max)}円`
   if (min) return `${unit} ${fmt(min)}円〜`
   return ""
+}
+
+function salaryUnitLabel(type: string | null): string {
+  switch (type) {
+    case "hourly":
+      return "時給"
+    case "annual":
+      return "年収"
+    case "daily":
+      return "日給"
+    case "monthly":
+    default:
+      return "月給"
+  }
 }
 
 function employmentTypeLabel(type: string): string {
@@ -97,4 +229,8 @@ function employmentTypeLabel(type: string): string {
     contract: "契約社員",
   }
   return labels[type] ?? type
+}
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? `${s.slice(0, max)}…` : s
 }

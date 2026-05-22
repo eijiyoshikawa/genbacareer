@@ -3,77 +3,45 @@
  *
  * POST /api/admin/hellowork/import
  *
- * ハローワークインターネットサービスから求人を取得し、
+ * 厚生労働省「ハローワーク求人・求職情報提供サービス」の公式 API から求人を取得し、
  * データベースにインポートするバッチ処理を起動するエンドポイント。
  *
- * 認証: 環境変数 ADMIN_API_KEY による API キー認証（Bearer トークン）
+ * 認証: 環境変数 ADMIN_API_KEY による API キー認証 (Bearer)。
+ * HelloWork API 認証情報は HELLOWORK_API_USER / HELLOWORK_API_PASS から読み込む。
  *
  * リクエストボディ:
  * ```json
  * {
- *   "prefecture": "13",       // 必須: 都道府県コード
- *   "category": "driver",     // 任意: 職種カテゴリ
- *   "keyword": "トラック",     // 任意: フリーワード
- *   "maxPages": 5,            // 任意: 最大取得ページ数（デフォルト: 10）
- *   "dryRun": false,          // 任意: ドライランモード（デフォルト: false）
- *   "closeOrphans": true      // 任意: HW 側で消えた求人を close する（デフォルト: true）
+ *   "dryRun": false,         // 任意: ドライランモード (デフォルト false)
+ *   "closeOrphans": true,    // 任意: 今回バッチに含まれない HW 求人を closed にする
+ *   "maxJobs": 1000          // 任意: 取得する求人の上限件数
  * }
  * ```
  *
- * レスポンス:
- * ```json
- * {
- *   "success": true,
- *   "stats": {
- *     "created": 15,
- *     "updated": 42,
- *     "closed": 3,
- *     "errors": 0,
- *     "totalProcessed": 57,
- *     "durationMs": 12345
- *   }
- * }
- * ```
+ * 公式 API は職種・賃金等での絞り込みに対応していないため、全件取得して
+ * 自前 DB に保存する設計。
  *
  * @module admin-hellowork-import
  */
 
 import { type NextRequest } from "next/server"
-import { fetchAllPages } from "@/lib/crawler/hellowork"
+import { fetchAllJobs } from "@/lib/crawler/hellowork"
 import { importHelloworkJobs } from "@/lib/crawler/import-batch"
 
 // ========================================
 // 認証
 // ========================================
 
-/**
- * リクエストの Admin API キーを検証する。
- *
- * Authorization ヘッダーの Bearer トークンを環境変数 ADMIN_API_KEY と比較する。
- * ADMIN_API_KEY が未設定の場合はセキュリティ上全リクエストを拒否する。
- *
- * @param request - Next.js リクエストオブジェクト
- * @returns 認証成功なら true
- */
 function authenticateAdmin(request: NextRequest): boolean {
   const apiKey = process.env.ADMIN_API_KEY
   if (!apiKey) {
-    console.error(
-      "[admin/hellowork/import] ADMIN_API_KEY が設定されていません。" +
-        "環境変数に ADMIN_API_KEY を設定してください。"
-    )
+    console.error("[admin/hellowork/import] ADMIN_API_KEY が未設定です")
     return false
   }
-
   const authHeader = request.headers.get("authorization")
   if (!authHeader) return false
-
   const [scheme, token] = authHeader.split(" ")
   if (scheme?.toLowerCase() !== "bearer") return false
-
-  // タイミング攻撃対策: 定数時間比較
-  // Node.js の crypto.timingSafeEqual を使うのが理想だが、
-  // Edge Runtime では利用できない場合があるため単純比較とする
   return token === apiKey
 }
 
@@ -81,55 +49,25 @@ function authenticateAdmin(request: NextRequest): boolean {
 // リクエストバリデーション
 // ========================================
 
-/** POST リクエストボディのスキーマ */
 interface ImportRequestBody {
-  prefecture: string
-  category?: string
-  keyword?: string
-  maxPages?: number
   dryRun?: boolean
   closeOrphans?: boolean
+  maxJobs?: number
 }
 
-/**
- * リクエストボディをバリデーションする。
- *
- * @param body - パース済みリクエストボディ
- * @returns バリデーション結果。エラーがあれば message を含むオブジェクト
- */
 function validateRequestBody(
   body: unknown
 ): { valid: true; data: ImportRequestBody } | { valid: false; message: string } {
-  if (!body || typeof body !== "object") {
-    return { valid: false, message: "リクエストボディが空です" }
+  if (body !== null && body !== undefined && typeof body !== "object") {
+    return { valid: false, message: "リクエストボディが不正です" }
   }
+  const b = (body as Record<string, unknown> | null) ?? {}
 
-  const b = body as Record<string, unknown>
-
-  // prefecture は必須
-  if (typeof b.prefecture !== "string" || !b.prefecture.trim()) {
-    return {
-      valid: false,
-      message: "prefecture（都道府県コード）は必須です。例: \"13\"（東京都）",
-    }
-  }
-
-  // prefecture コードが 01-47 の範囲内か
-  const prefCode = parseInt(b.prefecture, 10)
-  if (isNaN(prefCode) || prefCode < 1 || prefCode > 47) {
-    return {
-      valid: false,
-      message:
-        "prefecture は 01〜47 の都道府県コードを指定してください",
-    }
-  }
-
-  // maxPages の上限チェック
-  if (b.maxPages !== undefined) {
-    if (typeof b.maxPages !== "number" || b.maxPages < 1 || b.maxPages > 50) {
+  if (b.maxJobs !== undefined) {
+    if (typeof b.maxJobs !== "number" || b.maxJobs < 1 || b.maxJobs > 100000) {
       return {
         valid: false,
-        message: "maxPages は 1〜50 の範囲で指定してください",
+        message: "maxJobs は 1〜100000 の範囲で指定してください",
       }
     }
   }
@@ -137,13 +75,13 @@ function validateRequestBody(
   return {
     valid: true,
     data: {
-      prefecture: b.prefecture as string,
-      category: typeof b.category === "string" ? b.category : undefined,
-      keyword: typeof b.keyword === "string" ? b.keyword : undefined,
-      maxPages: typeof b.maxPages === "number" ? b.maxPages : undefined,
       dryRun: typeof b.dryRun === "boolean" ? b.dryRun : false,
+      // closeOrphans=true は「今回バッチに含まれない HW 求人を全部 closed にする」破壊的操作。
+      // ローテーション取り込みでは絶対に false にすべきで、UI 側からも明示的に true を送ってきた
+      // 場合のみ実行されるよう、デフォルトを false に変更（旧デフォルト true は事故の元）。
       closeOrphans:
-        typeof b.closeOrphans === "boolean" ? b.closeOrphans : true,
+        typeof b.closeOrphans === "boolean" ? b.closeOrphans : false,
+      maxJobs: typeof b.maxJobs === "number" ? b.maxJobs : undefined,
     },
   }
 }
@@ -152,39 +90,29 @@ function validateRequestBody(
 // API ハンドラー
 // ========================================
 
-/**
- * POST /api/admin/hellowork/import
- *
- * ハローワーク求人のインポートバッチを実行する。
- *
- * 認証済みの管理者のみ実行可能。
- * 処理完了後、インポート統計を JSON で返す。
- */
 export async function POST(request: NextRequest) {
-  // -------------------------------------------------------
-  // 認証チェック
-  // -------------------------------------------------------
   if (!authenticateAdmin(request)) {
     return Response.json(
       {
         success: false,
-        error: "認証に失敗しました。有効な API キーを Authorization ヘッダーに設定してください。",
+        error:
+          "認証に失敗しました。有効な API キーを Authorization ヘッダーに設定してください。",
       },
       { status: 401 }
     )
   }
 
-  // -------------------------------------------------------
-  // リクエストボディのパース・バリデーション
-  // -------------------------------------------------------
-  let body: unknown
-  try {
-    body = await request.json()
-  } catch {
-    return Response.json(
-      { success: false, error: "不正な JSON フォーマットです" },
-      { status: 400 }
-    )
+  let body: unknown = null
+  const contentLength = request.headers.get("content-length")
+  if (contentLength && parseInt(contentLength, 10) > 0) {
+    try {
+      body = await request.json()
+    } catch {
+      return Response.json(
+        { success: false, error: "不正な JSON フォーマットです" },
+        { status: 400 }
+      )
+    }
   }
 
   const validation = validateRequestBody(body)
@@ -195,42 +123,31 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { prefecture, category, keyword, maxPages, dryRun, closeOrphans } =
-    validation.data
+  const { dryRun, closeOrphans, maxJobs } = validation.data
 
-  // -------------------------------------------------------
-  // インポートバッチ実行
-  // -------------------------------------------------------
   try {
-    console.log(
-      `[admin/hellowork/import] バッチ開始: prefecture=${prefecture}, category=${category ?? "all"}, dryRun=${dryRun}`
+    console.info(
+      `[admin/hellowork/import] バッチ開始: dryRun=${dryRun}, maxJobs=${maxJobs ?? "unlimited"}`
     )
 
-    // Step 1: ハローワークから求人を取得
-    const crawlResult = await fetchAllPages(
-      { prefecture, category, keyword },
-      maxPages ?? 10
+    const crawlResult = await fetchAllJobs(undefined, { maxJobs })
+
+    console.info(
+      `[admin/hellowork/import] API 取得完了: ${crawlResult.jobs.length} 件`
     )
 
-    console.log(
-      `[admin/hellowork/import] クロール完了: ${crawlResult.jobs.length} 件取得`
-    )
-
-    // Step 2: データベースにインポート
     const stats = await importHelloworkJobs(crawlResult.jobs, {
       dryRun,
       closeOrphans,
     })
 
-    // -------------------------------------------------------
-    // レスポンス
-    // -------------------------------------------------------
     return Response.json({
       success: true,
       stats: {
         created: stats.created,
         updated: stats.updated,
         closed: stats.closed,
+        skipped: stats.skipped,
         errors: stats.errors,
         totalProcessed: stats.totalProcessed,
         durationMs: stats.durationMs,
@@ -239,23 +156,13 @@ export async function POST(request: NextRequest) {
       },
       crawl: {
         totalFound: crawlResult.totalCount,
-        pagesProcessed: crawlResult.currentPage,
-        totalPages: crawlResult.totalPages,
       },
       dryRun: dryRun ?? false,
     })
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "不明なエラーが発生しました"
-
     console.error(`[admin/hellowork/import] バッチエラー: ${message}`)
-
-    return Response.json(
-      {
-        success: false,
-        error: message,
-      },
-      { status: 500 }
-    )
+    return Response.json({ success: false, error: message }, { status: 500 })
   }
 }

@@ -42,7 +42,7 @@ export default function ForgotPasswordPage() {
       </h1>
 
       {sent ? (
-        <div className="mt-6 rounded-lg border bg-white p-6 shadow-sm text-center">
+        <div className="mt-6  border bg-white p-6 shadow-sm text-center">
           <p className="text-green-600 font-medium">メールを送信しました</p>
           <p className="mt-2 text-sm text-gray-500">
             メールアドレスが登録されている場合、リセット用のリンクを送信しました。
@@ -50,19 +50,19 @@ export default function ForgotPasswordPage() {
           </p>
           <Link
             href="/login"
-            className="mt-4 inline-block text-sm font-medium text-blue-600 hover:text-blue-700"
+            className="mt-4 inline-block text-sm font-medium text-primary-600 hover:text-primary-700"
           >
             ログインページへ戻る
           </Link>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="mt-6 rounded-lg border bg-white p-6 shadow-sm space-y-4">
+        <form onSubmit={handleSubmit} className="mt-6  border bg-white p-6 shadow-sm space-y-4">
           <p className="text-sm text-gray-500">
             登録済みのメールアドレスを入力してください。パスワードリセット用のリンクをお送りします。
           </p>
 
           {error && (
-            <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">
+            <div className=" bg-red-50 p-3 text-sm text-red-600">
               {error}
             </div>
           )}
@@ -76,7 +76,7 @@ export default function ForgotPasswordPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-md border px-3 py-2 text-sm shadow-sm"
+              className="mt-1 block w-full  border px-3 py-2 text-sm shadow-sm"
               placeholder="your@email.com"
             />
           </div>
@@ -84,13 +84,13 @@ export default function ForgotPasswordPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="w-full  bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
           >
             {loading ? "送信中..." : "リセットリンクを送信"}
           </button>
 
           <p className="text-center text-sm text-gray-500">
-            <Link href="/login" className="text-blue-600 hover:text-blue-700">
+            <Link href="/login" className="text-primary-600 hover:text-primary-700">
               ログインページへ戻る
             </Link>
           </p>

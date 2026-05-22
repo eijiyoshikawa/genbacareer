@@ -56,7 +56,7 @@ export default async function AdminBillingPage({
       {/* Summary */}
       <div className="mt-6 grid gap-4 sm:grid-cols-4">
         <SummaryCard label="支払い済み" amount={paid?._sum.amount ?? 0} count={paid?._count ?? 0} className="text-green-600" />
-        <SummaryCard label="請求済み" amount={invoiced?._sum.amount ?? 0} count={invoiced?._count ?? 0} className="text-blue-600" />
+        <SummaryCard label="請求済み" amount={invoiced?._sum.amount ?? 0} count={invoiced?._count ?? 0} className="text-primary-600" />
         <SummaryCard label="処理中" amount={pending?._sum.amount ?? 0} count={pending?._count ?? 0} className="text-yellow-600" />
         <SummaryCard label="失敗" amount={failed?._sum.amount ?? 0} count={failed?._count ?? 0} className="text-red-600" />
       </div>
@@ -73,9 +73,9 @@ export default async function AdminBillingPage({
           <Link
             key={opt.value}
             href={`/admin/billing?status=${opt.value}`}
-            className={`rounded-full px-3 py-1 text-sm font-medium ${
+            className={` px-3 py-1 text-sm font-medium ${
               statusFilter === opt.value
-                ? "bg-blue-600 text-white"
+                ? "bg-primary-600 text-white"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
@@ -85,11 +85,11 @@ export default async function AdminBillingPage({
       </div>
 
       {events.length === 0 ? (
-        <div className="mt-6 rounded-lg border bg-white p-8 text-center shadow-sm">
+        <div className="mt-6 border bg-white p-8 text-center shadow-sm">
           <p className="text-gray-500">課金イベントはありません。</p>
         </div>
       ) : (
-        <div className="mt-4 overflow-hidden rounded-lg border bg-white shadow-sm">
+        <div className="mt-4 overflow-hidden border bg-white shadow-sm">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -97,6 +97,7 @@ export default async function AdminBillingPage({
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">求人</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">採用者</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">金額</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">支払方法</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">ステータス</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">日付</th>
               </tr>
@@ -115,6 +116,22 @@ export default async function AdminBillingPage({
                   </td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">
                     ¥{event.amount.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-600">
+                    {event.provider === "moneyforward" ? "マネフォ" : event.provider}
+                    {event.invoiceUrl && (
+                      <>
+                        {" · "}
+                        <a
+                          href={event.invoiceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary-600 underline"
+                        >
+                          請求書
+                        </a>
+                      </>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <BillingStatusBadge status={event.status} />
@@ -135,9 +152,9 @@ export default async function AdminBillingPage({
             <Link
               key={p}
               href={`/admin/billing?status=${statusFilter}&page=${p}`}
-              className={`rounded-md px-3 py-1 text-sm ${
+              className={` px-3 py-1 text-sm ${
                 p === page
-                  ? "bg-blue-600 text-white"
+                  ? "bg-primary-600 text-white"
                   : "bg-white text-gray-600 border hover:bg-gray-50"
               }`}
             >
@@ -162,7 +179,7 @@ function SummaryCard({
   className: string
 }) {
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-sm">
+    <div className="border bg-white p-4 shadow-sm">
       <p className="text-sm text-gray-500">{label}</p>
       <p className={`mt-1 text-xl font-bold ${className}`}>
         ¥{amount.toLocaleString()}
@@ -175,13 +192,13 @@ function SummaryCard({
 function BillingStatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; className: string }> = {
     pending: { label: "処理中", className: "bg-yellow-100 text-yellow-700" },
-    invoiced: { label: "請求済み", className: "bg-blue-100 text-blue-700" },
+    invoiced: { label: "請求済み", className: "bg-primary-100 text-primary-700" },
     paid: { label: "支払い済み", className: "bg-green-100 text-green-700" },
     failed: { label: "失敗", className: "bg-red-100 text-red-600" },
   }
   const { label, className } = config[status] ?? { label: status, className: "bg-gray-100 text-gray-600" }
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${className}`}>
+    <span className={`inline-flex px-2 py-0.5 text-xs font-medium ${className}`}>
       {label}
     </span>
   )

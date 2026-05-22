@@ -2,6 +2,11 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { AdminSidebar } from "@/components/admin/sidebar"
 
+// /admin 配下は全て認証必須のため動的レンダリング固定。
+// 一部の Prisma クエリが build 時に prerender されようとして
+// DB スキーマ差分でビルドが落ちるのを防ぐ。
+export const dynamic = "force-dynamic"
+
 export default async function AdminLayout({
   children,
 }: {

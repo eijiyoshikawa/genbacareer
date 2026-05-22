@@ -1,0 +1,50 @@
+{
+  "buildCommand": "pnpm run vercel-build",
+  "regions": ["hnd1"],
+  "crons": [
+    {
+      "path": "/api/cron/warmup",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/expire-jobs",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/expire-scouts",
+      "schedule": "15 3 * * *"
+    },
+    {
+      "path": "/api/cron/plan-expiry-notice",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/expire-plans",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/rotate-companies",
+      "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/billing-todo-digest",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/hellowork-import?pages=5",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/saved-search-alerts",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-gbiz",
+      "schedule": "0 3 1 * *"
+    },
+    {
+      "path": "/api/cron/search-console-sync",
+      "schedule": "30 4 * * *"
+    }
+  ]
+}

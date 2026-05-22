@@ -1,10 +1,23 @@
 import { prisma } from "@/lib/db"
+import {
+  checkRateLimit,
+  getClientIp,
+  rateLimitResponse,
+} from "@/lib/rate-limit"
 import { type NextRequest } from "next/server"
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // 求人詳細 API は 1 分 60 リクエスト / IP（スクレイピング対策）
+  const rl = checkRateLimit({
+    key: `job-detail:${getClientIp(request)}`,
+    limit: 60,
+    windowMs: 60 * 1000,
+  })
+  if (!rl.allowed) return rateLimitResponse(rl)
+
   const { id } = await params
 
   const job = await prisma.job.findUnique({

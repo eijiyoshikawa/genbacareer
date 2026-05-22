@@ -24,7 +24,7 @@ export default function CompanyRegisterPage() {
 
   const validate = (): string | null => {
     if (!form.companyName.trim()) return "会社名を入力してください。";
-    if (!form.industry.trim()) return "業種を入力してください。";
+    if (!form.industry) return "業種を選択してください。";
     if (!form.prefecture) return "都道府県を選択してください。";
     if (!form.contactEmail.trim())
       return "担当者メールアドレスを入力してください。";
@@ -67,7 +67,7 @@ export default function CompanyRegisterPage() {
         return;
       }
 
-      router.push("/login?registered=1");
+      router.push("/login?registered=company-pending");
     } catch {
       setError("登録中にエラーが発生しました。もう一度お試しください。");
     } finally {
@@ -78,13 +78,13 @@ export default function CompanyRegisterPage() {
   return (
     <div className="flex min-h-[calc(100vh-200px)] items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
-        <div className="rounded-xl bg-white p-8 shadow-lg">
+        <div className=" bg-white p-8 shadow-lg">
           <h1 className="mb-6 text-center text-2xl font-bold text-gray-900">
             企業 新規登録
           </h1>
 
           {error && (
-            <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+            <div className="mb-4  bg-red-50 p-3 text-sm text-red-600">
               {error}
             </div>
           )}
@@ -103,8 +103,8 @@ export default function CompanyRegisterPage() {
                 required
                 value={form.companyName}
                 onChange={(e) => updateField("companyName", e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="株式会社サンプル"
+                className="mt-1 block w-full  border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                placeholder="株式会社○○建設"
               />
             </div>
 
@@ -115,15 +115,32 @@ export default function CompanyRegisterPage() {
               >
                 業種 <span className="text-red-500">*</span>
               </label>
-              <input
+              <select
                 id="industry"
-                type="text"
                 required
                 value={form.industry}
                 onChange={(e) => updateField("industry", e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="運送業"
-              />
+                className="mt-1 block w-full  border border-gray-300 px-3 py-2 text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="">選択してください</option>
+                <option value="総合建設（ゼネコン）">総合建設（ゼネコン）</option>
+                <option value="建築工事">建築工事</option>
+                <option value="土木工事">土木工事</option>
+                <option value="電気設備工事">電気設備工事</option>
+                <option value="管工事・空調設備">管工事・空調設備</option>
+                <option value="内装仕上工事">内装仕上工事</option>
+                <option value="塗装工事">塗装工事</option>
+                <option value="防水工事">防水工事</option>
+                <option value="解体工事">解体工事</option>
+                <option value="舗装工事">舗装工事</option>
+                <option value="とび・土工工事">とび・土工工事</option>
+                <option value="鉄骨・鉄筋工事">鉄骨・鉄筋工事</option>
+                <option value="産業廃棄物処理">産業廃棄物処理</option>
+                <option value="測量・設計">測量・設計</option>
+                <option value="不動産・デベロッパー">不動産・デベロッパー</option>
+                <option value="建設機械レンタル">建設機械レンタル</option>
+                <option value="その他建設関連">その他建設関連</option>
+              </select>
             </div>
 
             <div>
@@ -138,7 +155,7 @@ export default function CompanyRegisterPage() {
                 required
                 value={form.prefecture}
                 onChange={(e) => updateField("prefecture", e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="mt-1 block w-full  border border-gray-300 px-3 py-2 text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
               >
                 <option value="">選択してください</option>
                 {PREFECTURES.map((pref) => (
@@ -162,7 +179,7 @@ export default function CompanyRegisterPage() {
                 required
                 value={form.contactEmail}
                 onChange={(e) => updateField("contactEmail", e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="mt-1 block w-full  border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 placeholder="tantosha@example.com"
               />
             </div>
@@ -181,7 +198,7 @@ export default function CompanyRegisterPage() {
                 minLength={8}
                 value={form.password}
                 onChange={(e) => updateField("password", e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="mt-1 block w-full  border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 placeholder="8文字以上"
               />
             </div>
@@ -202,7 +219,7 @@ export default function CompanyRegisterPage() {
                 onChange={(e) =>
                   updateField("passwordConfirm", e.target.value)
                 }
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="mt-1 block w-full  border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 placeholder="もう一度入力"
               />
             </div>
@@ -210,7 +227,7 @@ export default function CompanyRegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full  bg-green-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "登録中..." : "登録する"}
             </button>
@@ -219,8 +236,8 @@ export default function CompanyRegisterPage() {
           <div className="mt-6 text-center text-sm text-gray-500">
             すでにアカウントをお持ちの方は
             <Link
-              href="/login"
-              className="ml-1 font-medium text-blue-600 hover:text-blue-500"
+              href="/company/login"
+              className="ml-1 font-medium text-primary-600 hover:text-primary-500"
             >
               ログイン
             </Link>

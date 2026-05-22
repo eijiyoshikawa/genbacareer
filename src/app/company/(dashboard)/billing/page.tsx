@@ -1,7 +1,14 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
-import { HIRING_FEE_AMOUNT } from "@/lib/stripe"
+import { HIRING_FEE_AMOUNT } from "@/lib/hiring-fee"
+import { resolveHiringFee } from "@/lib/hiring-fee"
+import {
+  PLAN_LABELS,
+  isPlanActive,
+  daysUntilPlanExpiry,
+  type PlanType,
+} from "@/lib/plans"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -23,7 +30,7 @@ export default async function CompanyBillingPage({
   const page = Math.max(1, Number(params.page) || 1)
   const perPage = 20
 
-  const [events, total, summaryData] = await Promise.all([
+  const [events, total, summaryData, companyJobs, company] = await Promise.all([
     prisma.billingEvent.findMany({
       where: { companyId },
       orderBy: { createdAt: "desc" },
@@ -32,7 +39,7 @@ export default async function CompanyBillingPage({
       include: {
         application: {
           include: {
-            job: { select: { title: true } },
+            job: { select: { title: true, hiringFeeAmount: true } },
             user: { select: { name: true } },
           },
         },
@@ -45,7 +52,27 @@ export default async function CompanyBillingPage({
       _sum: { amount: true },
       _count: true,
     }),
+    // 求人ごとの単価範囲を計算するために active 求人の hiringFeeAmount を取得
+    prisma.job.findMany({
+      where: { companyId, status: "active" },
+      select: { hiringFeeAmount: true },
+    }),
+    prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        planType: true,
+        planPaidUntil: true,
+        planActivatedAt: true,
+        planPrepaidFull: true,
+      },
+    }),
   ])
+
+  // 求人別の単価レンジ表示（個別設定が混在しているケースの可視化）
+  const feeAmounts = companyJobs.map((j) => resolveHiringFee(j))
+  const feeMin = feeAmounts.length > 0 ? Math.min(...feeAmounts) : HIRING_FEE_AMOUNT
+  const feeMax = feeAmounts.length > 0 ? Math.max(...feeAmounts) : HIRING_FEE_AMOUNT
+  const feeIsRange = feeMin !== feeMax
 
   const totalPages = Math.ceil(total / perPage)
 
@@ -57,20 +84,89 @@ export default async function CompanyBillingPage({
       (summaryData.find((s) => s.status === "invoiced")?._sum.amount ?? 0)
   const totalHired = summaryData.reduce((sum, s) => sum + s._count, 0)
 
+  const planLabel = company
+    ? PLAN_LABELS[company.planType as PlanType] ?? company.planType
+    : null
+  const planActive = company
+    ? isPlanActive({
+        planType: company.planType,
+        planPaidUntil: company.planPaidUntil,
+      })
+    : false
+  const daysLeft = company
+    ? daysUntilPlanExpiry(company.planPaidUntil)
+    : null
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900">課金履歴</h1>
 
+      {/* 現在のプラン */}
+      {company && (
+        <div
+          className={`mt-6 border p-5 shadow-sm ${
+            planActive ? "bg-white" : "border-red-300 bg-red-50"
+          }`}
+        >
+          <p className="text-xs font-bold text-gray-500">現在の掲載プラン</p>
+          <p className="mt-1 text-lg font-bold text-gray-900">{planLabel}</p>
+          <div className="mt-2 text-sm text-gray-600">
+            {company.planActivatedAt && (
+              <p>
+                適用開始:{" "}
+                {company.planActivatedAt.toLocaleDateString("ja-JP", {
+                  timeZone: "Asia/Tokyo",
+                })}
+              </p>
+            )}
+            {company.planPaidUntil && (
+              <p>
+                契約終了:{" "}
+                {company.planPaidUntil.toLocaleDateString("ja-JP", {
+                  timeZone: "Asia/Tokyo",
+                })}
+                {daysLeft !== null && daysLeft > 0 && (
+                  <span
+                    className={`ml-2 ${
+                      daysLeft <= 30 ? "text-amber-600 font-bold" : "text-gray-500"
+                    }`}
+                  >
+                    (残り {daysLeft} 日)
+                  </span>
+                )}
+                {daysLeft !== null && daysLeft <= 0 && (
+                  <span className="ml-2 font-bold text-red-700">⚠ 期限切れ</span>
+                )}
+              </p>
+            )}
+            {company.planPrepaidFull && (
+              <p className="text-xs text-gray-400">
+                一括前払い済 (中途解約不可)
+              </p>
+            )}
+          </div>
+          {!planActive && (
+            <p className="mt-3 border border-red-300 bg-red-100 p-2 text-xs text-red-800">
+              現在プランが有効ではありません。継続をご希望の場合は info@let-inc.net までご連絡ください。
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Summary */}
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-lg border bg-white p-5 shadow-sm">
+        <div className="border bg-white p-5 shadow-sm">
           <p className="text-sm text-gray-500">成果報酬単価</p>
           <p className="mt-1 text-2xl font-bold text-gray-900">
-            ¥{HIRING_FEE_AMOUNT.toLocaleString()}
+            {feeIsRange
+              ? `¥${feeMin.toLocaleString()} 〜 ¥${feeMax.toLocaleString()}`
+              : `¥${feeMin.toLocaleString()}`}
           </p>
-          <p className="text-xs text-gray-400">1採用あたり</p>
+          <p className="text-xs text-gray-400">
+            {feeIsRange ? "求人ごとに異なる" : "1採用あたり"}
+          </p>
         </div>
-        <div className="rounded-lg border bg-white p-5 shadow-sm">
+        <div className="border bg-white p-5 shadow-sm">
           <p className="text-sm text-gray-500">支払い済み</p>
           <p className="mt-1 text-2xl font-bold text-green-600">
             ¥{totalPaid.toLocaleString()}
@@ -79,7 +175,7 @@ export default async function CompanyBillingPage({
             {summaryData.find((s) => s.status === "paid")?._count ?? 0} 件
           </p>
         </div>
-        <div className="rounded-lg border bg-white p-5 shadow-sm">
+        <div className="border bg-white p-5 shadow-sm">
           <p className="text-sm text-gray-500">未払い</p>
           <p className="mt-1 text-2xl font-bold text-yellow-600">
             ¥{totalPending.toLocaleString()}
@@ -90,14 +186,14 @@ export default async function CompanyBillingPage({
 
       {/* Events table */}
       {events.length === 0 ? (
-        <div className="mt-8 rounded-lg border bg-white p-8 text-center shadow-sm">
+        <div className="mt-8 border bg-white p-8 text-center shadow-sm">
           <p className="text-gray-500">課金履歴はまだありません。</p>
           <p className="mt-1 text-sm text-gray-400">
             応募者のステータスを「採用」に変更すると、成果報酬が自動的に発生します。
           </p>
         </div>
       ) : (
-        <div className="mt-6 overflow-hidden rounded-lg border bg-white shadow-sm">
+        <div className="mt-6 overflow-hidden border bg-white shadow-sm">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -150,9 +246,9 @@ export default async function CompanyBillingPage({
             <a
               key={p}
               href={`/company/billing?page=${p}`}
-              className={`rounded-md px-3 py-1 text-sm ${
+              className={` px-3 py-1 text-sm ${
                 p === page
-                  ? "bg-blue-600 text-white"
+                  ? "bg-primary-600 text-white"
                   : "bg-white text-gray-600 border hover:bg-gray-50"
               }`}
             >
@@ -168,7 +264,7 @@ export default async function CompanyBillingPage({
 function BillingStatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; className: string }> = {
     pending: { label: "処理中", className: "bg-yellow-100 text-yellow-700" },
-    invoiced: { label: "請求済み", className: "bg-blue-100 text-blue-700" },
+    invoiced: { label: "請求済み", className: "bg-primary-100 text-primary-700" },
     paid: { label: "支払い済み", className: "bg-green-100 text-green-700" },
     failed: { label: "失敗", className: "bg-red-100 text-red-600" },
   }
@@ -180,7 +276,7 @@ function BillingStatusBadge({ status }: { status: string }) {
 
   return (
     <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${className}`}
+      className={`inline-flex px-2 py-0.5 text-xs font-medium ${className}`}
     >
       {label}
     </span>

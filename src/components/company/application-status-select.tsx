@@ -53,7 +53,7 @@ export function ApplicationStatusSelect({
       value={currentStatus}
       onChange={handleChange}
       disabled={loading}
-      className="rounded-md border px-2 py-1 text-xs font-medium shadow-sm disabled:opacity-50"
+      className="border px-2 py-1 text-xs font-medium shadow-sm disabled:opacity-50"
     >
       {STATUS_OPTIONS.map((opt) => (
         <option key={opt.value} value={opt.value}>
