@@ -10,6 +10,7 @@
 
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
+import { revalidateAfterJobChange } from "@/lib/revalidate-public"
 
 export async function POST(
   _request: Request,
@@ -33,8 +34,9 @@ export async function POST(
     const job = await prisma.job.update({
       where: { id },
       data: { status: "closed" },
-      select: { id: true, status: true },
+      select: { id: true, status: true, companyId: true },
     })
+    revalidateAfterJobChange({ companyId: job.companyId })
     return Response.json({ ok: true, job })
   } catch (e) {
     console.error(`[admin/jobs/close] failed for ${id}:`, e)

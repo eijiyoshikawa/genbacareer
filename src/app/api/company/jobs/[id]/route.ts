@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { revalidateAfterJobChange } from "@/lib/revalidate-public"
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -141,6 +142,13 @@ export async function PUT(
     }
   }
 
+  // 公開中の求人に変更があった、または初回公開された場合のみ public ページを再生成。
+  // draft 編集の度に revalidate する必要は無いので、active なケースに限定する。
+  const isNowActive = data.status === "active" || (!data.status && existing.status === "active")
+  if (isNowActive || publishedAt) {
+    revalidateAfterJobChange({ companyId: existing.companyId })
+  }
+
   return Response.json({ job })
 }
 
@@ -157,13 +165,18 @@ export async function DELETE(
 
   const existing = await prisma.job.findUnique({
     where: { id },
-    select: { companyId: true },
+    select: { companyId: true, status: true },
   })
   if (!existing || existing.companyId !== ctx.companyId) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
   }
 
   await prisma.job.delete({ where: { id } })
+
+  // 公開中だった求人の削除はトップ / 企業ページの一覧に影響するので再生成。
+  if (existing.status === "active") {
+    revalidateAfterJobChange({ companyId: existing.companyId })
+  }
 
   return Response.json({ success: true })
 }
