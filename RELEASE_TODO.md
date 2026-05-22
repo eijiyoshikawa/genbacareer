@@ -92,10 +92,14 @@ CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pn
 
 ### 8. LINE 公式アカウント連携
 
-- [ ] LINE Developers で Messaging API 設定
-- [ ] Webhook URL を `https://genbacareer.jp/api/line/webhook` に設定
-- [ ] チャネルアクセストークン / シークレットを `LINE_CHANNEL_*` に
-- [ ] リッチメニュー登録: `pnpm tsx scripts/setup-line-rich-menu.ts`
+詳細手順は `docs/line-integration.md` 参照 (3 チャネル構成: LINE Login + Messaging API + LIFF)。
+
+- [ ] LINE Developers Console でプロバイダー + 3 チャネル作成
+- [ ] Webhook URL を `https://www.genbacareer.jp/api/line/webhook` に設定 + 「Webhook の検証」を成功
+- [ ] LINE Login / Messaging API / LIFF の各 ID / secret / token を `.env.example` の通り Vercel に登録
+- [ ] LINE Official Account Manager で応答モード = Bot、あいさつ / 応答メッセージはオフ
+- [ ] リッチメニュー画像準備 (2500×1686px) → `scripts/rich-menu.png` に配置 → `pnpm tsx scripts/setup-line-rich-menu.ts`
+- [ ] スモークテスト: 友だち追加 → あいさつ受信 / LIFF 応募 → LineLead 作成 / push 送信 (`/admin/line-leads/[id]`)
 
 ### 9. MoneyForward クラウド請求書 連携（成果報酬の請求書発行）
 
