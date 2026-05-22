@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
 import { EmptyJobsState } from "@/components/jobs/empty-jobs-state"
 import { CompareCart } from "@/components/jobs/compare-cart"
-import { Briefcase, Search, SlidersHorizontal } from "lucide-react"
+import { Search, SlidersHorizontal } from "lucide-react"
 import Link from "next/link"
 import { Pagination } from "@/components/pagination"
 import { PREFECTURES } from "@/lib/constants"
@@ -293,22 +293,28 @@ export default async function JobsPage({ searchParams }: Props) {
 
   return (
     <div>
-      {/* Search header */}
+      {/* Search header — マイナビ風: 太字大型見出し + 強い検索 CTA + アイコン控えめ */}
       <div className="relative bg-ink-900">
         <div className="hero-stripe-top" />
         <div className="hero-stripe-bottom" />
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-white">求人検索</h1>
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold tracking-[0.25em] text-brand-yellow-500 sm:text-sm">
+                GENBA CAREER
+              </p>
+              <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl lg:text-4xl">
+                建設業の求人を探す
+              </h1>
+            </div>
             <Link
               href="/hw-jobs"
-              className="inline-flex items-center gap-1 bg-white/10 px-3 py-1 text-xs text-white/90 hover:bg-white/20 transition"
+              className="hidden shrink-0 items-center gap-1 border border-white/30 bg-transparent px-3 py-1.5 text-xs font-bold text-white/90 transition hover:bg-white/10 sm:inline-flex"
             >
-              <Briefcase className="h-3.5 w-3.5" />
               公共求人を見る
             </Link>
           </div>
-          <form action="/jobs" className="mt-4">
+          <form action="/jobs" className="mt-5">
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -316,16 +322,15 @@ export default async function JobsPage({ searchParams }: Props) {
                   type="text"
                   name="q"
                   defaultValue={params.q ?? ""}
-                  placeholder="職種・キーワードで検索"
-                  className="w-full  border-0 py-2.5 pl-10 pr-4 text-sm shadow-sm focus:ring-2 focus:ring-primary-400"
+                  placeholder="職種・地域・キーワードで検索"
+                  className="w-full border-0 py-3 pl-10 pr-4 text-sm font-medium shadow-sm focus:ring-2 focus:ring-primary-400"
                 />
               </div>
               <button
                 type="submit"
-                className="flex items-center gap-1.5 bg-primary-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-primary-600 transition"
+                className="bg-primary-500 px-5 py-3 text-sm font-black tracking-wide text-white shadow-sm transition hover:bg-primary-600 sm:px-7"
               >
-                <Search className="h-4 w-4" />
-                検索
+                検索する
               </button>
             </div>
           </form>
@@ -343,10 +348,12 @@ export default async function JobsPage({ searchParams }: Props) {
                 <input type="hidden" name="sort" value={params.sort} />
               )}
 
-              <div className=" border bg-white shadow-sm">
-                <div className="flex items-center gap-2 border-b px-4 py-3">
-                  <SlidersHorizontal className="h-4 w-4 text-primary-500" />
-                  <h2 className="text-sm font-bold text-gray-900">絞り込み</h2>
+              <div className="border border-gray-200 bg-white shadow-sm">
+                <div className="flex items-center gap-2 border-b border-ink-900/10 bg-ink-900 px-4 py-3">
+                  <SlidersHorizontal className="h-4 w-4 text-brand-yellow-500" />
+                  <h2 className="text-sm font-bold tracking-wide text-white">
+                    絞り込み
+                  </h2>
                 </div>
 
                 <div className="divide-y p-4 space-y-0">
@@ -431,7 +438,7 @@ export default async function JobsPage({ searchParams }: Props) {
                 <div className="border-t p-4">
                   <button
                     type="submit"
-                    className="w-full  bg-primary-600 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 transition"
+                    className="w-full bg-primary-500 py-3 text-sm font-black tracking-wide text-white shadow-sm transition hover:bg-primary-600"
                   >
                     この条件で検索
                   </button>

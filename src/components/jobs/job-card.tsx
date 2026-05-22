@@ -1,15 +1,5 @@
 import Link from "next/link"
-import {
-  MapPin,
-  Money,
-  Buildings,
-  HardHat,
-  CaretRight,
-  CalendarCheck,
-  ShieldCheck,
-  SealCheck,
-  Bank,
-} from "@phosphor-icons/react/dist/ssr"
+import { CaretRight, SealCheck } from "@phosphor-icons/react/dist/ssr"
 import { getCategoryLabel } from "@/lib/categories"
 import { computeHasConstructionPermit } from "@/lib/gbizinfo"
 import { TagChip } from "./tag-chip"
@@ -46,6 +36,16 @@ type JobCardProps = {
     | null
 }
 
+/**
+ * 求人一覧の 1 行カード。
+ *
+ * デザイン方針 (マイナビ転職風):
+ * - 装飾アイコンを排し、タイポグラフィと色分けチップで情報を整理
+ * - 給与は太字 (font-extrabold) で目立たせ、勤務地は普通の文字で
+ * - 認定企業 / 公共求人 / カテゴリ / 雇用形態 / 待遇タグを
+ *   トーン分けされた色チップで一目で把握できるよう統一
+ * - 右端は機能アイコン (お気に入り / 比較) と矢印のみ
+ */
 export function JobCard({
   job,
   isFavorite = false,
@@ -55,7 +55,7 @@ export function JobCard({
   isFavorite?: boolean
   loggedIn?: boolean
 }) {
-  const tagsToShow = job.tags.slice(0, 5)
+  const tagsToShow = job.tags.slice(0, 6)
   const hasConstructionPermit = computeHasConstructionPermit(
     job.company?.gbizData
   )
@@ -63,75 +63,36 @@ export function JobCard({
   return (
     <Link
       href={`/jobs/${job.id}`}
-      className="group flex gap-4 border bg-white p-4 transition hover:border-primary-400 hover:shadow-sm"
+      className="group flex gap-3 border border-gray-200 bg-white p-4 transition hover:border-primary-400 hover:shadow-sm sm:gap-4"
     >
-      <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center bg-gray-100 group-hover:bg-primary-50 transition">
-        <HardHat weight="duotone" className="h-6 w-6 text-primary-500" />
-      </div>
-
-      <div className="flex-1 min-w-0">
-        {/* メタ: 出典バッジ + カテゴリ + 雇用形態 */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {job.source === "direct" ? (
-            <span
-              className="inline-flex items-center gap-1 bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800"
-              title="掲載企業から直接募集中の認定求人。応募内容は LINE で当社経由で企業に届きます。"
-            >
-              <SealCheck weight="fill" className="h-3.5 w-3.5" />
-              認定企業
-            </span>
-          ) : (
-            <span
-              className="inline-flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-500"
-              title="公共職業安定所が公開している公共求人。応募は当社経由で手続き案内が届きます。"
-            >
-              <Bank weight="duotone" className="h-3 w-3" />
-              公共求人
-            </span>
-          )}
-          <span className="inline-flex items-center gap-1 bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700">
-            {getCategoryLabel(job.category)}
-          </span>
-          {job.employmentType && (
-            <span className="bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-              {employmentTypeLabel(job.employmentType)}
-            </span>
-          )}
-        </div>
-
-        {/* タイトル */}
-        <h3 className="mt-1.5 text-base font-semibold text-gray-900 line-clamp-2 group-hover:text-primary-600 transition">
+      <div className="min-w-0 flex-1">
+        {/* タイトル (主役) */}
+        <h3 className="text-base font-bold leading-snug text-ink-900 line-clamp-2 group-hover:text-primary-700 sm:text-lg">
           {job.title}
         </h3>
 
-        {/* 給与・勤務地（重要情報を 1 行で目立たせる） */}
+        {/* 給与・勤務地 (重要情報を 1 行で目立たせる) */}
         <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
           {job.salaryMin ? (
-            <span className="inline-flex items-center gap-1 text-lg font-extrabold text-primary-700 tracking-tight">
-              <Money weight="fill" className="h-5 w-5 text-primary-500" />
+            <span className="text-lg font-extrabold tracking-tight text-primary-700 sm:text-xl">
               {formatSalary(job.salaryMin, job.salaryMax, job.salaryType)}
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-sm text-gray-500">
-              <Money weight="duotone" className="h-4 w-4" />
-              給与応相談
-            </span>
+            <span className="text-sm text-gray-500">給与応相談</span>
           )}
-          <span className="inline-flex items-center gap-1 text-sm text-gray-700">
-            <MapPin weight="duotone" className="h-4 w-4 text-gray-400" />
+          <span className="text-sm font-medium text-ink-900">
             {job.prefecture}
             {job.city && ` ${job.city}`}
           </span>
         </div>
 
-        {/* 会社名（小さく） + 建設業許可バッジ */}
+        {/* 会社名 + 建設業許可バッジ */}
         {job.company && (
-          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-500">
-            <Buildings weight="duotone" className="h-3.5 w-3.5 shrink-0" />
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-600">
             <span className="truncate">{job.company.name}</span>
             {hasConstructionPermit && (
               <span
-                className="ml-1 inline-flex shrink-0 items-center gap-0.5 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-xs font-bold text-emerald-700"
+                className="ml-1 inline-flex shrink-0 items-center gap-0.5 border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700"
                 title="GbizINFO で建設業許可を確認済みの企業です"
               >
                 <SealCheck weight="fill" className="h-3 w-3" />
@@ -141,42 +102,44 @@ export function JobCard({
           </p>
         )}
 
-        {/* 構造化バッジ（年間休日 / 保険） */}
-        {(job.annualHolidays != null || job.insurance) && (
-          <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
-            {job.annualHolidays != null && (
-              <span className="inline-flex items-center gap-1">
-                <CalendarCheck weight="duotone" className="h-3.5 w-3.5 text-primary-500" />
-                年間休日 {job.annualHolidays}日
-              </span>
-            )}
-            {job.insurance && (
-              <span className="inline-flex items-center gap-1">
-                <ShieldCheck weight="duotone" className="h-3.5 w-3.5 text-primary-500" />
-                {truncate(job.insurance, 20)}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* 待遇チップ（自動抽出されたタグを 5 件まで、デザインシステム TagChip 統一）*/}
-        {tagsToShow.length > 0 && (
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {tagsToShow.map((tag) => (
-              <TagChip key={tag} size="sm">
-                {tag}
-              </TagChip>
-            ))}
-            {job.tags.length > tagsToShow.length && (
-              <span className="text-xs text-gray-400 self-center">
-                +{job.tags.length - tagsToShow.length}
-              </span>
-            )}
-          </div>
-        )}
+        {/* チップ群 (出典 + カテゴリ + 雇用形態 + 待遇) — マイナビ風カラー分け */}
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {job.source === "direct" ? (
+            <TagChip size="sm" tone="new">
+              認定企業
+            </TagChip>
+          ) : (
+            <TagChip size="sm" tone="muted">
+              公共求人
+            </TagChip>
+          )}
+          <TagChip size="sm" tone="primary">
+            {getCategoryLabel(job.category)}
+          </TagChip>
+          {job.employmentType && (
+            <TagChip size="sm" tone="muted">
+              {employmentTypeLabel(job.employmentType)}
+            </TagChip>
+          )}
+          {job.annualHolidays != null && job.annualHolidays >= 120 && (
+            <TagChip size="sm" tone="featured">
+              年間休日 {job.annualHolidays}日
+            </TagChip>
+          )}
+          {tagsToShow.map((tag) => (
+            <TagChip key={tag} size="sm" tone={tagTone(tag)}>
+              {tag}
+            </TagChip>
+          ))}
+          {job.tags.length > tagsToShow.length && (
+            <span className="self-center text-xs text-gray-400">
+              +{job.tags.length - tagsToShow.length}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="flex flex-col items-end justify-between gap-1 sm:items-center sm:flex-row">
+      <div className="flex shrink-0 flex-col items-end justify-between gap-2">
         <JobCardActions>
           <CompareAddButton jobId={job.id} />
           <FavoriteButton
@@ -185,10 +148,29 @@ export function JobCard({
             loggedIn={loggedIn}
           />
         </JobCardActions>
-        <CaretRight weight="duotone" className="hidden sm:block h-5 w-5 text-gray-300 group-hover:text-primary-500 transition" />
+        <CaretRight
+          weight="duotone"
+          className="hidden h-5 w-5 text-gray-300 group-hover:text-primary-500 sm:block"
+        />
       </div>
     </Link>
   )
+}
+
+/**
+ * 待遇タグの内容から、表示用のトーンを決定する。
+ * マイナビ転職的に「色 = 属性カテゴリ」が一目で分かる UX を狙う。
+ */
+function tagTone(
+  tag: string,
+): "welcome" | "women" | "experience" | "urgent" | "featured" | "primary" {
+  if (/(未経験|学歴不問|新卒|第二新卒|経験不問)/.test(tag)) return "welcome"
+  if (/(女性活躍|女性歓迎|ママ)/.test(tag)) return "women"
+  if (/(経験者|即戦力|有資格者)/.test(tag)) return "experience"
+  if (/(急募|スピード採用)/.test(tag)) return "urgent"
+  if (/(高収入|月給\s*\d+万|寮あり|資格手当|完全週休|残業少|ホワイト)/.test(tag))
+    return "featured"
+  return "primary"
 }
 
 function formatSalary(
@@ -229,8 +211,4 @@ function employmentTypeLabel(type: string): string {
     contract: "契約社員",
   }
   return labels[type] ?? type
-}
-
-function truncate(s: string, max: number): string {
-  return s.length > max ? `${s.slice(0, max)}…` : s
 }
