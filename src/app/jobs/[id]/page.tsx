@@ -18,19 +18,11 @@ import {
   Globe,
   UsersThree,
   Megaphone,
-  Sparkle,
-  UserFocus,
-  ChatCenteredDots,
-  Camera,
   ShareNetwork,
-  Wallet,
   GraduationCap,
-  ClipboardText,
   Cigarette,
   Factory,
-  ShieldCheck,
   ClockCountdown,
-  WarningCircle,
 } from "@phosphor-icons/react/dist/ssr"
 import type { Metadata } from "next"
 import {
@@ -46,6 +38,7 @@ import { generateRecommendation } from "@/lib/job-recommendation"
 import { WorkConditionsBox } from "@/components/jobs/work-conditions-box"
 import { TagChip } from "@/components/jobs/tag-chip"
 import { SectionHeading } from "@/components/jobs/section-heading"
+import { AccordionSection } from "@/components/jobs/accordion-section"
 import { JobInfoTable } from "@/components/jobs/job-info-table"
 import { RightTocNav } from "@/components/jobs/right-toc-nav"
 import { StickyActionBar } from "@/components/jobs/sticky-action-bar"
@@ -423,7 +416,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
           <div className="flex-1 min-w-0 space-y-6">
             {/* Hero + title block */}
             <section id="features" className="space-y-4">
-              <HeroBanner category={job.category} />
+              <HeroBanner category={job.category} photo={photos[0] ?? null} />
 
               <div className="space-y-3">
                 {/* Source + Category badges */}
@@ -555,27 +548,26 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
               </div>
             </section>
 
-            {/* この求人のおすすめポイント */}
+            {/* この求人のおすすめポイント (マイナビ転職風: 中央寄せ見出し + 短い下線 + 区切り線リスト) */}
             {recommendation && (
               <section
                 id="recommendation"
-                className="rounded border border-primary-200 bg-gradient-to-br from-primary-50 to-white p-5 sm:p-6 shadow-sm space-y-3"
+                className="border border-primary-200 bg-primary-50/40 p-5 sm:p-6 space-y-4"
               >
-                <SectionHeading>
-                  <Sparkle weight="duotone" className="h-4 w-4 text-primary-500" />
-                  この求人のおすすめポイント
+                <SectionHeading variant="centered">
+                  この求人のポイント
                 </SectionHeading>
-                <p className="text-sm sm:text-[15px] text-gray-800 leading-relaxed">
+                <p className="text-sm sm:text-[15px] text-ink-900 leading-relaxed font-medium">
                   {recommendation.summary}
                 </p>
                 {recommendation.points.length > 0 && (
-                  <ul className="flex flex-wrap gap-1.5">
+                  <ul className="divide-y divide-dashed divide-primary-300/60 border-y border-dashed border-primary-300/60">
                     {recommendation.points.map((p) => (
                       <li
                         key={p.label}
-                        className="inline-flex items-center rounded-full border border-primary-200 bg-white px-2.5 py-1 text-xs font-medium text-primary-700"
+                        className="py-2.5 text-sm font-bold text-ink-900"
                       >
-                        {p.label}
+                        【{p.label}】
                       </li>
                     ))}
                   </ul>
@@ -591,75 +583,58 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
 
             {/* Description */}
             {job.description && (
-              <section
+              <AccordionSection
                 id="description"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
+                title="仕事内容"
+                defaultOpen
               >
-                <SectionHeading>
-                  <Briefcase weight="duotone" className="h-4 w-4 text-primary-500" />
-                  こんな仕事です
-                </SectionHeading>
                 <JobDescription text={job.description} />
-              </section>
+              </AccordionSection>
             )}
 
             {/* こんなトコロがすごい！ */}
             {job.company?.pitchHighlights && (
-              <section
+              <AccordionSection
                 id="pitch"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
+                title="この会社のここがすごい"
+                defaultOpen
               >
-                <SectionHeading>
-                  <Sparkle weight="duotone" className="h-4 w-4 text-primary-500" />
-                  こんなトコロがすごい！
-                </SectionHeading>
                 <FormattedText text={job.company.pitchHighlights} />
-              </section>
+              </AccordionSection>
             )}
 
             {/* こんな人が向いています！ */}
             {job.company?.idealCandidate && (
-              <section
+              <AccordionSection
                 id="ideal"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
+                title="こんな方を歓迎します"
               >
-                <SectionHeading>
-                  <UserFocus weight="duotone" className="h-4 w-4 text-primary-500" />
-                  こんな人が向いています！
-                </SectionHeading>
                 <FormattedText text={job.company.idealCandidate} />
-              </section>
+              </AccordionSection>
             )}
 
             {/* 働いている社員の声 */}
             {job.company?.employeeVoice && (
-              <section
+              <AccordionSection
                 id="voice"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
+                title="現場で働く先輩の声"
               >
-                <SectionHeading>
-                  <ChatCenteredDots weight="duotone" className="h-4 w-4 text-primary-500" />
-                  働いている社員の声
-                </SectionHeading>
                 <FormattedText text={job.company.employeeVoice} />
-              </section>
+              </AccordionSection>
             )}
 
             {/* 写真ギャラリー */}
             {photos.length > 0 && (
-              <section
+              <AccordionSection
                 id="photos"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
+                title="現場の写真"
+                defaultOpen
               >
-                <SectionHeading>
-                  <Camera weight="duotone" className="h-4 w-4 text-primary-500" />
-                  写真ギャラリー
-                </SectionHeading>
                 <PhotoGallery
                   photos={photos}
                   alt={job.company?.name ?? "求人写真"}
                 />
-              </section>
+              </AccordionSection>
             )}
 
             {/* Video gallery */}
@@ -692,14 +667,10 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
 
             {/* 給与の詳細 */}
             {hasSalaryDetail && (
-              <section
+              <AccordionSection
                 id="salary-detail"
-                className="rounded border bg-white p-5 sm:p-6 shadow-sm space-y-4"
+                title="給与・手当の詳細"
               >
-                <SectionHeading>
-                  <Wallet weight="duotone" className="h-4 w-4 text-primary-500" />
-                  給与・手当
-                </SectionHeading>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {job.baseSalary && (
                     <DlItem label="基本給" value={job.baseSalary} />
@@ -712,19 +683,15 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                     <DlItem label="固定残業代" value={job.fixedOvertime} />
                   )}
                 </div>
-              </section>
+              </AccordionSection>
             )}
 
             {/* 待遇・福利厚生 */}
             {hasBenefits && (
-              <section
+              <AccordionSection
                 id="benefits"
-                className="rounded border bg-white p-5 sm:p-6 shadow-sm space-y-4"
+                title="待遇・福利厚生"
               >
-                <SectionHeading>
-                  <ShieldCheck weight="duotone" className="h-4 w-4 text-primary-500" />
-                  待遇・福利厚生
-                </SectionHeading>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {job.trialPeriod && (
                     <DlItem label="試用期間" value={job.trialPeriod} />
@@ -737,33 +704,25 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                     />
                   )}
                 </div>
-              </section>
+              </AccordionSection>
             )}
 
             {/* 求人条件の特記事項 */}
             {job.jobConditionNotes && (
-              <section
+              <AccordionSection
                 id="notes"
-                className="rounded border bg-white p-5 sm:p-6 shadow-sm space-y-4"
+                title="特記事項"
               >
-                <SectionHeading>
-                  <WarningCircle weight="duotone" className="h-4 w-4 text-primary-500" />
-                  求人条件の特記事項
-                </SectionHeading>
                 <FormattedText text={job.jobConditionNotes} />
-              </section>
+              </AccordionSection>
             )}
 
             {/* 応募要件・採用情報 */}
             {hasRequirements && (
-              <section
+              <AccordionSection
                 id="requirements"
-                className="rounded border bg-white p-5 sm:p-6 shadow-sm space-y-4"
+                title="応募要件・採用情報"
               >
-                <SectionHeading>
-                  <ClipboardText weight="duotone" className="h-4 w-4 text-primary-500" />
-                  応募要件・採用情報
-                </SectionHeading>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {job.requiredExperience && (
                     <DlItem
@@ -787,33 +746,25 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                     <DlItem label="募集理由" value={job.recruitmentReason} />
                   )}
                 </div>
-              </section>
+              </AccordionSection>
             )}
 
             {/* 勤務地の地図 */}
             {mapAddress && (
-              <section
+              <AccordionSection
                 id="map"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
+                title="勤務地の地図"
               >
-                <SectionHeading>
-                  <MapPin weight="duotone" className="h-4 w-4 text-primary-500" />
-                  勤務地の地図
-                </SectionHeading>
                 <MapEmbed address={mapAddress} />
-              </section>
+              </AccordionSection>
             )}
 
             {/* Company info */}
             {job.company && (
-              <section
+              <AccordionSection
                 id="company"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
+                title="会社情報"
               >
-                <SectionHeading>
-                  <Buildings weight="duotone" className="h-4 w-4 text-primary-500" />
-                  企業情報
-                </SectionHeading>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <DlItem label="企業名" value={job.company.name} />
                   {job.company.industry && (
@@ -900,7 +851,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                     />
                   </div>
                 )}
-              </section>
+              </AccordionSection>
             )}
 
             {/* HW notice */}
