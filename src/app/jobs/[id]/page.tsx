@@ -419,15 +419,11 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
               <HeroBanner category={job.category} photo={photos[0] ?? null} />
 
               <div className="space-y-3">
-                {/* Source + Category badges */}
+                {/* Source + Category badges (公共求人側は冒頭では非表示、ページ末尾の注記で開示) */}
                 <div className="flex items-center gap-2 flex-wrap text-xs">
-                  {job.source === "direct" ? (
+                  {job.source === "direct" && (
                     <span className="inline-flex items-center gap-1 bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
                       認定企業
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
-                      公共求人
                     </span>
                   )}
                   <TagChip size="sm">{getCategoryLabel(job.category)}</TagChip>
