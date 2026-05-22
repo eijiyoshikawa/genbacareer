@@ -29,8 +29,8 @@ import type { Metadata } from "next"
 // ホームは ISR で 24 時間キャッシュ。/api/cron/warmup が 5 分おきに叩いて
 // CDN キャッシュとラムダをウォームに保つため、PageSpeed や初回訪問でも
 // コールド lambda の 5 秒待ちが発生しない。
-// 新着求人や記事の反映が遅れる場合は、管理画面側で revalidatePath('/') を
-// 叩く運用にする（公開直後の即時反映が必要なケース）。
+// 新着求人 / 記事の公開時は src/lib/revalidate-public.ts 経由で
+// 自動的に revalidatePath('/') が呼ばれるので、24h 待たずに即時反映される。
 export const revalidate = 86400
 
 export const metadata: Metadata = {

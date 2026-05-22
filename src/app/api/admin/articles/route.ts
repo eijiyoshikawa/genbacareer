@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { revalidateAfterArticleChange } from "@/lib/revalidate-public"
 
 const articleCreateSchema = z.object({
   slug: z
@@ -141,6 +142,10 @@ export async function POST(request: NextRequest) {
           : null,
     },
   })
+
+  if (status === "published") {
+    revalidateAfterArticleChange({ slug: article.slug })
+  }
 
   return Response.json({ article }, { status: 201 })
 }

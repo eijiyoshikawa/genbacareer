@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { CATEGORIES } from "@/lib/categories"
 import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
+import { revalidateAfterJobChange } from "@/lib/revalidate-public"
 
 const VALID_CATEGORIES = CATEGORIES.map((c) => c.value)
 
@@ -136,6 +137,7 @@ export async function POST(request: NextRequest) {
         `[gbiz-reminder] job published without corporateNumber: companyId=${ctx.companyId} name=${company.name} jobId=${job.id}`
       )
     }
+    revalidateAfterJobChange({ companyId: ctx.companyId })
   }
 
   return Response.json({ job }, { status: 201 })
