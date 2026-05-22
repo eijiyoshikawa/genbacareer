@@ -2,20 +2,9 @@ import Link from "next/link"
 import {
   ArrowRight,
   Phone,
-  Users,
-  Award,
-  Briefcase,
-  TrendingUp,
-  MessageSquareQuote,
-  ClipboardList,
-  Headphones,
-  FileEdit,
-  PlayCircle,
   ChevronRight,
   CheckCircle,
   CircleAlert,
-  Search,
-  HardHat,
 } from "lucide-react"
 import type { Metadata } from "next"
 import { AnimateOnScroll } from "@/components/animate-on-scroll"
@@ -36,17 +25,14 @@ const jobCategories = [
 
 const reasons = [
   {
-    icon: Users,
     title: "建設業界の求職者が集まるサイト",
     description: "建築・土木・設備・解体の求人に特化しているため、現場経験のある求職者が中心です。",
   },
   {
-    icon: Award,
     title: "有資格者が多い",
     description: "施工管理技士・電気工事士・クレーン免許など、業界に必要な資格を持つ求職者が登録しています。",
   },
   {
-    icon: Briefcase,
     title: "掲載からスカウトまで対応",
     description: "求人の掲載だけでなく、条件に合う求職者への直接スカウトも可能です。",
   },
@@ -79,10 +65,10 @@ const testimonials = [
 ]
 
 const steps = [
-  { icon: Headphones, label: "問い合わせ" },
-  { icon: ClipboardList, label: "採用条件\nヒアリング" },
-  { icon: FileEdit, label: "広告作成" },
-  { icon: PlayCircle, label: "掲載開始" },
+  { label: "問い合わせ" },
+  { label: "採用条件\nヒアリング" },
+  { label: "広告作成" },
+  { label: "掲載開始" },
 ]
 
 const comparisonRows = [
@@ -161,18 +147,18 @@ export default function ForEmployersPage() {
                 </div>
               </div>
 
-              {/* Category links */}
-              <div className="mt-6 grid grid-cols-2 gap-2">
+              {/* Category links — マイナビ風 太字 + 機能矢印のみ */}
+              <ul className="mt-6 grid grid-cols-2 gap-2">
                 {jobCategories.map((cat) => (
-                  <div
+                  <li
                     key={cat}
-                    className="flex items-center gap-2 bg-white px-3 py-2 text-sm font-bold text-ink-900"
+                    className="flex items-center justify-between gap-2 border-l-4 border-primary-500 bg-white px-3 py-2.5 text-xs font-bold text-ink-900 sm:text-sm"
                   >
-                    <Search className="h-3.5 w-3.5 shrink-0 text-primary-500" />
-                    <span className="text-xs">{cat}</span>
-                  </div>
+                    <span>{cat}</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-primary-500" />
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
 
             {/* Right side - Contact form card */}
@@ -243,9 +229,16 @@ export default function ForEmployersPage() {
                   掲載料 無料キャンペーン中・成果報酬は 1 名 49.8 万円〜（職種による）。建築・土木・設備・解体など幅広い職種の人材採用をサポートします。
                 </p>
               </div>
-              <div className="flex h-36 w-52 shrink-0 flex-col items-center justify-center bg-ink-900 shadow-sm">
-                <HardHat className="h-14 w-14 text-brand-yellow-500" />
-                <p className="mt-2 text-xs font-bold text-white">建設業界特化</p>
+              <div className="flex h-36 w-52 shrink-0 flex-col items-center justify-center gap-1 bg-ink-900 shadow-sm">
+                <p className="text-[10px] font-bold tracking-[0.3em] text-brand-yellow-500">
+                  CONSTRUCTION
+                </p>
+                <p className="text-2xl font-black tracking-tight text-white">
+                  建設業界
+                </p>
+                <p className="text-xs font-black tracking-tight text-brand-yellow-500">
+                  特化型サービス
+                </p>
               </div>
             </div>
           </AnimateOnScroll>
@@ -261,19 +254,27 @@ export default function ForEmployersPage() {
             </h2>
           </AnimateOnScroll>
           <AnimateOnScroll animation="stagger">
-            <div className="mt-10 grid gap-8 sm:grid-cols-3">
-              {reasons.map((r) => {
-                const Icon = r.icon
-                return (
-                  <div key={r.title} className="bg-white p-6 text-center hover-lift">
-                    <div className="mx-auto flex h-20 w-20 items-center justify-center bg-brand-yellow-500">
-                      <Icon className="h-10 w-10 text-ink-900" />
-                    </div>
-                    <h3 className="mt-4 text-base font-black text-ink-900 tracking-tight">{r.title}</h3>
-                    <p className="mt-2 text-sm text-gray-600 leading-relaxed">{r.description}</p>
-                  </div>
-                )
-              })}
+            <div className="mt-10 grid gap-6 sm:grid-cols-3">
+              {reasons.map((r, i) => (
+                <div
+                  key={r.title}
+                  className="relative border-t-4 border-primary-500 bg-white p-6 pt-8 text-left hover-lift"
+                >
+                  {/* マイナビ風: 大型ナンバーバッジで装飾アイコンを置換 */}
+                  <span className="absolute -top-5 left-5 flex h-10 w-12 items-center justify-center bg-ink-900 font-black tracking-tight text-brand-yellow-500">
+                    <span className="text-[10px] font-bold tracking-wider">
+                      No.
+                    </span>
+                    <span className="ml-0.5 text-xl">{i + 1}</span>
+                  </span>
+                  <h3 className="text-base font-black leading-snug tracking-tight text-ink-900 sm:text-lg">
+                    {r.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-relaxed text-gray-700">
+                    {r.description}
+                  </p>
+                </div>
+              ))}
             </div>
           </AnimateOnScroll>
         </div>
@@ -290,12 +291,16 @@ export default function ForEmployersPage() {
           <AnimateOnScroll animation="stagger">
             <div className="mt-8 flex flex-col gap-6 sm:flex-row sm:justify-center">
               {trackRecordPoints.map((p) => (
-                <div key={p.title} className="flex-1 border border-warm-200 bg-white p-5 shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-primary-500" />
-                    <h3 className="font-black text-ink-900 tracking-tight">{p.title}</h3>
-                  </div>
-                  <p className="mt-2 text-sm text-gray-600">{p.description}</p>
+                <div
+                  key={p.title}
+                  className="flex-1 border-l-4 border-primary-500 bg-white p-5 shadow-sm"
+                >
+                  <h3 className="text-base font-black tracking-tight text-ink-900 sm:text-lg">
+                    {p.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-gray-700">
+                    {p.description}
+                  </p>
                 </div>
               ))}
             </div>
@@ -314,10 +319,23 @@ export default function ForEmployersPage() {
           <AnimateOnScroll animation="stagger">
             <div className="mt-8 grid gap-6 sm:grid-cols-3">
               {testimonials.map((t) => (
-                <div key={t.company} className="border border-warm-200 bg-warm-50 p-5 shadow-sm hover-lift">
-                  <MessageSquareQuote className="h-6 w-6 text-brand-yellow-600" />
-                  <p className="mt-3 text-sm text-gray-700 leading-relaxed">{t.comment}</p>
-                  <p className="mt-3 border-t border-warm-200 pt-3 text-xs font-black text-ink-900 tracking-tight">{t.company}</p>
+                <div
+                  key={t.company}
+                  className="border border-warm-200 bg-warm-50 p-5 shadow-sm hover-lift"
+                >
+                  {/* マイナビ風: 装飾アイコンを大きな引用符グリフに置換 */}
+                  <span
+                    aria-hidden
+                    className="block font-serif text-5xl font-black leading-none text-brand-yellow-500"
+                  >
+                    “
+                  </span>
+                  <p className="mt-1 text-sm leading-relaxed text-gray-700">
+                    {t.comment}
+                  </p>
+                  <p className="mt-3 border-t border-warm-200 pt-3 text-xs font-black tracking-tight text-ink-900">
+                    {t.company}
+                  </p>
                 </div>
               ))}
             </div>
@@ -334,28 +352,28 @@ export default function ForEmployersPage() {
             </h2>
           </AnimateOnScroll>
           <AnimateOnScroll animation="fade-up">
+          {/* マイナビ風: アイコンを廃止し、大型ナンバーをそのままアイデンティティに */}
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-4">
-            {steps.map((step, i) => {
-              const Icon = step.icon
-              return (
-                <div key={step.label} className="flex items-center gap-3 sm:gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className="relative flex h-16 w-16 items-center justify-center border-2 border-ink-900 bg-brand-yellow-500 shadow-sm">
-                      <span className="absolute -top-2.5 -left-2.5 flex h-6 w-6 items-center justify-center bg-primary-500 text-xs font-black text-white tracking-tight shadow-sm">
-                        {i + 1}
-                      </span>
-                      <Icon className="h-7 w-7 text-ink-900" />
-                    </div>
-                    <span className="mt-2 text-center text-xs font-black text-ink-900 tracking-tight whitespace-pre-line">
-                      {step.label}
+            {steps.map((step, i) => (
+              <div key={step.label} className="flex items-center gap-3 sm:gap-4">
+                <div className="flex flex-col items-center">
+                  <div className="flex h-20 w-20 flex-col items-center justify-center border-2 border-ink-900 bg-brand-yellow-500 shadow-sm">
+                    <span className="text-[10px] font-bold tracking-[0.2em] text-ink-900">
+                      STEP
+                    </span>
+                    <span className="text-3xl font-black leading-none tracking-tight text-ink-900">
+                      {String(i + 1).padStart(2, "0")}
                     </span>
                   </div>
-                  {i < steps.length - 1 && (
-                    <ChevronRight className="h-5 w-5 text-primary-400 shrink-0" />
-                  )}
+                  <span className="mt-2 whitespace-pre-line text-center text-xs font-black tracking-tight text-ink-900">
+                    {step.label}
+                  </span>
                 </div>
-              )
-            })}
+                {i < steps.length - 1 && (
+                  <ChevronRight className="h-5 w-5 shrink-0 text-primary-400" />
+                )}
+              </div>
+            ))}
           </div>
           </AnimateOnScroll>
         </div>
