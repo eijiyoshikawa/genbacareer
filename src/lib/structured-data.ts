@@ -10,10 +10,7 @@ export function generateOrganizationSchema(): Record<string, unknown> {
     alternateName: "Genba Career",
     url: BASE_URL,
     logo: `${BASE_URL}/logo-demo.jpg`,
-    sameAs: [
-      "https://youtube.com/@let-kensetsu",
-      "https://instagram.com/let_kensetsu",
-    ],
+    sameAs: ["https://lin.ee/OwURD4q"],
     contactPoint: {
       "@type": "ContactPoint",
       contactType: "customer support",
