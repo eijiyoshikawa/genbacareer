@@ -134,6 +134,65 @@ describe("inferCategory", () => {
       expect(inferCategory("ベビーシッター", null)).toBe(null)
     })
 
+    it("blocks 介護・介助業務（入居者・見守りを含む施設系）", () => {
+      // 実際にハローワークから取り込まれた問題求人の再現
+      expect(
+        inferCategory(
+          "■入居者様とのコミュニケーションの中で掃除・洗濯・見守りなどの介助業務を行って頂きます",
+          null
+        )
+      ).toBe(null)
+      expect(inferCategory("介護スタッフ", null)).toBe(null)
+      expect(inferCategory("介護職員募集", null)).toBe(null)
+      expect(inferCategory("介護福祉士", null)).toBe(null)
+      expect(inferCategory("訪問介護スタッフ", null)).toBe(null)
+      expect(inferCategory("ホームヘルパー", null)).toBe(null)
+      expect(inferCategory("看護助手", null)).toBe(null)
+    })
+
+    it("blocks 障害児・通所支援・療育（児童福祉系）", () => {
+      // 実際にハローワークから取り込まれた問題求人の再現
+      expect(
+        inferCategory(
+          "＊1日10名のお子様が通所する障害児通所支援施設です",
+          null
+        )
+      ).toBe(null)
+      expect(inferCategory("障害児通所支援職員", null)).toBe(null)
+      expect(inferCategory("放課後等デイサービス指導員", null)).toBe(null)
+      expect(inferCategory("放課後デイ職員", null)).toBe(null)
+      expect(inferCategory("児童発達支援管理責任者", null)).toBe(null)
+      expect(inferCategory("デイサービススタッフ", null)).toBe(null)
+      expect(inferCategory("デイケア職員", null)).toBe(null)
+      expect(inferCategory("療育スタッフ", null)).toBe(null)
+    })
+
+    it("blocks 美容・理容・エステ", () => {
+      expect(inferCategory("美容師", null)).toBe(null)
+      expect(inferCategory("理容師スタッフ", null)).toBe(null)
+      expect(inferCategory("ネイリスト募集", null)).toBe(null)
+      expect(inferCategory("エステティシャン", null)).toBe(null)
+    })
+
+    it("blocks 販売・接客・飲食ホール", () => {
+      expect(inferCategory("販売スタッフ", null)).toBe(null)
+      expect(inferCategory("アパレル販売", null)).toBe(null)
+      expect(inferCategory("ホールスタッフ", null)).toBe(null)
+      expect(inferCategory("レジスタッフ", null)).toBe(null)
+    })
+
+    it("blocks 医療事務・薬剤師", () => {
+      expect(inferCategory("医療事務スタッフ", null)).toBe(null)
+      expect(inferCategory("調剤事務", null)).toBe(null)
+      expect(inferCategory("薬剤師募集", null)).toBe(null)
+    })
+
+    it("keeps construction at care facility (介護施設の建設工事は対象内)", () => {
+      // 「介護」単体は誤ブロックを生むため、「介護スタッフ」など具体名のみブロック
+      expect(inferCategory("介護施設の電気工事士", null)).toBe("electrical")
+      expect(inferCategory("老人ホーム新築の鳶職人", null)).toBe("construction")
+    })
+
     it("keeps construction-related drivers (重機/ダンプ/クレーン)", () => {
       // 除外パターンと衝突しないことを確認
       expect(inferCategory("重機ドライバー", null)).toBe("driver")
