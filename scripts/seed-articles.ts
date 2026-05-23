@@ -73,6 +73,9 @@ import { batch31 } from "./articles-data/batch-31-toyama-jobs"
 import { batch32 } from "./articles-data/batch-32-kagoshima-jobs"
 import { batch33 } from "./articles-data/batch-33-matsuyama-jobs"
 import { batch34 } from "./articles-data/batch-34-nagano-jobs"
+import { batch35 } from "./articles-data/batch-35-ibaraki-jobs"
+import { batch36 } from "./articles-data/batch-36-takasaki-jobs"
+import { batch37 } from "./articles-data/batch-37-morioka-jobs"
 
 /**
  * AI 生成時に紛れ込んだ HTML エンティティを実タグに戻す。
@@ -122,6 +125,9 @@ const ALL_ARTICLES: ArticleSeed[] = [
   ...batch32,
   ...batch33,
   ...batch34,
+  ...batch35,
+  ...batch36,
+  ...batch37,
 ]
 
 async function main(): Promise<void> {
