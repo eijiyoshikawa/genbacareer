@@ -27,7 +27,12 @@
  */
 
 import { prisma } from "@/lib/db"
-import { parseSalaryText } from "@/lib/crawler/salary-parser"
+import {
+  parseSalaryText,
+  inferSalaryTypeFromAmount,
+} from "@/lib/crawler/salary-parser"
+
+type SalaryType = "monthly" | "hourly" | "annual" | "daily"
 
 type Args = { apply: boolean; samples: number }
 
@@ -60,7 +65,8 @@ async function main(): Promise<void> {
   const total = await prisma.job.count({ where })
   console.info(`  対象候補: ${total.toLocaleString()} 件`)
 
-  const batchSize = 1000
+  const fetchBatchSize = 1000
+  const writeBatchSize = 500 // $transaction でまとめて UPDATE するサイズ
   let cursor: string | undefined
   let scanned = 0
   let parsedOk = 0
@@ -77,8 +83,28 @@ async function main(): Promise<void> {
     id: string
     title: string
     baseSalary: string
-    parsed: { type: string | null; min: number | null; max: number | null }
+    final: { type: SalaryType | null; min: number | null; max: number | null }
   }> = []
+
+  let pendingWrites: Array<{
+    id: string
+    min: number | null
+    max: number | null
+    type: SalaryType | null
+  }> = []
+
+  async function flushWrites(): Promise<void> {
+    if (!args.apply || pendingWrites.length === 0) return
+    const ops = pendingWrites.map((w) =>
+      prisma.job.update({
+        where: { id: w.id },
+        data: { salaryMin: w.min, salaryMax: w.max, salaryType: w.type },
+      })
+    )
+    await prisma.$transaction(ops)
+    updated += pendingWrites.length
+    pendingWrites = []
+  }
 
   while (true) {
     const jobs: Array<{
@@ -88,7 +114,7 @@ async function main(): Promise<void> {
     }> = await prisma.job.findMany({
       where,
       orderBy: { id: "asc" },
-      take: batchSize,
+      take: fetchBatchSize,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       select: { id: true, title: true, baseSalary: true },
     })
@@ -98,13 +124,17 @@ async function main(): Promise<void> {
       scanned++
       const parsed = parseSalaryText(job.baseSalary)
 
-      if (parsed.min == null && parsed.max == null && parsed.type == null) {
+      // 種別がパース時に取れていなければ金額レンジから推定
+      const finalType: SalaryType | null =
+        parsed.type ?? inferSalaryTypeFromAmount(parsed.min ?? parsed.max)
+
+      if (parsed.min == null && parsed.max == null && finalType == null) {
         parsedNothing++
         continue
       }
       parsedOk++
 
-      const typeKey = parsed.type ?? "(type=null)"
+      const typeKey = finalType ?? "(type=null)"
       typeDist[typeKey] = (typeDist[typeKey] ?? 0) + 1
 
       if (samples.length < args.samples) {
@@ -112,28 +142,32 @@ async function main(): Promise<void> {
           id: job.id,
           title: job.title,
           baseSalary: job.baseSalary ?? "",
-          parsed,
+          final: { type: finalType, min: parsed.min, max: parsed.max },
         })
       }
 
       if (args.apply) {
-        await prisma.job.update({
-          where: { id: job.id },
-          data: {
-            salaryMin: parsed.min,
-            salaryMax: parsed.max,
-            salaryType: parsed.type,
-          },
+        pendingWrites.push({
+          id: job.id,
+          min: parsed.min,
+          max: parsed.max,
+          type: finalType,
         })
-        updated++
+        if (pendingWrites.length >= writeBatchSize) {
+          await flushWrites()
+        }
       }
     }
 
     cursor = jobs[jobs.length - 1].id
-    if (scanned % 10000 === 0) {
-      console.info(`  ... ${scanned.toLocaleString()} 件処理済`)
+    if (scanned % 5000 === 0) {
+      console.info(
+        `  ... ${scanned.toLocaleString()} 件処理済 (UPDATE 済: ${updated.toLocaleString()})`
+      )
     }
   }
+
+  await flushWrites()
 
   console.info("\n============================================================")
   console.info(`  スキャン総数:       ${scanned.toLocaleString()} 件`)
@@ -155,7 +189,7 @@ async function main(): Promise<void> {
       console.info(`    [${s.id}] ${s.title}`)
       console.info(`      baseSalary: ${s.baseSalary.slice(0, 60)}`)
       console.info(
-        `      → type=${s.parsed.type} min=${s.parsed.min} max=${s.parsed.max}`
+        `      → type=${s.final.type} min=${s.final.min} max=${s.final.max}`
       )
     }
   }

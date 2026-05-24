@@ -98,6 +98,27 @@ function withinBounds(amount: number, type: SalaryType | null): boolean {
   return amount >= b.min && amount <= b.max
 }
 
+/**
+ * 賃金キーワード（月給・時給・日給・年俸）が含まれず種別を判定できない時、
+ * 金額レンジから推定する。ハローワークの baseSalary (khky) は本文に種別語を
+ * 含まないケースが大多数で、このフォールバックが無いと type=null になる。
+ *
+ * 凡そのレンジ:
+ *   時給:  〜 5,000 円
+ *   日給:  5,000 〜 30,000 円
+ *   月給:  30,000 〜 1,500,000 円
+ *   年俸:  1,500,000 円以上
+ */
+export function inferSalaryTypeFromAmount(
+  amount: number | null
+): SalaryType | null {
+  if (amount === null || amount <= 0) return null
+  if (amount < 5_000) return "hourly"
+  if (amount < 30_000) return "daily"
+  if (amount < 1_500_000) return "monthly"
+  return "annual"
+}
+
 export function parseSalaryText(
   text: string | null | undefined
 ): ParsedSalary {

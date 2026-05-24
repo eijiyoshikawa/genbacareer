@@ -378,6 +378,12 @@ function toHelloworkJobData(
     if (salaryType == null && parsed.type != null) salaryType = parsed.type
   }
 
+  // 3) baseSalary が「300,000円〜350,000円」のように種別語を含まないケース対策。
+  //    金額レンジから monthly/hourly/daily/annual を最終推定する。
+  if (salaryType == null) {
+    salaryType = inferSalaryTypeFromAmount(salaryMin ?? salaryMax)
+  }
+
   const requirements = str(record.menkyo_skku3_n)
 
   // 職種名 (sksu) を title に採用。無ければ仕事内容の冒頭を流用。
