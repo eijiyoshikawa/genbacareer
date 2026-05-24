@@ -53,6 +53,8 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 }
 
 // LINE Login (optional) — uses generic OAuth provider
+// 注: LINE Login の email scope は別途権限申請が必要なため、profile + openid のみ要求。
+// email が取れないケースに備え、profile() で LINE sub からプレースホルダ email を生成する。
 if (process.env.LINE_CLIENT_ID && process.env.LINE_CLIENT_SECRET) {
   providers.push({
     id: "line",
@@ -62,13 +64,13 @@ if (process.env.LINE_CLIENT_ID && process.env.LINE_CLIENT_SECRET) {
     clientId: process.env.LINE_CLIENT_ID,
     clientSecret: process.env.LINE_CLIENT_SECRET,
     authorization: {
-      params: { scope: "profile openid email" },
+      params: { scope: "profile openid" },
     },
     profile(profile) {
       return {
         id: profile.sub,
         name: profile.name,
-        email: profile.email,
+        email: profile.email ?? `line_${profile.sub}@line.local`,
         image: profile.picture,
       }
     },
