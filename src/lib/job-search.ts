@@ -53,7 +53,43 @@ export async function fuzzySearchJobs(
   // - title と description それぞれの類似度の最大値を採用
   // - 0.05 以上を閾値（ある程度関連がある）
   // - 同点は publishedAt DESC
+  //
+  // $1=q, $2=categories は固定。それ以降の条件は可変なので
+  // paramIndex で動的にインクリメントし、パラメータ順とSQL番号を同期させる。
   try {
+    let paramIndex = 3
+    const extraConditions: string[] = []
+    const extraParams: unknown[] = []
+
+    if (input.prefecture) {
+      extraConditions.push(`AND prefecture = $${paramIndex++}`)
+      extraParams.push(input.prefecture)
+    }
+    if (input.city) {
+      extraConditions.push(`AND city = $${paramIndex++}`)
+      extraParams.push(input.city)
+    }
+    if (input.employmentType) {
+      extraConditions.push(`AND employment_type = $${paramIndex++}`)
+      extraParams.push(input.employmentType)
+    }
+    if (input.source) {
+      extraConditions.push(`AND source = $${paramIndex++}`)
+      extraParams.push(input.source)
+    }
+    if (input.publishedSince) {
+      extraConditions.push(`AND published_at >= $${paramIndex++}`)
+      extraParams.push(input.publishedSince)
+    }
+    if (input.salaryMin) {
+      extraConditions.push(`AND salary_min >= $${paramIndex++}`)
+      extraParams.push(input.salaryMin)
+    }
+    if (input.salaryMax) {
+      extraConditions.push(`AND salary_max <= $${paramIndex++}`)
+      extraParams.push(input.salaryMax)
+    }
+
     const rows = await prisma.$queryRawUnsafe<
       { id: string; similarity: number }[]
     >(
@@ -68,12 +104,7 @@ export async function fuzzySearchJobs(
         FROM jobs
         WHERE status = 'active'
           AND category = ANY($2)
-          ${input.prefecture ? "AND prefecture = $3" : ""}
-          ${input.employmentType ? `AND employment_type = $4` : ""}
-          ${input.source ? `AND source = $5` : ""}
-          ${input.publishedSince ? `AND published_at >= $6` : ""}
-          ${input.salaryMin ? `AND salary_min >= $7` : ""}
-          ${input.salaryMax ? `AND salary_max <= $8` : ""}
+          ${extraConditions.join("\n          ")}
       )
       SELECT id, similarity
       FROM scored
@@ -83,12 +114,7 @@ export async function fuzzySearchJobs(
       `,
       input.q,
       categories,
-      ...(input.prefecture ? [input.prefecture] : []),
-      ...(input.employmentType ? [input.employmentType] : []),
-      ...(input.source ? [input.source] : []),
-      ...(input.publishedSince ? [input.publishedSince] : []),
-      ...(input.salaryMin ? [input.salaryMin] : []),
-      ...(input.salaryMax ? [input.salaryMax] : [])
+      ...extraParams
     )
     return rows
   } catch (e) {

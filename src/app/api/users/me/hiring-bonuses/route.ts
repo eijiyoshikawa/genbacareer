@@ -8,6 +8,7 @@
 
 import { type NextRequest } from "next/server"
 import { z } from "zod"
+import { Prisma } from "@prisma/client"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { HIRING_BONUS_AMOUNT } from "@/lib/hiring-bonus"
@@ -88,18 +89,33 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const created = await prisma.hiringBonus.create({
-    data: {
-      applicationId: app.id,
-      userId: session.user.id,
-      companyId: app.companyId,
-      amount: HIRING_BONUS_AMOUNT,
-      payoutMethod: parsed.data.payoutMethod,
-      payoutDetails: parsed.data.payoutDetails ?? undefined,
-      requestNote: parsed.data.requestNote ?? null,
-    },
-    select: { id: true, amount: true },
-  })
+  let created: { id: string; amount: number }
+  try {
+    created = await prisma.hiringBonus.create({
+      data: {
+        applicationId: app.id,
+        userId: session.user.id,
+        companyId: app.companyId,
+        amount: HIRING_BONUS_AMOUNT,
+        payoutMethod: parsed.data.payoutMethod,
+        payoutDetails: parsed.data.payoutDetails ?? undefined,
+        requestNote: parsed.data.requestNote ?? null,
+      },
+      select: { id: true, amount: true },
+    })
+  } catch (e) {
+    // 並行リクエストによる DB ユニーク制約違反を 409 に変換
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === "P2002"
+    ) {
+      return Response.json(
+        { error: "この採用に対しては既に申請済みです" },
+        { status: 409 }
+      )
+    }
+    throw e
+  }
 
   return Response.json({ ok: true, ...created }, { status: 201 })
 }
