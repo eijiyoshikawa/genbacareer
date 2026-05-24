@@ -1,5 +1,40 @@
 import { describe, it, expect } from "vitest"
-import { parseSalaryText } from "@/lib/crawler/salary-parser"
+import {
+  parseSalaryText,
+  inferSalaryTypeFromAmount,
+} from "@/lib/crawler/salary-parser"
+
+describe("inferSalaryTypeFromAmount", () => {
+  it("時給帯", () => {
+    expect(inferSalaryTypeFromAmount(900)).toBe("hourly")
+    expect(inferSalaryTypeFromAmount(1_500)).toBe("hourly")
+    expect(inferSalaryTypeFromAmount(4_999)).toBe("hourly")
+  })
+
+  it("日給帯", () => {
+    expect(inferSalaryTypeFromAmount(5_000)).toBe("daily")
+    expect(inferSalaryTypeFromAmount(12_000)).toBe("daily")
+    expect(inferSalaryTypeFromAmount(25_000)).toBe("daily")
+  })
+
+  it("月給帯", () => {
+    expect(inferSalaryTypeFromAmount(30_000)).toBe("monthly")
+    expect(inferSalaryTypeFromAmount(250_000)).toBe("monthly")
+    expect(inferSalaryTypeFromAmount(1_000_000)).toBe("monthly")
+  })
+
+  it("年俸帯", () => {
+    expect(inferSalaryTypeFromAmount(1_500_000)).toBe("annual")
+    expect(inferSalaryTypeFromAmount(5_000_000)).toBe("annual")
+  })
+
+  it("null / 0 / 負数", () => {
+    expect(inferSalaryTypeFromAmount(null)).toBe(null)
+    expect(inferSalaryTypeFromAmount(0)).toBe(null)
+    expect(inferSalaryTypeFromAmount(-1000)).toBe(null)
+  })
+})
+
 
 describe("parseSalaryText", () => {
   describe("月給", () => {
