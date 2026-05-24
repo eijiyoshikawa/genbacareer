@@ -11,14 +11,19 @@
  *
  * 必須チェック項目（リリース前に欠損ゼロを目指す）:
  *  1. employmentType  雇用形態
- *  2. salary*         賃金（min/max いずれか + salaryType）
- *  3. workHours       労働時間
- *  4. holidays        休日（annualHolidays でも可）
+ *  2. salary*         賃金（min/max いずれか + salaryType, fallback: baseSalary）
+ *  3. workHours       労働時間（fallback: workHoursNotes, jobConditionNotes）
+ *  4. holidays        休日（annualHolidays / holidaysOther）
  *  5. insurance       社会保険
  *  6. smokingPolicy   受動喫煙対策（健康増進法）
  *  7. trialPeriod     試用期間の有無
  *  8. description     業務内容
  *  9. prefecture      就業場所
+ *
+ * 厳格判定 と 寛容判定 の両方を出す:
+ *  - 厳格: 構造化カラムのみ（UI/検索で使える「正規化済」指標）
+ *  - 寛容: テキストフィールドにフォールバック（労基法第15条の「文書明示」指標）
+ *  - 厳格 − 寛容 = 取り込み時の正規化で救える件数（Phase 2 の対象）
  *
  * 加えて salaryType (monthly | hourly | daily | annual | null) の内訳と、
  * **時給制 / 日当制** 求人を月給・年俸と切り分けて詳細レポート（賃金レンジ分布・
@@ -58,10 +63,13 @@ type JobRow = {
   salaryMin: number | null
   salaryMax: number | null
   salaryType: string | null
+  baseSalary: string | null
   description: string | null
   workHours: string | null
   workHoursNotes: string | null
+  jobConditionNotes: string | null
   holidays: string | null
+  holidaysOther: string | null
   annualHolidays: number | null
   insurance: string | null
   smokingPolicy: string | null
@@ -95,20 +103,64 @@ function isBlank(v: string | null | undefined): boolean {
   return v === null || v === undefined || v.trim() === ""
 }
 
-function findMissing(job: JobRow): FieldKey[] {
+/**
+ * 厳格判定: 構造化カラム（salaryMin/Max/salaryType, workHours, holidays 等）
+ * のみで欠損を見る。UI で表示・検索に使える「正規化済み」状態を測る指標。
+ */
+function findMissingStrict(job: JobRow): FieldKey[] {
   const missing: FieldKey[] = []
   if (isBlank(job.employmentType)) missing.push("employmentType")
-
-  // 賃金: min / max いずれか + salaryType が揃って初めて有効
   const hasSalaryRange = job.salaryMin != null || job.salaryMax != null
   if (!hasSalaryRange || isBlank(job.salaryType)) missing.push("salary")
-
   if (isBlank(job.workHours) && isBlank(job.workHoursNotes)) {
     missing.push("workHours")
   }
   if (isBlank(job.holidays) && job.annualHolidays == null) {
     missing.push("holidays")
   }
+  if (isBlank(job.insurance)) missing.push("insurance")
+  if (isBlank(job.smokingPolicy)) missing.push("smokingPolicy")
+  if (isBlank(job.trialPeriod)) missing.push("trialPeriod")
+  if (isBlank(job.description)) missing.push("description")
+  if (isBlank(job.prefecture)) missing.push("prefecture")
+  return missing
+}
+
+/**
+ * 寛容判定: 構造化カラムが欠けていても、ハローワーク由来のテキストフィールド
+ * （baseSalary, jobConditionNotes, holidaysOther）に情報があれば「明示済」と
+ * みなす。労基法第15条上「文書で明示されているか」を測る指標。
+ *
+ * 厳格 − 寛容 = 「取り込み時の正規化（Phase 2）で救える件数」
+ */
+function findMissingLenient(job: JobRow): FieldKey[] {
+  const missing: FieldKey[] = []
+  if (isBlank(job.employmentType)) missing.push("employmentType")
+
+  // 賃金: 構造化済 OR baseSalary 文字列に値がある
+  const hasSalaryRange = job.salaryMin != null || job.salaryMax != null
+  const salaryOk =
+    (hasSalaryRange && !isBlank(job.salaryType)) || !isBlank(job.baseSalary)
+  if (!salaryOk) missing.push("salary")
+
+  // 労働時間: workHours / workHoursNotes / jobConditionNotes のいずれか
+  if (
+    isBlank(job.workHours) &&
+    isBlank(job.workHoursNotes) &&
+    isBlank(job.jobConditionNotes)
+  ) {
+    missing.push("workHours")
+  }
+
+  // 休日: holidays / annualHolidays / holidaysOther のいずれか
+  if (
+    isBlank(job.holidays) &&
+    job.annualHolidays == null &&
+    isBlank(job.holidaysOther)
+  ) {
+    missing.push("holidays")
+  }
+
   if (isBlank(job.insurance)) missing.push("insurance")
   if (isBlank(job.smokingPolicy)) missing.push("smokingPolicy")
   if (isBlank(job.trialPeriod)) missing.push("trialPeriod")
@@ -133,7 +185,7 @@ async function auditDisclosures(args: Args): Promise<void> {
     `  対象: status='active'${args.source ? ` source='${args.source}'` : ""} ${total.toLocaleString()} 件`
   )
 
-  const fieldMissingCount: Record<FieldKey, number> = {
+  const emptyFieldCount = (): Record<FieldKey, number> => ({
     employmentType: 0,
     salary: 0,
     workHours: 0,
@@ -143,11 +195,19 @@ async function auditDisclosures(args: Args): Promise<void> {
     trialPeriod: 0,
     description: 0,
     prefecture: 0,
-  }
-  const missingCountDist = new Map<number, number>()
-  const missingBySource = new Map<string, number>()
+  })
+  const strictMissingCount = emptyFieldCount()
+  const lenientMissingCount = emptyFieldCount()
+  const strictDist = new Map<number, number>()
+  const lenientDist = new Map<number, number>()
+  const lenientMissingBySource = new Map<string, number>()
   const sourceTotal = new Map<string, number>()
-  const samples: Array<{ id: string; title: string; missing: FieldKey[] }> = []
+  const samples: Array<{
+    id: string
+    title: string
+    strict: FieldKey[]
+    lenient: FieldKey[]
+  }> = []
 
   const batchSize = 1000
   let cursor: string | undefined
@@ -168,10 +228,13 @@ async function auditDisclosures(args: Args): Promise<void> {
         salaryMin: true,
         salaryMax: true,
         salaryType: true,
+        baseSalary: true,
         description: true,
         workHours: true,
         workHoursNotes: true,
+        jobConditionNotes: true,
         holidays: true,
+        holidaysOther: true,
         annualHolidays: true,
         insurance: true,
         smokingPolicy: true,
@@ -183,19 +246,19 @@ async function auditDisclosures(args: Args): Promise<void> {
     for (const job of jobs) {
       scanned++
       sourceTotal.set(job.source, (sourceTotal.get(job.source) ?? 0) + 1)
-      const missing = findMissing(job)
-      for (const k of missing) fieldMissingCount[k]++
-      missingCountDist.set(
-        missing.length,
-        (missingCountDist.get(missing.length) ?? 0) + 1
-      )
-      if (missing.length > 0) {
-        missingBySource.set(
+      const strict = findMissingStrict(job)
+      const lenient = findMissingLenient(job)
+      for (const k of strict) strictMissingCount[k]++
+      for (const k of lenient) lenientMissingCount[k]++
+      strictDist.set(strict.length, (strictDist.get(strict.length) ?? 0) + 1)
+      lenientDist.set(lenient.length, (lenientDist.get(lenient.length) ?? 0) + 1)
+      if (lenient.length > 0) {
+        lenientMissingBySource.set(
           job.source,
-          (missingBySource.get(job.source) ?? 0) + 1
+          (lenientMissingBySource.get(job.source) ?? 0) + 1
         )
         if (samples.length < args.samples) {
-          samples.push({ id: job.id, title: job.title, missing })
+          samples.push({ id: job.id, title: job.title, strict, lenient })
         }
       }
     }
@@ -208,42 +271,73 @@ async function auditDisclosures(args: Args): Promise<void> {
 
   console.info(`\n  スキャン: ${scanned.toLocaleString()} 件`)
 
-  console.info("\n  必須項目別 欠損率:")
-  const sortedFields = (Object.keys(fieldMissingCount) as FieldKey[]).sort(
-    (a, b) => fieldMissingCount[b] - fieldMissingCount[a]
+  console.info(
+    "\n  必須項目別 欠損率（厳格=構造化カラムのみ / 寛容=テキストフィールドにフォールバック）:"
+  )
+  const sortedFields = (Object.keys(strictMissingCount) as FieldKey[]).sort(
+    (a, b) => strictMissingCount[b] - strictMissingCount[a]
+  )
+  console.info(
+    "    " +
+      "項目".padEnd(13) +
+      "(field)".padEnd(20) +
+      "厳格".padStart(10) +
+      "寛容".padStart(13) +
+      "  ← フォールバックで救えた数"
   )
   for (const k of sortedFields) {
-    const count = fieldMissingCount[k]
-    const mark = count === 0 ? "✅" : count / scanned > 0.1 ? "❌" : "⚠️ "
+    const strictN = strictMissingCount[k]
+    const lenientN = lenientMissingCount[k]
+    const rescued = strictN - lenientN
+    const mark =
+      lenientN === 0 ? "✅" : lenientN / scanned > 0.1 ? "❌" : "⚠️ "
+    const rescuedStr = rescued > 0 ? ` (-${rescued.toLocaleString()})` : ""
     console.info(
-      `    ${mark} ${FIELD_LABELS[k].padEnd(8)} (${k.padEnd(15)}) ${count.toLocaleString().padStart(8)} 件 (${pct(count, scanned)})`
+      `    ${mark} ${FIELD_LABELS[k].padEnd(8)} (${k.padEnd(15)}) ${strictN.toLocaleString().padStart(8)} → ${lenientN.toLocaleString().padStart(8)} (${pct(lenientN, scanned)})${rescuedStr}`
     )
   }
 
-  console.info("\n  欠損項目数の分布:")
-  const buckets = Array.from(missingCountDist.entries()).sort((a, b) => a[0] - b[0])
-  for (const [n, count] of buckets) {
+  console.info("\n  欠損項目数の分布（厳格 / 寛容）:")
+  const allBuckets = new Set<number>([...strictDist.keys(), ...lenientDist.keys()])
+  const sortedBuckets = Array.from(allBuckets).sort((a, b) => a - b)
+  for (const n of sortedBuckets) {
+    const strictN = strictDist.get(n) ?? 0
+    const lenientN = lenientDist.get(n) ?? 0
     const mark = n === 0 ? "✅" : "  "
     const label = n === 0 ? "完全 (欠損 0 件)" : `欠損 ${n} 件`
     console.info(
-      `    ${mark} ${label.padEnd(20)} ${count.toLocaleString().padStart(8)} 件 (${pct(count, scanned)})`
+      `    ${mark} ${label.padEnd(20)} 厳格 ${strictN.toLocaleString().padStart(8)} (${pct(strictN, scanned)})  /  寛容 ${lenientN.toLocaleString().padStart(8)} (${pct(lenientN, scanned)})`
     )
   }
 
-  console.info("\n  source 別 欠損率:")
+  console.info("\n  source 別 寛容判定の欠損率:")
   for (const [src, srcTotal] of sourceTotal.entries()) {
-    const missing = missingBySource.get(src) ?? 0
+    const missing = lenientMissingBySource.get(src) ?? 0
     console.info(
       `    ${src.padEnd(15)} ${missing.toLocaleString().padStart(8)} / ${srcTotal.toLocaleString().padStart(8)} (${pct(missing, srcTotal)})`
     )
   }
 
   if (samples.length > 0) {
-    console.info(`\n  欠損サンプル (${samples.length} 件):`)
+    console.info(`\n  欠損サンプル (${samples.length} 件、寛容判定で欠損ありのもの):`)
     for (const s of samples) {
       console.info(`    [${s.id}] ${s.title}`)
-      console.info(`        欠損: ${s.missing.join(", ")}`)
+      console.info(`        厳格欠損: ${s.strict.join(", ") || "(なし)"}`)
+      console.info(`        寛容欠損: ${s.lenient.join(", ") || "(なし)"}`)
     }
+  }
+
+  // Phase 2 への布石: 取り込み時の正規化で救える件数を強調
+  const totalStrictMissing = scanned - (strictDist.get(0) ?? 0)
+  const totalLenientMissing = scanned - (lenientDist.get(0) ?? 0)
+  const rescuableByNormalization = totalStrictMissing - totalLenientMissing
+  if (rescuableByNormalization > 0) {
+    console.info(
+      `\n  💡 取り込み時の正規化（baseSalary→salaryType/Min/Max, jobConditionNotes→workHours など）で`
+    )
+    console.info(
+      `     ${rescuableByNormalization.toLocaleString()} 件 (${pct(rescuableByNormalization, scanned)}) の欠損を解消可能`
+    )
   }
 }
 
