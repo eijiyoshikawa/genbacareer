@@ -66,7 +66,40 @@ async function main(): Promise<void> {
   console.info(`  対象候補: ${total.toLocaleString()} 件`)
 
   const fetchBatchSize = 1000
-  const writeBatchSize = 500 // $transaction でまとめて UPDATE するサイズ
+  const writeBatchSize = 100 // pgbouncer idle timeout 対策で小さめに
+
+  /**
+   * 接続断 (P1017) / トランザクション中断 (P2028) は pgbouncer/プーラー由来で
+   * 散発的に発生する。指数バックオフで最大 4 回までリトライする。
+   */
+  async function withRetry<T>(
+    fn: () => Promise<T>,
+    label: string
+  ): Promise<T> {
+    const delays = [1_000, 2_000, 5_000, 10_000]
+    let lastErr: unknown
+    for (let attempt = 0; attempt <= delays.length; attempt++) {
+      try {
+        return await fn()
+      } catch (e) {
+        lastErr = e
+        const code = (e as { code?: string }).code
+        const isRetryable =
+          code === "P1017" ||
+          code === "P2028" ||
+          code === "P1001" ||
+          (e instanceof Error && /closed the connection/i.test(e.message))
+        if (!isRetryable || attempt === delays.length) throw e
+        const wait = delays[attempt]
+        console.warn(
+          `  ⚠️  ${label} で接続エラー (${code ?? "?"}) → ${wait}ms 後にリトライ (試行 ${attempt + 2})`
+        )
+        await new Promise((r) => setTimeout(r, wait))
+      }
+    }
+    throw lastErr
+  }
+
   let cursor: string | undefined
   let scanned = 0
   let parsedOk = 0
@@ -95,15 +128,16 @@ async function main(): Promise<void> {
 
   async function flushWrites(): Promise<void> {
     if (!args.apply || pendingWrites.length === 0) return
-    const ops = pendingWrites.map((w) =>
+    const batch = pendingWrites
+    pendingWrites = []
+    const ops = batch.map((w) =>
       prisma.job.update({
         where: { id: w.id },
         data: { salaryMin: w.min, salaryMax: w.max, salaryType: w.type },
       })
     )
-    await prisma.$transaction(ops)
-    updated += pendingWrites.length
-    pendingWrites = []
+    await withRetry(() => prisma.$transaction(ops), `flushWrites(${batch.length}件)`)
+    updated += batch.length
   }
 
   while (true) {
@@ -111,13 +145,17 @@ async function main(): Promise<void> {
       id: string
       title: string
       baseSalary: string | null
-    }> = await prisma.job.findMany({
-      where,
-      orderBy: { id: "asc" },
-      take: fetchBatchSize,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      select: { id: true, title: true, baseSalary: true },
-    })
+    }> = await withRetry(
+      () =>
+        prisma.job.findMany({
+          where,
+          orderBy: { id: "asc" },
+          take: fetchBatchSize,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+          select: { id: true, title: true, baseSalary: true },
+        }),
+      "findMany"
+    )
     if (jobs.length === 0) break
 
     for (const job of jobs) {
