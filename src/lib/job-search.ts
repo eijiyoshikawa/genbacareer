@@ -53,7 +53,40 @@ export async function fuzzySearchJobs(
   // - title と description それぞれの類似度の最大値を採用
   // - 0.05 以上を閾値（ある程度関連がある）
   // - 同点は publishedAt DESC
+  //
+  // NOTE: オプショナルな WHERE 条件は動的にパラメータ番号を採番する。
+  // 固定番号 ($3, $4...) にすると、省略された条件があるときに番号がズレて
+  // PostgreSQL がエラーを返す。
   try {
+    const extraParams: (string | number | Date)[] = []
+    let pIdx = 3 // $1 = input.q, $2 = categories
+    const extraConditions: string[] = []
+
+    if (input.prefecture) {
+      extraConditions.push(`AND prefecture = $${pIdx++}`)
+      extraParams.push(input.prefecture)
+    }
+    if (input.employmentType) {
+      extraConditions.push(`AND employment_type = $${pIdx++}`)
+      extraParams.push(input.employmentType)
+    }
+    if (input.source) {
+      extraConditions.push(`AND source = $${pIdx++}`)
+      extraParams.push(input.source)
+    }
+    if (input.publishedSince) {
+      extraConditions.push(`AND published_at >= $${pIdx++}`)
+      extraParams.push(input.publishedSince)
+    }
+    if (input.salaryMin) {
+      extraConditions.push(`AND salary_min >= $${pIdx++}`)
+      extraParams.push(input.salaryMin)
+    }
+    if (input.salaryMax) {
+      extraConditions.push(`AND salary_max <= $${pIdx++}`)
+      extraParams.push(input.salaryMax)
+    }
+
     const rows = await prisma.$queryRawUnsafe<
       { id: string; similarity: number }[]
     >(
@@ -68,12 +101,7 @@ export async function fuzzySearchJobs(
         FROM jobs
         WHERE status = 'active'
           AND category = ANY($2)
-          ${input.prefecture ? "AND prefecture = $3" : ""}
-          ${input.employmentType ? `AND employment_type = $4` : ""}
-          ${input.source ? `AND source = $5` : ""}
-          ${input.publishedSince ? `AND published_at >= $6` : ""}
-          ${input.salaryMin ? `AND salary_min >= $7` : ""}
-          ${input.salaryMax ? `AND salary_max <= $8` : ""}
+          ${extraConditions.join("\n          ")}
       )
       SELECT id, similarity
       FROM scored
@@ -83,12 +111,7 @@ export async function fuzzySearchJobs(
       `,
       input.q,
       categories,
-      ...(input.prefecture ? [input.prefecture] : []),
-      ...(input.employmentType ? [input.employmentType] : []),
-      ...(input.source ? [input.source] : []),
-      ...(input.publishedSince ? [input.publishedSince] : []),
-      ...(input.salaryMin ? [input.salaryMin] : []),
-      ...(input.salaryMax ? [input.salaryMax] : [])
+      ...extraParams
     )
     return rows
   } catch (e) {

@@ -47,9 +47,11 @@ export function calculateMonthsAfterHire(
 
 /**
  * 経過月数 → 返金率 (%) のマッピング。
+ * 0 以下 (退職日が入社日以前): 0 (対象外)
  * 1 ヶ月以内: 80 / 2 ヶ月以内: 50 / 3 ヶ月以内: 20 / それ以降: 0
  */
 export function refundRateForMonths(monthsAfterHire: number): number {
+  if (monthsAfterHire <= 0) return 0
   if (monthsAfterHire <= 1) return 80
   if (monthsAfterHire <= 2) return 50
   if (monthsAfterHire <= 3) return 20
