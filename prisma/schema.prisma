@@ -450,6 +450,15 @@ model Job {
   // 有効レンジ: 200,000 〜 2,000,000（UI / API の Zod バリデーションで担保）
   hiringFeeAmount Int?     @map("hiring_fee_amount")
 
+  // 求人一覧の表示順優先度（数値が小さいほど上位）。
+  // computeDisplayPriority() で算出し、insert/update 時にセットする。
+  //   1: source='direct'（自社投稿求人）を最優先
+  //   2: 月給制 かつ 労働条件 9 項目すべて明示済み
+  //   3: その他の月給制求人（不完全）
+  //   4: 時給制 / 日給制
+  //   5: 上記いずれにも該当しない（年俸・null 等）
+  displayPriority Int @default(5) @map("display_priority")
+
   // 8.4 重複求人検出用ハッシュ (title 正規化 + companyId or 会社名 + prefecture から生成)
   // 同一 dedupeKey の求人は 1 つだけ active で表示、他は status=closed に降格される
   dedupeKey      String?  @map("dedupe_key") @db.VarChar(64)
@@ -506,6 +515,9 @@ model Job {
   @@index([salaryMin, salaryMax], name: "idx_jobs_salary")
   @@index([status, publishedAt(sort: Desc)], name: "idx_jobs_status_published")
   @@index([status, rankScore(sort: Desc), publishedAt(sort: Desc)], name: "idx_jobs_status_rank")
+  // 表示順優先度を主キーとする検索インデックス。
+  // /jobs のおすすめ順や /jobs/feed 等、公開求人一覧の基本ソートで使う。
+  @@index([status, displayPriority, rankScore(sort: Desc), publishedAt(sort: Desc)], name: "idx_jobs_status_priority_rank")
   @@index([industryMajorCode], name: "idx_jobs_industry_major")
   // 企業ダッシュボード KPI 集計 (status 別カウント / aggregate viewCount) 高速化
   @@index([companyId, status], name: "idx_jobs_company_status")

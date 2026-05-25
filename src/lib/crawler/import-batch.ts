@@ -20,6 +20,7 @@ import {
   fallbackSalary,
 } from "@/lib/job-enrichment"
 import { computeRankScore } from "@/lib/ranking"
+import { computeDisplayPriority } from "@/lib/job-display-priority"
 import type { HelloworkJobData } from "./hellowork"
 
 // ========================================
@@ -124,6 +125,23 @@ function toJobRecord(
     null
   )
 
+  const displayPriority = computeDisplayPriority({
+    source: job.source,
+    salaryType: salary.type,
+    salaryMin: salary.min,
+    salaryMax: salary.max,
+    employmentType: job.employmentType,
+    workHours: job.workHours,
+    workHoursNotes: job.workHoursNotes,
+    holidays: job.holidays,
+    annualHolidays: job.annualHolidays,
+    insurance: job.insurance,
+    smokingPolicy: job.smokingPolicy,
+    trialPeriod: job.trialPeriod,
+    description: job.description,
+    prefecture: job.prefecture,
+  })
+
   return {
     source: job.source,
     helloworkId: truncate(job.helloworkId, 50),
@@ -136,6 +154,7 @@ function toJobRecord(
     salaryMin: salary.min,
     salaryMax: salary.max,
     salaryType: salary.type,
+    displayPriority,
     prefecture: truncate(job.prefecture, 20) || "不明",
     city: job.city ? truncate(job.city, 100) : null,
     address: job.address,
@@ -518,6 +537,7 @@ export async function importHelloworkJobs(
           salaryMin: data.salaryMin,
           salaryMax: data.salaryMax,
           salaryType: data.salaryType,
+          displayPriority: data.displayPriority,
           prefecture: data.prefecture,
           city: data.city,
           address: data.address,

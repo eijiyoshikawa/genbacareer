@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import type { Metadata } from "next"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
 import { Prisma } from "@prisma/client"
@@ -69,7 +70,7 @@ export default async function LicenseLpPage({ params }: Props) {
         category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
         OR,
       },
-      orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+      orderBy: buildPublicJobOrderBy("recommended"),
       take: 30,
       select: {
         id: true,

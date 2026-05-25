@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
 import { ChevronRight } from "lucide-react"
@@ -114,7 +115,7 @@ export default async function ArticlePage({ params }: Props) {
     ? await prisma.job
         .findMany({
           where: { status: "active", category: article.subcategory! },
-          orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+          orderBy: buildPublicJobOrderBy("recommended"),
           take: 3,
           select: {
             id: true,

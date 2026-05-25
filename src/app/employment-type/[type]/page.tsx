@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import type { Metadata } from "next"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
 import {
@@ -70,7 +71,7 @@ export default async function EmploymentTypeLpPage({ params }: Props) {
     prisma.job
       .findMany({
         where,
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit,
         select: {
           id: true,

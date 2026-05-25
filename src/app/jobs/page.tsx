@@ -14,6 +14,10 @@ import {
   isConstructionCategory,
 } from "@/lib/categories"
 import { auth } from "@/lib/auth"
+import {
+  buildPublicJobOrderBy,
+  type PublicJobSort,
+} from "@/lib/job-sort"
 import { SaveSearchButton } from "@/components/jobs/save-search-button"
 import {
   GuestSignupCta,
@@ -581,30 +585,17 @@ export default async function JobsPage({ searchParams }: Props) {
 // ---------------- helpers ----------------
 
 function buildOrderBy(sort: string) {
-  switch (sort) {
-    case "salary_high":
-      return [{ salaryMin: "desc" as const }, { publishedAt: "desc" as const }]
-    case "salary_low":
-      return [{ salaryMin: "asc" as const }, { publishedAt: "desc" as const }]
-    case "popular":
-      return [{ viewCount: "desc" as const }, { publishedAt: "desc" as const }]
-    case "newest":
-      return { publishedAt: "desc" as const }
-    case "recommended":
-    default:
-      // C8 上位表示 + 公平ローテーション:
-      //   1. company.planTier desc — プラン優先度 (3=paid / 2=SNS / 1=キャンペーン / 0=HW)
-      //   2. company.rotationKey asc — 日次でランダム化 (paid 平等枠の機会均等)
-      //   3. rankScore desc — 同 rotationKey 内では既存のコンテンツ品質順
-      //   4. publishedAt desc — タイブレーク
-      // rotationKey は /api/cron/rotate-companies が毎日 03:30 UTC に更新する。
-      return [
-        { company: { planTier: "desc" as const } },
-        { company: { rotationKey: "asc" as const } },
-        { rankScore: "desc" as const },
-        { publishedAt: "desc" as const },
-      ]
-  }
+  // 主キーは Job.displayPriority (asc):
+  //   1: direct (手入力) / 2: 月給完全 / 3: 月給不完全 / 4: 時給日給 / 5: その他
+  // 詳細は src/lib/job-sort.ts を参照。
+  const normalized: PublicJobSort =
+    sort === "salary_high" ||
+    sort === "salary_low" ||
+    sort === "popular" ||
+    sort === "newest"
+      ? sort
+      : "recommended"
+  return buildPublicJobOrderBy(normalized, { includeCompanyTier: true })
 }
 
 function parseManYenToYen(raw: string | undefined): number | null {

@@ -8,6 +8,7 @@
  * 上下スワイプ (= scroll-snap) で次/前の求人へ。
  */
 
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
 import type { Metadata } from "next"
 import { FeedSwiper, type FeedJob } from "./feed-swiper"
@@ -35,7 +36,7 @@ export default async function JobFeedPage() {
 
   const jobs = await prisma.job.findMany({
     where: { status: "active" },
-    orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+    orderBy: buildPublicJobOrderBy("recommended"),
     take: initialLimit,
     select: {
       id: true,

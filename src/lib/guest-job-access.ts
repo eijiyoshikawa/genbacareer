@@ -43,6 +43,7 @@ export async function getGuestAccessibleJobIds(): Promise<string[]> {
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
     },
     orderBy: [
+      { displayPriority: "asc" },
       { source: "asc" },
       { rankScore: "desc" },
       { publishedAt: "desc" },
