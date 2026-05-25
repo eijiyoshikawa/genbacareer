@@ -12,9 +12,11 @@ import {
   Sparkles,
   MessageCircle,
   Home,
+  UserCircle,
 } from "lucide-react"
 import { LinkButton } from "@/components/ui/button"
 import { BrandLogo } from "./brand-logo"
+import { HeaderLogoutButton } from "./header-logout-button"
 
 /**
  * モバイル用フルスクリーンメニュー。
@@ -25,8 +27,15 @@ import { BrandLogo } from "./brand-logo"
  *
  * 開いたときに body のスクロールをロックして、メニュー内スクロールが
  * 背景ページにフォールスルーするのを防ぐ。
+ *
+ * @param myPage - ログイン中ユーザー用「マイページ」相当のリンク。
+ *                 未ログイン時は null。
  */
-export function HeaderMobileMenu() {
+export function HeaderMobileMenu({
+  myPage,
+}: {
+  myPage: { href: string; label: string } | null
+}) {
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
 
@@ -115,27 +124,46 @@ export function HeaderMobileMenu() {
             />
 
             <div className="pt-6 mt-4 border-t border-gray-100 space-y-3">
-              <LinkButton
-                href="/register/wizard"
-                variant="primary"
-                size="lg"
-                fullWidth
-                onClick={close}
-                className="!h-14 !text-base bg-primary-500 hover:bg-primary-600 shadow-sm"
-              >
-                <MessageCircle className="h-5 w-5" />
-                無料で会員登録
-              </LinkButton>
-              <LinkButton
-                href="/login"
-                variant="secondary"
-                size="lg"
-                fullWidth
-                onClick={close}
-                className="!h-14 !text-base border-primary-600 text-primary-700 hover:bg-primary-50"
-              >
-                ログイン
-              </LinkButton>
+              {myPage ? (
+                <>
+                  <LinkButton
+                    href={myPage.href}
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                    onClick={close}
+                    className="!h-14 !text-base bg-primary-500 hover:bg-primary-600 shadow-sm"
+                  >
+                    <UserCircle className="h-5 w-5" />
+                    {myPage.label}
+                  </LinkButton>
+                  <HeaderLogoutButton variant="mobile" />
+                </>
+              ) : (
+                <>
+                  <LinkButton
+                    href="/register/wizard"
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                    onClick={close}
+                    className="!h-14 !text-base bg-primary-500 hover:bg-primary-600 shadow-sm"
+                  >
+                    <MessageCircle className="h-5 w-5" />
+                    無料で会員登録
+                  </LinkButton>
+                  <LinkButton
+                    href="/login"
+                    variant="secondary"
+                    size="lg"
+                    fullWidth
+                    onClick={close}
+                    className="!h-14 !text-base border-primary-600 text-primary-700 hover:bg-primary-50"
+                  >
+                    ログイン
+                  </LinkButton>
+                </>
+              )}
             </div>
 
             <p className="pt-6 text-center text-xs text-gray-400">

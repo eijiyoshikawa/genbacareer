@@ -1,16 +1,48 @@
 import Link from "next/link"
-import { Search, Newspaper, MessageCircle, Sparkles, Map as MapIcon } from "lucide-react"
+import { Search, Newspaper, MessageCircle, Sparkles, Map as MapIcon, UserCircle } from "lucide-react"
 import { BrandLogo } from "./brand-logo"
 import { LinkButton } from "@/components/ui/button"
 import { HeaderMobileMenu } from "./header-mobile-menu"
+import { HeaderLogoutButton } from "./header-logout-button"
+import { auth } from "@/lib/auth"
+
+/**
+ * ログインユーザーの role から「マイページ」相当の遷移先を決定する。
+ *   seeker         → /mypage
+ *   company_*      → /company
+ *   admin          → /admin
+ * 未ログインは null を返す。
+ */
+function resolveMyPageTarget(
+  role: string | undefined
+): { href: string; label: string } | null {
+  switch (role) {
+    case "seeker":
+      return { href: "/mypage", label: "マイページ" }
+    case "company_admin":
+    case "company_member":
+      return { href: "/company", label: "企業ダッシュボード" }
+    case "admin":
+      return { href: "/admin", label: "管理画面" }
+    default:
+      return null
+  }
+}
 
 /**
  * サイト共通ヘッダー。
  *
- * 全ページに乗るため Server Component で実装し、Hydration コストを抑える。
- * モバイルメニューの開閉だけ <HeaderMobileMenu> に切り出して Client 化。
+ * await auth() でセッションを取得し、ログイン状態に応じて表示を切り替える:
+ *   - 未ログイン: 「ログイン / 無料で始める」
+ *   - ログイン中: 「マイページ（or 企業ダッシュボード/管理画面） / ログアウト」
  */
-export function Header() {
+export async function Header() {
+  const session = await auth()
+  const role = session?.user
+    ? ((session.user as { role?: string }).role ?? "seeker")
+    : undefined
+  const myPage = resolveMyPageTarget(role)
+
   return (
     <header className="bg-white sticky top-0 z-50 border-b border-gray-100">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -55,26 +87,44 @@ export function Header() {
             >
               企業の方
             </Link>
-            <LinkButton
-              href="/login"
-              variant="secondary"
-              size="md"
-              className="ml-1 border-primary-600 text-primary-600 hover:bg-primary-50"
-            >
-              ログイン
-            </LinkButton>
-            <LinkButton
-              href="/register/wizard"
-              variant="primary"
-              size="md"
-              className="bg-primary-500 hover:bg-primary-600 shadow-sm"
-            >
-              <MessageCircle className="h-4 w-4" />
-              無料で始める
-            </LinkButton>
+
+            {myPage ? (
+              <>
+                <LinkButton
+                  href={myPage.href}
+                  variant="primary"
+                  size="md"
+                  className="ml-1 bg-primary-500 hover:bg-primary-600 shadow-sm"
+                >
+                  <UserCircle className="h-4 w-4" />
+                  {myPage.label}
+                </LinkButton>
+                <HeaderLogoutButton variant="desktop" />
+              </>
+            ) : (
+              <>
+                <LinkButton
+                  href="/login"
+                  variant="secondary"
+                  size="md"
+                  className="ml-1 border-primary-600 text-primary-600 hover:bg-primary-50"
+                >
+                  ログイン
+                </LinkButton>
+                <LinkButton
+                  href="/register/wizard"
+                  variant="primary"
+                  size="md"
+                  className="bg-primary-500 hover:bg-primary-600 shadow-sm"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  無料で始める
+                </LinkButton>
+              </>
+            )}
           </nav>
 
-          <HeaderMobileMenu />
+          <HeaderMobileMenu myPage={myPage} />
         </div>
       </div>
     </header>

@@ -201,11 +201,14 @@ export function ProfileForm({
               </p>
             )}
           </div>
-          <div className="flex flex-col items-end">
-            <p className="text-xs font-bold text-gray-500 tracking-wide">入力スコア</p>
+          <div
+            className="flex flex-col items-end"
+            title={`内訳: ${breakdown.totalScore} / ${breakdown.maxScore} 点`}
+          >
+            <p className="text-xs font-bold text-gray-500 tracking-wide">充実度</p>
             <p className="text-2xl font-black text-primary-600 tabular-nums leading-tight">
-              {breakdown.totalScore}
-              <span className="text-sm text-gray-400 font-normal"> / {breakdown.maxScore}</span>
+              {Math.round(breakdown.ratio * 100)}
+              <span className="text-sm text-gray-400 font-normal"> %</span>
             </p>
           </div>
         </div>
@@ -218,7 +221,7 @@ export function ProfileForm({
           />
         </div>
         <p className="mt-1 text-xs text-gray-500">
-          {Math.round(breakdown.ratio * 100)}% 充実 / 求人一覧の表示順位に直接影響します
+          求人一覧の表示順位に直接影響します
         </p>
 
         {/* チェックリスト */}
