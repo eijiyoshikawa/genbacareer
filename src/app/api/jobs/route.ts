@@ -10,6 +10,10 @@ import {
 } from "@/lib/rate-limit"
 import { auth } from "@/lib/auth"
 import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import {
+  buildPublicJobOrderBy,
+  type PublicJobSort,
+} from "@/lib/job-sort"
 import { type NextRequest } from "next/server"
 
 export async function GET(request: NextRequest) {
@@ -62,18 +66,17 @@ export async function GET(request: NextRequest) {
     }),
   }
 
-  const orderBy =
+  // Job.displayPriority を主キーとした統一ソート（src/lib/job-sort.ts 参照）。
+  // 公開 API のソートパラメタを内部の PublicJobSort に正規化する。
+  const normalizedSort: PublicJobSort =
     sort === "salary_max"
-      ? { salaryMax: "desc" as const }
+      ? "salary_high"
       : sort === "view_count"
-        ? { viewCount: "desc" as const }
+        ? "popular"
         : sort === "newest"
-          ? { publishedAt: "desc" as const }
-          : // default: recommended (rankScore)
-            [
-              { rankScore: "desc" as const },
-              { publishedAt: "desc" as const },
-            ]
+          ? "newest"
+          : "recommended"
+  const orderBy = buildPublicJobOrderBy(normalizedSort)
 
   const [jobs, total] = await Promise.all([
     prisma.job.findMany({

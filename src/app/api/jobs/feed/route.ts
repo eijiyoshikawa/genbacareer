@@ -11,6 +11,7 @@
 import { type NextRequest } from "next/server"
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 
 const PAGE_SIZE = 10
 
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
         ? { publishedAt: { lt: cursorPublishedAt } }
         : {}),
     },
-    orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+    orderBy: buildPublicJobOrderBy("recommended"),
     take: PAGE_SIZE,
     select: {
       id: true,

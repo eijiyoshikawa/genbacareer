@@ -3,6 +3,7 @@ import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { revalidateAfterJobChange } from "@/lib/revalidate-public"
+import { computeDisplayPriority } from "@/lib/job-display-priority"
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -74,7 +75,26 @@ export async function PUT(
 
   const existing = await prisma.job.findUnique({
     where: { id },
-    select: { companyId: true, status: true, publishedAt: true, updatedAt: true },
+    select: {
+      companyId: true,
+      status: true,
+      publishedAt: true,
+      updatedAt: true,
+      source: true,
+      salaryType: true,
+      salaryMin: true,
+      salaryMax: true,
+      employmentType: true,
+      workHours: true,
+      workHoursNotes: true,
+      holidays: true,
+      annualHolidays: true,
+      insurance: true,
+      smokingPolicy: true,
+      trialPeriod: true,
+      description: true,
+      prefecture: true,
+    },
   })
   if (!existing || existing.companyId !== ctx.companyId) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
@@ -120,11 +140,32 @@ export async function PUT(
       ? new Date()
       : undefined
 
+  // 編集後の値で displayPriority を再計算（賃金タイプや明示項目の変更を反映）
+  const merged = {
+    source: existing.source,
+    salaryType: data.salaryType !== undefined ? data.salaryType : existing.salaryType,
+    salaryMin: data.salaryMin !== undefined ? data.salaryMin : existing.salaryMin,
+    salaryMax: data.salaryMax !== undefined ? data.salaryMax : existing.salaryMax,
+    employmentType:
+      data.employmentType !== undefined ? data.employmentType : existing.employmentType,
+    workHours: existing.workHours,
+    workHoursNotes: existing.workHoursNotes,
+    holidays: existing.holidays,
+    annualHolidays: existing.annualHolidays,
+    insurance: existing.insurance,
+    smokingPolicy: existing.smokingPolicy,
+    trialPeriod: existing.trialPeriod,
+    description: data.description !== undefined ? data.description : existing.description,
+    prefecture: data.prefecture !== undefined ? data.prefecture : existing.prefecture,
+  }
+  const displayPriority = computeDisplayPriority(merged)
+
   const job = await prisma.job.update({
     where: { id },
     data: {
       ...data,
       ...(publishedAt ? { publishedAt } : {}),
+      displayPriority,
     },
   })
 

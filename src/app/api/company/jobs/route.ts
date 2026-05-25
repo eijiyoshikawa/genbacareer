@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db"
 import { CATEGORIES } from "@/lib/categories"
 import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
 import { revalidateAfterJobChange } from "@/lib/revalidate-public"
+import { computeDisplayPriority } from "@/lib/job-display-priority"
 
 const VALID_CATEGORIES = CATEGORIES.map((c) => c.value)
 
@@ -121,6 +122,22 @@ export async function POST(request: NextRequest) {
       videoUrls: data.videoUrls ?? [],
       status: data.status ?? "draft",
       publishedAt: data.status === "active" ? new Date() : null,
+      displayPriority: computeDisplayPriority({
+        source: "direct",
+        salaryType: data.salaryType ?? null,
+        salaryMin: data.salaryMin ?? null,
+        salaryMax: data.salaryMax ?? null,
+        employmentType: data.employmentType ?? null,
+        workHours: null,
+        workHoursNotes: null,
+        holidays: null,
+        annualHolidays: null,
+        insurance: null,
+        smokingPolicy: null,
+        trialPeriod: null,
+        description: data.description ?? null,
+        prefecture: data.prefecture,
+      }), // source='direct' のため常に Tier 1 になるが、将来の優先度ロジック変更に追従できるよう関数経由でセット
     },
   })
 

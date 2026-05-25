@@ -1,5 +1,6 @@
 import Link from "next/link"
 import Image from "next/image"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { publishedArticleFilter } from "@/lib/articles"
@@ -331,7 +332,7 @@ export default async function HomePage() {
       prisma.job
       .findMany({
         where: baseConstructionFilter,
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: 18,
         select: {
           id: true,

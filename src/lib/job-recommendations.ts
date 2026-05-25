@@ -13,6 +13,7 @@
  * - 募集が枯れた場合は最新ハイランクの建設業求人にフォールバック
  */
 
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
 import {
   CONSTRUCTION_CATEGORY_VALUES,
@@ -202,7 +203,7 @@ export async function getRecommendedJobs(
     return prisma.job
       .findMany({
         where: baseFilter,
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit,
         select,
       })
@@ -217,7 +218,7 @@ export async function getRecommendedJobs(
     return prisma.job
       .findMany({
         where: baseFilter,
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit,
         select,
       })
@@ -240,7 +241,7 @@ export async function getRecommendedJobs(
           prefecture: { in: preferredPrefectures },
           ...notInExclude,
         },
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit,
         select,
       })
@@ -259,7 +260,7 @@ export async function getRecommendedJobs(
             ? { id: { notIn: [...collected.keys(), ...excludeArray] } }
             : notInExclude),
         },
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit - collected.size,
         select,
       })
@@ -278,7 +279,7 @@ export async function getRecommendedJobs(
             ? { id: { notIn: [...collected.keys(), ...excludeArray] } }
             : notInExclude),
         },
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit - collected.size,
         select,
       })
@@ -296,7 +297,7 @@ export async function getRecommendedJobs(
             ? { id: { notIn: [...collected.keys(), ...excludeArray] } }
             : notInExclude),
         },
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit - collected.size,
         select,
       })
