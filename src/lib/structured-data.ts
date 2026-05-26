@@ -259,16 +259,24 @@ export function generateJobPostingSchema(job: JobInput): Record<string, unknown>
   // Base salary
   // salaryMin が無い場合も Google 推奨: estimatedSalary を提供。
   // 求人カテゴリの相場 (建設業全体の概算) を埋めて欠落を解消する。
+  //
+  // schema.org QuantitativeValue の仕様:
+  //   - 範囲なら minValue + maxValue を「両方」セットする（片方だけは NG）
+  //   - 単一値なら value を使う（minValue 単独は不可）
+  // Search Console から「maxValue がありません」警告が出ていたのは、
+  // salaryMax=null のときに minValue だけ出力していたため。
   if (job.salaryMin != null) {
     const unitText =
       SALARY_UNIT_MAP[(job.salaryType ?? "monthly").toLowerCase()] ?? "MONTH"
+    const hasRange = job.salaryMax != null && job.salaryMax !== job.salaryMin
     schema.baseSalary = {
       "@type": "MonetaryAmount",
       currency: "JPY",
       value: {
         "@type": "QuantitativeValue",
-        minValue: job.salaryMin,
-        ...(job.salaryMax != null && { maxValue: job.salaryMax }),
+        ...(hasRange
+          ? { minValue: job.salaryMin, maxValue: job.salaryMax }
+          : { value: job.salaryMin }),
         unitText,
       },
     }

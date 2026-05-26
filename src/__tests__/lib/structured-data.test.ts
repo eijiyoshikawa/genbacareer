@@ -167,6 +167,63 @@ describe("generateJobPostingSchema", () => {
     ])
   })
 
+  it("salaryMax が null のときは value (単一値) を出力し、minValue/maxValue は出さない", () => {
+    // Search Console の警告対策: minValue 単独は schema.org 違反
+    const schema = generateJobPostingSchema({
+      id: "test-id",
+      title: "鳶職",
+      description: "高所作業を中心に、土木現場全般の業務を担当いただきます。",
+      category: "construction",
+      employmentType: "full_time",
+      salaryMin: 280000,
+      salaryMax: null,
+      salaryType: "monthly",
+      prefecture: "東京都",
+      city: null,
+      address: null,
+      publishedAt: null,
+      createdAt: new Date("2026-01-01"),
+      company: null,
+    })
+    const salary = schema.baseSalary as {
+      value: {
+        unitText: string
+        value?: number
+        minValue?: number
+        maxValue?: number
+      }
+    }
+    expect(salary.value.value).toBe(280000)
+    expect(salary.value.minValue).toBeUndefined()
+    expect(salary.value.maxValue).toBeUndefined()
+    expect(salary.value.unitText).toBe("MONTH")
+  })
+
+  it("salaryMin == salaryMax のときも value 単一値で扱う（無意味な範囲を作らない）", () => {
+    const schema = generateJobPostingSchema({
+      id: "test-id",
+      title: "技能職",
+      description: "建設現場での技能職を募集します。",
+      category: "construction",
+      employmentType: "full_time",
+      salaryMin: 250000,
+      salaryMax: 250000,
+      salaryType: "monthly",
+      prefecture: "東京都",
+      city: null,
+      address: null,
+      publishedAt: null,
+      createdAt: new Date("2026-01-01"),
+      company: null,
+    })
+    const salary = schema.baseSalary as {
+      value: { value?: number; minValue?: number; maxValue?: number }
+    }
+    expect(salary.value.value).toBe(250000)
+    expect(salary.value.minValue).toBeUndefined()
+    expect(salary.value.maxValue).toBeUndefined()
+  })
+
   it("maps various employment types correctly", () => {
     const cases = [
       ["full_time", "FULL_TIME"],
