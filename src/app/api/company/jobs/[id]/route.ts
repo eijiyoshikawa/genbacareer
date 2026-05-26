@@ -2,10 +2,13 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { CATEGORIES } from "@/lib/categories"
+
+const VALID_CATEGORIES = CATEGORIES.map((c) => c.value) as [string, ...string[]]
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
-  category: z.string().min(1).max(50).optional(),
+  category: z.enum(VALID_CATEGORIES).optional(),
   subcategory: z.string().max(50).nullable().optional(),
   employmentType: z.enum(["full_time", "part_time", "contract"]).nullable().optional(),
   description: z.string().nullable().optional(),

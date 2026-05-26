@@ -41,8 +41,10 @@ export async function fuzzySearchJobs(
   input: FuzzySearchInput
 ): Promise<FuzzySearchRow[] | null> {
   if (!input.q.trim()) return null
-  const limit = Math.min(100, Math.max(1, input.limit ?? 50))
-  const offset = Math.max(0, input.offset ?? 0)
+  const rawLimit = input.limit ?? 50
+  const rawOffset = input.offset ?? 0
+  const limit = Math.min(100, Math.max(1, Number.isFinite(rawLimit) ? Math.floor(rawLimit) : 50))
+  const offset = Math.max(0, Number.isFinite(rawOffset) ? Math.floor(rawOffset) : 0)
 
   const categories =
     input.category && isConstructionCategory(input.category)

@@ -196,7 +196,9 @@ providers.push(
                 where: { id: companyUser.id },
                 data: { totpRecoveryCodes: consumed.remaining },
               })
-              .catch(() => {})
+              .catch((e) => {
+                console.error("[auth] Failed to persist consumed recovery code:", e)
+              })
           }
         }
 
