@@ -88,7 +88,11 @@ if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD_HASH) {
       async authorize(credentials, req) {
         assertAuthRateLimit(req, "admin")
         if (!credentials?.email || !credentials?.password) return null
-        if (credentials.email !== process.env.ADMIN_EMAIL) return null
+        if (
+          (credentials.email as string).toLowerCase() !==
+          process.env.ADMIN_EMAIL?.toLowerCase()
+        )
+          return null
 
         const isValid = await compare(
           credentials.password as string,
@@ -196,7 +200,9 @@ providers.push(
                 where: { id: companyUser.id },
                 data: { totpRecoveryCodes: consumed.remaining },
               })
-              .catch(() => {})
+              .catch((err) => {
+                console.error("[auth] Failed to persist consumed recovery code removal:", err)
+              })
           }
         }
 

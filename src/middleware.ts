@@ -162,17 +162,19 @@ export function middleware(request: NextRequest) {
 
   // 保護されたルート
   const seekerRoutes = ["/mypage"]
-  const companyRoutes = [
-    "/company/dashboard",
-    "/company/jobs",
-    "/company/applications",
-    "/company/billing",
-    "/company/candidates",
+  // /company/login・/company/register・/company/invite は認証不要（公開ページ）。
+  // それ以外の /company/* は全て企業アカウント認証必須。
+  const COMPANY_PUBLIC_PATHS = [
+    "/company/login",
+    "/company/register",
+    "/company/invite",
   ]
   const adminRoutes = ["/admin"]
 
   const isSeekerRoute = seekerRoutes.some((r) => pathname.startsWith(r))
-  const isCompanyRoute = companyRoutes.some((r) => pathname.startsWith(r))
+  const isCompanyRoute =
+    pathname.startsWith("/company") &&
+    !COMPANY_PUBLIC_PATHS.some((p) => pathname.startsWith(p))
   const isAdminRoute =
     adminRoutes.some((r) => pathname.startsWith(r)) && pathname !== "/admin/login"
   const isAdminAnyRoute = adminRoutes.some((r) => pathname.startsWith(r))

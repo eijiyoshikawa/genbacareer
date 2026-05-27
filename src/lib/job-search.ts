@@ -53,7 +53,39 @@ export async function fuzzySearchJobs(
   // - title と description それぞれの類似度の最大値を採用
   // - 0.05 以上を閾値（ある程度関連がある）
   // - 同点は publishedAt DESC
+  //
+  // パラメータ番号はオプション有無によって変わるため動的に割り当てる。
+  // 固定番号 ($3〜$8) を使うと未指定フィルターがある場合にズレてクエリエラーになる。
   try {
+    const queryParams: unknown[] = [input.q, categories]
+    let p = 2 // $1 = q, $2 = categories
+    const extraConditions: string[] = []
+
+    if (input.prefecture) {
+      extraConditions.push(`AND prefecture = $${++p}`)
+      queryParams.push(input.prefecture)
+    }
+    if (input.employmentType) {
+      extraConditions.push(`AND employment_type = $${++p}`)
+      queryParams.push(input.employmentType)
+    }
+    if (input.source) {
+      extraConditions.push(`AND source = $${++p}`)
+      queryParams.push(input.source)
+    }
+    if (input.publishedSince) {
+      extraConditions.push(`AND published_at >= $${++p}`)
+      queryParams.push(input.publishedSince)
+    }
+    if (input.salaryMin) {
+      extraConditions.push(`AND salary_min >= $${++p}`)
+      queryParams.push(input.salaryMin)
+    }
+    if (input.salaryMax) {
+      extraConditions.push(`AND salary_max <= $${++p}`)
+      queryParams.push(input.salaryMax)
+    }
+
     const rows = await prisma.$queryRawUnsafe<
       { id: string; similarity: number }[]
     >(
@@ -68,12 +100,7 @@ export async function fuzzySearchJobs(
         FROM jobs
         WHERE status = 'active'
           AND category = ANY($2)
-          ${input.prefecture ? "AND prefecture = $3" : ""}
-          ${input.employmentType ? `AND employment_type = $4` : ""}
-          ${input.source ? `AND source = $5` : ""}
-          ${input.publishedSince ? `AND published_at >= $6` : ""}
-          ${input.salaryMin ? `AND salary_min >= $7` : ""}
-          ${input.salaryMax ? `AND salary_max <= $8` : ""}
+          ${extraConditions.join("\n          ")}
       )
       SELECT id, similarity
       FROM scored
@@ -81,14 +108,7 @@ export async function fuzzySearchJobs(
       ORDER BY similarity DESC, published_at DESC NULLS LAST
       LIMIT ${limit} OFFSET ${offset};
       `,
-      input.q,
-      categories,
-      ...(input.prefecture ? [input.prefecture] : []),
-      ...(input.employmentType ? [input.employmentType] : []),
-      ...(input.source ? [input.source] : []),
-      ...(input.publishedSince ? [input.publishedSince] : []),
-      ...(input.salaryMin ? [input.salaryMin] : []),
-      ...(input.salaryMax ? [input.salaryMax] : [])
+      ...queryParams
     )
     return rows
   } catch (e) {
