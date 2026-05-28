@@ -18,6 +18,27 @@ describe("isCrawlerUserAgent", () => {
     }
   })
 
+  it("returns true for Google-InspectionTool (Rich Results Test / URL 検査)", () => {
+    // Google-InspectionTool は "Googlebot" を含まない独自 UA。
+    // これを許可しないと Search Console の URL 検査や Rich Results Test が
+    // /login にリダイレクトされて noindex 判定される。
+    const uas = [
+      "Mozilla/5.0 (compatible; Google-InspectionTool/1.0;)",
+      "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/W.X.Y.Z Mobile Safari/537.36 (compatible; Google-InspectionTool/1.0;)",
+    ]
+    for (const ua of uas) {
+      expect(isCrawlerUserAgent(ua), `should match: ${ua}`).toBe(true)
+    }
+  })
+
+  it("returns true for GoogleOther (汎用 Google プロダクト UA)", () => {
+    expect(
+      isCrawlerUserAgent(
+        "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GoogleOther)"
+      )
+    ).toBe(true)
+  })
+
   it("returns true for SNS crawlers (OGP fetchers)", () => {
     expect(
       isCrawlerUserAgent(
