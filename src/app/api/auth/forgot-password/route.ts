@@ -35,10 +35,11 @@ export async function POST(request: NextRequest) {
   // Always return success to prevent email enumeration
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true },
+    select: { id: true, status: true },
   })
 
-  if (user) {
+  // 凍結・退会済みアカウントはトークン発行・メール送信をスキップ
+  if (user && user.status !== "suspended" && user.status !== "deleted") {
     const token = generateToken()
     const expiry = new Date(Date.now() + TOKEN_EXPIRY_MS)
 

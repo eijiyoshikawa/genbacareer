@@ -24,6 +24,14 @@ const jobSchema = z.object({
   tags: z.array(z.string()).optional(),
   videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
   status: z.enum(["draft", "active", "closed"]).optional(),
+}).superRefine((data, ctx) => {
+  if (data.salaryMin != null && data.salaryMax != null && data.salaryMax < data.salaryMin) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "給与上限は給与下限以上の値を入力してください",
+      path: ["salaryMax"],
+    })
+  }
 })
 
 async function getCompanySession() {

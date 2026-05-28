@@ -26,6 +26,14 @@ const updateJobSchema = z.object({
    * 409 を返す（強制上書きを防ぐ）。
    */
   expectedUpdatedAt: z.string().datetime().optional(),
+}).superRefine((data, ctx) => {
+  if (data.salaryMin != null && data.salaryMax != null && data.salaryMax < data.salaryMin) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "給与上限は給与下限以上の値を入力してください",
+      path: ["salaryMax"],
+    })
+  }
 })
 
 async function getCompanySession() {
@@ -161,6 +169,19 @@ export async function DELETE(
   })
   if (!existing || existing.companyId !== ctx.companyId) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
+
+  // 応募が1件でも存在する場合は削除不可（応募データ保護）
+  const applicationCount = await prisma.application.count({ where: { jobId: id } })
+  if (applicationCount > 0) {
+    return Response.json(
+      {
+        error: "応募が存在する求人は削除できません。求人を「募集終了」に変更してください。",
+        code: "HAS_APPLICATIONS",
+        applicationCount,
+      },
+      { status: 409 }
+    )
   }
 
   await prisma.job.delete({ where: { id } })
