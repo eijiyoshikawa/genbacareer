@@ -317,15 +317,12 @@ export function generateJobPostingSchema(job: JobInput): Record<string, unknown>
   }
   // experienceRequirements は Google for Jobs で OccupationalExperienceRequirements 型を要求。
   // 文字列だと「列挙値が無効」エラーになる。
+  // schema.org の monthsOfExperience は正の値必須なので、経験不問 (0 ヶ月) は
+  // プロパティ自体を出力しない（Search Console から「正の値が必要」警告対象）。
   if (job.requiredExperience) {
-    schema.experienceRequirements = parseExperienceToSchema(
-      job.requiredExperience
-    )
-  } else {
-    // 経験不問を明示 (Google 推奨: experienceInPlaceOfEducation も指定)
-    schema.experienceRequirements = {
-      "@type": "OccupationalExperienceRequirements",
-      monthsOfExperience: 0,
+    const exp = parseExperienceToSchema(job.requiredExperience)
+    if (exp) {
+      schema.experienceRequirements = exp
     }
   }
   // educationRequirements は EducationalOccupationalCredential 型を要求。
@@ -665,22 +662,25 @@ function extractJpPostalCode(address: string): string | null {
  * 経験要件の文字列を Google for Jobs の OccupationalExperienceRequirements に変換。
  * 例:
  *   "3年以上"        → { monthsOfExperience: 36 }
- *   "経験不問"       → { monthsOfExperience: 0 }
+ *   "経験不問"       → null（プロパティを出力しないことで Search Console 警告を回避）
  *   "1年程度"        → { monthsOfExperience: 12 }
  *   "実務経験 半年"  → { monthsOfExperience: 6 }
+ *
+ * schema.org の仕様で monthsOfExperience は正の値必須。
+ * 経験不問のケースは null を返し、呼び出し側でプロパティを省略する。
  */
-function parseExperienceToSchema(text: string): Record<string, unknown> {
-  // 「不問」「未経験」「なし」→ 0
+function parseExperienceToSchema(
+  text: string
+): { "@type": string; monthsOfExperience: number } | null {
+  // 「不問」「未経験」「なし」→ プロパティ自体を出さない
   if (/不問|未経験|なし|なくて|問わ/i.test(text)) {
-    return {
-      "@type": "OccupationalExperienceRequirements",
-      monthsOfExperience: 0,
-    }
+    return null
   }
   // "N年" のパターン
   const yearMatch = text.match(/(\d+)\s*年/)
   if (yearMatch) {
     const years = parseInt(yearMatch[1], 10)
+    if (years <= 0) return null
     return {
       "@type": "OccupationalExperienceRequirements",
       monthsOfExperience: years * 12,
@@ -689,9 +689,11 @@ function parseExperienceToSchema(text: string): Record<string, unknown> {
   // "Nヶ月" のパターン
   const monthMatch = text.match(/(\d+)\s*(?:ヶ月|か月|カ月)/)
   if (monthMatch) {
+    const months = parseInt(monthMatch[1], 10)
+    if (months <= 0) return null
     return {
       "@type": "OccupationalExperienceRequirements",
-      monthsOfExperience: parseInt(monthMatch[1], 10),
+      monthsOfExperience: months,
     }
   }
   // 半年
@@ -701,11 +703,8 @@ function parseExperienceToSchema(text: string): Record<string, unknown> {
       monthsOfExperience: 6,
     }
   }
-  // パース不能 → 0 (経験不問扱い)
-  return {
-    "@type": "OccupationalExperienceRequirements",
-    monthsOfExperience: 0,
-  }
+  // パース不能 → null（経験不問扱い、プロパティ自体を出さない）
+  return null
 }
 
 /**

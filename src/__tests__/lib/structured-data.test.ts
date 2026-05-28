@@ -224,6 +224,75 @@ describe("generateJobPostingSchema", () => {
     expect(salary.value.maxValue).toBeUndefined()
   })
 
+  it("requiredExperience が無いときは experienceRequirements 自体を出力しない", () => {
+    // Search Console 警告対策: monthsOfExperience は正の値必須なので、
+    // 経験不問なら experienceRequirements プロパティを省略する。
+    const schema = generateJobPostingSchema({
+      id: "test-id",
+      title: "未経験OK 鳶職",
+      description: "未経験から始められる建設業の求人です。",
+      category: "construction",
+      employmentType: "full_time",
+      salaryMin: 250000,
+      salaryMax: 350000,
+      salaryType: "monthly",
+      prefecture: "東京都",
+      city: null,
+      address: null,
+      publishedAt: null,
+      createdAt: new Date("2026-01-01"),
+      company: null,
+    })
+    expect(schema.experienceRequirements).toBeUndefined()
+  })
+
+  it("requiredExperience='経験不問' のときも experienceRequirements を出さない", () => {
+    const schema = generateJobPostingSchema({
+      id: "test-id",
+      title: "鳶職",
+      description: "建設業の求人です。",
+      category: "construction",
+      employmentType: "full_time",
+      salaryMin: 250000,
+      salaryMax: 350000,
+      salaryType: "monthly",
+      prefecture: "東京都",
+      city: null,
+      address: null,
+      publishedAt: null,
+      createdAt: new Date("2026-01-01"),
+      requiredExperience: "経験不問",
+      company: null,
+    })
+    expect(schema.experienceRequirements).toBeUndefined()
+  })
+
+  it("requiredExperience='3年以上' なら正の monthsOfExperience を出力", () => {
+    const schema = generateJobPostingSchema({
+      id: "test-id",
+      title: "施工管理",
+      description: "建設業の求人です。",
+      category: "management",
+      employmentType: "full_time",
+      salaryMin: 350000,
+      salaryMax: 500000,
+      salaryType: "monthly",
+      prefecture: "東京都",
+      city: null,
+      address: null,
+      publishedAt: null,
+      createdAt: new Date("2026-01-01"),
+      requiredExperience: "3年以上",
+      company: null,
+    })
+    const exp = schema.experienceRequirements as {
+      "@type": string
+      monthsOfExperience: number
+    }
+    expect(exp["@type"]).toBe("OccupationalExperienceRequirements")
+    expect(exp.monthsOfExperience).toBe(36)
+  })
+
   it("maps various employment types correctly", () => {
     const cases = [
       ["full_time", "FULL_TIME"],
