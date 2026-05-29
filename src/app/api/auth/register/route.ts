@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hashSync } from "bcryptjs";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { PREFECTURES } from "@/lib/constants";
 import { generateToken } from "@/lib/tokens";
@@ -120,6 +121,15 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     console.error("Registration error:", error);
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "このメールアドレスは既に登録されています。" },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: "サーバーエラーが発生しました。" },
       { status: 500 }

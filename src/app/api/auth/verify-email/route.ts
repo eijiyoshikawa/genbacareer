@@ -13,7 +13,7 @@ import { prisma } from "@/lib/db"
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 
 const schema = z.object({
-  token: z.string().min(16),
+  token: z.string().length(64),
 })
 
 export async function POST(request: NextRequest) {

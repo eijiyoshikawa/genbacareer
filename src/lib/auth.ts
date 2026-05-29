@@ -173,6 +173,11 @@ providers.push(
         )
         if (!isValid) return null
 
+        // 未承認・却下企業のユーザーはログイン不可
+        if (companyUser.company.status !== "approved") {
+          throw new Error("COMPANY_NOT_APPROVED")
+        }
+
         // TOTP 2FA: 有効化済みなら 6 桁コード or リカバリコードを必須化
         if (companyUser.totpEnabled && companyUser.totpSecret) {
           const code = (credentials.totp as string | undefined)?.trim()
@@ -191,12 +196,10 @@ providers.push(
             if (!consumed) {
               throw new Error("TOTP_INVALID")
             }
-            await prisma.companyUser
-              .update({
-                where: { id: companyUser.id },
-                data: { totpRecoveryCodes: consumed.remaining },
-              })
-              .catch(() => {})
+            await prisma.companyUser.update({
+              where: { id: companyUser.id },
+              data: { totpRecoveryCodes: consumed.remaining },
+            })
           }
         }
 

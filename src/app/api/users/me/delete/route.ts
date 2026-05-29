@@ -96,10 +96,7 @@ export async function POST(request: Request) {
           .deleteMany({ where: { userId } })
           .catch(() => null),
         // CompanyFollow / Resume が存在する場合は同様に削除
-        tx.$executeRawUnsafe(
-          `DELETE FROM "company_follows" WHERE "user_id" = $1::uuid`,
-          userId
-        ).catch(() => null),
+        tx.companyFollow.deleteMany({ where: { userId } }).catch(() => null),
         tx.resume.deleteMany({ where: { userId } }).catch(() => null),
       ])
     })
