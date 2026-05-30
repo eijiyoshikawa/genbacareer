@@ -17,6 +17,9 @@ import { fetchSnapshot, isGbizConfigured } from "@/lib/gbizinfo"
  * Authorization: Bearer ${CRON_SECRET} で認証。
  */
 
+export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
+
 const STALE_MS = 28 * 24 * 60 * 60 * 1000
 const RATE_INTERVAL_MS = 250
 const MAX_PER_RUN = 200

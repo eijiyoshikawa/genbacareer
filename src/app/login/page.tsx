@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Building2, ArrowRight } from "lucide-react";
 import { LineLoginButton } from "@/components/auth/line-login-button";
@@ -17,6 +18,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+
+  // callbackUrl は内部パスのみ許可（オープンリダイレクト防止）
+  const rawCallback = searchParams.get("callbackUrl") ?? "/mypage";
+  const callbackUrl = rawCallback.startsWith("/") && !rawCallback.startsWith("//")
+    ? rawCallback
+    : "/mypage";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +41,7 @@ export default function LoginPage() {
       if (result?.error) {
         setError("メールアドレスまたはパスワードが正しくありません。");
       } else if (result?.ok) {
-        window.location.href = "/mypage";
+        window.location.href = callbackUrl;
       }
     } catch {
       setError("ログイン中にエラーが発生しました。もう一度お試しください。");
@@ -60,7 +68,7 @@ export default function LoginPage() {
           )}
 
           {/* === LINE 1 タップログイン (主導線) === */}
-          <LineLoginButton label="LINE でログイン" callbackUrl="/mypage" fullWidth />
+          <LineLoginButton label="LINE でログイン" callbackUrl={callbackUrl} fullWidth />
 
           <div className="my-4 flex items-center gap-2 text-xs text-gray-400">
             <span className="flex-1 border-t border-gray-200" />

@@ -168,6 +168,12 @@ export function middleware(request: NextRequest) {
     "/company/applications",
     "/company/billing",
     "/company/candidates",
+    "/company/scouts",
+    "/company/profile",
+    "/company/security",
+    "/company/gbizinfo",
+    "/company/line-leads",
+    "/company/interests",
   ]
   const adminRoutes = ["/admin"]
 
@@ -239,11 +245,22 @@ export function middleware(request: NextRequest) {
     return res
   }
 
-  // Redirect unauthenticated users to login
-  if ((isSeekerRoute || isCompanyRoute || isAdminRoute) && !isLoggedIn) {
-    const loginUrl = new URL("/login", request.url)
-    loginUrl.searchParams.set("callbackUrl", pathname)
-    return withTrackingCookie(NextResponse.redirect(loginUrl))
+  // Redirect unauthenticated users to the appropriate login page
+  if (!isLoggedIn) {
+    if (isAdminRoute) {
+      // Admin users log in at /admin/login (IP allowlist already enforced above)
+      return withTrackingCookie(NextResponse.redirect(new URL("/admin/login", request.url)))
+    }
+    if (isCompanyRoute) {
+      const loginUrl = new URL("/company/login", request.url)
+      loginUrl.searchParams.set("callbackUrl", pathname)
+      return withTrackingCookie(NextResponse.redirect(loginUrl))
+    }
+    if (isSeekerRoute) {
+      const loginUrl = new URL("/login", request.url)
+      loginUrl.searchParams.set("callbackUrl", pathname)
+      return withTrackingCookie(NextResponse.redirect(loginUrl))
+    }
   }
 
   // Role-based access control via JWT payload

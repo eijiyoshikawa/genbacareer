@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Shield, Loader2, Users, ArrowRight } from "lucide-react";
 
@@ -18,6 +19,13 @@ export default function CompanyLoginPage() {
   const [totpRequired, setTotpRequired] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+
+  // callbackUrl は内部パスのみ許可（オープンリダイレクト防止）
+  const rawCallback = searchParams.get("callbackUrl") ?? "/company/dashboard";
+  const callbackUrl = rawCallback.startsWith("/") && !rawCallback.startsWith("//")
+    ? rawCallback
+    : "/company/dashboard";
 
   function resetTotpState() {
     setTotpRequired(false);
@@ -53,7 +61,7 @@ export default function CompanyLoginPage() {
         }
         setError("メールアドレスまたはパスワードが正しくありません。");
       } else if (result?.ok) {
-        window.location.href = "/company/dashboard";
+        window.location.href = callbackUrl;
       }
     } catch {
       setError("ログイン中にエラーが発生しました。もう一度お試しください。");
