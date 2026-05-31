@@ -162,17 +162,15 @@ export function middleware(request: NextRequest) {
 
   // 保護されたルート
   const seekerRoutes = ["/mypage"]
-  const companyRoutes = [
-    "/company/dashboard",
-    "/company/jobs",
-    "/company/applications",
-    "/company/billing",
-    "/company/candidates",
-  ]
+  // /company/login と /company/register は認証不要なので除外し、
+  // それ以外のすべての /company/* を保護対象とする。
+  const COMPANY_PUBLIC_PATHS = ["/company/login", "/company/register"]
   const adminRoutes = ["/admin"]
 
   const isSeekerRoute = seekerRoutes.some((r) => pathname.startsWith(r))
-  const isCompanyRoute = companyRoutes.some((r) => pathname.startsWith(r))
+  const isCompanyRoute =
+    pathname.startsWith("/company/") &&
+    !COMPANY_PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))
   const isAdminRoute =
     adminRoutes.some((r) => pathname.startsWith(r)) && pathname !== "/admin/login"
   const isAdminAnyRoute = adminRoutes.some((r) => pathname.startsWith(r))
@@ -239,11 +237,22 @@ export function middleware(request: NextRequest) {
     return res
   }
 
-  // Redirect unauthenticated users to login
-  if ((isSeekerRoute || isCompanyRoute || isAdminRoute) && !isLoggedIn) {
-    const loginUrl = new URL("/login", request.url)
-    loginUrl.searchParams.set("callbackUrl", pathname)
-    return withTrackingCookie(NextResponse.redirect(loginUrl))
+  // Redirect unauthenticated users to the appropriate login page
+  if (!isLoggedIn) {
+    if (isAdminRoute) {
+      const loginUrl = new URL("/admin/login", request.url)
+      return withTrackingCookie(NextResponse.redirect(loginUrl))
+    }
+    if (isCompanyRoute) {
+      const loginUrl = new URL("/company/login", request.url)
+      loginUrl.searchParams.set("callbackUrl", pathname)
+      return withTrackingCookie(NextResponse.redirect(loginUrl))
+    }
+    if (isSeekerRoute) {
+      const loginUrl = new URL("/login", request.url)
+      loginUrl.searchParams.set("callbackUrl", pathname)
+      return withTrackingCookie(NextResponse.redirect(loginUrl))
+    }
   }
 
   // Role-based access control via JWT payload

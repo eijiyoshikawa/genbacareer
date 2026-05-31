@@ -13,11 +13,11 @@ export default async function CompanyLayout({
   children: React.ReactNode
 }) {
   const session = await auth()
-  if (!session?.user) redirect("/login")
+  if (!session?.user) redirect("/company/login")
 
   const role = (session.user as { role?: string }).role
   if (role !== "company_admin" && role !== "company_member") {
-    redirect("/login")
+    redirect("/company/login")
   }
 
   const userId = (session.user as { id?: string }).id

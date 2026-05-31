@@ -37,11 +37,12 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = request.nextUrl
-  const page = Math.max(1, Number(searchParams.get("page")) || 1)
+  const page = Math.min(10000, Math.max(1, Number(searchParams.get("page")) || 1))
   const perPage = 20
-  const status = searchParams.get("status") ?? ""
-  const category = searchParams.get("category") ?? ""
-  const query = searchParams.get("q") ?? ""
+  const rawStatus = searchParams.get("status") ?? ""
+  const status = rawStatus === "draft" || rawStatus === "published" ? rawStatus : ""
+  const category = searchParams.get("category")?.slice(0, 50) ?? ""
+  const query = searchParams.get("q")?.slice(0, 100) ?? ""
 
   const where = {
     ...(status ? { status } : {}),

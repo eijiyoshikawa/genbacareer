@@ -18,7 +18,7 @@ export default async function EditTemplatePage({
 }) {
   const session = await auth()
   const role = (session?.user as { role?: string } | undefined)?.role
-  if (role !== "admin") redirect("/login")
+  if (role !== "admin") redirect("/admin/login")
 
   const { id } = await params
   const t = await prisma.jobTemplate

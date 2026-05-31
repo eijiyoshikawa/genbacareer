@@ -27,7 +27,7 @@ const STATUS_LABEL: Record<string, { text: string; className: string }> = {
 export default async function AdminEarlyResignationsPage() {
   const session = await auth()
   const role = (session?.user as { role?: string } | undefined)?.role
-  if (role !== "admin") redirect("/login")
+  if (role !== "admin") redirect("/admin/login")
 
   const [rows, summary] = await Promise.all([
     prisma.earlyResignation.findMany({

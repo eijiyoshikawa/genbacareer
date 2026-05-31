@@ -21,9 +21,9 @@ export const metadata: Metadata = {
 
 export default async function CompanyInterestsPage() {
   const session = await auth()
-  if (!session?.user) redirect("/login")
+  if (!session?.user) redirect("/company/login")
   const companyId = (session.user as { companyId?: string }).companyId
-  if (!companyId) redirect("/login")
+  if (!companyId) redirect("/company/login")
 
   const interests = await prisma.jobInterest.findMany({
     where: { job: { companyId } },

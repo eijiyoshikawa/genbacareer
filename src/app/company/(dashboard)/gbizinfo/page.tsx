@@ -16,10 +16,10 @@ export const metadata = {
 
 export default async function CompanyGbizInfoPage() {
   const session = await auth()
-  if (!session?.user) redirect("/login")
+  if (!session?.user) redirect("/company/login")
   const role = (session.user as { role?: string }).role
   if (role !== "company_admin" && role !== "company_member") {
-    redirect("/login")
+    redirect("/company/login")
   }
 
   const companyId = (session.user as { companyId?: string }).companyId

@@ -82,7 +82,7 @@ async function loadStatusData() {
  */
 export default async function AdminStatusPage() {
   const session = await auth()
-  if (!session?.user) redirect("/login")
+  if (!session?.user) redirect("/admin/login")
   const role = (session.user as { role?: string }).role
   if (role !== "admin") redirect("/")
 

@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 export default async function AdminBillingTodoPage() {
   const session = await auth()
   const role = (session?.user as { role?: string } | undefined)?.role
-  if (role !== "admin") redirect("/login")
+  if (role !== "admin") redirect("/admin/login")
 
   const [pending, invoiced, refundApproved] = await Promise.all([
     // A. 採用確定 → 請求書未発行

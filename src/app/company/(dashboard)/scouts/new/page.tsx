@@ -30,11 +30,11 @@ type Props = {
 
 export default async function ScoutNewPage({ searchParams }: Props) {
   const session = await auth()
-  if (!session?.user) redirect("/login")
+  if (!session?.user) redirect("/company/login")
   const role = (session.user as { role?: string }).role
   const companyId = (session.user as { companyId?: string }).companyId
-  if (!companyId) redirect("/login")
-  if (role !== "company_admin" && role !== "company_member") redirect("/login")
+  if (!companyId) redirect("/company/login")
+  if (role !== "company_admin" && role !== "company_member") redirect("/company/login")
 
   const params = await searchParams
   const userId = params.userId

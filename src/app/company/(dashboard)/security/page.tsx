@@ -12,13 +12,13 @@ export const metadata: Metadata = {
 
 export default async function CompanySecurityPage() {
   const session = await auth()
-  if (!session?.user) redirect("/login")
+  if (!session?.user) redirect("/company/login")
   const role = (session.user as { role?: string }).role
   if (role !== "company_admin" && role !== "company_member") {
-    redirect("/login")
+    redirect("/company/login")
   }
   const userId = (session.user as { id?: string }).id
-  if (!userId) redirect("/login")
+  if (!userId) redirect("/company/login")
 
   const user = await prisma.companyUser
     .findUnique({
@@ -31,7 +31,7 @@ export default async function CompanySecurityPage() {
       },
     })
     .catch(() => null)
-  if (!user) redirect("/login")
+  if (!user) redirect("/company/login")
 
   return (
     <div>

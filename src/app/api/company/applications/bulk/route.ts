@@ -13,12 +13,13 @@ import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
 
+// "hired" は請求書作成・通知送信などの副作用があるため一括更新から除外。
+// 採用確定は個別の PATCH /api/company/applications/[id] で行うこと。
 const ALLOWED_STATUSES = [
   "applied",
   "reviewing",
   "interview",
   "offered",
-  "hired",
   "rejected",
 ] as const
 

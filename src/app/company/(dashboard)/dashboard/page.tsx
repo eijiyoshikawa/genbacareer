@@ -38,10 +38,10 @@ export default async function CompanyDashboard({
   searchParams: Promise<{ range?: string }>
 }) {
   const session = await auth()
-  if (!session?.user) redirect("/login")
+  if (!session?.user) redirect("/company/login")
 
   const companyId = (session.user as { companyId?: string }).companyId
-  if (!companyId) redirect("/login")
+  if (!companyId) redirect("/company/login")
 
   const params = await searchParams
   const range: RangeKey = isRangeKey(params.range) ? params.range : "30d"

@@ -12,10 +12,10 @@ export const metadata: Metadata = {
 
 export default async function NewJobPage() {
   const session = await auth()
-  if (!session?.user) redirect("/login")
+  if (!session?.user) redirect("/company/login")
 
   const companyId = (session.user as { companyId?: string }).companyId
-  if (!companyId) redirect("/login")
+  if (!companyId) redirect("/company/login")
 
   const [templates, company] = await Promise.all([
     loadActiveJobTemplates(),

@@ -7,14 +7,14 @@ export const dynamic = "force-dynamic"
 
 export default async function ChangePasswordPage() {
   const session = await auth()
-  if (!session?.user) redirect("/login")
+  if (!session?.user) redirect("/company/login")
 
   const role = (session.user as { role?: string }).role
   if (role !== "company_admin" && role !== "company_member") {
-    redirect("/")
+    redirect("/company/login")
   }
   const userId = (session.user as { id?: string }).id
-  if (!userId) redirect("/login")
+  if (!userId) redirect("/company/login")
 
   const user = await prisma.companyUser.findUnique({
     where: { id: userId },

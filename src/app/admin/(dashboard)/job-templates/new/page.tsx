@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default async function NewTemplatePage() {
   const session = await auth()
   const role = (session?.user as { role?: string } | undefined)?.role
-  if (role !== "admin") redirect("/login")
+  if (role !== "admin") redirect("/admin/login")
 
   return (
     <div className="space-y-4">

@@ -35,7 +35,7 @@ export default async function AdminAuditLogPage({
 }) {
   const session = await auth()
   const role = (session?.user as { role?: string } | undefined)?.role
-  if (role !== "admin") redirect("/login")
+  if (role !== "admin") redirect("/admin/login")
 
   const params = await searchParams
   const page = Math.max(1, Number(params.page) || 1)

@@ -25,7 +25,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default async function AdminJobTemplatesPage() {
   const session = await auth()
   const role = (session?.user as { role?: string } | undefined)?.role
-  if (role !== "admin") redirect("/login")
+  if (role !== "admin") redirect("/admin/login")
 
   const items = await prisma.jobTemplate
     .findMany({
