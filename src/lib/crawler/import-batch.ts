@@ -272,6 +272,9 @@ function truncate<T extends string | null | undefined>(
  *
  * 「消防設備士」「衛生設備配管」のような建設文脈と衝突する語は意図的に外しており、
  * 「消防士」「衛生管理者」など独立した職名のみを列挙する。
+ *
+ * IT 系は「システム」単独だと「空調システム」「配管システム」等と衝突するため、
+ * 「システムエンジニア」「システム設計」のような複合語のみを列挙する。
  */
 export const BLOCKED_OCCUPATION_PATTERN = new RegExp(
   [
@@ -388,26 +391,67 @@ export const BLOCKED_OCCUPATION_PATTERN = new RegExp(
     "医療事務",
     "調剤事務",
     "薬剤師",
+    // 歯科・口腔（「衛生指導」「予防処置」等が electrical の「衛生」に誤マッチするため
+    // 職名・文脈語でタイトル除外する）
+    "歯科",
+    "口腔",
+    // IT・ソフトウェア開発（「設計」が survey に、社名等が誤分類されるのを防ぐ。
+    // 全角表記もタイトル正規化後にマッチする。"システム"単独は空調/配管システム等と
+    // 衝突するため複合語のみ列挙）
+    "システムエンジニア",
+    "システム開発",
+    "システム設計",
+    "プログラマ",
+    "ソフトウェア",
+    "webエンジニア",
+    "web開発",
+    "アプリ開発",
+    "アプリケーション開発",
+    "インフラエンジニア",
+    "ネットワークエンジニア",
+    "客先常駐",
+    // 製造・事務オペレーター（建設の重機/クレーンオペレーターと区別）
+    "製造オペレータ",
+    "機械オペレータ",
+    "マシンオペレータ",
+    "ラインオペレータ",
+    "システムオペレータ",
+    "pcオペレータ",
+    "パソコンオペレータ",
   ].join("|"),
   "i"
 )
+
+/**
+ * 全角英数記号（Ａ-Ｚ, ａ-ｚ, ０-９, 全角記号）を半角へ正規化する。
+ * ハローワークの求人タイトルは「ＳＥＳ」「Ｒｅａｃｔ」「ＣＡＤ」のように全角英字を
+ * 多用するため、ブロックリスト / カテゴリ判定の前に正規化してマッチ精度を上げる。
+ * 全角カタカナ（オペレーター等）や漢字は対象外（U+FF01–FF5E のみ変換）。
+ */
+function normalizeWidth(s: string): string {
+  return s.replace(/[！-～]/g, (c) =>
+    String.fromCharCode(c.charCodeAt(0) - 0xfee0)
+  )
+}
 
 export function inferCategory(
   title: string,
   description: string | null | undefined
 ): CategoryValue | null {
-  const titleLower = title.toLowerCase()
+  const titleLower = normalizeWidth(title).toLowerCase()
 
   // 非対象職種を先に除外（タイトルで判定）
   if (BLOCKED_OCCUPATION_PATTERN.test(titleLower)) return null
 
-  const text = `${titleLower} ${description ?? ""}`.toLowerCase()
+  const text = normalizeWidth(`${title} ${description ?? ""}`).toLowerCase()
 
   const patterns: Array<{ category: CategoryValue; pattern: RegExp }> = [
     { category: "civil", pattern: /土木|舗装|道路|河川|橋梁|トンネル|造成/ },
     {
+      // 「衛生」単独は歯科の「衛生指導」「口腔衛生」等に誤マッチするため、
+      // 建設の給排水衛生設備を表す複合語に限定する。
       category: "electrical",
-      pattern: /電気工事|設備工事|空調|衛生|配管|配線|消防/,
+      pattern: /電気工事|設備工事|空調|衛生設備|給排水|配管|配線|消防/,
     },
     {
       category: "interior",
@@ -415,8 +459,10 @@ export function inferCategory(
     },
     { category: "demolition", pattern: /解体|産廃|アスベスト|スクラップ/ },
     {
+      // 「オペレーター」単独は電話/PC/製造オペレーター等に誤マッチするため除外し、
+      // 建設機械（重機/クレーン/ダンプ/建機/ショベル/ユンボ）に限定する。
       category: "driver",
-      pattern: /ドライバー|運転手|重機|オペレーター|クレーン|ダンプ/,
+      pattern: /ドライバー|運転手|重機|建機|クレーン|ダンプ|ショベル|ユンボ/,
     },
     {
       category: "management",
