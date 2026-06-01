@@ -45,14 +45,35 @@ export async function POST(request: NextRequest) {
 
   const { token } = parsed.data
 
+  const now = new Date()
+
+  // findUnique → update の2ステップだとトークンが並列リクエストで使い回される
+  // 恐れがある。updateMany で「トークン一致 + 未確認 + 有効期限内」を WHERE に含め
+  // 単一のアトミック操作としてトークンを消費する。
+  const result = await prisma.user.updateMany({
+    where: {
+      verificationToken: token,
+      emailVerified: null,
+      verificationTokenExpiry: { gt: now },
+    },
+    data: {
+      emailVerified: now,
+      verificationToken: null,
+      verificationTokenExpiry: null,
+    },
+  })
+
+  if (result.count > 0) {
+    return Response.json({
+      success: true,
+      message: "メールアドレスの確認が完了しました。",
+    })
+  }
+
+  // 更新件数 0 の場合: トークン無効 / 期限切れ / 既確認済みを区別して返す
   const user = await prisma.user.findUnique({
     where: { verificationToken: token },
-    select: {
-      id: true,
-      email: true,
-      emailVerified: true,
-      verificationTokenExpiry: true,
-    },
+    select: { emailVerified: true, verificationTokenExpiry: true },
   })
 
   if (!user) {
@@ -70,30 +91,11 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  if (
-    !user.verificationTokenExpiry ||
-    user.verificationTokenExpiry < new Date()
-  ) {
-    return Response.json(
-      {
-        error:
-          "確認リンクの有効期限が切れています。お手数ですが再度ご登録ください。",
-      },
-      { status: 400 }
-    )
-  }
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      emailVerified: new Date(),
-      verificationToken: null,
-      verificationTokenExpiry: null,
+  return Response.json(
+    {
+      error:
+        "確認リンクの有効期限が切れています。お手数ですが再度ご登録ください。",
     },
-  })
-
-  return Response.json({
-    success: true,
-    message: "メールアドレスの確認が完了しました。",
-  })
+    { status: 400 }
+  )
 }

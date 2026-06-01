@@ -24,8 +24,8 @@ export async function createHiringInvoice(applicationId: string) {
     },
   })
 
-  if (!application || !application.company) {
-    throw new Error(`Application ${applicationId} not found or has no company`)
+  if (!application || !application.company || !application.job) {
+    throw new Error(`Application ${applicationId} not found or has no company/job`)
   }
 
   // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ定数フォールバック

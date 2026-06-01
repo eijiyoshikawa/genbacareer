@@ -26,28 +26,29 @@ export async function POST(request: NextRequest) {
 
   const { token, password } = parsed.data
 
-  const user = await prisma.user.findUnique({
-    where: { resetToken: token },
-    select: { id: true, resetTokenExpiry: true },
-  })
-
-  if (!user || !user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
-    return Response.json(
-      { error: "リセットリンクが無効または期限切れです。再度お試しください。" },
-      { status: 400 }
-    )
-  }
-
   const passwordHash = await hash(password, 12)
 
-  await prisma.user.update({
-    where: { id: user.id },
+  // findUnique → update の2ステップだとトークンが並列リクエストで使い回される
+  // 恐れがある。updateMany で「トークン一致 + 有効期限内」を WHERE に含めることで
+  // 単一のアトミック操作としてトークンを消費する。
+  const result = await prisma.user.updateMany({
+    where: {
+      resetToken: token,
+      resetTokenExpiry: { gt: new Date() },
+    },
     data: {
       passwordHash,
       resetToken: null,
       resetTokenExpiry: null,
     },
   })
+
+  if (result.count === 0) {
+    return Response.json(
+      { error: "リセットリンクが無効または期限切れです。再度お試しください。" },
+      { status: 400 }
+    )
+  }
 
   return Response.json({ message: "パスワードが正常にリセットされました。" })
 }
