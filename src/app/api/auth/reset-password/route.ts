@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { hash } from "bcryptjs"
 import { prisma } from "@/lib/db"
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 
 const schema = z.object({
   token: z.string().min(1),
@@ -9,6 +10,16 @@ const schema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  // レート制限: 同一 IP から 15 分間に 5 回まで。
+  // reset-password はトークンのブルートフォースを狙われる経路なので
+  // forgot-password と同等の厳しさで絞る。
+  const rl = checkRateLimit({
+    key: `reset-password:${getClientIp(request)}`,
+    limit: 5,
+    windowMs: 15 * 60 * 1000,
+  })
+  if (!rl.allowed) return rateLimitResponse(rl)
+
   let body: unknown
   try {
     body = await request.json()
