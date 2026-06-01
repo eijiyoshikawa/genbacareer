@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db"
-import { notFound, redirect } from "next/navigation"
+import { notFound, redirect, permanentRedirect } from "next/navigation"
 import { headers } from "next/headers"
 import Link from "next/link"
 import { auth } from "@/lib/auth"
@@ -63,9 +63,35 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!isValidUuid(id)) return { title: "求人が見つかりません" }
   const job = await prisma.job.findUnique({
     where: { id },
-    select: { title: true, prefecture: true, category: true },
+    select: {
+      title: true,
+      prefecture: true,
+      category: true,
+      status: true,
+      dedupedTo: true,
+    },
   })
   if (!job) return { title: "求人が見つかりません" }
+
+  // 重複求人: canonical を正規ページに向ける（ページ本体で 301 リダイレクトもする）
+  if (job.dedupedTo) {
+    return {
+      title: job.title,
+      alternates: { canonical: `/jobs/${job.dedupedTo}` },
+      robots: { index: false, follow: true },
+    }
+  }
+
+  // 終了求人: インデックス対象から外す（既存ブックマーク用に表示はする）
+  if (job.status === "closed") {
+    return {
+      title: `${job.title}（募集終了）`,
+      description: `${job.prefecture}の${job.title}の求人は現在募集を終了しています。`,
+      alternates: { canonical: `/jobs/${id}` },
+      robots: { index: false, follow: true },
+    }
+  }
+
   return {
     title: job.title,
     description: `${job.prefecture}の${job.title}の求人詳細。ゲンバキャリアで建設業界の最新求人をチェック。`,
@@ -105,6 +131,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       tags: true,
       videoUrls: true,
       status: true,
+      dedupedTo: true,
       source: true,
       helloworkId: true,
       publishedAt: true,
@@ -163,6 +190,13 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   })
 
   if (!job) notFound()
+
+  // 重複求人として close された場合: 正規ページへ 301 リダイレクト。
+  // これがないと Google が「user-declared canonical と Google's choice が違う」と
+  // 判定して Search Console で重複エラーとして大量計上される。
+  if (job.dedupedTo) {
+    permanentRedirect(`/jobs/${job.dedupedTo}`)
+  }
 
   // 未登録ゲストは「グローバル上位 15 件（recommended sort / フィルタ無し）」の詳細のみ閲覧可。
   // 検索エンジン等のクローラは Google for Jobs SEO 維持のため除外する。
