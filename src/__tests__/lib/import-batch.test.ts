@@ -201,4 +201,71 @@ describe("inferCategory", () => {
       expect(inferCategory("重機オペレーター", null)).toBe("driver")
     })
   })
+
+  describe("precision: fixes false positives without over-blocking", () => {
+    // 「衛生」単独の誤マッチ（歯科・口腔・食品）を除去しつつ建設の衛生設備は維持
+    it("does not classify 歯科/口腔 jobs as electrical via 衛生", () => {
+      // 実際にハローワークから取り込まれた歯科求人の再現
+      expect(
+        inferCategory(
+          "口腔内の検査および衛生指導　歯石除去やクリーニングなどの予防処置　診療補助",
+          null
+        )
+      ).toBe(null)
+      expect(inferCategory("歯科衛生士募集", null)).toBe(null)
+      expect(inferCategory("歯科助手", null)).toBe(null)
+      expect(inferCategory("口腔ケアスタッフ", "衛生指導を行います")).toBe(null)
+    })
+
+    it("keeps 給排水衛生設備 construction jobs as electrical", () => {
+      expect(inferCategory("衛生設備配管工事", null)).toBe("electrical")
+      expect(inferCategory("給排水衛生設備工事", null)).toBe("electrical")
+      expect(inferCategory("給排水設備の施工", null)).toBe("electrical")
+    })
+
+    // IT / ソフトウェア開発の誤分類を除去（全角表記も正規化後にマッチ）
+    it("blocks IT / software jobs even with full-width letters", () => {
+      expect(
+        inferCategory(
+          "当社はシステムエンジニアリングサービス（ＳＥＳ）を中心としたＩＴソリューション事業を展開しております",
+          "システム設計から開発まで"
+        )
+      ).toBe(null)
+      expect(inferCategory("システムエンジニア募集", null)).toBe(null)
+      expect(inferCategory("Ｗｅｂエンジニア（Ｒｅａｃｔ）", null)).toBe(null)
+      // ハローワークのタイトルは長文（本文を含む）。ブロックはタイトル判定なので
+      // 「ソフトウェア」がタイトルにあれば、本文の「設計」で survey 誤分類される前に除外される
+      expect(
+        inferCategory(
+          "防犯用ビデオカメラ開発の作業。設計～テストまでの対応。ソフトウェアパッケージの開発",
+          null
+        )
+      ).toBe(null)
+      expect(inferCategory("インフラエンジニア", null)).toBe(null)
+    })
+
+    it("still classifies construction 設計/CAD/測量 as survey", () => {
+      // IT ブロックは複合語限定なので、建設の「設計」は survey のまま
+      expect(inferCategory("設計補助", null)).toBe("survey")
+      expect(inferCategory("建築設計スタッフ", null)).toBe("survey")
+      expect(inferCategory("測量士", null)).toBe("survey")
+      // 全角 CAD も正規化されて survey
+      expect(inferCategory("ＣＡＤオペレーター", null)).toBe("survey")
+    })
+
+    // 「オペレーター」単独の誤マッチ（電話/PC/製造）を除去しつつ建設機械は維持
+    it("does not classify 製造/事務 operators as driver", () => {
+      expect(inferCategory("製造オペレーター", null)).toBe(null)
+      expect(inferCategory("機械オペレーター", null)).toBe(null)
+      expect(inferCategory("マシンオペレーター募集", null)).toBe(null)
+      expect(inferCategory("PCオペレーター", null)).toBe(null)
+    })
+
+    it("keeps 建設機械 operators as driver (重機/クレーン/建機/ショベル)", () => {
+      expect(inferCategory("重機オペレーター", null)).toBe("driver")
+      expect(inferCategory("クレーンオペレーター", null)).toBe("driver")
+      expect(inferCategory("建機オペレーター", null)).toBe("driver")
+      expect(inferCategory("油圧ショベルオペレーター", null)).toBe("driver")
+    })
+  })
 })

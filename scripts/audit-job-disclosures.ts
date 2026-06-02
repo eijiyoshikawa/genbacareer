@@ -41,6 +41,14 @@
 
 import { prisma } from "@/lib/db"
 import { getCategoryLabel } from "@/lib/categories"
+import {
+  DISCLOSURE_FIELD_LABELS as FIELD_LABELS,
+  DISCLOSURE_SELECT,
+  findMissingLenient,
+  findMissingStrict,
+  type DisclosureFieldKey as FieldKey,
+  type DisclosureJob,
+} from "@/lib/job-disclosure"
 
 type Args = { samples: number; source: string | null }
 
@@ -53,120 +61,11 @@ function parseArgs(): Args {
   }
 }
 
-type JobRow = {
+type JobRow = DisclosureJob & {
   id: string
   title: string
   source: string
   category: string
-  prefecture: string
-  employmentType: string | null
-  salaryMin: number | null
-  salaryMax: number | null
-  salaryType: string | null
-  baseSalary: string | null
-  description: string | null
-  workHours: string | null
-  workHoursNotes: string | null
-  jobConditionNotes: string | null
-  holidays: string | null
-  holidaysOther: string | null
-  annualHolidays: number | null
-  insurance: string | null
-  smokingPolicy: string | null
-  trialPeriod: string | null
-}
-
-type FieldKey =
-  | "employmentType"
-  | "salary"
-  | "workHours"
-  | "holidays"
-  | "insurance"
-  | "smokingPolicy"
-  | "trialPeriod"
-  | "description"
-  | "prefecture"
-
-const FIELD_LABELS: Record<FieldKey, string> = {
-  employmentType: "雇用形態",
-  salary: "賃金",
-  workHours: "労働時間",
-  holidays: "休日",
-  insurance: "社会保険",
-  smokingPolicy: "受動喫煙対策",
-  trialPeriod: "試用期間",
-  description: "業務内容",
-  prefecture: "就業場所",
-}
-
-function isBlank(v: string | null | undefined): boolean {
-  return v === null || v === undefined || v.trim() === ""
-}
-
-/**
- * 厳格判定: 構造化カラム（salaryMin/Max/salaryType, workHours, holidays 等）
- * のみで欠損を見る。UI で表示・検索に使える「正規化済み」状態を測る指標。
- */
-function findMissingStrict(job: JobRow): FieldKey[] {
-  const missing: FieldKey[] = []
-  if (isBlank(job.employmentType)) missing.push("employmentType")
-  const hasSalaryRange = job.salaryMin != null || job.salaryMax != null
-  if (!hasSalaryRange || isBlank(job.salaryType)) missing.push("salary")
-  if (isBlank(job.workHours) && isBlank(job.workHoursNotes)) {
-    missing.push("workHours")
-  }
-  if (isBlank(job.holidays) && job.annualHolidays == null) {
-    missing.push("holidays")
-  }
-  if (isBlank(job.insurance)) missing.push("insurance")
-  if (isBlank(job.smokingPolicy)) missing.push("smokingPolicy")
-  if (isBlank(job.trialPeriod)) missing.push("trialPeriod")
-  if (isBlank(job.description)) missing.push("description")
-  if (isBlank(job.prefecture)) missing.push("prefecture")
-  return missing
-}
-
-/**
- * 寛容判定: 構造化カラムが欠けていても、ハローワーク由来のテキストフィールド
- * （baseSalary, jobConditionNotes, holidaysOther）に情報があれば「明示済」と
- * みなす。労基法第15条上「文書で明示されているか」を測る指標。
- *
- * 厳格 − 寛容 = 「取り込み時の正規化（Phase 2）で救える件数」
- */
-function findMissingLenient(job: JobRow): FieldKey[] {
-  const missing: FieldKey[] = []
-  if (isBlank(job.employmentType)) missing.push("employmentType")
-
-  // 賃金: 構造化済 OR baseSalary 文字列に値がある
-  const hasSalaryRange = job.salaryMin != null || job.salaryMax != null
-  const salaryOk =
-    (hasSalaryRange && !isBlank(job.salaryType)) || !isBlank(job.baseSalary)
-  if (!salaryOk) missing.push("salary")
-
-  // 労働時間: workHours / workHoursNotes / jobConditionNotes のいずれか
-  if (
-    isBlank(job.workHours) &&
-    isBlank(job.workHoursNotes) &&
-    isBlank(job.jobConditionNotes)
-  ) {
-    missing.push("workHours")
-  }
-
-  // 休日: holidays / annualHolidays / holidaysOther のいずれか
-  if (
-    isBlank(job.holidays) &&
-    job.annualHolidays == null &&
-    isBlank(job.holidaysOther)
-  ) {
-    missing.push("holidays")
-  }
-
-  if (isBlank(job.insurance)) missing.push("insurance")
-  if (isBlank(job.smokingPolicy)) missing.push("smokingPolicy")
-  if (isBlank(job.trialPeriod)) missing.push("trialPeriod")
-  if (isBlank(job.description)) missing.push("description")
-  if (isBlank(job.prefecture)) missing.push("prefecture")
-  return missing
 }
 
 function pct(part: number, total: number): string {
@@ -223,22 +122,7 @@ async function auditDisclosures(args: Args): Promise<void> {
         title: true,
         source: true,
         category: true,
-        prefecture: true,
-        employmentType: true,
-        salaryMin: true,
-        salaryMax: true,
-        salaryType: true,
-        baseSalary: true,
-        description: true,
-        workHours: true,
-        workHoursNotes: true,
-        jobConditionNotes: true,
-        holidays: true,
-        holidaysOther: true,
-        annualHolidays: true,
-        insurance: true,
-        smokingPolicy: true,
-        trialPeriod: true,
+        ...DISCLOSURE_SELECT,
       },
     })
     if (jobs.length === 0) break
