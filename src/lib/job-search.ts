@@ -53,11 +53,46 @@ export async function fuzzySearchJobs(
   // - title と description それぞれの類似度の最大値を採用
   // - 0.05 以上を閾値（ある程度関連がある）
   // - 同点は publishedAt DESC
+  //
+  // 注意: オプション条件は動的にパラメータ番号を割り当てる。
+  // $1=q, $2=categories の後、存在するフィルタのみ連番で追加する。
   try {
-    const rows = await prisma.$queryRawUnsafe<
-      { id: string; similarity: number }[]
-    >(
-      `
+    // $1=q, $2=categories は固定
+    const params: unknown[] = [input.q, categories]
+    let pIdx = 2 // 次に割り当てるパラメータ番号 (1-indexed)
+
+    const optionalClauses: string[] = []
+
+    if (input.prefecture) {
+      params.push(input.prefecture)
+      optionalClauses.push(`AND prefecture = $${++pIdx}`)
+    }
+    if (input.city) {
+      params.push(input.city)
+      optionalClauses.push(`AND city = $${++pIdx}`)
+    }
+    if (input.employmentType) {
+      params.push(input.employmentType)
+      optionalClauses.push(`AND employment_type = $${++pIdx}`)
+    }
+    if (input.source) {
+      params.push(input.source)
+      optionalClauses.push(`AND source = $${++pIdx}`)
+    }
+    if (input.publishedSince) {
+      params.push(input.publishedSince)
+      optionalClauses.push(`AND published_at >= $${++pIdx}`)
+    }
+    if (input.salaryMin) {
+      params.push(input.salaryMin)
+      optionalClauses.push(`AND salary_min >= $${++pIdx}`)
+    }
+    if (input.salaryMax) {
+      params.push(input.salaryMax)
+      optionalClauses.push(`AND salary_max <= $${++pIdx}`)
+    }
+
+    const sql = `
       WITH scored AS (
         SELECT id,
                GREATEST(
@@ -68,28 +103,18 @@ export async function fuzzySearchJobs(
         FROM jobs
         WHERE status = 'active'
           AND category = ANY($2)
-          ${input.prefecture ? "AND prefecture = $3" : ""}
-          ${input.employmentType ? `AND employment_type = $4` : ""}
-          ${input.source ? `AND source = $5` : ""}
-          ${input.publishedSince ? `AND published_at >= $6` : ""}
-          ${input.salaryMin ? `AND salary_min >= $7` : ""}
-          ${input.salaryMax ? `AND salary_max <= $8` : ""}
+          ${optionalClauses.join("\n          ")}
       )
       SELECT id, similarity
       FROM scored
       WHERE similarity > 0.05
       ORDER BY similarity DESC, published_at DESC NULLS LAST
       LIMIT ${limit} OFFSET ${offset};
-      `,
-      input.q,
-      categories,
-      ...(input.prefecture ? [input.prefecture] : []),
-      ...(input.employmentType ? [input.employmentType] : []),
-      ...(input.source ? [input.source] : []),
-      ...(input.publishedSince ? [input.publishedSince] : []),
-      ...(input.salaryMin ? [input.salaryMin] : []),
-      ...(input.salaryMax ? [input.salaryMax] : [])
-    )
+    `
+
+    const rows = await prisma.$queryRawUnsafe<
+      { id: string; similarity: number }[]
+    >(sql, ...params)
     return rows
   } catch (e) {
     console.warn(

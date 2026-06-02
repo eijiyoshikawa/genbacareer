@@ -162,12 +162,19 @@ export function middleware(request: NextRequest) {
 
   // 保護されたルート
   const seekerRoutes = ["/mypage"]
+  // /company/(dashboard)/* 配下の全ルートをカバー（route group は URL に現れない）
   const companyRoutes = [
     "/company/dashboard",
     "/company/jobs",
     "/company/applications",
     "/company/billing",
-    "/company/candidates",
+    "/company/profile",
+    "/company/scouts",
+    "/company/security",
+    "/company/gbizinfo",
+    "/company/interests",
+    "/company/line-leads",
+    "/company/change-password",
   ]
   const adminRoutes = ["/admin"]
 
