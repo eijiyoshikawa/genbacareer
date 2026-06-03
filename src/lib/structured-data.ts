@@ -450,7 +450,7 @@ export function generateArticleSchema(
           : `${BASE_URL}${article.imageUrl}`,
       ],
     }),
-    datePublished: article.publishedAt?.toISOString(),
+    ...(article.publishedAt && { datePublished: article.publishedAt.toISOString() }),
     dateModified: article.updatedAt.toISOString(),
     author: {
       "@type": "Person",
@@ -587,7 +587,9 @@ export function generateVideoObjectSchema(params: {
     thumbnailUrl: [`${BASE_URL}/jobs/${params.jobId}/opengraph-image`],
     uploadDate: params.uploadDate.toISOString(),
     contentUrl: params.videoUrl,
-    embedUrl: params.videoUrl,
+    embedUrl: params.videoUrl.includes("youtube.com/watch?v=")
+      ? params.videoUrl.replace("youtube.com/watch?v=", "youtube.com/embed/")
+      : params.videoUrl,
     publisher: { "@id": `${BASE_URL}/#organization` },
   }
 }

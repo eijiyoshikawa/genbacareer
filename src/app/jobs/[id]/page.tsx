@@ -316,7 +316,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
     { name: "求人検索", url: "/jobs" },
     {
       name: getCategoryLabel(job.category),
-      url: `/jobs?category=${job.category}`,
+      url: `/categories/${job.category}`,
     },
     { name: job.title, url: `/jobs/${job.id}` },
   ])

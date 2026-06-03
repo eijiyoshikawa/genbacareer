@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db"
 import Link from "next/link"
 import { ArrowLeft, X, MapPin, Money, Buildings } from "@phosphor-icons/react/dist/ssr"
 import { getCategoryLabel } from "@/lib/categories"
+import { isValidUuid } from "@/lib/uuid"
 import type { Metadata } from "next"
 
 export const dynamic = "force-dynamic"
@@ -30,7 +31,7 @@ export default async function CompareJobsPage({ searchParams }: Props) {
   const ids = (params.ids ?? "")
     .split(",")
     .map((s) => s.trim())
-    .filter(Boolean)
+    .filter(isValidUuid)
     .slice(0, MAX_COMPARE)
 
   if (ids.length === 0) {

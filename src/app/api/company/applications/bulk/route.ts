@@ -52,13 +52,38 @@ export async function POST(request: Request) {
   }
   const { ids, status } = parsed.data
 
-  const result = await prisma.application.updateMany({
-    where: {
-      id: { in: ids },
-      companyId,
-    },
-    data: { status },
-  })
+  // hired 以外は updateMany で一括処理
+  if (status !== "hired") {
+    const result = await prisma.application.updateMany({
+      where: { id: { in: ids }, companyId },
+      data: { status },
+    })
+    return Response.json({ ok: true, updated: result.count })
+  }
 
-  return Response.json({ ok: true, updated: result.count })
+  // hired は hiredAt の打刻と請求イベント生成が必要なため個別処理
+  const { createHiringInvoice } = await import("@/lib/billing")
+  const now = new Date()
+  let updated = 0
+
+  for (const id of ids) {
+    try {
+      await prisma.application.update({
+        where: { id, companyId },
+        data: { status: "hired", hiredAt: now },
+      })
+      // 重複請求防止: 既存 BillingEvent がなければ作成
+      const existing = await prisma.billingEvent.findFirst({
+        where: { applicationId: id, eventType: "hired" },
+      })
+      if (!existing) {
+        await createHiringInvoice(id)
+      }
+      updated++
+    } catch (err) {
+      console.error(`[bulk/hired] failed for application ${id}:`, err)
+    }
+  }
+
+  return Response.json({ ok: true, updated })
 }

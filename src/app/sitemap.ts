@@ -210,15 +210,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const companies = await safeFindMany("companies", () =>
     prisma.company.findMany({
       where: { status: "approved", source: "direct" },
-      select: { id: true, createdAt: true },
-      orderBy: { createdAt: "desc" },
+      select: { id: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
       take: MAX_COMPANIES,
     })
   )
 
   const companyPages: MetadataRoute.Sitemap = companies.map((c) => ({
     url: `${BASE_URL}/companies/${c.id}`,
-    lastModified: c.createdAt,
+    lastModified: c.updatedAt,
     changeFrequency: "weekly" as const,
     priority: 0.7,
   }))

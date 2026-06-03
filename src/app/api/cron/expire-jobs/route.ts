@@ -11,13 +11,16 @@ import { prisma } from "@/lib/db"
  *   2. auto_renew = false の期限切れ求人 → status = "closed"
  */
 
+export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
+
 const AUTO_RENEW_EXTENSION_MS = 30 * 24 * 60 * 60 * 1000
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

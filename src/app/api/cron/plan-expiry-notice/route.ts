@@ -28,7 +28,7 @@ const SOON_THRESHOLD_DAYS = 30
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -81,6 +81,7 @@ export async function GET(request: Request) {
       ],
     }
 
+    let mailSent = true
     if (c.contactEmail) {
       try {
         await sendEmail({
@@ -91,6 +92,7 @@ export async function GET(request: Request) {
         })
       } catch (err) {
         mailFailures += 1
+        mailSent = false
         console.error(`[cron/plan-expiry-notice] mail failed for ${c.id}:`, err)
       }
     }
@@ -110,11 +112,14 @@ export async function GET(request: Request) {
       })
     }
 
-    await prisma.company.update({
-      where: { id: c.id },
-      data: { planExpiryNotifiedAt: now },
-    })
-    notified += 1
+    // メール送信が失敗した場合は planExpiryNotifiedAt をセットしない（次回 cron で再試行できるように）
+    if (mailSent) {
+      await prisma.company.update({
+        where: { id: c.id },
+        data: { planExpiryNotifiedAt: now },
+      })
+      notified += 1
+    }
   }
 
   console.log(
