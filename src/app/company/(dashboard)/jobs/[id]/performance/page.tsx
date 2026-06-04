@@ -54,10 +54,10 @@ export default async function JobPerformancePage({
     uniqueViews7dRows,
     uniqueViews28dRows,
   ] = await Promise.all([
-    prisma.application.count({ where: { jobId: id, createdAt: { gte: d7 } } }),
-    prisma.application.count({ where: { jobId: id, createdAt: { gte: d28 } } }),
-    prisma.application.count({ where: { jobId: id } }),
-    prisma.application.count({ where: { jobId: id, status: "hired" } }),
+    prisma.application.count({ where: { jobId: id, createdAt: { gte: d7 } } }).catch(() => 0),
+    prisma.application.count({ where: { jobId: id, createdAt: { gte: d28 } } }).catch(() => 0),
+    prisma.application.count({ where: { jobId: id } }).catch(() => 0),
+    prisma.application.count({ where: { jobId: id, status: "hired" } }).catch(() => 0),
     prisma.applicationClick
       .count({ where: { jobId: id, clickedAt: { gte: d7 } } })
       .catch(() => 0),
