@@ -149,8 +149,10 @@ export async function PUT(
   // 採用確定時の自動請求
   if (newStatus === "hired") {
     try {
+      // failed 以外の請求イベントが既にあればスキップ（重複防止）。
+      // failed の場合はリトライを許容する。
       const existingBilling = await prisma.billingEvent.findFirst({
-        where: { applicationId: id, eventType: "hired" },
+        where: { applicationId: id, eventType: "hired", status: { not: "failed" } },
       })
       if (!existingBilling) {
         const { createHiringInvoice } = await import("@/lib/billing")

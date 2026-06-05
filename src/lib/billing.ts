@@ -28,6 +28,10 @@ export async function createHiringInvoice(applicationId: string) {
     throw new Error(`Application ${applicationId} not found or has no company`)
   }
 
+  if (!application.job) {
+    throw new Error(`Application ${applicationId} has no associated job`)
+  }
+
   // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ定数フォールバック
   const feeAmount = resolveHiringFee(application.job)
 

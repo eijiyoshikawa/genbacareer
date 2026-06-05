@@ -72,8 +72,8 @@ export async function fuzzySearchJobs(
           ${input.employmentType ? `AND employment_type = $4` : ""}
           ${input.source ? `AND source = $5` : ""}
           ${input.publishedSince ? `AND published_at >= $6` : ""}
-          ${input.salaryMin ? `AND salary_min >= $7` : ""}
-          ${input.salaryMax ? `AND salary_max <= $8` : ""}
+          ${input.salaryMin ? `AND salary_max >= $7` : ""}
+          ${input.salaryMax ? `AND salary_min <= $8` : ""}
       )
       SELECT id, similarity
       FROM scored

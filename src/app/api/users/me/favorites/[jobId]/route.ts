@@ -6,6 +6,7 @@
  */
 
 import { type NextRequest } from "next/server"
+import { Prisma } from "@prisma/client"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { trackEvent } from "@/lib/track"
@@ -40,9 +41,13 @@ export async function POST(
       payload: { jobId },
     })
   } catch (e) {
-    // 重複（既にお気に入り）の場合はそのまま 200
-    const msg = e instanceof Error ? e.message : String(e)
-    if (!msg.includes("Unique constraint") && !msg.includes("unique")) {
+    // 重複（既にお気に入り）の場合はそのまま 200（idempotent）
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === "P2002"
+    ) {
+      // already exists — fall through to 200
+    } else {
       return Response.json({ error: "保存に失敗しました" }, { status: 500 })
     }
   }
