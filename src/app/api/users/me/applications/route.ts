@@ -22,42 +22,50 @@ export async function GET(request: NextRequest) {
 
   const where = { userId: session.user.id }
 
-  const [applications, total] = await Promise.all([
-    prisma.application.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
-      include: {
-        job: {
-          select: {
-            id: true,
-            title: true,
-            category: true,
-            prefecture: true,
-            city: true,
-            salaryMin: true,
-            salaryMax: true,
-            salaryType: true,
-            employmentType: true,
-            status: true,
-            company: {
-              select: { id: true, name: true, logoUrl: true },
+  try {
+    const [applications, total] = await Promise.all([
+      prisma.application.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          job: {
+            select: {
+              id: true,
+              title: true,
+              category: true,
+              prefecture: true,
+              city: true,
+              salaryMin: true,
+              salaryMax: true,
+              salaryType: true,
+              employmentType: true,
+              status: true,
+              company: {
+                select: { id: true, name: true, logoUrl: true },
+              },
             },
           },
         },
-      },
-    }),
-    prisma.application.count({ where }),
-  ])
+      }),
+      prisma.application.count({ where }),
+    ])
 
-  return Response.json({
-    applications,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
-  })
+    return Response.json({
+      applications,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    })
+  } catch (error) {
+    console.error("[applications] DB query failed:", error)
+    return Response.json(
+      { error: "応募情報の取得に失敗しました" },
+      { status: 500 }
+    )
+  }
 }

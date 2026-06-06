@@ -72,6 +72,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  try {
   const ctx = await getCompanyCtx()
   if ("error" in ctx) {
     return Response.json({ error: ctx.error }, { status: ctx.status })
@@ -188,12 +189,17 @@ export async function PUT(
   }
 
   return Response.json({ application: updated })
+  } catch (error) {
+    console.error("[application PUT] Unexpected error:", error)
+    return Response.json({ error: "サーバーエラーが発生しました" }, { status: 500 })
+  }
 }
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  try {
   const ctx = await getCompanyCtx()
   if ("error" in ctx) {
     return Response.json({ error: ctx.error }, { status: ctx.status })
@@ -260,4 +266,8 @@ export async function PATCH(
   }
 
   return Response.json({ application: updated })
+  } catch (error) {
+    console.error("[application PATCH] Unexpected error:", error)
+    return Response.json({ error: "サーバーエラーが発生しました" }, { status: 500 })
+  }
 }

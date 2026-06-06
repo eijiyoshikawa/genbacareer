@@ -31,8 +31,11 @@ export async function createHiringInvoice(applicationId: string) {
   // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ定数フォールバック
   const feeAmount = resolveHiringFee(application.job)
 
-  const billingEvent = await prisma.billingEvent.create({
-    data: {
+  // upsert で重複請求を防ぐ（applicationId に @unique 制約あり）。
+  // 並列リクエストが同時にヒットしても pending レコードは 1 件だけ作成される。
+  const billingEvent = await prisma.billingEvent.upsert({
+    where: { applicationId },
+    create: {
       companyId: application.company.id,
       applicationId,
       eventType: "hired",
@@ -40,7 +43,16 @@ export async function createHiringInvoice(applicationId: string) {
       provider: "moneyforward",
       status: "pending",
     },
+    update: {},
   })
+
+  // 既に invoiced / failed 済みなら再実行しない
+  if (billingEvent.status !== "pending") {
+    console.info(
+      `[billing] Skipped: BillingEvent ${billingEvent.id} is already ${billingEvent.status}`
+    )
+    return billingEvent
+  }
 
   try {
     return await invoiceViaMoneyForward({
