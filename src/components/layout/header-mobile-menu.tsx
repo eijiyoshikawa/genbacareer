@@ -2,18 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import {
-  Menu,
-  X,
-  Search,
-  Newspaper,
-  Building2,
-  Map as MapIcon,
-  Sparkles,
-  MessageCircle,
-  Home,
-  UserCircle,
-} from "lucide-react"
+import { Menu, X } from "lucide-react"
 import { LinkButton } from "@/components/ui/button"
 import { BrandLogo } from "./brand-logo"
 import { HeaderLogoutButton } from "./header-logout-button"
@@ -86,42 +75,12 @@ export function HeaderMobileMenu({
 
           {/* メニュー本体 — タップターゲット大きめ */}
           <nav className="px-4 py-6 space-y-2">
-            <MenuItem
-              href="/"
-              icon={<Home className="h-5 w-5 text-primary-500" />}
-              label="トップ"
-              onClick={close}
-            />
-            <MenuItem
-              href="/jobs"
-              icon={<Search className="h-5 w-5 text-primary-500" />}
-              label="求人を探す"
-              onClick={close}
-            />
-            <MenuItem
-              href="/jobs/feed"
-              icon={<Sparkles className="h-5 w-5 text-primary-500" />}
-              label="新着フィード"
-              onClick={close}
-            />
-            <MenuItem
-              href="/jobs/map"
-              icon={<MapIcon className="h-5 w-5 text-primary-500" />}
-              label="マップから探す"
-              onClick={close}
-            />
-            <MenuItem
-              href="/journal"
-              icon={<Newspaper className="h-5 w-5 text-primary-500" />}
-              label="お役立ちマガジン"
-              onClick={close}
-            />
-            <MenuItem
-              href="/for-employers"
-              icon={<Building2 className="h-5 w-5 text-primary-500" />}
-              label="企業の方へ"
-              onClick={close}
-            />
+            <MenuItem href="/" label="トップ" onClick={close} />
+            <MenuItem href="/jobs" label="求人を探す" onClick={close} />
+            <MenuItem href="/jobs/feed" label="新着フィード" onClick={close} />
+            <MenuItem href="/jobs/map" label="マップから探す" onClick={close} />
+            <MenuItem href="/journal" label="お役立ちマガジン" onClick={close} />
+            <MenuItem href="/for-employers" label="企業の方へ" onClick={close} />
 
             <div className="pt-6 mt-4 border-t border-gray-100 space-y-3">
               {myPage ? (
@@ -134,7 +93,6 @@ export function HeaderMobileMenu({
                     onClick={close}
                     className="!h-14 !text-base bg-primary-500 hover:bg-primary-600 shadow-sm"
                   >
-                    <UserCircle className="h-5 w-5" />
                     {myPage.label}
                   </LinkButton>
                   <HeaderLogoutButton variant="mobile" />
@@ -149,7 +107,6 @@ export function HeaderMobileMenu({
                     onClick={close}
                     className="!h-14 !text-base bg-primary-500 hover:bg-primary-600 shadow-sm"
                   >
-                    <MessageCircle className="h-5 w-5" />
                     無料で会員登録
                   </LinkButton>
                   <LinkButton
@@ -178,12 +135,10 @@ export function HeaderMobileMenu({
 
 function MenuItem({
   href,
-  icon,
   label,
   onClick,
 }: {
   href: string
-  icon: React.ReactNode
   label: string
   onClick: () => void
 }) {
@@ -191,11 +146,8 @@ function MenuItem({
     <Link
       href={href}
       onClick={onClick}
-      className="press flex items-center gap-3 border border-gray-100 bg-white px-4 py-4 text-base font-bold text-gray-800 shadow-sm hover:border-primary-300 hover:bg-primary-50"
+      className="press flex items-center border border-gray-100 bg-white px-4 py-4 text-base font-bold text-gray-800 shadow-sm hover:border-primary-300 hover:bg-primary-50"
     >
-      <span className="flex h-9 w-9 items-center justify-center bg-primary-50">
-        {icon}
-      </span>
       <span className="flex-1">{label}</span>
     </Link>
   )

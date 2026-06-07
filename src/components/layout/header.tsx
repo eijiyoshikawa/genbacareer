@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { Search, Newspaper, MessageCircle, Sparkles, Map as MapIcon, UserCircle } from "lucide-react"
 import { BrandLogo } from "./brand-logo"
 import { LinkButton } from "@/components/ui/button"
 import { HeaderMobileMenu } from "./header-mobile-menu"
@@ -55,30 +54,26 @@ export async function Header() {
           <nav className="hidden md:flex items-center gap-1">
             <Link
               href="/jobs"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
+              className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
             >
-              <Search className="h-4 w-4" />
               求人を探す
             </Link>
             <Link
               href="/jobs/feed"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
+              className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
             >
-              <Sparkles className="h-4 w-4" />
               フィード
             </Link>
             <Link
               href="/jobs/map"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
+              className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
             >
-              <MapIcon className="h-4 w-4" />
               マップ
             </Link>
             <Link
               href="/journal"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
+              className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
             >
-              <Newspaper className="h-4 w-4" />
               マガジン
             </Link>
             <Link
@@ -96,7 +91,6 @@ export async function Header() {
                   size="md"
                   className="ml-1 bg-primary-500 hover:bg-primary-600 shadow-sm"
                 >
-                  <UserCircle className="h-4 w-4" />
                   {myPage.label}
                 </LinkButton>
                 <HeaderLogoutButton variant="desktop" />
@@ -117,7 +111,6 @@ export async function Header() {
                   size="md"
                   className="bg-primary-500 hover:bg-primary-600 shadow-sm"
                 >
-                  <MessageCircle className="h-4 w-4" />
                   無料で始める
                 </LinkButton>
               </>
