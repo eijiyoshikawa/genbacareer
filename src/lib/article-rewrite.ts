@@ -229,6 +229,11 @@ export type SelectOptions = {
   limit: number
   /** 集計期間内の最小 impressions（ノイズ除去）。 */
   minImpressions?: number
+  /**
+   * 平均掲載順位の上限。これより下位（圏外）は本文リライトだけでは
+   * 順位が動きにくく、自動公開する価値が低いため対象外にする。既定 40。
+   */
+  maxPosition?: number
   /** クールダウン日数（直近この日数にリライト済みなら除外）。 */
   cooldownDays?: number
   /** 現在時刻（テスト用に注入可能）。 */
@@ -247,6 +252,7 @@ export function selectCandidates(
   opts: SelectOptions
 ): RewriteCandidate[] {
   const minImpressions = opts.minImpressions ?? 30
+  const maxPosition = opts.maxPosition ?? 40
   const cooldownDays = opts.cooldownDays ?? 30
   const now = opts.now ?? new Date()
   const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000
@@ -256,6 +262,7 @@ export function selectCandidates(
   const candidates: RewriteCandidate[] = []
   for (const metric of metrics) {
     if (metric.impressions < minImpressions) continue
+    if (metric.position > maxPosition) continue // 圏外は本文改善だけでは届きにくい
     const article = bySlug.get(metric.slug)
     if (!article) continue
     if (
@@ -443,6 +450,7 @@ export type RunOptions = {
   /** 集計期間（日）。 */
   windowDays?: number
   minImpressions?: number
+  maxPosition?: number
   cooldownDays?: number
   /** true なら DB を書き換えず候補のみ算出。 */
   dryRun?: boolean
@@ -524,6 +532,7 @@ export async function runArticleRewrite(opts: RunOptions = {}): Promise<RunSumma
   const candidates = selectCandidates(metrics, articles, {
     limit,
     minImpressions: opts.minImpressions,
+    maxPosition: opts.maxPosition,
     cooldownDays: opts.cooldownDays,
   })
   summary.candidates = candidates.map((c) => ({

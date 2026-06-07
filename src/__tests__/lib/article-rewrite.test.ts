@@ -122,6 +122,19 @@ describe("selectCandidates", () => {
     expect(result.map((c) => c.metric.slug)).toEqual(["high"])
   })
 
+  it("excludes out-of-range positions beyond maxPosition", () => {
+    const deep: PageMetric[] = [
+      { page: "p", slug: "deep", impressions: 500, clicks: 1, ctr: 0.002, position: 63.9, topQueries: [] },
+    ]
+    const arts = [article({ slug: "deep" })]
+    // 既定 maxPosition=40 → 圏外なので 0 件
+    expect(selectCandidates(deep, arts, { limit: 5, now }).length).toBe(0)
+    // 上限を緩めれば対象になる
+    expect(
+      selectCandidates(deep, arts, { limit: 5, maxPosition: 80, now }).length
+    ).toBe(1)
+  })
+
   it("allows rewrite once cooldown has passed", () => {
     const result = selectCandidates(
       metrics.filter((m) => m.slug === "cooldown"),
