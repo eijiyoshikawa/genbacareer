@@ -816,12 +816,39 @@ model Article {
   featured        Boolean   @default(false)
   viewCount       Int       @default(0) @map("view_count")
   publishedAt     DateTime? @map("published_at") @db.Timestamptz()
+  // SEO 自動リライト（GSC ベース）のクールダウン・回数管理
+  lastRewrittenAt DateTime? @map("last_rewritten_at") @db.Timestamptz()
+  rewriteCount    Int       @default(0) @map("rewrite_count")
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  revisions       ArticleRevision[]
 
   @@index([status, publishedAt(sort: Desc)], name: "idx_articles_published")
   @@index([category, status], name: "idx_articles_category")
   @@map("articles")
+}
+
+/// 記事リライトの版履歴。自動リライト（完全自動公開）でも安全に
+/// ロールバックできるよう、改稿前の本文・メタを退避する。
+model ArticleRevision {
+  id              String   @id @default(uuid()) @db.Uuid
+  articleId       String   @map("article_id") @db.Uuid
+  // 改稿"前"のスナップショット
+  title           String   @db.VarChar(200)
+  body            String
+  excerpt         String?  @db.VarChar(500)
+  metaDescription String?  @map("meta_description") @db.VarChar(300)
+  // 改稿の出所と根拠
+  source          String   @default("auto-rewrite") @db.VarChar(30) // auto-rewrite | manual
+  reason          String?  @db.VarChar(500) // 例: 対象クエリ・スコア
+  modelName       String?  @map("model_name") @db.VarChar(50)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId, createdAt(sort: Desc)], name: "idx_article_revisions")
+  @@map("article_revisions")
 }
 
 // ========================================

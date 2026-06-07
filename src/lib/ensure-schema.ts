@@ -351,6 +351,25 @@ const STATEMENTS: ReadonlyArray<string> = [
     ON "analytics_events" ("name", "created_at" DESC)`,
  `CREATE INDEX IF NOT EXISTS "idx_analytics_user_time"
     ON "analytics_events" ("user_id", "created_at" DESC)`,
+ // 記事 SEO 自動リライト: クールダウン管理カラム + 版履歴テーブル
+ `ALTER TABLE "articles"
+    ADD COLUMN IF NOT EXISTS "last_rewritten_at" TIMESTAMPTZ`,
+ `ALTER TABLE "articles"
+    ADD COLUMN IF NOT EXISTS "rewrite_count" INTEGER NOT NULL DEFAULT 0`,
+ `CREATE TABLE IF NOT EXISTS "article_revisions" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "article_id" UUID NOT NULL REFERENCES "articles"("id") ON DELETE CASCADE,
+   "title" VARCHAR(200) NOT NULL,
+   "body" TEXT NOT NULL,
+   "excerpt" VARCHAR(500),
+   "meta_description" VARCHAR(300),
+   "source" VARCHAR(30) NOT NULL DEFAULT 'auto-rewrite',
+   "reason" VARCHAR(500),
+   "model_name" VARCHAR(50),
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_article_revisions"
+    ON "article_revisions" ("article_id", "created_at" DESC)`,
 ]
 
 let inflight: Promise<boolean> | null = null
