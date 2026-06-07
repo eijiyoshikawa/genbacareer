@@ -48,8 +48,8 @@ async function requireCompanyUser() {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireCompanyUser()
-  if (!auth) {
+  const ctx = await requireCompanyUser()
+  if (!ctx) {
     return NextResponse.json({ error: "認証が必要です" }, { status: 401 })
   }
 
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       },
     },
   })
-  if (!job || job.companyId !== auth.companyId) {
+  if (!job || job.companyId !== ctx.companyId) {
     return NextResponse.json({ error: "求人が見つかりません" }, { status: 404 })
   }
 
@@ -147,10 +147,10 @@ export async function POST(request: NextRequest) {
   try {
     scout = await prisma.scoutMessage.create({
       data: {
-        companyId: auth.companyId,
+        companyId: ctx.companyId,
         jobId,
         userId,
-        companyUserId: auth.userId,
+        companyUserId: ctx.userId,
         subject,
         body,
         status: "sent",
@@ -213,13 +213,13 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  const auth = await requireCompanyUser()
-  if (!auth) {
+  const ctx = await requireCompanyUser()
+  if (!ctx) {
     return NextResponse.json({ error: "認証が必要です" }, { status: 401 })
   }
 
   const scouts = await prisma.scoutMessage.findMany({
-    where: { companyId: auth.companyId },
+    where: { companyId: ctx.companyId },
     orderBy: { sentAt: "desc" },
     take: 100,
     select: {

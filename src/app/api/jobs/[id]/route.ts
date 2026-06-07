@@ -4,6 +4,7 @@ import {
   getClientIp,
   rateLimitResponse,
 } from "@/lib/rate-limit"
+import { isValidUuid } from "@/lib/uuid"
 import { type NextRequest } from "next/server"
 
 export async function GET(
@@ -19,6 +20,10 @@ export async function GET(
   if (!rl.allowed) return rateLimitResponse(rl)
 
   const { id } = await params
+
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
 
   const job = await prisma.job.findUnique({
     where: { id },

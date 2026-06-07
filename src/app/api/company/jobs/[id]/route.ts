@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isValidUuid } from "@/lib/uuid"
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -52,6 +53,10 @@ export async function GET(
 
   const { id } = await params
 
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
+
   const job = await prisma.job.findUnique({ where: { id } })
   if (!job || job.companyId !== ctx.companyId) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
@@ -70,6 +75,10 @@ export async function PUT(
   }
 
   const { id } = await params
+
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
 
   const existing = await prisma.job.findUnique({
     where: { id },
@@ -154,6 +163,10 @@ export async function DELETE(
   }
 
   const { id } = await params
+
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
 
   const existing = await prisma.job.findUnique({
     where: { id },

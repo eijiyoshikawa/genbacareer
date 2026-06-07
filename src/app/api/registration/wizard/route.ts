@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { hashSync } from "bcryptjs"
+import { hash } from "bcryptjs"
 import { prisma } from "@/lib/db"
 import { generateToken } from "@/lib/tokens"
 import { sendEmailVerificationEmail } from "@/lib/email"
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const passwordHash = hashSync(password, 12)
+    const passwordHash = await hash(password, 12)
     const verificationToken = generateToken()
     const verificationTokenExpiry = new Date(
       Date.now() + VERIFICATION_TOKEN_EXPIRY_MS,
