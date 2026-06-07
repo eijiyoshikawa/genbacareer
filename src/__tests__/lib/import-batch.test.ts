@@ -291,6 +291,21 @@ describe("inferCategory", () => {
       expect(inferCategory("空調システム設計エンジニア", null)).toBe("electrical")
     })
 
+    it("does NOT block 土木インフラ jobs (regression: インフラエンジニア block)", () => {
+      // 「インフラ」「ネットワーク」は土木インフラ/通信設備と両義のため、
+      // 土木キーワードがあれば建設として維持する
+      // 「土木」は civil が施工管理(management)より先にマッチする
+      expect(inferCategory("インフラエンジニア（２級土木施工管理技士～）", null)).toBe(
+        "civil"
+      )
+      expect(inferCategory("インフラエンジニア（土木施工管理技士） 橋梁補修", null)).toBe(
+        "civil"
+      )
+      // 建設キーワードの無い純IT/通信は引き続き null（除外）
+      expect(inferCategory("インフラエンジニア", null)).toBe(null)
+      expect(inferCategory("通信ネットワークエンジニア／八代", null)).toBe(null)
+    })
+
     it("still nulls manufacturing operators with no construction keyword", () => {
       expect(inferCategory("プラスチック射出成型 テクニカルオペレーター", null)).toBe(null)
       expect(inferCategory("ソーイングオペレーター", null)).toBe(null)

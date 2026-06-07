@@ -16,14 +16,31 @@
  *   # 1) dry-run で件数だけ確認
  *   pnpm tsx --env-file=.env.vercel-prod scripts/cleanup-non-construction-hw-jobs.ts
  *
- *   # 2) 実適用
+ *   # 2) 実適用（建設キーワードを含む誤判定が 0 件のときのみ実行される）
  *   pnpm tsx --env-file=.env.vercel-prod scripts/cleanup-non-construction-hw-jobs.ts --apply
+ *
+ *   # 3) 安全チェックを承知の上で強制適用（非推奨。誤判定を確認済みのときだけ）
+ *   pnpm tsx --env-file=.env.vercel-prod scripts/cleanup-non-construction-hw-jobs.ts --apply --force
+ *
+ * 安全機構:
+ *   - dry-run がデフォルト
+ *   - 「非建設業判定なのにタイトルに強い建設キーワードを含む」求人を炙り出し、
+ *     1 件でもあれば --apply を中止する（ブロックリスト誤爆の検知）。--force で上書き。
  */
 
 import { prisma } from "@/lib/db"
 import { inferCategory } from "@/lib/crawler/import-batch"
 
 const apply = process.argv.includes("--apply")
+const force = process.argv.includes("--force")
+
+/**
+ * 安全トリップワイヤー: 「非建設業」と判定されたのにタイトルに強い建設キーワードを
+ * 含む求人は、ブロックリストの誤爆（建設求人の誤close）の疑いが濃い。
+ * apply 前にこれらを炙り出し、0 件でなければ apply を中止する（--force で上書き）。
+ */
+const STRONG_CONSTRUCTION_RE =
+  /土木|建築|建設|躯体|施工管理|現場監督|現場代理人|橋梁|トンネル|舗装|河川|造成|基礎工事|鳶|とび職|鉄筋|型枠|大工|足場|左官|内装|防水|塗装|解体|産廃|アスベスト|測量|重機|建設機械|クレーン|ダンプ|ショベル|ユンボ|電気工事|設備工事|配管|配線|空調|消防設備/
 
 async function main(): Promise<void> {
   console.log(
@@ -37,9 +54,18 @@ async function main(): Promise<void> {
   let scanned = 0
   let blocked = 0
   const examplesByCategory = new Map<string, Array<{ id: string; title: string }>>()
+  // close 予定の ID（apply はトリップワイヤー確認後にまとめて実行）
+  const toClose: string[] = []
+  // 建設キーワードを含むのに非建設業判定された "疑わしい" 求人
+  const suspects: Array<{ id: string; title: string; category: string }> = []
 
   while (true) {
-    const jobs = await prisma.job.findMany({
+    const jobs: Array<{
+      id: string
+      title: string
+      description: string | null
+      category: string
+    }> = await prisma.job.findMany({
       where: { source: "hellowork", status: "active" },
       orderBy: { id: "asc" },
       take: batchSize,
@@ -52,16 +78,14 @@ async function main(): Promise<void> {
       const newCategory = inferCategory(job.title, job.description)
       if (newCategory === null) {
         blocked++
+        toClose.push(job.id)
         const list = examplesByCategory.get(job.category) ?? []
         if (list.length < 3) {
           list.push({ id: job.id, title: job.title })
           examplesByCategory.set(job.category, list)
         }
-        if (apply) {
-          await prisma.job.update({
-            where: { id: job.id },
-            data: { status: "closed" },
-          })
+        if (STRONG_CONSTRUCTION_RE.test(job.title)) {
+          suspects.push({ id: job.id, title: job.title, category: job.category })
         }
       }
     }
@@ -85,11 +109,56 @@ async function main(): Promise<void> {
     }
   }
 
-  if (!apply) {
-    console.log("\n⚠️  上記の件数で問題なければ --apply を付けて再実行してください")
+  // 安全トリップワイヤー
+  console.log("\n" + "=".repeat(60))
+  console.log(
+    `🚨 安全チェック: 建設キーワードを含むのに非建設業判定された求人: ${suspects.length} 件`
+  )
+  console.log("=".repeat(60))
+  if (suspects.length > 0) {
+    console.log(
+      "  （ブロックリスト誤爆の疑い = 建設求人を誤って close しようとしている可能性）"
+    )
+    for (const s of suspects.slice(0, 30)) {
+      console.log(
+        `    - [${s.category}] ${s.title.slice(0, 60)}${s.title.length > 60 ? "..." : ""} (${s.id})`
+      )
+    }
+    if (suspects.length > 30) {
+      console.log(`    ... ほか ${suspects.length - 30} 件`)
+    }
   } else {
-    console.log("\n✅  全件 status='closed' に更新しました")
+    console.log("  ✅ 建設キーワードを含む誤判定はありませんでした")
   }
+
+  if (!apply) {
+    console.log(
+      "\n⚠️  上記の件数・安全チェックで問題なければ --apply を付けて再実行してください"
+    )
+    return
+  }
+
+  // apply: トリップワイヤーが 0 件でなければ中止（--force で上書き）
+  if (suspects.length > 0 && !force) {
+    console.error(
+      `\n❌ 中止: 建設キーワードを含む求人が ${suspects.length} 件あります。` +
+        `\n   inferCategory を修正するか、本当に close してよいと確認できたら --force を付けてください。`
+    )
+    process.exit(1)
+  }
+
+  console.log(`\n  ${toClose.length} 件を close します...`)
+  let closed = 0
+  for (let i = 0; i < toClose.length; i += 100) {
+    const chunk = toClose.slice(i, i + 100)
+    const res = await prisma.job.updateMany({
+      where: { id: { in: chunk } },
+      data: { status: "closed" },
+    })
+    closed += res.count
+    process.stdout.write(`\r  close 済み: ${closed} / ${toClose.length}`)
+  }
+  console.log(`\n\n✅  ${closed} 件を status='closed' に更新しました`)
 }
 
 main()
