@@ -267,5 +267,34 @@ describe("inferCategory", () => {
       expect(inferCategory("建機オペレーター", null)).toBe("driver")
       expect(inferCategory("油圧ショベルオペレーター", null)).toBe("driver")
     })
+
+    // dry-run で検出した偽ブロックのリグレッション（建設求人を null にしない）
+    it("does NOT block 建設機械オペレーター (regression: 機械オペレータ block)", () => {
+      expect(inferCategory("建設機械オペレータ", null)).toBe("driver")
+      expect(inferCategory("建設機械オペレーター", null)).toBe("driver")
+      expect(inferCategory("経験者採用 地域を支える建設機械オペレーター／枕崎市", null)).toBe(
+        "driver"
+      )
+      // 土木が先にマッチするケースも null にはならない
+      expect(inferCategory("土木作業員・建設機械オペレーター 資格取得支援制度有", null)).toBe(
+        "civil"
+      )
+    })
+
+    it("does NOT block 建設の客先常駐求人 (regression: 客先常駐 block)", () => {
+      expect(inferCategory("（派）客先常駐型！ 建築施工管理 （長野市）", null)).toBe(
+        "management"
+      )
+    })
+
+    it("does NOT block 空調システム設計 (regression: システム設計 block)", () => {
+      expect(inferCategory("空調システム設計エンジニア", null)).toBe("electrical")
+    })
+
+    it("still nulls manufacturing operators with no construction keyword", () => {
+      expect(inferCategory("プラスチック射出成型 テクニカルオペレーター", null)).toBe(null)
+      expect(inferCategory("ソーイングオペレーター", null)).toBe(null)
+      expect(inferCategory("機械オペレーター", null)).toBe(null)
+    })
   })
 })
