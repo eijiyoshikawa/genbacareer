@@ -40,7 +40,7 @@ const DEFAULT_PAGES_PER_RUN = 2
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

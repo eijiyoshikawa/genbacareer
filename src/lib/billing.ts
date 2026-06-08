@@ -84,9 +84,13 @@ async function invoiceViaMoneyForward(args: InvoiceArgs) {
     })
     partnerId = partner.id
 
+    // MFパートナーIDをDBに保存。失敗時は次回の請求で再作成されるが、
+    // パートナー重複を防ぐためベストエフォートで更新しておく。
     await prisma.company.update({
       where: { id: company.id },
       data: { mfPartnerId: partnerId },
+    }).catch((e) => {
+      console.error(`[billing] Failed to persist mfPartnerId for company ${company.id}:`, e)
     })
   }
 

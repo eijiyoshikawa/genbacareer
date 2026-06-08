@@ -134,7 +134,7 @@ export function computeRankScore(
     const ageDays =
       (now.getTime() - job.publishedAt.getTime()) / (1000 * 60 * 60 * 24)
     if (ageDays >= 0 && ageDays <= 3) score += 15
-    else if (ageDays >= 0 && ageDays <= 7) score += 8
+    else if (ageDays > 3 && ageDays <= 7) score += 8
   }
 
   // 期限切れ間近ペナルティ: expiresAt が 7 日以内なら -10、3 日以内なら -20
@@ -142,7 +142,7 @@ export function computeRankScore(
     const daysUntilExpire =
       (job.expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
     if (daysUntilExpire >= 0 && daysUntilExpire <= 3) score -= 20
-    else if (daysUntilExpire >= 0 && daysUntilExpire <= 7) score -= 10
+    else if (daysUntilExpire > 3 && daysUntilExpire <= 7) score -= 10
   }
 
   // 人気度: viewCount を鮮度補正付きで加点。
