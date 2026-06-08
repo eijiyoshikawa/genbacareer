@@ -83,6 +83,24 @@ async function main(): Promise<void> {
   const supabase = apply ? getClient() : null
   const urls: string[] = []
 
+  // バケットが無ければ作成（public read）。既にあれば何もしない。
+  if (apply && supabase) {
+    const { data: buckets } = await supabase.storage.listBuckets()
+    const exists = (buckets ?? []).some((b) => b.name === BUCKET)
+    if (!exists) {
+      const { error: createErr } = await supabase.storage.createBucket(BUCKET, {
+        public: true,
+      })
+      if (createErr) {
+        console.error(`❌ バケット作成失敗 (${BUCKET}): ${createErr.message}`)
+        process.exit(1)
+      }
+      console.log(`  📦 バケット作成: ${BUCKET} (public)`)
+    } else {
+      console.log(`  📦 バケット確認: ${BUCKET} は既存`)
+    }
+  }
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
     const ext = extname(file).toLowerCase()
