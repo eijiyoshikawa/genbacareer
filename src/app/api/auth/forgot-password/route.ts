@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/db"
-import { generateToken, TOKEN_EXPIRY_MS } from "@/lib/tokens"
+import { generateToken, hashToken, TOKEN_EXPIRY_MS } from "@/lib/tokens"
 import { sendPasswordResetEmail } from "@/lib/email"
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 
@@ -42,9 +42,10 @@ export async function POST(request: NextRequest) {
     const token = generateToken()
     const expiry = new Date(Date.now() + TOKEN_EXPIRY_MS)
 
+    // DB にはハッシュを保存し、平文トークンはメールでのみ送る（at-rest 保護）
     await prisma.user.update({
       where: { id: user.id },
-      data: { resetToken: token, resetTokenExpiry: expiry },
+      data: { resetToken: hashToken(token), resetTokenExpiry: expiry },
     })
 
     try {

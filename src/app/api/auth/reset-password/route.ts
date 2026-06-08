@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { hash } from "bcryptjs"
 import { prisma } from "@/lib/db"
+import { hashToken } from "@/lib/tokens"
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 
 const schema = z.object({
@@ -37,8 +38,9 @@ export async function POST(request: NextRequest) {
 
   const { token, password } = parsed.data
 
+  // DB にはハッシュを保存しているので、受け取った平文トークンをハッシュ化して照合
   const user = await prisma.user.findUnique({
-    where: { resetToken: token },
+    where: { resetToken: hashToken(token) },
     select: { id: true, resetTokenExpiry: true },
   })
 
