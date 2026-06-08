@@ -20,7 +20,9 @@
  *   pnpm tsx --env-file=.env.local scripts/insert-article-images.ts --apply    # 実適用
  *
  * オプション:
- *   --no-hero   ヒーロー画像は差し替えず、本文2枚のみ
+ *   --no-hero     ヒーロー画像は差し替えず、本文2枚のみ
+ *   --reassign    既に挿入済みの記事も対象にし、旧画像を消して入れ直す（組み替え）
+ *   --seed=N      画像プールのシャッフル seed（既定 42。変えると別の組み合わせ）
  */
 
 import { createClient } from "@supabase/supabase-js"
@@ -29,6 +31,8 @@ import {
   assignImages,
   insertImagesIntoBody,
   hasAutoImages,
+  stripAutoImages,
+  shuffleWithSeed,
 } from "@/lib/article-images"
 
 const BUCKET = "company-media"
@@ -36,6 +40,9 @@ const PREFIX = "articles"
 
 const apply = process.argv.includes("--apply")
 const noHero = process.argv.includes("--no-hero")
+const reassign = process.argv.includes("--reassign")
+const seedArg = process.argv.find((a) => a.startsWith("--seed="))
+const seed = seedArg ? Number(seedArg.split("=")[1]) : 42
 
 async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
   const delays = [1_000, 2_000, 5_000, 10_000]
@@ -93,8 +100,11 @@ async function main(): Promise<void> {
       : "🟡 DRY-RUN MODE: 計画のみ表示（--apply で実適用）"
   )
   console.log(noHero ? "  ヒーロー画像: 差し替えない（本文2枚のみ）" : "  ヒーロー画像: 差し替える")
+  console.log(reassign ? "  モード: 再割当（既存の画像を組み替える）" : "  モード: 新規挿入のみ")
+  console.log(`  シャッフル seed: ${seed}`)
 
-  const pool = await loadImagePool()
+  // 連番の連写写真が1記事に固まらないよう、プールをシャッフルしてから割り当てる
+  const pool = shuffleWithSeed(await loadImagePool(), seed)
   console.log(`  画像プール: ${pool.length} 枚`)
   if (pool.length === 0) {
     console.error(
@@ -134,13 +144,16 @@ async function main(): Promise<void> {
   }> = []
 
   for (const a of articles) {
-    if (hasAutoImages(a.body)) {
+    const alreadyHasImages = hasAutoImages(a.body)
+    if (alreadyHasImages && !reassign) {
       skipped++
-      continue // 冪等: 既に挿入済み
+      continue // 冪等: 既に挿入済み（再割当モードでなければスキップ）
     }
     const imgs = assign.get(a.id)
     if (!imgs) continue
-    const newBody = insertImagesIntoBody(a.body, [
+    // 再割当時は既存の自動画像を除去してから入れ直す
+    const baseBody = alreadyHasImages ? stripAutoImages(a.body) : a.body
+    const newBody = insertImagesIntoBody(baseBody, [
       { url: imgs.body[0], alt: a.title },
       { url: imgs.body[1], alt: a.title },
     ])
@@ -182,10 +195,10 @@ async function main(): Promise<void> {
                 articleId: u.id,
                 title: u.title,
                 body: u.oldBody,
-                source: "image-insert",
+                source: reassign ? "image-reassign" : "image-insert",
                 // ArticleRevision に imageUrl 列が無いため、ロールバック用に
                 // 旧ヒーローURLを reason に退避（body は revision.body から復元可能）
-                reason: `ヒーロー差替+本文2枚; oldHero=${u.oldImageUrl ?? ""}`.slice(
+                reason: `${reassign ? "画像組み替え" : "ヒーロー差替+本文2枚"}; oldHero=${u.oldImageUrl ?? ""}`.slice(
                   0,
                   500
                 ),
