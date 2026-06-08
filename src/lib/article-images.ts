@@ -53,9 +53,45 @@ export function escapeHtmlAttr(s: string): string {
 /** 自動挿入の目印（冪等判定 / 後からの一括除去に使う）。 */
 export const AUTO_IMAGE_MARKER = "data-auto-img"
 
+/**
+ * 決定的シャッフル（seed 付き Fisher-Yates）。
+ * 連番の連写写真がプール上で隣接していると、ローテーション割当で
+ * 1記事に酷似写真が固まるため、割当前にシャッフルして分散させる。
+ * seed を変えれば別の並びになる（再ランダム化）。
+ */
+export function shuffleWithSeed<T>(items: T[], seed: number): T[] {
+  // mulberry32 PRNG（軽量・決定的）
+  let s = seed >>> 0
+  const rand = () => {
+    s |= 0
+    s = (s + 0x6d2b79f5) | 0
+    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+  const arr = items.slice()
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+  }
+  return arr
+}
+
 /** 本文が既に自動挿入済みかどうか。 */
 export function hasAutoImages(body: string): boolean {
   return body.includes(AUTO_IMAGE_MARKER)
+}
+
+/**
+ * 自動挿入した <figure>（マーカー付き）を本文から全て除去する。
+ * 再割当（組み替え）時に、旧画像を消してから新しい画像を入れ直すのに使う。
+ * 挿入時に付けた前後の空白も一緒に取り除く。
+ */
+export function stripAutoImages(body: string): string {
+  return body.replace(
+    /\s*<figure class="article-auto-image"[\s\S]*?<\/figure>/g,
+    ""
+  )
 }
 
 /** 1枚分の figure HTML を生成。 */

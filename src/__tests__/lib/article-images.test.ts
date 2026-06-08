@@ -3,6 +3,8 @@ import {
   assignImages,
   insertImagesIntoBody,
   hasAutoImages,
+  stripAutoImages,
+  shuffleWithSeed,
   escapeHtmlAttr,
   buildImageFigure,
   AUTO_IMAGE_MARKER,
@@ -88,5 +90,47 @@ describe("insertImagesIntoBody", () => {
   it("hasAutoImages detects the marker", () => {
     expect(hasAutoImages("<p>x</p>")).toBe(false)
     expect(hasAutoImages(insertImagesIntoBody("<p>x</p>", imgs))).toBe(true)
+  })
+
+  it("stripAutoImages removes inserted figures (round-trip restores original)", () => {
+    const body = "<h2>H</h2><p>P1</p><p>P2</p><p>P3</p>"
+    const withImgs = insertImagesIntoBody(body, imgs)
+    expect(hasAutoImages(withImgs)).toBe(true)
+    const stripped = stripAutoImages(withImgs)
+    expect(hasAutoImages(stripped)).toBe(false)
+    expect(stripped).toBe(body)
+  })
+
+  it("reassign flow: strip then re-insert different images works", () => {
+    const body = "<p>P1</p><p>P2</p>"
+    const first = insertImagesIntoBody(body, imgs)
+    const reassigned = insertImagesIntoBody(stripAutoImages(first), [
+      { url: "https://x/9.jpg", alt: "t" },
+      { url: "https://x/8.jpg", alt: "t" },
+    ])
+    expect(reassigned).toContain("9.jpg")
+    expect(reassigned).not.toContain("1.jpg")
+    expect((reassigned.match(/data-auto-img/g) ?? []).length).toBe(2)
+  })
+})
+
+describe("shuffleWithSeed", () => {
+  it("is a permutation (same elements, deterministic per seed)", () => {
+    const arr = Array.from({ length: 20 }, (_, i) => i)
+    const a = shuffleWithSeed(arr, 42)
+    const b = shuffleWithSeed(arr, 42)
+    expect(a).toEqual(b) // 決定的
+    expect([...a].sort((x, y) => x - y)).toEqual(arr) // 要素は不変
+    expect(a).not.toEqual(arr) // 並びは変わる
+  })
+  it("different seeds give different orders", () => {
+    const arr = Array.from({ length: 50 }, (_, i) => i)
+    expect(shuffleWithSeed(arr, 1)).not.toEqual(shuffleWithSeed(arr, 2))
+  })
+  it("does not mutate the input", () => {
+    const arr = [1, 2, 3, 4, 5]
+    const copy = [...arr]
+    shuffleWithSeed(arr, 7)
+    expect(arr).toEqual(copy)
   })
 })
