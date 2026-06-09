@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     ...(prefecture && { prefecture }),
     ...categoryFilter,
     ...(employmentType && { employmentType }),
-    ...(salaryMin && { salaryMin: { gte: Number(salaryMin) } }),
+    ...(salaryMin && !isNaN(parseInt(salaryMin, 10)) && { salaryMin: { gte: parseInt(salaryMin, 10) } }),
     ...(q && {
       OR: [
         { title: { contains: q, mode: "insensitive" as const } },

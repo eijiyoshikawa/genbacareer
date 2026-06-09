@@ -15,7 +15,7 @@ const updateProfileSchema = z.object({
   phone: z.string().max(20).nullable().optional(),
   prefecture: z.string().max(10).nullable().optional(),
   city: z.string().max(50).nullable().optional(),
-  birthDate: z.string().nullable().optional(),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "生年月日は YYYY-MM-DD 形式で入力してください").nullable().optional(),
   desiredCategories: z.array(z.string()).optional(),
   desiredSalaryMin: z.number().int().min(0).nullable().optional(),
   profilePublic: z.boolean().optional(),

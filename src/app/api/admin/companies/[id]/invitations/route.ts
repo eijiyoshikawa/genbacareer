@@ -141,7 +141,7 @@ export async function POST(
 
   // method === "direct"
   const tempPassword = generateTemporaryPassword()
-  const passwordHash = await bcrypt.hash(tempPassword, 10)
+  const passwordHash = await bcrypt.hash(tempPassword, 12)
 
   const companyUser = await prisma.companyUser.create({
     data: {

@@ -50,9 +50,9 @@ export async function POST(request: NextRequest) {
   }
 
   // Honeypot 反応: bot からの送信は silent reject (200 を返してログ記録)
-  if (parsed.data.website && parsed.data.website.length > 0) {
+  if (parsed.data.website && parsed.data.website.trim().length > 0) {
     console.info(
-      `[contact] honeypot triggered ip=${getClientIp(request)} email=${parsed.data.email}`
+      `[contact] honeypot triggered ip=${getClientIp(request)}`
     )
     return Response.json({ ok: true, message: "送信しました" })
   }

@@ -133,7 +133,7 @@ export async function acceptInvitation({
   })
   if (existing) return { ok: false, reason: "email_taken" }
 
-  const passwordHash = await bcrypt.hash(password, 10)
+  const passwordHash = await bcrypt.hash(password, 12)
 
   const created = await prisma.$transaction(async (tx) => {
     const user = await tx.companyUser.create({
