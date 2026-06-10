@@ -20,12 +20,18 @@ function resolveMyPageTarget(
       return { href: "/mypage", label: "マイページ" }
     case "company_admin":
     case "company_member":
-      return { href: "/company", label: "企業ダッシュボード" }
+      // ダッシュボードは route group (dashboard) 経由で /company/dashboard。
+      // /company 直下にはページが無いため、ここを /company にすると 404 になる。
+      return { href: "/company/dashboard", label: "企業ダッシュボード" }
     case "admin":
       return { href: "/admin", label: "管理画面" }
     default:
       return null
   }
+}
+
+function isCompanyRole(role: string | undefined): boolean {
+  return role === "company_admin" || role === "company_member"
 }
 
 /**
@@ -41,47 +47,58 @@ export async function Header() {
     ? ((session.user as { role?: string }).role ?? "seeker")
     : undefined
   const myPage = resolveMyPageTarget(role)
+  // 企業アカウントには求職者向けのブラウズ機能（求人検索/フィード/マップ/マガジン）は
+  // 見せず、ダッシュボードのみに集約する。求人プレビューは各求人の
+  // /jobs/preview/[token] で確認できる。
+  const isCompany = isCompanyRole(role)
 
   return (
     <header className="bg-white sticky top-0 z-50 border-b border-gray-100">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          <Link href="/" aria-label="ゲンバキャリア トップへ">
+          <Link
+            href={isCompany ? "/company/dashboard" : "/"}
+            aria-label="ゲンバキャリア トップへ"
+          >
             <BrandLogo />
           </Link>
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">
-            <Link
-              href="/jobs"
-              className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
-            >
-              求人を探す
-            </Link>
-            <Link
-              href="/jobs/feed"
-              className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
-            >
-              フィード
-            </Link>
-            <Link
-              href="/jobs/map"
-              className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
-            >
-              マップ
-            </Link>
-            <Link
-              href="/journal"
-              className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
-            >
-              マガジン
-            </Link>
-            <Link
-              href="/for-employers"
-              className="px-3 py-2 text-xs text-gray-600 hover:text-primary-600 transition"
-            >
-              企業の方
-            </Link>
+            {!isCompany && (
+              <>
+                <Link
+                  href="/jobs"
+                  className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
+                >
+                  求人を探す
+                </Link>
+                <Link
+                  href="/jobs/feed"
+                  className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
+                >
+                  フィード
+                </Link>
+                <Link
+                  href="/jobs/map"
+                  className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
+                >
+                  マップ
+                </Link>
+                <Link
+                  href="/journal"
+                  className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 transition"
+                >
+                  マガジン
+                </Link>
+                <Link
+                  href="/for-employers"
+                  className="px-3 py-2 text-xs text-gray-600 hover:text-primary-600 transition"
+                >
+                  企業の方
+                </Link>
+              </>
+            )}
 
             {myPage ? (
               <>
@@ -117,7 +134,7 @@ export async function Header() {
             )}
           </nav>
 
-          <HeaderMobileMenu myPage={myPage} />
+          <HeaderMobileMenu myPage={myPage} isCompany={isCompany} />
         </div>
       </div>
     </header>
