@@ -9,6 +9,7 @@
  * 準備:
  *   1) 表示したい 15 枚を ./job-default-images/ に置く（jpg/png/webp）
  *      ※ 16 枚以上ある場合は先頭 15 枚（ファイル名昇順）を採用
+ *      ※ アップロード時に 1920×1080 (16:9, 中央クロップ) の WebP へ自動正規化
  *
  * 実行:
  *   # dry-run（対象ファイル一覧のみ）
@@ -23,11 +24,16 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { extname, join } from "node:path"
 import { createClient } from "@supabase/supabase-js"
+import sharp from "sharp"
 
 const BUCKET = "company-media"
 const PREFIX = "job-defaults"
 const MAX = 15
 const LIB_PATH = "src/lib/default-job-images.ts"
+
+// 出力サイズ（フルHD・16:9）。被写体が切れないよう中央クロップで cover。
+const OUT_W = 1920
+const OUT_H = 1080
 
 const apply = process.argv.includes("--apply")
 const write = process.argv.includes("--write")
@@ -110,19 +116,24 @@ async function main(): Promise<void> {
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
-    const ext = extname(file).toLowerCase()
-    // 連番で固定名にして、再アップロード時も同じ URL を維持する
-    const dest = `${PREFIX}/${String(i + 1).padStart(2, "0")}${ext}`
+    // 連番で固定名にして、再アップロード時も同じ URL を維持する。
+    // 出力は常に 1920×1080 の WebP に正規化するため拡張子は .webp 固定。
+    const dest = `${PREFIX}/${String(i + 1).padStart(2, "0")}.webp`
 
     if (!apply) {
-      console.log(`  [dry-run] ${file}  →  ${BUCKET}/${dest}`)
+      console.log(`  [dry-run] ${file}  →  ${BUCKET}/${dest}  (→ ${OUT_W}×${OUT_H} webp)`)
       continue
     }
 
-    const buf = readFileSync(join(dir, file))
+    // 1920×1080 (16:9) へ中央クロップで cover、WebP 化
+    const buf = await sharp(readFileSync(join(dir, file)))
+      .rotate() // EXIF の向きを反映
+      .resize(OUT_W, OUT_H, { fit: "cover", position: "centre" })
+      .webp({ quality: 82 })
+      .toBuffer()
     const { error } = await supabase!.storage
       .from(BUCKET)
-      .upload(dest, buf, { contentType: MIME[ext], upsert: true })
+      .upload(dest, buf, { contentType: "image/webp", upsert: true })
     if (error) {
       console.error(`  ❌ ${file}: ${error.message}`)
       continue
