@@ -3,6 +3,7 @@ import { CaretRight, SealCheck } from "@phosphor-icons/react/dist/ssr"
 import { getCategoryLabel } from "@/lib/categories"
 import { computeHasConstructionPermit } from "@/lib/gbizinfo"
 import { pickDefaultJobImage } from "@/lib/default-job-images"
+import { parseVideoUrls } from "@/lib/video-embed"
 import { TagChip } from "./tag-chip"
 import { FavoriteButton } from "./favorite-button"
 import { CompareAddButton } from "./compare-add-button"
@@ -24,6 +25,8 @@ type JobCardProps = {
   insurance?: string | null
   /** メイン写真。先頭をアイキャッチに使う。無ければ既定画像へフォールバック */
   imageUrls?: string[]
+  /** 動画・SNS URL。TikTok / Instagram があればカードにロゴを表示する */
+  videoUrls?: string[]
   company:
     | {
         name: string
@@ -184,6 +187,7 @@ export function JobCard({
               認定企業
             </span>
           )}
+          <SnsBadges videoUrls={job.videoUrls} />
           <div className="absolute right-2 top-2">{actions}</div>
         </div>
         <div className="flex min-w-0 flex-1 flex-col p-4">{body}</div>
@@ -206,6 +210,67 @@ export function JobCard({
         />
       </div>
     </Link>
+  )
+}
+
+/**
+ * 求人が持つ動画 URL から TikTok / Instagram のロゴバッジを描画する。
+ * アイキャッチ画像の上に重ねて「SNS 投稿あり」を一目で示す。
+ */
+function SnsBadges({ videoUrls }: { videoUrls?: string[] }) {
+  if (!videoUrls || videoUrls.length === 0) return null
+  const providers = new Set(parseVideoUrls(videoUrls).map((v) => v.provider))
+  const hasTiktok = providers.has("tiktok")
+  const hasInstagram = providers.has("instagram")
+  if (!hasTiktok && !hasInstagram) return null
+  return (
+    <div className="absolute bottom-2 left-2 flex gap-1">
+      {hasTiktok && (
+        <span
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-black text-white shadow"
+          title="TikTok 動画あり"
+          aria-label="TikTok 動画あり"
+        >
+          <TiktokIcon />
+        </span>
+      )}
+      {hasInstagram && (
+        <span
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 text-white shadow"
+          title="Instagram 投稿あり"
+          aria-label="Instagram 投稿あり"
+        >
+          <InstagramIcon />
+        </span>
+      )}
+    </div>
+  )
+}
+
+function TiktokIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5" aria-hidden>
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43V7.51a8.16 8.16 0 0 0 4.78 1.55v-3.44a4.85 4.85 0 0 1-1-.93z" />
+    </svg>
+  )
+}
+
+function InstagramIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-3.5 w-3.5"
+      aria-hidden
+    >
+      <rect x="2" y="2" width="20" height="20" rx="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+    </svg>
   )
 }
 

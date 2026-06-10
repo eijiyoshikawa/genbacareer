@@ -200,6 +200,7 @@ export default async function JobsPage({ searchParams }: Props) {
     annualHolidays: true,
     insurance: true,
     imageUrls: true,
+    videoUrls: true,
     companyId: true,
     publishedAt: true,
     company: {

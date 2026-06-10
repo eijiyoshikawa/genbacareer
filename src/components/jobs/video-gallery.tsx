@@ -21,10 +21,10 @@ export function VideoGallery({ urls }: { urls: string[] }) {
       <p className="mt-1 text-xs text-gray-500">
         実際の職場・現場の様子を動画や SNS 投稿でご覧いただけます。
       </p>
-      <div className="mt-3 grid items-start gap-4 sm:grid-cols-2">
+      <div className="mt-3 flex flex-wrap items-start gap-4">
         {videos.map((v, i) => {
           // TikTok / Instagram は縦型。投稿全体が切れないよう 9:16 の縦コンテナにし、
-          // PC では幅を絞って中央寄せ、SP では横幅いっぱいに表示する。
+          // SP では横幅いっぱい、PC でも縦長フルサイズ（幅を絞りすぎない）で表示する。
           // YouTube / Vimeo は従来どおり 16:9 の横長。
           const label = PROVIDER_LABEL[v.provider] ?? v.provider
           return (
@@ -32,8 +32,8 @@ export function VideoGallery({ urls }: { urls: string[] }) {
               key={v.embedUrl + i}
               className={
                 v.portrait
-                  ? "mx-auto w-full max-w-[340px] border bg-black"
-                  : "border bg-black"
+                  ? "w-full max-w-[420px] border bg-black sm:w-[380px] lg:w-[420px]"
+                  : "w-full border bg-black sm:w-[480px]"
               }
             >
               <div
