@@ -56,14 +56,14 @@ const nextConfig: NextConfig = {
   async headers() {
     const csp = [
       "default-src 'self'",
-      // GA / Sentry / Vercel Analytics + Next.js 必須 inline
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://*.sentry.io https://va.vercel-scripts.com",
-      "script-src-elem 'self' 'unsafe-inline' https://www.googletagmanager.com https://*.sentry.io https://va.vercel-scripts.com",
+      // GA / Sentry / Vercel Analytics + Google Maps + Next.js 必須 inline
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://*.sentry.io https://va.vercel-scripts.com https://maps.googleapis.com https://maps.gstatic.com",
+      "script-src-elem 'self' 'unsafe-inline' https://www.googletagmanager.com https://*.sentry.io https://va.vercel-scripts.com https://maps.googleapis.com https://maps.gstatic.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",
       "img-src 'self' data: blob: https:",
       "media-src 'self' https://www.youtube.com https://player.vimeo.com",
-      "connect-src 'self' https://*.supabase.co https://*.sentry.io https://www.google-analytics.com https://va.vercel-scripts.com wss://*.supabase.co https://info.gbiz.go.jp",
+      "connect-src 'self' https://*.supabase.co https://*.sentry.io https://www.google-analytics.com https://va.vercel-scripts.com wss://*.supabase.co https://info.gbiz.go.jp https://maps.googleapis.com https://maps.gstatic.com",
       "frame-src 'self' https://www.youtube.com https://player.vimeo.com https://www.tiktok.com",
       "frame-ancestors 'none'",
       "form-action 'self'",
