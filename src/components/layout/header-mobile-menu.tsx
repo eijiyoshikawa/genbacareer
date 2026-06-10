@@ -22,8 +22,11 @@ import { HeaderLogoutButton } from "./header-logout-button"
  */
 export function HeaderMobileMenu({
   myPage,
+  isCompany = false,
 }: {
   myPage: { href: string; label: string } | null
+  /** 企業アカウント時は求職者向けナビを隠す */
+  isCompany?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
@@ -60,7 +63,11 @@ export function HeaderMobileMenu({
         >
           {/* ヘッダー行 (閉じるボタン) */}
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3 shadow-sm">
-            <Link href="/" onClick={close} aria-label="ゲンバキャリア トップへ">
+            <Link
+              href={isCompany ? "/company/dashboard" : "/"}
+              onClick={close}
+              aria-label="ゲンバキャリア トップへ"
+            >
               <BrandLogo />
             </Link>
             <button
@@ -75,14 +82,18 @@ export function HeaderMobileMenu({
 
           {/* メニュー本体 — タップターゲット大きめ */}
           <nav className="px-4 py-6 space-y-2">
-            <MenuItem href="/" label="トップ" onClick={close} />
-            <MenuItem href="/jobs" label="求人を探す" onClick={close} />
-            <MenuItem href="/jobs/feed" label="新着フィード" onClick={close} />
-            <MenuItem href="/jobs/map" label="マップから探す" onClick={close} />
-            <MenuItem href="/journal" label="お役立ちマガジン" onClick={close} />
-            <MenuItem href="/for-employers" label="企業の方へ" onClick={close} />
+            {!isCompany && (
+              <>
+                <MenuItem href="/" label="トップ" onClick={close} />
+                <MenuItem href="/jobs" label="求人を探す" onClick={close} />
+                <MenuItem href="/jobs/feed" label="新着フィード" onClick={close} />
+                <MenuItem href="/jobs/map" label="マップから探す" onClick={close} />
+                <MenuItem href="/journal" label="お役立ちマガジン" onClick={close} />
+                <MenuItem href="/for-employers" label="企業の方へ" onClick={close} />
+              </>
+            )}
 
-            <div className="pt-6 mt-4 border-t border-gray-100 space-y-3">
+            <div className={`${isCompany ? "" : "pt-6 mt-4 border-t border-gray-100"} space-y-3`}>
               {myPage ? (
                 <>
                   <LinkButton
