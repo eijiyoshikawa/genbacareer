@@ -327,7 +327,7 @@ export default async function JobsPage({ searchParams }: Props) {
                   name="q"
                   defaultValue={params.q ?? ""}
                   placeholder="職種・地域・キーワードで検索"
-                  className="w-full border-0 py-3 pl-10 pr-4 text-sm font-medium shadow-sm focus:ring-2 focus:ring-primary-400"
+                  className="w-full border-0 bg-white py-3 pl-10 pr-4 text-sm font-medium text-gray-900 placeholder:text-gray-400 shadow-sm focus:ring-2 focus:ring-primary-400"
                 />
               </div>
               <button
