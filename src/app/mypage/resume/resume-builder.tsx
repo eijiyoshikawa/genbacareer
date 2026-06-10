@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Save, Plus, Trash2, Download, GraduationCap, Briefcase, Award, FileText, PenLine } from "lucide-react"
+import { PostalCodeInput } from "@/components/forms/postal-code-input"
 
 const CONSTRUCTION_LICENSES = [
   "1級建築施工管理技士",
@@ -140,7 +141,16 @@ export function ResumeBuilder({ initialData }: { initialData: ResumeData }) {
                   <option value="other">その他</option>
                 </select>
               </div>
-              <Input label="郵便番号" value={data.postalCode} onChange={(v) => updateField("postalCode", v)} placeholder="123-4567" />
+              <PostalCodeInput
+                value={data.postalCode}
+                onValueChange={(v) => updateField("postalCode", v)}
+                onResolved={(addr) =>
+                  updateField(
+                    "address",
+                    `${addr.prefecture}${addr.city}${addr.town}`
+                  )
+                }
+              />
               <Input label="住所" value={data.address} onChange={(v) => updateField("address", v)} className="sm:col-span-2" />
               <Input label="電話番号" value={data.phone} onChange={(v) => updateField("phone", v)} />
               <Input label="メールアドレス" type="email" value={data.email} onChange={(v) => updateField("email", v)} />

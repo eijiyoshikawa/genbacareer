@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { PREFECTURES } from "@/lib/constants"
 import { CATEGORIES } from "@/lib/categories"
 import { JOB_SEARCH_STATUSES } from "@/lib/job-search-status"
+import { PostalCodeInput } from "@/components/forms/postal-code-input"
 
 interface ProfileFormData {
   name: string
@@ -21,6 +22,8 @@ interface ProfileFormData {
 export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
   const router = useRouter()
   const [form, setForm] = useState(initialData)
+  // 郵便番号は住所自動入力の補助用。User スキーマには保存しないためローカル state。
+  const [postalCode, setPostalCode] = useState("")
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -116,6 +119,18 @@ export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
             placeholder="090-1234-5678"
           />
         </div>
+
+        <PostalCodeInput
+          value={postalCode}
+          onValueChange={setPostalCode}
+          onResolved={(addr) =>
+            setForm((prev) => ({
+              ...prev,
+              prefecture: addr.prefecture,
+              city: `${addr.city}${addr.town}`,
+            }))
+          }
+        />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>

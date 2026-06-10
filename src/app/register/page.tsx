@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { PREFECTURES } from "@/lib/constants";
 import { LineLoginButton } from "@/components/auth/line-login-button";
+import { PostalCodeInput } from "@/components/forms/postal-code-input";
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -11,6 +12,7 @@ export default function RegisterPage() {
     email: "",
     password: "",
     passwordConfirm: "",
+    postalCode: "",
     prefecture: "",
     birthDate: "",
   });
@@ -223,6 +225,12 @@ export default function RegisterPage() {
                 placeholder="もう一度入力"
               />
             </div>
+
+            <PostalCodeInput
+              value={form.postalCode}
+              onValueChange={(v) => updateField("postalCode", v)}
+              onResolved={(addr) => updateField("prefecture", addr.prefecture)}
+            />
 
             <div>
               <label
