@@ -21,7 +21,7 @@
  * 必要な環境変数: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
 
-import { readFileSync, readdirSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { extname, join } from "node:path"
 import { createClient } from "@supabase/supabase-js"
 import sharp from "sharp"
@@ -81,6 +81,16 @@ async function main(): Promise<void> {
       : "🟡 DRY-RUN MODE: 対象ファイル一覧のみ（--apply で実アップロード）"
   )
   console.log(`  入力フォルダ: ${dir}`)
+
+  if (!existsSync(dir)) {
+    console.error(
+      `❌ 入力フォルダが見つかりません: ${dir}\n` +
+        `   先にフォルダを作成して画像を入れてください:\n` +
+        `     mkdir -p ${dir}\n` +
+        `     # ${dir}/ に表示したい画像を 15 枚コピー（jpg/png/webp）`
+    )
+    process.exit(1)
+  }
 
   const files = readdirSync(dir)
     .filter((f) => MIME[extname(f).toLowerCase()])
