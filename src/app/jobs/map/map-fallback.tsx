@@ -1,6 +1,9 @@
 /**
  * Google Maps API キー未設定時のテキスト一覧フォールバック (11.2)。
- * 件数降順 + 地域ブロック別にグルーピングしてリスト表示。
+ * 地域ブロック別にグルーピングして都道府県別の掲載件数をリスト表示。
+ *
+ * 一般ユーザーには「エリアから探す」一覧として自然に見える。
+ * API キー未設定の開発者向け案内 (showSetupNotice) は本番では非表示。
  */
 
 import Link from "next/link"
@@ -22,16 +25,25 @@ const REGION_BLOCKS: { name: string; prefectures: string[] }[] = [
   { name: "九州・沖縄", prefectures: ["福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県"] },
 ]
 
-export function JobMapFallback({ points }: { points: MapPoint[] }) {
+export function JobMapFallback({
+  points,
+  showSetupNotice = false,
+}: {
+  points: MapPoint[]
+  /** Maps API キー未設定の開発者向け案内。本番では false で非表示 */
+  showSetupNotice?: boolean
+}) {
   const byPref = new Map(points.map((p) => [p.prefecture, p.count]))
 
   return (
     <div className="space-y-6">
-      <div className="border-2 border-dashed border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
-        Google Maps API キー (<code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code>)
-        が未設定のため、リスト表示でフォールバックしています。
-        地図表示には Google Cloud Console で Maps JavaScript API を有効化してください。
-      </div>
+      {showSetupNotice && (
+        <div className="border-2 border-dashed border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
+          Google Maps API キー (<code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code>)
+          が未設定のため、リスト表示でフォールバックしています。
+          地図表示には Google Cloud Console で Maps JavaScript API を有効化してください。
+        </div>
+      )}
 
       {REGION_BLOCKS.map((block) => (
         <section key={block.name}>
