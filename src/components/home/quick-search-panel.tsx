@@ -1,23 +1,14 @@
-import { Search, MapPin, Briefcase, Banknote } from "lucide-react"
+import { Search, MapPin, Briefcase, Share2 } from "lucide-react"
 import { PREFECTURES } from "@/lib/constants"
 import { CATEGORIES } from "@/lib/categories"
 
 /**
  * トップページ Hero 直下に置く 3 軸クイック検索パネル。
  *
- * - 勤務地 / 職種 / 給与 の 3 ドロップダウン + キーワード入力 + 検索ボタン
+ * - 勤務地 / 職種 / SNS・動画の有無 の 3 ドロップダウン + 検索ボタン
  * - <form action="/jobs"> でサーバーサイドの jobs ページに GET 送信
  * - サーバー Component (state なし) で hydration コストゼロ
  */
-const SALARY_RANGES: Array<{ label: string; value: string }> = [
-  { label: "指定なし", value: "" },
-  { label: "月給 20 万円以上", value: "200000" },
-  { label: "月給 25 万円以上", value: "250000" },
-  { label: "月給 30 万円以上", value: "300000" },
-  { label: "月給 35 万円以上", value: "350000" },
-  { label: "月給 40 万円以上", value: "400000" },
-  { label: "月給 50 万円以上", value: "500000" },
-]
 
 export function QuickSearchPanel({ totalJobs }: { totalJobs?: number }) {
   return (
@@ -70,20 +61,18 @@ export function QuickSearchPanel({ totalJobs }: { totalJobs?: number }) {
               </select>
             </label>
 
-            {/* 給与 */}
+            {/* SNS・動画の有無 */}
             <label className="flex items-center gap-2 border border-gray-200 px-3 py-2 hover:border-primary-300">
-              <Banknote className="h-4 w-4 text-primary-500 shrink-0" aria-hidden />
-              <span className="sr-only">最低給与</span>
+              <Share2 className="h-4 w-4 text-primary-500 shrink-0" aria-hidden />
+              <span className="sr-only">SNS・動画の有無</span>
               <select
-                name="salaryMin"
+                name="sns"
                 defaultValue=""
                 className="flex-1 min-w-0 bg-transparent text-sm text-gray-900 focus:outline-none"
               >
-                {SALARY_RANGES.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
-                ))}
+                <option value="">SNS・動画の有無</option>
+                <option value="with">SNS・動画あり</option>
+                <option value="without">SNS・動画なし</option>
               </select>
             </label>
 
