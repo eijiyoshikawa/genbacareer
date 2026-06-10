@@ -21,6 +21,7 @@ import {
 } from "@/lib/job-enrichment"
 import { computeRankScore } from "@/lib/ranking"
 import { computeDisplayPriority } from "@/lib/job-display-priority"
+import { normalizeCompanyName } from "@/lib/company-name"
 import type { HelloworkJobData } from "./hellowork"
 
 // ========================================
@@ -210,7 +211,7 @@ async function upsertHelloworkCompany(
   job: HelloworkJobData,
   cache: Map<string, string>
 ): Promise<string | null> {
-  const name = job.companyName?.trim()
+  const name = normalizeCompanyName(job.companyName)
   if (!name || name === "不明") return null
 
   const cached = cache.get(name)
