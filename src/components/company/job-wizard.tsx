@@ -767,7 +767,7 @@ export function JobWizard({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  動画 URL（YouTube / TikTok / Vimeo、1 行 1 URL、最大 6 本）
+                  動画・SNS URL（YouTube / TikTok / Vimeo / Instagram、1 行 1 URL、最大 6 本）
                 </label>
                 <textarea
                   rows={3}
@@ -776,7 +776,7 @@ export function JobWizard({
                     setForm({ ...form, videoUrls: e.target.value })
                   }
                   className="mt-1 block w-full border px-3 py-2 text-sm shadow-sm font-mono"
-                  placeholder={"https://youtu.be/XXXXXXXXXXX\nhttps://www.tiktok.com/@user/video/0000000000000000000"}
+                  placeholder={"https://youtu.be/XXXXXXXXXXX\nhttps://www.tiktok.com/@user/video/0000000000000000000\nhttps://www.instagram.com/reel/XXXXXXXXXXX/"}
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   現場の様子・社員インタビュー・1 日の流れなどの動画を掲載できます。求人詳細ページで埋め込み表示されます。

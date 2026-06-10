@@ -64,7 +64,7 @@ const nextConfig: NextConfig = {
       "img-src 'self' data: blob: https:",
       "media-src 'self' https://www.youtube.com https://player.vimeo.com",
       "connect-src 'self' https://*.supabase.co https://*.sentry.io https://www.google-analytics.com https://va.vercel-scripts.com wss://*.supabase.co https://info.gbiz.go.jp https://maps.googleapis.com https://maps.gstatic.com",
-      "frame-src 'self' https://www.youtube.com https://player.vimeo.com https://www.tiktok.com",
+      "frame-src 'self' https://www.youtube.com https://player.vimeo.com https://www.tiktok.com https://www.instagram.com",
       "frame-ancestors 'none'",
       "form-action 'self'",
       "base-uri 'self'",
