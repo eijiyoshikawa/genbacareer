@@ -130,6 +130,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       benefits: true,
       tags: true,
       videoUrls: true,
+      imageUrls: true,
       status: true,
       dedupedTo: true,
       source: true,
@@ -311,7 +312,12 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
     job.company?.xUrl ||
     job.company?.youtubeUrl
   )
-  const photos = job.company?.photos ?? []
+  // 求人個別の写真を優先し、無ければ会社単位の写真にフォールバック
+  // (HW 求人や写真未設定の求人は従来どおり会社写真を使う)
+  const photos =
+    job.imageUrls && job.imageUrls.length > 0
+      ? job.imageUrls
+      : job.company?.photos ?? []
 
   const mapAddress = buildMapAddress(job.address, job.prefecture, job.city)
 

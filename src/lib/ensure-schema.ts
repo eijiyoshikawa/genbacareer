@@ -47,6 +47,9 @@ const STATEMENTS: ReadonlyArray<string> = [
  `ALTER TABLE "jobs"
    ADD COLUMN IF NOT EXISTS "dedupe_key" VARCHAR(64),
    ADD COLUMN IF NOT EXISTS "deduped_to" UUID`,
+ // 求人ごとの写真（先頭がヒーロー、以降はギャラリー）
+ `ALTER TABLE "jobs"
+   ADD COLUMN IF NOT EXISTS "image_urls" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`,
  `CREATE INDEX IF NOT EXISTS "idx_jobs_dedupe_key"
     ON "jobs" ("dedupe_key")`,
  // 採用決定ボーナス (15.6)

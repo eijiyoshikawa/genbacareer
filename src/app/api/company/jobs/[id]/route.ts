@@ -21,6 +21,7 @@ const updateJobSchema = z.object({
   benefits: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
   videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
+  imageUrls: z.array(z.string().url().max(500)).max(12).optional(),
   status: z.enum(["draft", "active", "closed"]).optional(),
   /**
    * 楽観ロック用 ISO timestamp。GET で取得した updatedAt をそのまま PUT に

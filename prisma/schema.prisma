@@ -431,6 +431,8 @@ model Job {
   tags           String[]  @default([])
   // 動画求人用の埋め込み URL（YouTube / TikTok / Vimeo を想定、最大 6 本）
   videoUrls      String[]  @default([]) @map("video_urls")
+  // 求人ごとの写真（先頭がヒーロー画像、以降はギャラリー。最大 12 枚）
+  imageUrls      String[]  @default([]) @map("image_urls")
   status         String    @default("active") @db.VarChar(20) // draft | active | closed
   publishedAt    DateTime? @map("published_at") @db.Timestamptz()
   expiresAt      DateTime? @map("expires_at") @db.Timestamptz()
