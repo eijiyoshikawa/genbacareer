@@ -199,6 +199,7 @@ export default async function JobsPage({ searchParams }: Props) {
     tags: true,
     annualHolidays: true,
     insurance: true,
+    imageUrls: true,
     companyId: true,
     publishedAt: true,
     company: {
@@ -527,8 +528,8 @@ export default async function JobsPage({ searchParams }: Props) {
             )}
 
             {/* Job list */}
-            <div className="mt-4 space-y-3">
-              {jobs.length === 0 ? (
+            {jobs.length === 0 ? (
+              <div className="mt-4">
                 <EmptyJobsState
                   params={{
                     q: params.q,
@@ -540,17 +541,20 @@ export default async function JobsPage({ searchParams }: Props) {
                   favoriteIds={favoriteIds}
                   loggedIn={loggedIn}
                 />
-              ) : (
-                jobs.map((job) => (
+              </div>
+            ) : (
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {jobs.map((job) => (
                   <JobCard
                     key={job.id}
                     job={job}
                     isFavorite={favoriteIds.has(job.id)}
                     loggedIn={loggedIn}
+                    variant="grid"
                   />
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* 未登録ユーザーの上限到達時 CTA */}
             {!loggedIn && total > GUEST_LIMIT && (
