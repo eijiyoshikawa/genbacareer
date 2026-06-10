@@ -612,10 +612,11 @@ export function JobWizard({
             <div className="border-t pt-5">
               <MultiImageUploader
                 label="求人写真"
-                hint="1 枚目が求人詳細ページのメイン画像になります。職場の様子・現場・チームの写真などを掲載すると応募が増えます。"
+                hint="「メインにする」で求人詳細ページの上部に表示するメイン画像を選べます。職場の様子・現場・チームの写真などを掲載すると応募が増えます。"
                 values={form.imageUrls}
                 onChange={(urls) => setForm({ ...form, imageUrls: urls })}
                 max={12}
+                primarySelectable
               />
             </div>
           </div>
