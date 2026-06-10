@@ -16,6 +16,7 @@ import {
   generateBreadcrumbSchema,
 } from "@/lib/structured-data"
 import { CATEGORY_LABELS } from "@/lib/article-categories"
+import { sanitizeArticleHtml } from "@/lib/sanitize"
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
@@ -313,7 +314,7 @@ export default async function ArticlePage({ params }: Props) {
         {/* Article body (HTML) */}
         <div
           className="article-body mt-8"
-          dangerouslySetInnerHTML={{ __html: article.body }}
+          dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(article.body) }}
         />
 
         {/* Tags */}

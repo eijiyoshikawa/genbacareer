@@ -5,6 +5,7 @@ import { ChevronRight, ChevronLeft } from "lucide-react"
 import { prisma } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
 import { getHelpSections, helpCategory } from "@/lib/help-articles"
+import { sanitizeArticleHtml } from "@/lib/sanitize"
 
 export const revalidate = 3600
 
@@ -104,7 +105,7 @@ export default async function HelpArticlePage({ params }: Props) {
 
       <article
         className="prose prose-sm sm:prose-base max-w-none mt-8"
-        dangerouslySetInnerHTML={{ __html: article.body }}
+        dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(article.body) }}
       />
 
       <div className="mt-12 grid gap-3 sm:grid-cols-2">
