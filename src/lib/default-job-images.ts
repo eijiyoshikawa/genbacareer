@@ -18,7 +18,21 @@
  * この配列を自動で書き換える。
  */
 export const DEFAULT_JOB_IMAGES: string[] = [
-  // scripts/upload-default-job-images.ts --write で自動設定される（初期は空）
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/01.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/02.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/03.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/04.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/05.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/06.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/07.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/08.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/09.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/10.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/11.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/12.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/13.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/14.webp",
+  "https://wjimvcyzunfgaqzthdbd.supabase.co/storage/v1/object/public/company-media/job-defaults/15.webp",
 ]
 
 /** 文字列シードから安定したハッシュ値（FNV-1a 風）を作る */
