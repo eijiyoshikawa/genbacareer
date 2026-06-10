@@ -46,6 +46,7 @@ import { ReportButton } from "@/components/reports/report-button"
 import { findRelatedJobs } from "@/lib/job-matching"
 import { RelatedAreaCategoryLinks } from "@/components/jobs/related-area-category-links"
 import { HeroBanner } from "@/components/jobs/hero-banner"
+import { pickDefaultJobImage } from "@/lib/default-job-images"
 import { SnsLinks } from "@/components/jobs/sns-links"
 import { PhotoGallery } from "@/components/jobs/photo-gallery"
 import { VideoGallery } from "@/components/jobs/video-gallery"
@@ -319,6 +320,10 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       ? job.imageUrls
       : job.company?.photos ?? []
 
+  // メイン写真が無い求人は、指定の 15 枚から求人 ID をシードに決定的に 1 枚選ぶ
+  // (写真ギャラリーには使わず、ヒーローの見栄え用フォールバックとしてのみ使用)
+  const heroPhoto = photos[0] ?? pickDefaultJobImage(job.id)
+
   const mapAddress = buildMapAddress(job.address, job.prefecture, job.city)
 
   const tocItems = buildTocItems({
@@ -456,7 +461,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
           <div className="flex-1 min-w-0 space-y-6">
             {/* Hero + title block */}
             <section id="features" className="space-y-4">
-              <HeroBanner category={job.category} photo={photos[0] ?? null} />
+              <HeroBanner category={job.category} photo={heroPhoto} />
 
               <div className="space-y-3">
                 {/* Source + Category badges */}
