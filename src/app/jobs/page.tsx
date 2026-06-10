@@ -51,6 +51,11 @@ const SOURCE_OPTIONS = [
   { value: "hellowork", label: "公共求人のみ" },
 ] as const
 
+const SNS_OPTIONS = [
+  { value: "with", label: "SNS・動画あり" },
+  { value: "without", label: "SNS・動画なし" },
+] as const
+
 const DATE_WITHIN_OPTIONS = [
   { value: "3", label: "3日以内" },
   { value: "7", label: "1週間以内" },
@@ -130,6 +135,12 @@ export default async function JobsPage({ searchParams }: Props) {
       ? { source: params.source }
       : {}
 
+  // SNS・動画(videoUrls)の有無で絞り込む
+  const snsFilter =
+    params.sns && SNS_OPTIONS.find((s) => s.value === params.sns)
+      ? params.sns
+      : undefined
+
   const where = {
     status: "active" as const,
     ...(params.prefecture && { prefecture: params.prefecture }),
@@ -139,6 +150,8 @@ export default async function JobsPage({ searchParams }: Props) {
     ...(params.employment_type && { employmentType: params.employment_type }),
     ...(salaryMinYen !== null && { salaryMin: { gte: salaryMinYen } }),
     ...(salaryMaxYen !== null && { salaryMax: { lte: salaryMaxYen } }),
+    ...(snsFilter === "with" && { videoUrls: { isEmpty: false } }),
+    ...(snsFilter === "without" && { videoUrls: { isEmpty: true } }),
     ...(dateWithinThreshold && { publishedAt: { gte: dateWithinThreshold } }),
     ...(params.q && {
       OR: [
@@ -176,6 +189,12 @@ export default async function JobsPage({ searchParams }: Props) {
       salaryMin: salaryMinYen ?? undefined,
       salaryMax: salaryMaxYen ?? undefined,
       publishedSince: dateWithinThreshold ?? undefined,
+      hasVideo:
+        snsFilter === "with"
+          ? true
+          : snsFilter === "without"
+            ? false
+            : undefined,
       limit: limit * 5, // 後でページング切り出すため多めに取得
     })
     if (rows && rows.length > 0) {
@@ -294,6 +313,7 @@ export default async function JobsPage({ searchParams }: Props) {
     params.salary_max ||
     params.date_within ||
     params.source ||
+    params.sns ||
     params.q
   )
 
@@ -408,6 +428,14 @@ export default async function JobsPage({ searchParams }: Props) {
                   />
 
                   <FilterSelect
+                    id="sns"
+                    label="SNS・動画"
+                    name="sns"
+                    defaultValue={params.sns ?? ""}
+                    options={SNS_OPTIONS as readonly { value: string; label: string }[]}
+                  />
+
+                  <FilterSelect
                     id="date_within"
                     label="掲載期間"
                     name="date_within"
@@ -492,6 +520,13 @@ export default async function JobsPage({ searchParams }: Props) {
                 <FilterBadge
                   label={sourceLabel(params.source)}
                   paramName="source"
+                  params={params}
+                />
+              )}
+              {params.sns && (
+                <FilterBadge
+                  label={snsLabel(params.sns)}
+                  paramName="sns"
                   params={params}
                 />
               )}
@@ -728,6 +763,10 @@ function dateWithinLabel(value: string): string {
 
 function sourceLabel(value: string): string {
   return SOURCE_OPTIONS.find((o) => o.value === value)?.label ?? value
+}
+
+function snsLabel(value: string): string {
+  return SNS_OPTIONS.find((o) => o.value === value)?.label ?? value
 }
 
 function buildSearchName(p: Record<string, string | undefined>): string {

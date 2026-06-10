@@ -21,6 +21,8 @@ export type FuzzySearchInput = {
   salaryMin?: number
   salaryMax?: number
   publishedSince?: Date
+  /** SNS・動画(videoUrls)の有無で絞り込む。true=ありのみ / false=なしのみ / 未指定=絞らない */
+  hasVideo?: boolean
   limit?: number
   offset?: number
 }
@@ -74,6 +76,8 @@ export async function fuzzySearchJobs(
           ${input.publishedSince ? `AND published_at >= $6` : ""}
           ${input.salaryMin ? `AND salary_min >= $7` : ""}
           ${input.salaryMax ? `AND salary_max <= $8` : ""}
+          ${input.hasVideo === true ? "AND coalesce(array_length(video_urls, 1), 0) > 0" : ""}
+          ${input.hasVideo === false ? "AND coalesce(array_length(video_urls, 1), 0) = 0" : ""}
       )
       SELECT id, similarity
       FROM scored
