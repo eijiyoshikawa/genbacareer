@@ -39,6 +39,7 @@ import { HomeSidebar } from "@/components/home/home-sidebar"
 import { AnnounceMarquee } from "@/components/home/announce-marquee"
 import { SeoFooterLinks } from "@/components/home/seo-footer-links"
 import { SalaryStats, type SalaryStatRow } from "@/components/home/salary-stats"
+import { VoiceSection } from "@/components/home/voice-section"
 import { LineLoginButton } from "@/components/auth/line-login-button"
 import type { Metadata } from "next"
 
@@ -550,6 +551,9 @@ export default async function HomePage() {
           </div>
         </Link>
       </Section>
+
+      {/* === ブランドコピー + 利用者の声 ==================================== */}
+      <VoiceSection />
 
       {/* === 様々な切り口から探す (テーマ別バナー) ============================ */}
       <Section size="md">
