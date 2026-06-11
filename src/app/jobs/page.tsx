@@ -59,29 +59,30 @@ const SNS_OPTIONS = [
   { value: "without", label: "SNS・動画なし" },
 ] as const
 
-// こだわり条件（複数選択モーダル用）。値はタグと一致させる前提で hasSome で絞る。
-const CONDITION_OPTIONS: string[] = [
-  "未経験歓迎",
-  "学歴不問",
-  "資格取得支援",
-  "寮あり",
-  "社会保険完備",
-  "土日祝休み",
-  "完全週休2日",
-  "週休2日",
-  "日払い",
-  "週払い",
-  "高収入",
-  "賞与あり",
-  "交通費支給",
-  "車・バイク通勤OK",
-  "転勤なし",
-  "残業少なめ",
-  "40代活躍",
-  "50代活躍",
-  "60代活躍",
-  "直行直帰",
+// こだわり条件（複数選択モーダル用）。
+// label は表示用、tags は実データの表記ゆれを吸収する候補（hasSome で OR 一致）。
+const CONDITION_DEFS: Array<{ label: string; tags: string[] }> = [
+  { label: "未経験歓迎", tags: ["未経験歓迎", "未経験OK", "未経験者歓迎", "未経験可"] },
+  { label: "学歴不問", tags: ["学歴不問"] },
+  { label: "資格取得支援", tags: ["資格取得支援", "資格支援", "資格取得制度", "資格取得支援制度"] },
+  { label: "寮・社宅あり", tags: ["寮あり", "寮完備", "社宅あり", "住宅手当あり", "住宅手当", "寮・社宅あり"] },
+  { label: "社会保険完備", tags: ["社会保険完備", "社保完備", "各種社会保険完備"] },
+  { label: "土日祝休み", tags: ["土日祝休み", "土日休み", "土日祝日休み"] },
+  { label: "完全週休2日", tags: ["完全週休2日制", "完全週休2日", "週休2日制", "週休2日"] },
+  { label: "日払い・週払い", tags: ["日払い", "週払い", "日払いOK", "日払い可"] },
+  { label: "高収入", tags: ["高収入", "月給30万円以上", "高給与"] },
+  { label: "賞与あり", tags: ["賞与あり", "ボーナスあり", "賞与年2回"] },
+  { label: "交通費支給", tags: ["交通費支給", "交通費全額支給", "交通費あり"] },
+  { label: "車・バイク通勤OK", tags: ["車通勤OK", "バイク通勤OK", "マイカー通勤OK", "車・バイク通勤OK"] },
+  { label: "転勤なし", tags: ["転勤なし"] },
+  { label: "残業少なめ", tags: ["残業少なめ", "残業なし", "残業ほぼなし"] },
+  { label: "40代活躍", tags: ["40代活躍", "40代歓迎", "40代も活躍"] },
+  { label: "50代活躍", tags: ["50代活躍", "50代歓迎", "50代も活躍"] },
+  { label: "60代活躍", tags: ["60代活躍", "60代歓迎", "シニア歓迎", "60代も活躍"] },
+  { label: "直行直帰", tags: ["直行直帰", "直行直帰OK"] },
 ]
+const CONDITION_OPTIONS: string[] = CONDITION_DEFS.map((c) => c.label)
+const CONDITION_TAGMAP = new Map(CONDITION_DEFS.map((c) => [c.label, c.tags]))
 
 const DATE_WITHIN_OPTIONS = [
   { value: "3", label: "3日以内" },
@@ -168,11 +169,15 @@ export default async function JobsPage({ searchParams }: Props) {
       ? params.sns
       : undefined
 
-  // こだわり条件（複数選択・カンマ区切り）。許可リストのみ採用。
+  // こだわり条件（複数選択・カンマ区切り）。許可リスト(label)のみ採用。
   const conditionList = (params.conditions ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter((s) => CONDITION_OPTIONS.includes(s))
+  // 表記ゆれを吸収したタグ候補に展開（hasSome で OR 一致）
+  const conditionTagVariants = Array.from(
+    new Set(conditionList.flatMap((l) => CONDITION_TAGMAP.get(l) ?? [l]))
+  )
 
   const where = {
     status: "active" as const,
@@ -185,7 +190,7 @@ export default async function JobsPage({ searchParams }: Props) {
     ...(salaryMaxYen !== null && { salaryMax: { lte: salaryMaxYen } }),
     ...(snsFilter === "with" && { videoUrls: { isEmpty: false } }),
     ...(snsFilter === "without" && { videoUrls: { isEmpty: true } }),
-    ...(conditionList.length > 0 && { tags: { hasSome: conditionList } }),
+    ...(conditionTagVariants.length > 0 && { tags: { hasSome: conditionTagVariants } }),
     ...(dateWithinThreshold && { publishedAt: { gte: dateWithinThreshold } }),
     ...(params.q && {
       OR: [
