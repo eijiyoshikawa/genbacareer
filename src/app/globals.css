@@ -249,6 +249,21 @@ button:disabled {
   pointer-events: none;
 }
 
+/* お知らせマーキー（右→左に無限スクロール）。コンテンツを 2 周分並べ -50% 移動。 */
+@keyframes marquee-rtl {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation: marquee-rtl 36s linear infinite;
+}
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+}
+
 /* ブランドグラデーション（オレンジ→赤の力強いトーン）。
    ベタ塗りの単色「AI 感」を避け、奥行きのある配色にする。 */
 :root {

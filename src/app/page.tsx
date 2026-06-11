@@ -36,6 +36,7 @@ import {
 } from "@/components/home/featured-company-logos"
 import { MemberCta } from "@/components/home/member-cta"
 import { HomeSidebar } from "@/components/home/home-sidebar"
+import { AnnounceMarquee } from "@/components/home/announce-marquee"
 import { LineLoginButton } from "@/components/auth/line-login-button"
 import type { Metadata } from "next"
 
@@ -464,6 +465,9 @@ export default async function HomePage() {
 
       {/* === 3 軸クイック検索パネル =========================================== */}
       <QuickSearchPanel totalJobs={totalJobs} />
+
+      {/* === お知らせ（1 行マーキー）======================================== */}
+      <AnnounceMarquee items={ANNOUNCEMENTS} />
 
       {/* === 注目企業ピックアップ (logoUrl のある認定企業を最大 10 社) =========== */}
       <FeaturedCompanyLogos companies={featuredCompanies} />

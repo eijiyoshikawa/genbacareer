@@ -59,15 +59,13 @@ export async function Header() {
             href={isCompany ? "/company/dashboard" : "/"}
             aria-label="ゲンバキャリア トップへ"
           >
-            {/* ロゴマークのみ。正方形ロゴを横長に切り取り、大きめに見せる */}
-            <span className="relative block h-10 w-36 overflow-hidden sm:h-11 sm:w-44">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/brand/genbacareer-mark.svg"
-                alt="ゲンバキャリア"
-                className="absolute left-1/2 top-1/2 w-[210%] max-w-none -translate-x-1/2 -translate-y-1/2"
-              />
-            </span>
+            {/* ロゴマークのみ。全体が切れないよう object-contain で表示 */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/genbacareer-mark.svg"
+              alt="ゲンバキャリア"
+              className="h-12 w-auto max-w-[230px] object-contain sm:h-14"
+            />
           </Link>
 
           {/* Desktop nav */}
