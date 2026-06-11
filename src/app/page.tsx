@@ -522,6 +522,35 @@ export default async function HomePage() {
       {/* === 注目企業ピックアップ (logoUrl のある認定企業を最大 10 社) =========== */}
       <FeaturedCompanyLogos companies={featuredCompanies} />
 
+      {/* === 適職診断バナー ================================================ */}
+      <Section size="sm">
+        <Link
+          href="/shindan"
+          className="press group relative block overflow-hidden bg-brand-gradient p-5 text-white shadow-sm sm:p-6"
+        >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl"
+          />
+          <div className="relative flex items-center justify-between gap-4">
+            <div>
+              <p className="inline-flex items-center bg-white/20 px-2 py-0.5 text-[11px] font-bold">
+                無料・1分
+              </p>
+              <p className="mt-1.5 text-lg font-black leading-tight sm:text-xl">
+                建設業 適職診断｜あなたに向いている職種は？
+              </p>
+              <p className="mt-1 text-xs text-white/90">
+                かんたん8問。診断結果からそのまま求人を探せます。
+              </p>
+            </div>
+            <span className="shrink-0 bg-white px-4 py-2.5 text-sm font-extrabold text-primary-700 transition group-hover:bg-orange-50">
+              診断する →
+            </span>
+          </div>
+        </Link>
+      </Section>
+
       {/* === 様々な切り口から探す (テーマ別バナー) ============================ */}
       <Section size="md">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-5 section-bar">
