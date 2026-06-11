@@ -2,7 +2,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
-import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
+import { CONSTRUCTION_CATEGORY_VALUES, getCategoryLabel } from "@/lib/categories"
 import { publishedArticleFilter } from "@/lib/articles"
 import { withTimeout } from "@/lib/with-timeout"
 import { diversifyByCompany } from "@/lib/job-diversify"
@@ -38,6 +38,7 @@ import { MemberCta } from "@/components/home/member-cta"
 import { HomeSidebar } from "@/components/home/home-sidebar"
 import { AnnounceMarquee } from "@/components/home/announce-marquee"
 import { SeoFooterLinks } from "@/components/home/seo-footer-links"
+import { SalaryStats, type SalaryStatRow } from "@/components/home/salary-stats"
 import { LineLoginButton } from "@/components/auth/line-login-button"
 import type { Metadata } from "next"
 
@@ -465,6 +466,42 @@ export default async function HomePage() {
   // メインのランキングは 6 件、サイドバー「注目求人」は 7 件使うため余裕を持って確保
   const diversifiedRecommendedJobs = diversifyByCompany(recommendedJobs).slice(0, 8)
 
+  // 職種別の平均月給（給与相場グラフ用）。月給制・提示額ありの公開求人から算出。
+  const salaryAgg = await withTimeout(
+    prisma.job
+      .groupBy({
+        by: ["category"],
+        where: {
+          status: "active",
+          salaryType: "monthly",
+          category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
+          salaryMin: { gt: 0 },
+        },
+        _avg: { salaryMin: true, salaryMax: true },
+        _count: { _all: true },
+      })
+      .catch(() => [] as never[]),
+    DB_DEADLINE_MS,
+    [] as never[],
+    "salaryByCategory",
+  )
+  const salaryStatRows: SalaryStatRow[] = (
+    salaryAgg as Array<{
+      category: string
+      _avg: { salaryMin: number | null; salaryMax: number | null }
+      _count: { _all: number }
+    }>
+  )
+    .filter((r) => (r._avg.salaryMin ?? 0) > 0)
+    .map((r) => ({
+      category: r.category,
+      label: getCategoryLabel(r.category),
+      avgMin: Math.round(r._avg.salaryMin ?? 0),
+      avgMax: Math.round(r._avg.salaryMax ?? r._avg.salaryMin ?? 0),
+      count: r._count._all,
+    }))
+    .sort((a, b) => b.avgMax - a.avgMax)
+
   const totalJobs = categoryCounts.reduce((sum, c) => sum + c.count, 0)
   const categoriesWithCounts = categories.map((c) => ({
     ...c,
@@ -714,6 +751,9 @@ export default async function HomePage() {
             </div>
         </section>
       )}
+
+      {/* === 給与相場グラフ（職種別平均月給）================================ */}
+      <SalaryStats rows={salaryStatRows} />
 
       {/* === お役立ちマガジン =================================================== */}
       <section className="card-elevated p-5 sm:p-6 bg-white">
