@@ -13,6 +13,17 @@ import {
   MapPin,
   Banknote,
 } from "lucide-react"
+import {
+  HardHat,
+  Mountains,
+  Lightning,
+  PaintBrush,
+  Hammer,
+  Truck,
+  ClipboardText,
+  Ruler,
+  Wrench,
+} from "@phosphor-icons/react/dist/ssr"
 import { CATEGORY_LABELS } from "@/lib/article-categories"
 import { RecommendedForYou } from "@/components/jobs/recommended-for-you"
 import { Section } from "@/components/ui/section"
@@ -25,6 +36,7 @@ import {
 } from "@/components/home/featured-company-logos"
 import { MemberCta } from "@/components/home/member-cta"
 import { HomeSidebar } from "@/components/home/home-sidebar"
+import { LineLoginButton } from "@/components/auth/line-login-button"
 import type { Metadata } from "next"
 
 // ホームは ISR で 24 時間キャッシュ。/api/cron/warmup が 5 分おきに叩いて
@@ -305,6 +317,18 @@ const WORK_STYLES: Array<{
   },
 ]
 
+// 職種カテゴリ → アイコン（チップ表示用）
+const CATEGORY_ICONS: Record<string, typeof HardHat> = {
+  construction: HardHat,
+  civil: Mountains,
+  electrical: Lightning,
+  interior: PaintBrush,
+  demolition: Hammer,
+  driver: Truck,
+  management: ClipboardText,
+  survey: Ruler,
+}
+
 export default async function HomePage() {
   const baseConstructionFilter = {
     status: "active" as const,
@@ -559,43 +583,24 @@ export default async function HomePage() {
           <p className="text-xs text-gray-500">8 カテゴリ</p>
         </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {categoriesWithCounts.map(({ key, label, sub, image, bg, count }) => (
-              <Link
-                key={key}
-                href={`/jobs?category=${key}`}
-                className="press group relative block overflow-hidden bg-ink-900 shadow-sm hover:shadow-md transition"
-              >
-                {/* フォールバック用色グラデ + 写真を重ねる */}
-                <div className={`relative aspect-[4/3] sm:aspect-[16/11] bg-gradient-to-br ${bg}`}>
-                  <Image
-                    src={image}
-                    alt=""
-                    fill
-                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                    className="object-cover opacity-75 group-hover:opacity-85 group-hover:scale-[1.03] transition duration-300"
-                  />
-                  {/* テキスト可読性のための暗グラデ (注目特集と統一) */}
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 bg-gradient-to-t from-ink-900/95 via-ink-900/40 to-transparent"
-                  />
-                  {/* 件数バッジ (右上) */}
-                  <span className="absolute top-2 right-2 inline-flex items-center bg-brand-yellow-500 text-ink-900 px-2 py-0.5 text-[11px] font-extrabold tracking-wide">
-                    {count.toLocaleString()} 件
+          {/* リクナビ風: アイコン + テキストのチップ */}
+          <div className="flex flex-wrap gap-2.5">
+            {categoriesWithCounts.map(({ key, label, count }) => {
+              const Icon = CATEGORY_ICONS[key] ?? Wrench
+              return (
+                <Link
+                  key={key}
+                  href={`/jobs?category=${key}`}
+                  className="press inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 shadow-sm transition hover:border-primary-400 hover:text-primary-700"
+                >
+                  <Icon weight="duotone" className="h-5 w-5 text-primary-600" />
+                  {label}
+                  <span className="text-[11px] font-medium text-gray-400">
+                    {count.toLocaleString()}
                   </span>
-                  {/* 写真の上にテキストを重ねる */}
-                  <div className="absolute inset-x-0 bottom-0 p-3">
-                    <p className="text-base font-extrabold text-white leading-tight drop-shadow">
-                      {label}
-                    </p>
-                    <p className="mt-1 text-[11px] text-white/85 leading-relaxed line-clamp-1">
-                      {sub}
-                    </p>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              )
+            })}
           </div>
       </section>
 
@@ -719,33 +724,116 @@ export default async function HomePage() {
           </main>
 
           {/* === サイドバー (PC のみ、SP は main の下に重ねる) ================
-              下に余白があるのに動かせるのは不自然なので sticky / scroll は付けない */}
-          <div>
+              現場インタビューは全幅セクションへ移したため空配列を渡す。
+              余白(謎の空白)を避けるため sticky + self-start で高さを内容に合わせる。 */}
+          <div className="self-start lg:sticky lg:top-24">
             <HomeSidebar
               featuredJobs={diversifiedRecommendedJobs}
-              interviewArticles={interviewArticles}
+              interviewArticles={[]}
               announcements={ANNOUNCEMENTS}
             />
           </div>
         </div>
       </div>
 
-      {/* === CTA ============================================================== */}
-      <section className="bg-gradient-to-r from-primary-600 to-orange-700 text-white">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-10 text-center">
-          <h2 className="text-2xl sm:text-3xl font-extrabold leading-tight">
-            気になる求人があれば、まずは LINE で話を聞く。
-          </h2>
-          <p className="mt-2 text-sm sm:text-base text-white/90">
-            履歴書も会員登録も不要。匿名でも質問できます。
+      {/* === 現場インタビュー（全幅）======================================= */}
+      {interviewArticles.length > 0 && (
+        <Section size="md">
+          <div className="flex items-end justify-between mb-5">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 section-bar">
+              現場インタビュー
+            </h2>
+            <Link
+              href="/journal?category=interview"
+              className="text-sm font-bold text-primary-600 hover:text-primary-700"
+            >
+              すべて見る →
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {interviewArticles.map((a) => (
+              <Link
+                key={a.slug}
+                href={`/journal/${a.slug}`}
+                className="press card group block overflow-hidden"
+              >
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-gray-100">
+                  {a.imageUrl ? (
+                    <Image
+                      src={a.imageUrl}
+                      alt=""
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                      className="object-cover transition duration-300 group-hover:scale-105"
+                      unoptimized={
+                        !a.imageUrl.startsWith("/") &&
+                        !a.imageUrl.includes("supabase.co")
+                      }
+                    />
+                  ) : null}
+                </div>
+                <div className="p-3">
+                  <p className="text-xs font-bold text-gray-900 line-clamp-3 leading-snug group-hover:text-primary-700">
+                    {a.title}
+                  </p>
+                  {a.publishedAt && (
+                    <p className="mt-1 text-[10px] text-gray-400">
+                      {new Date(a.publishedAt).toLocaleDateString("ja-JP")}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* === 最終 CTA（LINE 訴求・大幅刷新）===================================== */}
+      <section className="relative overflow-hidden bg-brand-gradient text-white">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-2xl"
+        />
+        <div className="relative mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16 text-center">
+          <p className="inline-flex items-center gap-1.5 bg-white/15 px-3 py-1 text-xs font-bold backdrop-blur">
+            今、稼げる業界へ
           </p>
-          <Link
-            href="/jobs"
-            className="press mt-6 inline-flex items-center gap-2 bg-white px-8 py-3 text-base font-extrabold text-primary-700 shadow-lg hover:bg-yellow-50 transition"
-          >
-            <Search className="h-5 w-5" />
-            求人を探してみる
-          </Link>
+          <h2 className="mt-3 text-2xl sm:text-4xl font-black leading-tight tracking-tight">
+            未経験から、新しい自分を。
+            <br />
+            「稼げる」キャリアを今日から。
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm sm:text-base text-white/90 leading-relaxed">
+            履歴書なし・LINE で 1 タップ応募。匿名で「話を聞くだけ」もOK。
+            気になる現場に、今すぐ一歩を踏み出せます。
+          </p>
+          <ul className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm font-bold">
+            <li>✓ 履歴書なし</li>
+            <li>✓ LINE で完結</li>
+            <li>✓ 現職バレ防止</li>
+          </ul>
+          <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <div className="w-full sm:w-auto sm:min-w-[260px]">
+              <LineLoginButton
+                label="LINE で 1 タップ登録"
+                callbackUrl="/mypage"
+                size="lg"
+                fullWidth
+              />
+            </div>
+            <Link
+              href="/jobs"
+              className="press inline-flex w-full items-center justify-center gap-2 bg-white px-8 py-3.5 text-base font-extrabold text-primary-700 shadow-lg transition hover:bg-orange-50 sm:w-auto"
+            >
+              <Search className="h-5 w-5" />
+              求人を探す
+            </Link>
+          </div>
+          <p className="mt-5 text-xs text-white/80">
+            現在{" "}
+            <span className="font-bold">{totalJobs.toLocaleString()}</span>{" "}
+            件の求人を掲載中
+          </p>
         </div>
       </section>
     </div>
