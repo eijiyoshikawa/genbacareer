@@ -23,6 +23,8 @@ type JobCardProps = {
   tags: string[]
   annualHolidays?: number | null
   insurance?: string | null
+  /** 公開日時。直近なら「NEW」バッジを出す（時系列ハイライト） */
+  publishedAt?: Date | string | null
   /** メイン写真。先頭をアイキャッチに使う。無ければ既定画像へフォールバック */
   imageUrls?: string[]
   /** 動画・SNS URL。TikTok / Instagram があればカードにロゴを表示する */
@@ -72,6 +74,15 @@ export function JobCard({
     job.company?.gbizData
   )
 
+  // 時系列ハイライト: 公開から 7 日以内は NEW、タグに急募系があれば 急募。
+  // サーバーレンダリング時に相対時刻で判定する（意図的な現在時刻参照）。
+  // eslint-disable-next-line react-hooks/purity
+  const nowMs = Date.now()
+  const isNew = job.publishedAt
+    ? nowMs - new Date(job.publishedAt).getTime() < 7 * 86_400_000
+    : false
+  const isUrgent = job.tags.some((t) => /急募|即日|スピード採用/.test(t))
+
   const actions = (
     <JobCardActions>
       <CompareAddButton jobId={job.id} />
@@ -86,6 +97,22 @@ export function JobCard({
   // 共通の本文（タイトル・給与・会社名・チップ）。row/grid で使い回す。
   const body = (
     <>
+      {/* 時系列バッジ（NEW / 急募） */}
+      {(isNew || isUrgent) && (
+        <div className="mb-1 flex flex-wrap gap-1">
+          {isNew && (
+            <span className="inline-flex items-center bg-rose-500 px-1.5 py-0.5 text-[10px] font-extrabold tracking-wide text-white">
+              NEW
+            </span>
+          )}
+          {isUrgent && (
+            <span className="inline-flex items-center bg-orange-600 px-1.5 py-0.5 text-[10px] font-extrabold tracking-wide text-white">
+              急募
+            </span>
+          )}
+        </div>
+      )}
+
       {/* タイトル (主役) */}
       <h3 className="text-base font-bold leading-snug text-ink-900 line-clamp-2 group-hover:text-primary-700 sm:text-lg">
         {job.title}
