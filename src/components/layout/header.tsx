@@ -97,6 +97,12 @@ export async function Header() {
                   マガジン
                 </Link>
                 <Link
+                  href="/shindan"
+                  className="px-3 py-2 text-sm font-bold text-primary-600 hover:text-primary-700 transition"
+                >
+                  適職診断
+                </Link>
+                <Link
                   href="/for-employers"
                   className="px-3 py-2 text-xs text-gray-600 hover:text-primary-600 transition"
                 >
