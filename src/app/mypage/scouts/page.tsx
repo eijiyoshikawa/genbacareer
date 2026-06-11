@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Building2, Mail, MailOpen, Clock, XCircle } from "lucide-react"
+import { isScoutEnabled } from "@/lib/feature-flags"
 import type { Metadata } from "next"
 
 export const dynamic = "force-dynamic"
@@ -33,6 +34,28 @@ export default async function ScoutsInboxPage() {
   if (!session?.user) redirect("/login")
   const userId = (session.user as { id?: string }).id
   if (!userId) redirect("/login")
+
+  // スカウト機能は求職者 1 万人突破まで未解放
+  if (!(await isScoutEnabled())) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-12 text-center sm:px-6 lg:px-8">
+        <Mail className="mx-auto h-10 w-10 text-gray-300" />
+        <h1 className="mt-3 text-xl font-bold text-gray-900">
+          スカウト機能は準備中です
+        </h1>
+        <p className="mt-2 text-sm text-gray-600">
+          まもなく、企業から直接オファーが届く機能を公開予定です。
+          プロフィールを充実させて、公開に備えましょう。
+        </p>
+        <Link
+          href="/mypage/profile"
+          className="mt-5 inline-block bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700"
+        >
+          プロフィールを編集
+        </Link>
+      </div>
+    )
+  }
 
   const scouts = await prisma.scoutMessage.findMany({
     where: { userId },

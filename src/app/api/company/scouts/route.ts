@@ -28,6 +28,7 @@ import {
 import { sendScoutEmail } from "@/lib/email"
 import { parsePrefs } from "@/lib/notification-prefs"
 import { canSendScoutByPlan, isPlanActive } from "@/lib/plans"
+import { isScoutEnabled } from "@/lib/feature-flags"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -51,6 +52,14 @@ export async function POST(request: NextRequest) {
   const auth = await requireCompanyUser()
   if (!auth) {
     return NextResponse.json({ error: "認証が必要です" }, { status: 401 })
+  }
+
+  // スカウト機能は求職者 1 万人突破まで未解放
+  if (!(await isScoutEnabled())) {
+    return NextResponse.json(
+      { error: "スカウト機能は現在準備中です（近日公開予定）" },
+      { status: 403 }
+    )
   }
 
   let raw: unknown

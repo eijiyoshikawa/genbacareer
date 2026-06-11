@@ -17,6 +17,7 @@ import { ArrowLeft } from "lucide-react"
 import type { Metadata } from "next"
 import { ScoutForm } from "./scout-form"
 import { buildScoutSubject, canSendScout } from "@/lib/scouts"
+import { isScoutEnabled, SCOUT_SEEKER_THRESHOLD } from "@/lib/feature-flags"
 
 export const dynamic = "force-dynamic"
 
@@ -35,6 +36,25 @@ export default async function ScoutNewPage({ searchParams }: Props) {
   const companyId = (session.user as { companyId?: string }).companyId
   if (!companyId) redirect("/login")
   if (role !== "company_admin" && role !== "company_member") redirect("/login")
+
+  // スカウト機能は求職者 1 万人突破まで未解放
+  if (!(await isScoutEnabled())) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-10 text-center sm:px-6 lg:px-8">
+        <h1 className="text-xl font-bold text-gray-900">スカウト機能は準備中です</h1>
+        <p className="mt-2 text-sm text-gray-600">
+          求職者数が {SCOUT_SEEKER_THRESHOLD.toLocaleString()} 名を突破した時点で
+          公開予定です。今しばらくお待ちください。
+        </p>
+        <Link
+          href="/company/dashboard"
+          className="mt-5 inline-block bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700"
+        >
+          ダッシュボードへ戻る
+        </Link>
+      </div>
+    )
+  }
 
   const params = await searchParams
   const userId = params.userId

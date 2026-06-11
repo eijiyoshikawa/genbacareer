@@ -21,6 +21,7 @@ import { JobCard } from "@/components/jobs/job-card"
 import { JobCardSkeletonGrid, Skeleton } from "@/components/ui/skeleton"
 import { calcProfileCompletion } from "@/lib/profile-completion"
 import { ProfileCompletionCard } from "@/components/mypage/profile-completion-card"
+import { isScoutEnabled } from "@/lib/feature-flags"
 
 export const metadata: Metadata = {
   title: "マイページ",
@@ -253,15 +254,18 @@ async function DashboardSummary({
       .count({ where: { userId, status: { in: ["sent", "read"] } } })
       .catch(() => 0),
   ])
+  const scoutOn = await isScoutEnabled()
   const rank = computeMemberRank({
     completionPercent,
     applications,
     favorites,
-    scouts,
+    scouts: scoutOn ? scouts : 0,
   })
   const stats: Array<{ label: string; value: number; href: string }> = [
     { label: "応募", value: applications, href: "/mypage/applications" },
-    { label: "スカウト", value: scouts, href: "/mypage/scouts" },
+    ...(scoutOn
+      ? [{ label: "スカウト", value: scouts, href: "/mypage/scouts" }]
+      : []),
     { label: "お気に入り", value: favorites, href: "/mypage/favorites" },
   ]
 
@@ -290,7 +294,7 @@ async function DashboardSummary({
           </p>
         </div>
       )}
-      <div className="mt-4 grid grid-cols-3 gap-2">
+      <div className={`mt-4 grid gap-2 ${stats.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
         {stats.map((s) => (
           <Link
             key={s.label}
@@ -311,6 +315,7 @@ function DashboardSummarySkeleton() {
 }
 
 async function QuickLinkCounts({ userId }: { userId: string }) {
+  const scoutOn = await isScoutEnabled()
   const [
     applicationCount,
     unreadNotifications,
@@ -368,27 +373,29 @@ async function QuickLinkCounts({ userId }: { userId: string }) {
         </div>
       </Link>
 
-      <Link
-        href="/mypage/scouts"
-        className="flex items-center gap-4 border bg-white p-5 shadow-sm transition hover:shadow-md"
-      >
-        <div className="relative flex h-10 w-10 items-center justify-center bg-orange-100">
-          <Mail className="h-5 w-5 text-orange-700" />
-          {activeScoutCount > 0 && (
-            <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-[20px] items-center justify-center bg-red-500 px-1 text-[10px] font-bold text-white">
-              {activeScoutCount}
-            </span>
-          )}
-        </div>
-        <div>
-          <p className="font-semibold text-gray-900">スカウト</p>
-          <p className="text-sm text-gray-500">
-            {activeScoutCount > 0
-              ? `${activeScoutCount} 件のスカウトを受信中`
-              : "企業からの直接スカウトを受信"}
-          </p>
-        </div>
-      </Link>
+      {scoutOn && (
+        <Link
+          href="/mypage/scouts"
+          className="flex items-center gap-4 border bg-white p-5 shadow-sm transition hover:shadow-md"
+        >
+          <div className="relative flex h-10 w-10 items-center justify-center bg-orange-100">
+            <Mail className="h-5 w-5 text-orange-700" />
+            {activeScoutCount > 0 && (
+              <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-[20px] items-center justify-center bg-red-500 px-1 text-[10px] font-bold text-white">
+                {activeScoutCount}
+              </span>
+            )}
+          </div>
+          <div>
+            <p className="font-semibold text-gray-900">スカウト</p>
+            <p className="text-sm text-gray-500">
+              {activeScoutCount > 0
+                ? `${activeScoutCount} 件のスカウトを受信中`
+                : "企業からの直接スカウトを受信"}
+            </p>
+          </div>
+        </Link>
+      )}
 
       <Link
         href="/mypage/favorites"
