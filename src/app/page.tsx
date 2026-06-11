@@ -791,10 +791,10 @@ export default async function HomePage() {
             お役立ちマガジン
           </h2>
           <Link
-            href="/journal"
+            href="/guide"
             className="text-sm text-primary-600 hover:underline font-medium"
           >
-            すべて見る →
+            転職成功ノウハウ →
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

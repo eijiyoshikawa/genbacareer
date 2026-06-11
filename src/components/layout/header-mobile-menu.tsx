@@ -89,6 +89,7 @@ export function HeaderMobileMenu({
                 <MenuItem href="/jobs/feed" label="新着フィード" onClick={close} />
                 <MenuItem href="/jobs/map" label="マップから探す" onClick={close} />
                 <MenuItem href="/journal" label="お役立ちマガジン" onClick={close} />
+                <MenuItem href="/guide" label="転職成功ノウハウ" onClick={close} />
                 <MenuItem href="/shindan" label="適職診断（無料）" onClick={close} />
                 <MenuItem href="/for-employers" label="企業の方へ" onClick={close} />
               </>
