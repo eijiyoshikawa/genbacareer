@@ -251,7 +251,7 @@ async function main() {
   console.log("")
   console.log("==========================================================")
   console.log("【企業デモ】")
-  console.log(`  URL:      https://www.genbacareer.jp/login`)
+  console.log(`  URL:      https://www.genbacareer.jp/company/login`)
   console.log(`  email:    ${COMPANY_EMAIL}`)
   console.log(`  password: ${COMMON_PASSWORD}`)
   console.log(`  ロール:   company_admin`)
