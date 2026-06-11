@@ -3,6 +3,8 @@ import { JobCard } from "@/components/jobs/job-card"
 import { EmptyJobsState } from "@/components/jobs/empty-jobs-state"
 import { CompareCart } from "@/components/jobs/compare-cart"
 import { SearchAutocomplete } from "@/components/jobs/search-autocomplete"
+import { ConditionFilterModal } from "@/components/jobs/condition-filter-modal"
+import { SalaryRangeSlider } from "@/components/jobs/salary-range-slider"
 import { SlidersHorizontal } from "lucide-react"
 import Link from "next/link"
 import { Pagination } from "@/components/pagination"
@@ -56,6 +58,30 @@ const SNS_OPTIONS = [
   { value: "with", label: "SNS・動画あり" },
   { value: "without", label: "SNS・動画なし" },
 ] as const
+
+// こだわり条件（複数選択モーダル用）。値はタグと一致させる前提で hasSome で絞る。
+const CONDITION_OPTIONS: string[] = [
+  "未経験歓迎",
+  "学歴不問",
+  "資格取得支援",
+  "寮あり",
+  "社会保険完備",
+  "土日祝休み",
+  "完全週休2日",
+  "週休2日",
+  "日払い",
+  "週払い",
+  "高収入",
+  "賞与あり",
+  "交通費支給",
+  "車・バイク通勤OK",
+  "転勤なし",
+  "残業少なめ",
+  "40代活躍",
+  "50代活躍",
+  "60代活躍",
+  "直行直帰",
+]
 
 const DATE_WITHIN_OPTIONS = [
   { value: "3", label: "3日以内" },
@@ -142,6 +168,12 @@ export default async function JobsPage({ searchParams }: Props) {
       ? params.sns
       : undefined
 
+  // こだわり条件（複数選択・カンマ区切り）。許可リストのみ採用。
+  const conditionList = (params.conditions ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => CONDITION_OPTIONS.includes(s))
+
   const where = {
     status: "active" as const,
     ...(params.prefecture && { prefecture: params.prefecture }),
@@ -153,6 +185,7 @@ export default async function JobsPage({ searchParams }: Props) {
     ...(salaryMaxYen !== null && { salaryMax: { lte: salaryMaxYen } }),
     ...(snsFilter === "with" && { videoUrls: { isEmpty: false } }),
     ...(snsFilter === "without" && { videoUrls: { isEmpty: true } }),
+    ...(conditionList.length > 0 && { tags: { hasSome: conditionList } }),
     ...(dateWithinThreshold && { publishedAt: { gte: dateWithinThreshold } }),
     ...(params.q && {
       OR: [
@@ -176,7 +209,9 @@ export default async function JobsPage({ searchParams }: Props) {
   const orderBy = buildOrderBy(sort)
 
   // 検索クエリがあり、デフォルトの「おすすめ順」の場合は pg_trgm で類似度順に並べる
-  const useFuzzy = !!params.q && sort === "recommended"
+  // こだわり条件選択時は fuzzy を使わず Prisma where で正確に絞る
+  const useFuzzy =
+    !!params.q && sort === "recommended" && conditionList.length === 0
   let fuzzyIds: string[] | null = null
   if (useFuzzy) {
     const { fuzzySearchJobs } = await import("@/lib/job-search")
@@ -315,6 +350,7 @@ export default async function JobsPage({ searchParams }: Props) {
     params.date_within ||
     params.source ||
     params.sns ||
+    conditionList.length > 0 ||
     params.q
   )
 
@@ -435,30 +471,17 @@ export default async function JobsPage({ searchParams }: Props) {
                     options={DATE_WITHIN_OPTIONS as readonly { value: string; label: string }[]}
                   />
 
-                  <div className="pt-3">
-                    <span className="block text-xs font-medium text-gray-600">月給（万円）</span>
-                    <div className="mt-1 flex items-center gap-2">
-                      <input
-                        type="number"
-                        id="salary_min"
-                        name="salary_min"
-                        defaultValue={params.salary_min ?? ""}
-                        placeholder="下限"
-                        min={0}
-                        className="w-full  border border-gray-300 px-2.5 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                      />
-                      <span className="text-xs text-gray-400">〜</span>
-                      <input
-                        type="number"
-                        id="salary_max"
-                        name="salary_max"
-                        defaultValue={params.salary_max ?? ""}
-                        placeholder="上限"
-                        min={0}
-                        className="w-full  border border-gray-300 px-2.5 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                      />
-                    </div>
-                  </div>
+                  {/* こだわり条件（複数選択モーダル） */}
+                  <ConditionFilterModal
+                    options={CONDITION_OPTIONS}
+                    initial={conditionList}
+                  />
+
+                  {/* 月給スライダー */}
+                  <SalaryRangeSlider
+                    initialMin={params.salary_min}
+                    initialMax={params.salary_max}
+                  />
                 </div>
 
                 <div className="border-t p-4">
@@ -519,6 +542,13 @@ export default async function JobsPage({ searchParams }: Props) {
                 <FilterBadge
                   label={snsLabel(params.sns)}
                   paramName="sns"
+                  params={params}
+                />
+              )}
+              {conditionList.length > 0 && (
+                <FilterBadge
+                  label={`こだわり ${conditionList.length}件`}
+                  paramName="conditions"
                   params={params}
                 />
               )}
