@@ -168,6 +168,13 @@ export function middleware(request: NextRequest) {
     "/company/applications",
     "/company/billing",
     "/company/candidates",
+    "/company/profile",
+    "/company/security",
+    "/company/scouts",
+    "/company/gbizinfo",
+    "/company/interests",
+    "/company/line-leads",
+    "/company/change-password",
   ]
   const adminRoutes = ["/admin"]
 
