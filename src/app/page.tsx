@@ -37,6 +37,7 @@ import {
 import { MemberCta } from "@/components/home/member-cta"
 import { HomeSidebar } from "@/components/home/home-sidebar"
 import { AnnounceMarquee } from "@/components/home/announce-marquee"
+import { SeoFooterLinks } from "@/components/home/seo-footer-links"
 import { LineLoginButton } from "@/components/auth/line-login-button"
 import type { Metadata } from "next"
 
@@ -330,6 +331,18 @@ const CATEGORY_ICONS: Record<string, typeof HardHat> = {
   survey: Ruler,
 }
 
+// TOP に置く「人気のこだわり条件」チップ
+const POPULAR_CONDITIONS: string[] = [
+  "未経験歓迎",
+  "土日祝休み",
+  "週休2日",
+  "寮・社宅あり",
+  "資格取得支援",
+  "日払い・週払い",
+  "高収入",
+  "学歴不問",
+]
+
 export default async function HomePage() {
   const baseConstructionFilter = {
     status: "active" as const,
@@ -573,6 +586,22 @@ export default async function HomePage() {
                   </p>
                 </div>
               </div>
+            </Link>
+          ))}
+        </div>
+
+        {/* 人気のこだわり条件チップ */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs font-bold text-gray-500">
+            人気のこだわり条件
+          </span>
+          {POPULAR_CONDITIONS.map((q) => (
+            <Link
+              key={q}
+              href={`/jobs?q=${encodeURIComponent(q)}`}
+              className="press rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-bold text-gray-700 transition hover:border-primary-400 hover:text-primary-700"
+            >
+              {q}
             </Link>
           ))}
         </div>
@@ -840,6 +869,9 @@ export default async function HomePage() {
           </p>
         </div>
       </section>
+
+      {/* === 巨大 SEO フッター ============================================== */}
+      <SeoFooterLinks />
     </div>
   )
 }
