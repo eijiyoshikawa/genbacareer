@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   SHINDAN_QUESTIONS,
@@ -48,6 +48,15 @@ const CHEERS = [
 // 選択肢の頭につける記号（A/B/C…）
 const LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"]
 
+/** GA イベント送信（gtag があれば） */
+function gtagEvent(name: string, params: Record<string, string | number>) {
+  if (typeof window === "undefined") return
+  const w = window as unknown as {
+    gtag?: (type: string, name: string, params: Record<string, unknown>) => void
+  }
+  w.gtag?.("event", name, params)
+}
+
 export function ShindanClient() {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<ShindanOption[]>([])
@@ -55,6 +64,13 @@ export function ShindanClient() {
 
   const total = SHINDAN_QUESTIONS.length
   const done = step >= total
+
+  // 診断完了を計測
+  useEffect(() => {
+    if (!done) return
+    const ranked = scoreShindan(answers)
+    gtagEvent("shindan_complete", { top: ranked[0] ?? "none" })
+  }, [done, answers])
 
   function choose(opt: ShindanOption, i: number) {
     if (picked !== null) return
@@ -179,6 +195,7 @@ export function ShindanClient() {
           <Link
             key={r.key}
             href={`/jobs?category=${r.key}&source=direct`}
+            onClick={() => gtagEvent("shindan_result_click", { category: r.key, rank: i + 1 })}
             className="press card group block p-4"
           >
             <div className="flex items-center gap-3">
