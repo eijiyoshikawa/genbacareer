@@ -264,6 +264,26 @@ button:disabled {
   .marquee-track { animation: none; }
 }
 
+/* 適職診断: 設問切替のフェードイン＋選択肢のポップ */
+@keyframes shindan-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.shindan-in {
+  animation: shindan-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes shindan-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+.shindan-pop {
+  animation: shindan-pop 0.25s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shindan-in, .shindan-pop { animation: none; }
+}
+
 /* ブランドグラデーション（オレンジ→赤の力強いトーン）。
    ベタ塗りの単色「AI 感」を避け、奥行きのある配色にする。 */
 :root {

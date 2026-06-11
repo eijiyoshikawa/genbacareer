@@ -108,20 +108,9 @@ export const SHINDAN_QUESTIONS: ShindanQuestion[] = [
 ]
 
 /**
- * 選択した選択肢の配列からスコア集計し、上位カテゴリを降順で返す。
- * 同点はカテゴリ定義順で安定。
+ * 選択した選択肢からカテゴリ別の合計スコアを集計して返す。
  */
-export function scoreShindan(answers: ShindanOption[]): CatKey[] {
-  const order: CatKey[] = [
-    "construction",
-    "civil",
-    "electrical",
-    "interior",
-    "demolition",
-    "driver",
-    "management",
-    "survey",
-  ]
+export function tallyShindan(answers: ShindanOption[]): Record<CatKey, number> {
   const total: Record<CatKey, number> = {
     construction: 0,
     civil: 0,
@@ -137,6 +126,25 @@ export function scoreShindan(answers: ShindanOption[]): CatKey[] {
       total[k as CatKey] += v ?? 0
     }
   }
+  return total
+}
+
+/**
+ * 選択した選択肢の配列からスコア集計し、上位カテゴリを降順で返す。
+ * 同点はカテゴリ定義順で安定。
+ */
+export function scoreShindan(answers: ShindanOption[]): CatKey[] {
+  const order: CatKey[] = [
+    "construction",
+    "civil",
+    "electrical",
+    "interior",
+    "demolition",
+    "driver",
+    "management",
+    "survey",
+  ]
+  const total = tallyShindan(answers)
   return order
     .filter((k) => total[k] > 0)
     .sort((a, b) => total[b] - total[a] || order.indexOf(a) - order.indexOf(b))
