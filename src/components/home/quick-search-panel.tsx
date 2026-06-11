@@ -79,7 +79,7 @@ export function QuickSearchPanel({ totalJobs }: { totalJobs?: number }) {
             {/* 検索ボタン */}
             <button
               type="submit"
-              className="press inline-flex h-11 items-center justify-center gap-1.5 bg-primary-600 px-5 text-sm font-extrabold text-white shadow hover:bg-primary-700"
+              className="press btn-brand-gradient inline-flex h-11 items-center justify-center gap-1.5 px-5 text-sm font-extrabold shadow"
             >
               <Search className="h-4 w-4" aria-hidden />
               この条件で検索

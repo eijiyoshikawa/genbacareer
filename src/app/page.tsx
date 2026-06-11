@@ -35,9 +35,9 @@ import type { Metadata } from "next"
 export const revalidate = 86400
 
 export const metadata: Metadata = {
-  title: "ゲンバキャリア | 建築・土木・電気・内装の求人サイト",
+  title: "ゲンバキャリア | 今、稼げる建設業界で新しい自分を",
   description:
-    "20〜30 代の若手も活躍中。建築・土木・電気・内装・解体・ドライバー・施工管理・測量の求人を探せる建設業特化型求人サイト。LINE で気軽に応募。",
+    "未経験から高収入も狙える、今話題の建設業界。建築・土木・電気・内装・解体・ドライバー・施工管理・測量の求人を探せる求人サイト。履歴書なし、LINE で気軽に応募。",
   alternates: { canonical: "/" },
 }
 
@@ -47,30 +47,30 @@ const HERO_SLIDES: HeroSlide[] = [
   {
     image:
       "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1800&q=72",
-    badge: "建設業界特化",
-    title: "建設業の求人を、スマホで気軽に探せる。",
+    badge: "今、稼げる業界",
+    title: "稼げる業界で、新しい自分を見つけませんか。",
     subtitle:
-      "全国の建設業求人を網羅。履歴書なし、LINE で気軽に応募できます。",
+      "未経験から高収入も狙える建設業界。履歴書なし、LINE で気軽に応募できます。",
     ctaLabel: "求人を探す",
     ctaHref: "/jobs",
   },
   {
     image:
       "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1800&q=72",
-    badge: "未経験 OK",
-    title: "未経験から始める建設キャリア",
+    badge: "未経験から高収入",
+    title: "未経験スタートでも、しっかり稼げる。",
     subtitle:
-      "20〜30 代の若手が活躍中。研修・資格支援が充実した会社を厳選しました。",
+      "20〜30 代が未経験から活躍中。研修・資格支援が充実した会社を厳選しました。",
     ctaLabel: "未経験 OK の求人",
     ctaHref: "/jobs?q=未経験",
   },
   {
     image:
       "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1800&q=72",
-    badge: "資格取得支援",
-    title: "国家資格を取りながら働く",
+    badge: "手に職・国家資格",
+    title: "資格を取って、収入も自分も伸ばす。",
     subtitle:
-      "施工管理技士・電気工事士・玉掛けなど、会社負担で取れる求人を厳選。",
+      "施工管理技士・電気工事士・玉掛けなど、会社負担で取得できる求人を厳選。",
     ctaLabel: "資格支援ありの求人",
     ctaHref: "/jobs?q=資格",
   },
@@ -78,8 +78,8 @@ const HERO_SLIDES: HeroSlide[] = [
     image:
       "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1800&q=72",
     badge: "全国 47 都道府県",
-    title: "地元の現場で長く働く",
-    subtitle: "全国の建設業求人を網羅。あなたの街の現場と出会えます。",
+    title: "地元で、安定して長く稼ぐ。",
+    subtitle: "全国の求人を網羅。あなたの街で好条件の現場と出会えます。",
     ctaLabel: "地域から探す",
     ctaHref: "/jobs",
   },
@@ -344,6 +344,7 @@ export default async function HomePage() {
           salaryMax: true,
           salaryType: true,
           tags: true,
+          imageUrls: true,
           companyId: true,
           company: { select: { name: true } },
         },
@@ -365,6 +366,7 @@ export default async function HomePage() {
               salaryMax: true,
               salaryType: true,
               tags: true,
+              imageUrls: true,
               companyId: true,
               company: { select: { name: true } },
             },
@@ -393,7 +395,7 @@ export default async function HomePage() {
         .findMany({
           where: { ...publishedArticleFilter(), category: "interview" },
           orderBy: { publishedAt: "desc" },
-          take: 4,
+          take: 5,
           select: { slug: true, title: true, publishedAt: true, imageUrl: true },
         })
         .catch(() => []),
@@ -422,7 +424,8 @@ export default async function HomePage() {
   ])
 
   // A4: 同一企業の連続表示を抑制した上で、表示用 6 件に絞る
-  const diversifiedRecommendedJobs = diversifyByCompany(recommendedJobs).slice(0, 6)
+  // メインのランキングは 6 件、サイドバー「注目求人」は 7 件使うため余裕を持って確保
+  const diversifiedRecommendedJobs = diversifyByCompany(recommendedJobs).slice(0, 8)
 
   const totalJobs = categoryCounts.reduce((sum, c) => sum + c.count, 0)
   const categoriesWithCounts = categories.map((c) => ({
@@ -593,7 +596,7 @@ export default async function HomePage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {diversifiedRecommendedJobs.map((job, i) => (
+              {diversifiedRecommendedJobs.slice(0, 6).map((job, i) => (
                 <Link
                   key={job.id}
                   href={`/jobs/${job.id}`}

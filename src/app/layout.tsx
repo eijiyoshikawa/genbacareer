@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Noto_Sans_JP } from "next/font/google";
+import { Zen_Kaku_Gothic_New } from "next/font/google";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { NavigationProgress } from "@/components/navigation-progress";
@@ -12,14 +12,15 @@ import {
 import { ensureSchema } from "@/lib/ensure-schema";
 import "./globals.css";
 
-// Latin subset のみ。日本語本体はシステムフォント (Hiragino / Yu Gothic) が
-// 引き取るため、Noto Sans JP は ASCII (数字・英単語) 用の最小構成。
-// 900 (font-black) は利用が少ないため除外し、700 で合成させる。
-const notoSansJP = Noto_Sans_JP({
+// ブランドフォント: Zen Kaku Gothic New（モダンで力強いゴシック体）。
+// 日本語ウェブフォントは大きいため preload:false で初期表示をブロックしない。
+// 取得前/失敗時はシステムゴシック (Hiragino / Yu Gothic) にフォールバック。
+const brandGothic = Zen_Kaku_Gothic_New({
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: ["400", "500", "700", "900"],
   display: "swap",
-  variable: "--font-noto-jp",
+  preload: false,
+  variable: "--font-gothic",
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp";
@@ -142,7 +143,7 @@ export default async function RootLayout({
   const siteSchema = generateWebSiteSchema()
 
   return (
-    <html lang="ja" className={`h-full antialiased ${notoSansJP.variable}`}>
+    <html lang="ja" className={`h-full antialiased ${brandGothic.variable}`}>
       <head>
         {/* 画像 CDN へ TLS ハンドシェイクを先回り。LCP 候補のヒーロー画像が
             初回ロードで 100〜300ms 早く到達する（視覚品質は変わらない） */}
