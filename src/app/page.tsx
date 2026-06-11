@@ -533,9 +533,18 @@ export default async function HomePage() {
 
       {/* === 勤務地から探す ================================================== */}
       <section className="card-elevated p-5 sm:p-6 bg-white">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6 section-bar">
-          勤務地から探す
-        </h2>
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 section-bar">
+            勤務地から探す
+          </h2>
+          <Link
+            href="/jobs/map"
+            className="press inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary-600 px-4 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-primary-700"
+          >
+            <MapPin className="h-4 w-4" />
+            地図から探す
+          </Link>
+        </div>
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
           {popularAreas.map((a) => (
             <Link
