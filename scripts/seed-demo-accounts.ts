@@ -36,9 +36,6 @@ function loadDotEnv(): void {
 }
 loadDotEnv()
 
-const { prisma } = await import("../src/lib/db")
-const bcrypt = (await import("bcryptjs")).default
-
 // ============================================================
 // 設定
 // ============================================================
@@ -49,6 +46,11 @@ const COMMON_PASSWORD = "GenbaDemo2025!"
 const DEMO_COMPANY_NAME = "デモ建設株式会社"
 
 async function main() {
+  // 動的 import: loadDotEnv() の後に Prisma を読み込む（接続文字列を確実に反映）。
+  // トップレベル await を避けるため main 内で import する。
+  const { prisma } = await import("../src/lib/db")
+  const bcrypt = (await import("bcryptjs")).default
+
   console.log("→ デモアカウント seed 開始")
 
   const passwordHash = await bcrypt.hash(COMMON_PASSWORD, 10)
@@ -263,13 +265,11 @@ async function main() {
   console.log(`  password: ${COMMON_PASSWORD}`)
   console.log(`  ロール:   seeker`)
   console.log("==========================================================")
+
+  await prisma.$disconnect()
 }
 
-main()
-  .catch((e) => {
-    console.error("✖ seed 失敗:", e)
-    process.exit(1)
-  })
-  .finally(async () => {
-    await prisma.$disconnect()
-  })
+main().catch((e) => {
+  console.error("✖ seed 失敗:", e)
+  process.exit(1)
+})
