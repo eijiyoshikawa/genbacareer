@@ -1,3 +1,4 @@
+import Image from "next/image"
 import { getCategoryLabel } from "@/lib/categories"
 
 /**
@@ -22,11 +23,13 @@ export function HeroBanner({
   if (photo) {
     return (
       <div className="relative h-32 overflow-hidden bg-ink-900 sm:h-48">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src={photo}
           alt=""
-          className="absolute inset-0 h-full w-full object-cover"
+          fill
+          sizes="(max-width: 1024px) 100vw, 860px"
+          className="object-cover"
+          unoptimized={!photo.startsWith("/") && !photo.includes("supabase.co")}
         />
         <div className="absolute inset-x-0 top-0 h-1 bg-brand-yellow-500" />
         <div className="absolute inset-x-0 bottom-0 h-1 bg-brand-yellow-500" />

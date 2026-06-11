@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Image from "next/image"
 import { CaretRight, SealCheck } from "@phosphor-icons/react/dist/ssr"
 import { getCategoryLabel } from "@/lib/categories"
 import { computeHasConstructionPermit } from "@/lib/gbizinfo"
@@ -194,12 +195,15 @@ export function JobCard({
       >
         <div className="relative aspect-[16/10] w-full overflow-hidden bg-ink-900">
           {eyecatch ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={eyecatch}
               alt=""
-              loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-105"
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+              className="object-cover transition duration-300 group-hover:scale-105"
+              unoptimized={
+                !eyecatch.startsWith("/") && !eyecatch.includes("supabase.co")
+              }
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
