@@ -39,6 +39,40 @@ type HistoryEntry = { year: string; month: string; content: string }
 type LicenseEntry = { year: string; month: string; name: string }
 type CareerEntry = { company: string; period: string; position: string; description: string }
 
+// 建設向け「職歴カンタン入力」: よくある職種をワンクリックで職務経歴に追加
+const CAREER_PRESETS: Array<{ label: string; position: string; description: string }> = [
+  { label: "鳶・足場", position: "鳶工", description: "足場の組立・解体、躯体工事の高所作業に従事。" },
+  { label: "型枠大工", position: "型枠大工", description: "型枠の建込み・解体、コンクリート打設に従事。" },
+  { label: "鉄筋工", position: "鉄筋工", description: "鉄筋の加工・組立、配筋作業に従事。" },
+  { label: "重機オペ", position: "重機オペレーター", description: "掘削・整地などバックホウ等の重機操作に従事。" },
+  { label: "電気工事", position: "電気工事士", description: "屋内外配線・電気設備の施工・保守に従事。" },
+  { label: "配管・設備", position: "配管工", description: "給排水・空調設備の配管施工に従事。" },
+  { label: "内装仕上げ", position: "内装仕上工", description: "クロス貼り・床仕上げ等の内装工事に従事。" },
+  { label: "塗装", position: "塗装工", description: "建築物の塗装・防水工事に従事。" },
+  { label: "解体", position: "解体工", description: "建物の解体・産業廃棄物の分別処理に従事。" },
+  { label: "ドライバー", position: "ダンプドライバー", description: "残土・資材の運搬、現場間の配送に従事。" },
+  { label: "施工管理", position: "施工管理（現場監督）", description: "工程・品質・安全・原価管理、協力会社との調整に従事。" },
+  { label: "測量", position: "測量士", description: "現場測量・墨出し、図面作成に従事。" },
+]
+
+// 建設向けスキルの候補
+const CONSTRUCTION_SKILLS = [
+  "施工図の読図",
+  "墨出し",
+  "丁張り",
+  "重機操作",
+  "玉掛け",
+  "溶接",
+  "配筋",
+  "型枠施工",
+  "足場組立",
+  "CAD",
+  "工程管理",
+  "安全管理",
+  "原価管理",
+  "品質管理",
+]
+
 interface ResumeData {
   fullName: string
   furigana: string
@@ -232,6 +266,7 @@ export function ResumeBuilder({ initialData }: { initialData: ResumeData }) {
               tags={data.skills}
               onChange={(v) => updateField("skills", v)}
               placeholder="スキルを入力してEnter"
+              suggestions={CONSTRUCTION_SKILLS}
             />
           </Section>
 
@@ -385,8 +420,33 @@ function CareerDetailList({ entries, onChange }: { entries: CareerEntry[]; onCha
     onChange(next)
   }
 
+  const addPreset = (p: { position: string; description: string }) =>
+    onChange([
+      ...entries,
+      { company: "", period: "", position: p.position, description: p.description },
+    ])
+
   return (
     <div className="space-y-4">
+      {/* 建設向け 職歴カンタン入力 */}
+      <div className="border border-dashed border-primary-200 bg-primary-50/40 p-3">
+        <p className="mb-2 text-xs font-bold text-gray-600">
+          かんたん入力（タップで職歴を追加）
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {CAREER_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => addPreset(p)}
+              className="rounded-full border border-primary-300 bg-white px-3 py-1 text-xs font-bold text-primary-700 hover:bg-primary-100"
+            >
+              + {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {entries.map((entry, i) => (
         <div key={i} className="border p-4 space-y-2 relative">
           <button onClick={() => remove(i)} className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
