@@ -178,7 +178,7 @@ export function ShindanClient() {
         {results.map((r, i) => (
           <Link
             key={r.key}
-            href={`/jobs?category=${r.key}`}
+            href={`/jobs?category=${r.key}&source=direct`}
             className="press card group block p-4"
           >
             <div className="flex items-center gap-3">
@@ -209,7 +209,7 @@ export function ShindanClient() {
 
       <div className="mt-7 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
         <Link
-          href={top ? `/jobs?category=${top}` : "/jobs"}
+          href={top ? `/jobs?category=${top}&source=direct` : "/jobs?source=direct"}
           className="press btn-brand-gradient inline-flex items-center justify-center px-6 py-3 text-sm font-extrabold"
         >
           {top ? `${CAT_LABEL[top]}の求人を探す` : "求人を探す"}
