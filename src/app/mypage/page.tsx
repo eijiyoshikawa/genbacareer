@@ -94,6 +94,14 @@ export default async function MyPage() {
         </dl>
       </div>
 
+      {/* 会員ランク + 応募状況ダッシュボード */}
+      <Suspense fallback={<DashboardSummarySkeleton />}>
+        <DashboardSummary
+          userId={session.user.id}
+          completionPercent={completion.percent}
+        />
+      </Suspense>
+
       {/* Quick Links */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <Suspense fallback={<QuickLinkCountsSkeleton />}>
@@ -200,6 +208,106 @@ async function RecommendedJobsSection({ userId }: { userId: string }) {
       ))}
     </div>
   )
+}
+
+/** 会員ランク（活動量 + プロフィール充実度から算出） */
+function computeMemberRank(args: {
+  completionPercent: number
+  applications: number
+  favorites: number
+  scouts: number
+}): { label: string; className: string; points: number; next: number | null } {
+  const points =
+    args.completionPercent +
+    args.applications * 10 +
+    args.favorites * 3 +
+    args.scouts * 5
+  const tiers: Array<{ label: string; min: number; className: string }> = [
+    { label: "ブロンズ", min: 0, className: "bg-amber-700 text-white" },
+    { label: "シルバー", min: 60, className: "bg-gray-400 text-white" },
+    { label: "ゴールド", min: 140, className: "bg-amber-500 text-white" },
+    { label: "プラチナ", min: 260, className: "bg-ink-900 text-brand-yellow-500" },
+  ]
+  let idx = 0
+  for (let i = tiers.length - 1; i >= 0; i--) {
+    if (points >= tiers[i].min) {
+      idx = i
+      break
+    }
+  }
+  const next = idx < tiers.length - 1 ? tiers[idx + 1].min : null
+  return { label: tiers[idx].label, className: tiers[idx].className, points, next }
+}
+
+async function DashboardSummary({
+  userId,
+  completionPercent,
+}: {
+  userId: string
+  completionPercent: number
+}) {
+  const [applications, favorites, scouts] = await Promise.all([
+    prisma.application.count({ where: { userId } }).catch(() => 0),
+    prisma.jobFavorite.count({ where: { userId } }).catch(() => 0),
+    prisma.scoutMessage
+      .count({ where: { userId, status: { in: ["sent", "read"] } } })
+      .catch(() => 0),
+  ])
+  const rank = computeMemberRank({
+    completionPercent,
+    applications,
+    favorites,
+    scouts,
+  })
+  const stats: Array<{ label: string; value: number; href: string }> = [
+    { label: "応募", value: applications, href: "/mypage/applications" },
+    { label: "スカウト", value: scouts, href: "/mypage/scouts" },
+    { label: "お気に入り", value: favorites, href: "/mypage/favorites" },
+  ]
+
+  return (
+    <div className="mt-6 border bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Star className="h-5 w-5 text-amber-500" />
+          <span className="text-sm font-bold text-gray-700">会員ランク</span>
+          <span className={`inline-flex items-center px-2.5 py-1 text-xs font-extrabold ${rank.className}`}>
+            {rank.label}
+          </span>
+        </div>
+        <span className="text-xs text-gray-500">{rank.points} pt</span>
+      </div>
+      {rank.next != null && (
+        <div className="mt-2">
+          <div className="h-1.5 w-full overflow-hidden bg-gray-100">
+            <div
+              className="bg-brand-gradient h-full"
+              style={{ width: `${Math.min(100, (rank.points / rank.next) * 100)}%` }}
+            />
+          </div>
+          <p className="mt-1 text-[11px] text-gray-500">
+            次のランクまであと {Math.max(0, rank.next - rank.points)} pt（応募・お気に入り・プロフィール充実で UP）
+          </p>
+        </div>
+      )}
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {stats.map((s) => (
+          <Link
+            key={s.label}
+            href={s.href}
+            className="press flex flex-col items-center border border-gray-100 bg-warm-50 py-3 hover:border-primary-300"
+          >
+            <span className="text-2xl font-black text-primary-700">{s.value}</span>
+            <span className="text-[11px] text-gray-500">{s.label}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function DashboardSummarySkeleton() {
+  return <div className="mt-6 h-40 border bg-white shadow-sm" />
 }
 
 async function QuickLinkCounts({ userId }: { userId: string }) {
