@@ -490,6 +490,66 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12 grid gap-6 lg:gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
           <main className="min-w-0 space-y-8 sm:space-y-10">
 
+      {/* === 勤務地から探す ================================================== */}
+      <section className="card-elevated p-5 sm:p-6 bg-white">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6 section-bar">
+          勤務地から探す
+        </h2>
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          {popularAreas.map((a) => (
+            <Link
+              key={a.slug}
+              href={`/${a.slug}`}
+              className="press card-flat flex items-center justify-center px-3 py-3 text-sm font-medium text-gray-700 hover:text-primary-700"
+            >
+              <MapPin className="h-4 w-4 mr-1 text-gray-400" />
+              {a.pref}
+            </Link>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-gray-600">
+          全 47 都道府県の求人ページがあります。
+          <Link href="/jobs" className="ml-1 text-primary-700 underline underline-offset-2 hover:no-underline">
+            検索ページから他県も見る →
+          </Link>
+        </p>
+      </section>
+
+      {/* === 働き方から探す ================================================== */}
+      <section className="card-elevated p-5 sm:p-6 bg-white">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-5 section-bar">
+          働き方から探す
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {WORK_STYLES.map(({ label, q, image, bg }) => (
+            <Link
+              key={q}
+              href={`/jobs?q=${encodeURIComponent(q)}`}
+              className="press group relative block overflow-hidden bg-ink-900 shadow-sm hover:shadow-md transition"
+            >
+              <div className={`relative aspect-[16/9] bg-gradient-to-br ${bg}`}>
+                <Image
+                  src={image}
+                  alt=""
+                  fill
+                  sizes="(max-width: 640px) 50vw, 33vw"
+                  className="object-cover opacity-75 group-hover:opacity-85 group-hover:scale-[1.03] transition duration-300"
+                />
+                <div
+                  aria-hidden
+                  className="absolute inset-0 bg-gradient-to-t from-ink-900/85 via-ink-900/30 to-transparent"
+                />
+                <div className="absolute inset-x-0 bottom-0 p-3">
+                  <p className="text-sm sm:text-base font-extrabold text-white leading-tight drop-shadow">
+                    {label}
+                  </p>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
       {/* === 職種から探す ===================================================== */}
       <section className="card-elevated p-5 sm:p-6 bg-white">
         <div className="flex items-end justify-between mb-6">
@@ -537,41 +597,6 @@ export default async function HomePage() {
               </Link>
             ))}
           </div>
-      </section>
-
-      {/* === 働き方から探す ================================================== */}
-      <section className="card-elevated p-5 sm:p-6 bg-white">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-5 section-bar">
-          働き方から探す
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {WORK_STYLES.map(({ label, q, image, bg }) => (
-            <Link
-              key={q}
-              href={`/jobs?q=${encodeURIComponent(q)}`}
-              className="press group relative block overflow-hidden bg-ink-900 shadow-sm hover:shadow-md transition"
-            >
-              <div className={`relative aspect-[16/9] bg-gradient-to-br ${bg}`}>
-                <Image
-                  src={image}
-                  alt=""
-                  fill
-                  sizes="(max-width: 640px) 50vw, 33vw"
-                  className="object-cover opacity-75 group-hover:opacity-85 group-hover:scale-[1.03] transition duration-300"
-                />
-                <div
-                  aria-hidden
-                  className="absolute inset-0 bg-gradient-to-t from-ink-900/85 via-ink-900/30 to-transparent"
-                />
-                <div className="absolute inset-x-0 bottom-0 p-3">
-                  <p className="text-sm sm:text-base font-extrabold text-white leading-tight drop-shadow">
-                    {label}
-                  </p>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
       </section>
 
       {/* === あなたへのおすすめ (匿名 JobView から差し込み) =================== */}
@@ -642,31 +667,6 @@ export default async function HomePage() {
             </div>
         </section>
       )}
-
-      {/* === 都道府県から探す ================================================== */}
-      <section className="card-elevated p-5 sm:p-6 bg-white">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6 section-bar">
-          都道府県から探す
-        </h2>
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-          {popularAreas.map((a) => (
-            <Link
-              key={a.slug}
-              href={`/${a.slug}`}
-              className="press card-flat flex items-center justify-center px-3 py-3 text-sm font-medium text-gray-700 hover:text-primary-700"
-            >
-              <MapPin className="h-4 w-4 mr-1 text-gray-400" />
-              {a.pref}
-            </Link>
-          ))}
-        </div>
-        <p className="mt-3 text-xs text-gray-600">
-          全 47 都道府県の求人ページがあります。
-          <Link href="/jobs" className="ml-1 text-primary-700 underline underline-offset-2 hover:no-underline">
-            検索ページから他県も見る →
-          </Link>
-        </p>
-      </section>
 
       {/* === お役立ちマガジン =================================================== */}
       <section className="card-elevated p-5 sm:p-6 bg-white">
