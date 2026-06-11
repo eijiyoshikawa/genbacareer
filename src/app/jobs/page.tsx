@@ -2,7 +2,8 @@ import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
 import { EmptyJobsState } from "@/components/jobs/empty-jobs-state"
 import { CompareCart } from "@/components/jobs/compare-cart"
-import { Search, SlidersHorizontal } from "lucide-react"
+import { SearchAutocomplete } from "@/components/jobs/search-autocomplete"
+import { SlidersHorizontal } from "lucide-react"
 import Link from "next/link"
 import { Pagination } from "@/components/pagination"
 import { PREFECTURES } from "@/lib/constants"
@@ -342,16 +343,7 @@ export default async function JobsPage({ searchParams }: Props) {
           </div>
           <form action="/jobs" className="mt-5">
             <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  name="q"
-                  defaultValue={params.q ?? ""}
-                  placeholder="職種・地域・キーワードで検索"
-                  className="w-full border-0 bg-white py-3 pl-10 pr-4 text-sm font-medium text-gray-900 placeholder:text-gray-400 shadow-sm focus:ring-2 focus:ring-primary-400"
-                />
-              </div>
+              <SearchAutocomplete defaultValue={params.q ?? ""} />
               <button
                 type="submit"
                 className="bg-primary-500 px-5 py-3 text-sm font-black tracking-wide text-white shadow-sm transition hover:bg-primary-600 sm:px-7"
