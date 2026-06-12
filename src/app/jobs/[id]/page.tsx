@@ -588,6 +588,15 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                     </div>
                   )}
                 </dl>
+
+                {/* 募集要項への「詳しく見る」導線 */}
+                <Link
+                  href="#conditions"
+                  className="inline-flex items-center gap-1 text-sm font-bold text-primary-700 hover:text-primary-800"
+                >
+                  募集要項を詳しく見る
+                  <CaretRight weight="bold" className="h-3.5 w-3.5" />
+                </Link>
               </div>
             </section>
 

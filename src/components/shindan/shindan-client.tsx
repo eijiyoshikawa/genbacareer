@@ -224,7 +224,19 @@ export function ShindanClient() {
         ))}
       </div>
 
-      <div className="mt-7 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
+      {/* LINE 友だち追加で診断結果に合う求人を受け取る */}
+      <a
+        href="https://lin.ee/OwURD4q"
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => gtagEvent("shindan_line_add", { top: top ?? "none" })}
+        className="press mt-7 flex w-full items-center justify-center gap-2 bg-[#06C755] px-6 py-3.5 text-sm font-extrabold text-white shadow hover:brightness-105"
+      >
+        <span className="text-base">💬</span>
+        LINEで友だち追加して、ぴったりの求人を受け取る
+      </a>
+
+      <div className="mt-3 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
         <Link
           href={top ? `/jobs?category=${top}&source=direct` : "/jobs?source=direct"}
           className="press btn-brand-gradient inline-flex items-center justify-center px-6 py-3 text-sm font-extrabold"
