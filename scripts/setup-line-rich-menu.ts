@@ -17,7 +17,7 @@
  * Rich Menu は 2 行 3 列の 6 ボタン構成:
  *
  *   ┌────────────┬────────────┬────────────┐
- *   │ 求人を探す │  マガジン  │ 料金       │
+ *   │ 求人を探す │  マガジン  │ 適職診断   │
  *   ├────────────┼────────────┼────────────┤
  *   │ 運営会社   │お問い合わせ│ 公式 SNS   │
  *   └────────────┴────────────┴────────────┘
@@ -91,7 +91,11 @@ const richMenuDef = {
     },
     {
       bounds: { x: COL_W * 2, y: 0, width: WIDTH - COL_W * 2, height: ROW_H },
-      action: { type: "message" as const, label: "料金", text: "料金" },
+      action: {
+        type: "uri" as const,
+        label: "適職診断",
+        uri: `${SITE}/shindan?source=line_richmenu`,
+      },
     },
     {
       bounds: { x: 0, y: ROW_H, width: COL_W, height: HEIGHT - ROW_H },
@@ -126,7 +130,7 @@ async function ensureImage() {
   const cells = [
     { label: "求人を探す",  sub: "JOBS",     bg: "#fff7ed", emoji: "🔍" },
     { label: "マガジン",    sub: "MAGAZINE", bg: "#fffbeb", emoji: "📰" },
-    { label: "料金",        sub: "PRICING",  bg: "#fff7ed", emoji: "💴" },
+    { label: "適職診断",    sub: "SHINDAN",  bg: "#fff7ed", emoji: "🧭" },
     { label: "運営会社",    sub: "COMPANY",  bg: "#ffffff", emoji: "🏢" },
     { label: "お問い合わせ", sub: "CONTACT",  bg: "#ffffff", emoji: "💬" },
     { label: "公式 SNS",    sub: "SNS",      bg: "#ffffff", emoji: "📷" },
