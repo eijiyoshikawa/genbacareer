@@ -77,6 +77,20 @@ async function main(): Promise<void> {
   })
   if (targets.length === 0) {
     console.log("❌ 該当する会社が見つかりませんでした（会社名は完全一致で指定してください）")
+    // 候補をあいまい検索して提示（コピペ用）
+    const like = await prisma.company.findMany({
+      where: { name: { contains: name, mode: "insensitive" } },
+      select: { name: true, source: true },
+      orderBy: { name: "asc" },
+      take: 15,
+    })
+    if (like.length > 0) {
+      console.log(`\n  もしかして（"${name}" を含む社名 ${like.length} 件）:`)
+      like.forEach((c) => console.log(`    - ${c.name}  [${c.source}]`))
+      console.log("\n  上の社名をそのまま --name= にコピペしてください（完全一致）")
+    } else {
+      console.log(`\n  "${name}" を含む社名も見つかりませんでした。キーワードを短くして再検索してください。`)
+    }
     return
   }
 
