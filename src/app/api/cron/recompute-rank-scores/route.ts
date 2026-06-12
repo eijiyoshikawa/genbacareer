@@ -18,6 +18,7 @@ import { computeRankScore } from "@/lib/ranking"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
+export const maxDuration = 300
 
 const BATCH_SIZE = 500
 const UPDATE_CONCURRENCY = 25
