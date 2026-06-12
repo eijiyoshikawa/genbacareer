@@ -48,8 +48,9 @@ export async function createNotification(input: {
   refId?: string | null
 }): Promise<void> {
   // inbox 行は通知設定に関わらず常に作成 (ユーザーが履歴を後から見られるように)
+  let createdId: string | null = null
   try {
-    await prisma.notification.create({
+    const row = await prisma.notification.create({
       data: {
         userId: input.userId,
         type: input.type,
@@ -58,7 +59,9 @@ export async function createNotification(input: {
         linkUrl: input.linkUrl ?? null,
         refId: input.refId ?? null,
       },
+      select: { id: true },
     })
+    createdId = row.id
   } catch (e) {
     console.warn(`[notifications] create failed: ${e instanceof Error ? e.message : e}`)
   }
@@ -75,7 +78,7 @@ export async function createNotification(input: {
   // 静音時間帯ならプッシュ系をスキップ (inbox には残る)
   if (isInQuietHours(prefs)) return
 
-  // 即時配信のみ LINE Push 発火 (daily/weekly は cron でバッチ送信、未実装)
+  // 即時配信は今ここで LINE Push。daily/weekly は line-digest cron がまとめて送る。
   if (prefs.frequency === "immediate" && prefs.lineEnabled) {
     pushUserNotification({
       userId: input.userId,
@@ -90,6 +93,15 @@ export async function createNotification(input: {
         `[notifications] line push failed: ${e instanceof Error ? e.message : e}`
       )
     })
+    // 即時送信済みとしてマーク（後で daily/weekly に切替えても重複送信しない）
+    if (createdId) {
+      await prisma.notification
+        .update({
+          where: { id: createdId },
+          data: { linePushedAt: new Date() },
+        })
+        .catch(() => {})
+    }
   }
 }
 

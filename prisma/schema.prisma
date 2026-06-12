@@ -240,6 +240,8 @@ model Notification {
   readAt    DateTime? @map("read_at") @db.Timestamptz()
   // 関連リソースの id（applicationId / jobId 等）
   refId     String?  @map("ref_id") @db.VarChar(50)
+  // LINE Push 済み日時。null なら未送信（daily/weekly ダイジェスト cron の対象）。
+  linePushedAt DateTime? @map("line_pushed_at") @db.Timestamptz()
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

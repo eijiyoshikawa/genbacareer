@@ -388,6 +388,12 @@ const STATEMENTS: ReadonlyArray<string> = [
  )`,
  `CREATE INDEX IF NOT EXISTS "idx_testimonials_pub_order"
     ON "testimonials" ("published", "sort_order")`,
+ // LINE ダイジェスト配信: 通知の LINE Push 済みマーク
+ `ALTER TABLE "notifications"
+   ADD COLUMN IF NOT EXISTS "line_pushed_at" TIMESTAMPTZ`,
+ // 未送信通知の絞り込み用（daily/weekly ダイジェスト cron）
+ `CREATE INDEX IF NOT EXISTS "idx_notifications_line_pending"
+    ON "notifications" ("created_at") WHERE "line_pushed_at" IS NULL`,
 ]
 
 let inflight: Promise<boolean> | null = null
