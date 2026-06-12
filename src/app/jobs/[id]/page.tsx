@@ -15,11 +15,7 @@ import {
   ArrowLeft,
   CaretRight,
   Briefcase,
-  Globe,
-  UsersThree,
   Megaphone,
-  ShareNetwork,
-  Factory,
   ClockCountdown,
 } from "@phosphor-icons/react/dist/ssr"
 import type { Metadata } from "next"
@@ -45,8 +41,8 @@ import { RelatedAreaCategoryLinks } from "@/components/jobs/related-area-categor
 import { HeroBanner } from "@/components/jobs/hero-banner"
 import { JobSpec } from "@/components/jobs/job-spec"
 import { JobFaq } from "@/components/jobs/job-faq"
+import { CompanyOverview } from "@/components/jobs/company-overview"
 import { pickDefaultJobImage } from "@/lib/default-job-images"
-import { SnsLinks } from "@/components/jobs/sns-links"
 import { PhotoGallery } from "@/components/jobs/photo-gallery"
 import { VideoGallery } from "@/components/jobs/video-gallery"
 import { ClientErrorBoundary } from "@/components/error-boundary"
@@ -305,13 +301,6 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
     education: job.education,
   })
 
-  const hasSns = !!(
-    job.company?.instagramUrl ||
-    job.company?.tiktokUrl ||
-    job.company?.facebookUrl ||
-    job.company?.xUrl ||
-    job.company?.youtubeUrl
-  )
   // 求人個別の写真を優先し、無ければ会社単位の写真にフォールバック
   // (HW 求人や写真未設定の求人は従来どおり会社写真を使う)
   const photos =
@@ -707,99 +696,14 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
               </AccordionSection>
             )}
 
-            {/* Company info */}
+            {/* 会社概要（テーブル・建職バンク参考）*/}
             {job.company && (
-              <AccordionSection
-                id="company"
-                title="会社情報"
-              >
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <DlItem label="企業名" value={job.company.name} />
-                  {job.company.industry && (
-                    <DlItem
-                      label="業種"
-                      value={job.company.industry}
-                      icon={<Factory weight="duotone" className="h-3.5 w-3.5 text-gray-400" />}
-                    />
-                  )}
-                  {job.company.employeeCount && (
-                    <DlItem
-                      label="従業員数"
-                      value={`${job.company.employeeCount}名`}
-                      icon={<UsersThree weight="duotone" className="h-3.5 w-3.5 text-gray-400" />}
-                    />
-                  )}
-                  {(job.company.prefecture || job.company.address) && (
-                    <DlItem
-                      label="所在地"
-                      value={[
-                        job.company.prefecture,
-                        job.company.city,
-                        job.company.address,
-                      ]
-                        .filter(Boolean)
-                        .join(" ")}
-                      icon={<MapPin weight="duotone" className="h-3.5 w-3.5 text-gray-400" />}
-                    />
-                  )}
-                  {(job.company.websiteUrl || job.companyUrl) && (
-                    <DlItem
-                      label="Web サイト"
-                      value={(job.company.websiteUrl ?? job.companyUrl) as string}
-                      icon={<Globe weight="duotone" className="h-3.5 w-3.5 text-gray-400" />}
-                      isLink
-                    />
-                  )}
-                </div>
-                {job.businessContent && (
-                  <div className="border-t pt-4 space-y-2">
-                    <p className="text-xs font-medium text-gray-500">事業内容</p>
-                    <FormattedText text={job.businessContent} />
-                  </div>
-                )}
-                {job.companyFeatures && (
-                  <div className="border-t pt-4 space-y-2">
-                    <p className="text-xs font-medium text-gray-500">会社の特長</p>
-                    <FormattedText text={job.companyFeatures} />
-                  </div>
-                )}
-                {job.company.description && (
-                  <div className="border-t pt-4">
-                    <FormattedText text={job.company.description} />
-                  </div>
-                )}
-
-                {/* 公式 HP リンクボタン（CTAとして目立たせる） */}
-                {job.company.websiteUrl && (
-                  <a
-                    href={job.company.websiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 border border-primary-500 px-4 py-2 text-sm font-medium text-primary-700 hover:bg-primary-50 transition"
-                  >
-                    <Globe weight="duotone" className="h-4 w-4" />
-                    {job.company.name} 公式 HP を見る
-                  </a>
-                )}
-
-                {hasSns && (
-                  <div className="border-t pt-4">
-                    <p className="flex items-center gap-1.5 text-xs text-gray-500 mb-2">
-                      <ShareNetwork weight="duotone" className="h-3.5 w-3.5" />
-                      公式 SNS
-                    </p>
-                    <SnsLinks
-                      sns={{
-                        instagramUrl: job.company.instagramUrl,
-                        tiktokUrl: job.company.tiktokUrl,
-                        facebookUrl: job.company.facebookUrl,
-                        xUrl: job.company.xUrl,
-                        youtubeUrl: job.company.youtubeUrl,
-                      }}
-                    />
-                  </div>
-                )}
-              </AccordionSection>
+              <CompanyOverview
+                company={job.company}
+                companyUrl={job.companyUrl}
+                businessContent={job.businessContent}
+                companyFeatures={job.companyFeatures}
+              />
             )}
 
             {/* HW notice */}
@@ -893,41 +797,6 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
         initialInterested={isInterested}
         loggedIn={!!loggedInUserId}
       />
-    </div>
-  )
-}
-
-function DlItem({
-  label,
-  value,
-  icon,
-  isLink,
-}: {
-  label: string
-  value: string
-  icon?: React.ReactNode
-  isLink?: boolean
-}) {
-  return (
-    <div>
-      <dt className="flex items-center gap-1 text-xs text-gray-500">
-        {icon}
-        {label}
-      </dt>
-      <dd className="mt-0.5 text-sm text-gray-900">
-        {isLink ? (
-          <a
-            href={value}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary-600 hover:underline truncate block"
-          >
-            {value}
-          </a>
-        ) : (
-          value
-        )}
-      </dd>
     </div>
   )
 }
