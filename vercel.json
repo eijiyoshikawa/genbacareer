@@ -27,6 +27,10 @@
       "schedule": "30 3 * * *"
     },
     {
+      "path": "/api/cron/recompute-rank-scores",
+      "schedule": "45 3 * * *"
+    },
+    {
       "path": "/api/cron/billing-todo-digest",
       "schedule": "0 9 * * *"
     },
