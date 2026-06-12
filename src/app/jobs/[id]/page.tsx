@@ -19,8 +19,6 @@ import {
   UsersThree,
   Megaphone,
   ShareNetwork,
-  GraduationCap,
-  Cigarette,
   Factory,
   ClockCountdown,
 } from "@phosphor-icons/react/dist/ssr"
@@ -35,7 +33,6 @@ import { groupTags } from "@/lib/job-enrichment"
 import { JobDescription } from "@/components/jobs/job-description"
 import { FormattedText } from "@/components/jobs/formatted-text"
 import { generateRecommendation } from "@/lib/job-recommendation"
-import { WorkConditionsBox } from "@/components/jobs/work-conditions-box"
 import { TagChip } from "@/components/jobs/tag-chip"
 import { SectionHeading } from "@/components/jobs/section-heading"
 import { AccordionSection } from "@/components/jobs/accordion-section"
@@ -46,6 +43,8 @@ import { ReportButton } from "@/components/reports/report-button"
 import { findRelatedJobs } from "@/lib/job-matching"
 import { RelatedAreaCategoryLinks } from "@/components/jobs/related-area-category-links"
 import { HeroBanner } from "@/components/jobs/hero-banner"
+import { JobSpec } from "@/components/jobs/job-spec"
+import { JobFaq } from "@/components/jobs/job-faq"
 import { pickDefaultJobImage } from "@/lib/default-job-images"
 import { SnsLinks } from "@/components/jobs/sns-links"
 import { PhotoGallery } from "@/components/jobs/photo-gallery"
@@ -694,105 +693,9 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
               </section>
             )}
 
-            {/* Work conditions */}
-            <section id="conditions">
-              <WorkConditionsBox
-                description={job.description}
-                requirements={job.requirements}
-                structured={{
-                  workHours: job.workHours,
-                  workHoursNotes: job.workHoursNotes,
-                  holidays: job.holidays,
-                  holidaysOther: job.holidaysOther,
-                  annualHolidays: job.annualHolidays,
-                  insurance: job.insurance,
-                }}
-              />
-            </section>
+            {/* 募集要項（左ラベル/右本文の2カラム・建職バンク参考）*/}
+            <JobSpec job={job} />
 
-            {/* 給与の詳細 */}
-            {hasSalaryDetail && (
-              <AccordionSection
-                id="salary-detail"
-                title="給与・手当の詳細"
-              >
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {job.baseSalary && (
-                    <DlItem label="基本給" value={job.baseSalary} />
-                  )}
-                  {job.bonus && <DlItem label="賞与" value={job.bonus} />}
-                  {job.commuteAllowance && (
-                    <DlItem label="通勤手当" value={job.commuteAllowance} />
-                  )}
-                  {job.fixedOvertime && (
-                    <DlItem label="固定残業代" value={job.fixedOvertime} />
-                  )}
-                </div>
-              </AccordionSection>
-            )}
-
-            {/* 待遇・福利厚生 */}
-            {hasBenefits && (
-              <AccordionSection
-                id="benefits"
-                title="待遇・福利厚生"
-              >
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {job.trialPeriod && (
-                    <DlItem label="試用期間" value={job.trialPeriod} />
-                  )}
-                  {job.smokingPolicy && (
-                    <DlItem
-                      label="受動喫煙対策"
-                      value={job.smokingPolicy}
-                      icon={<Cigarette weight="duotone" className="h-3.5 w-3.5 text-gray-400" />}
-                    />
-                  )}
-                </div>
-              </AccordionSection>
-            )}
-
-            {/* 求人条件の特記事項 */}
-            {job.jobConditionNotes && (
-              <AccordionSection
-                id="notes"
-                title="特記事項"
-              >
-                <FormattedText text={job.jobConditionNotes} />
-              </AccordionSection>
-            )}
-
-            {/* 応募要件・採用情報 */}
-            {hasRequirements && (
-              <AccordionSection
-                id="requirements"
-                title="応募要件・採用情報"
-              >
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {job.requiredExperience && (
-                    <DlItem
-                      label="必要な経験"
-                      value={job.requiredExperience}
-                    />
-                  )}
-                  {job.education && (
-                    <DlItem
-                      label="必要な学歴"
-                      value={job.education}
-                      icon={
-                        <GraduationCap weight="duotone" className="h-3.5 w-3.5 text-gray-400" />
-                      }
-                    />
-                  )}
-                  {job.recruitmentCount && (
-                    <DlItem label="採用人数" value={job.recruitmentCount} />
-                  )}
-                  {job.recruitmentReason && (
-                    <DlItem label="募集理由" value={job.recruitmentReason} />
-                  )}
-                </div>
-              </AccordionSection>
-            )}
 
             {/* 勤務地の地図 */}
             {mapAddress && (
@@ -905,6 +808,9 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                 この求人は公共職業安定所の公開情報より転載しています。最新の情報は公共職業安定所窓口でご確認ください。
               </p>
             )}
+
+            {/* この求人に関するよくある質問（FAQ） */}
+            <JobFaq job={job} />
 
             {/* 11.7 関連求人 (類似求人レコメンド) */}
             {relatedJobs.length > 0 && (
