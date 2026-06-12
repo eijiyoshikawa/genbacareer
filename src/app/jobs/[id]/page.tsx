@@ -167,6 +167,8 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
           city: true,
           address: true,
           employeeCount: true,
+          capital: true,
+          foundedOn: true,
           description: true,
           logoUrl: true,
           websiteUrl: true,

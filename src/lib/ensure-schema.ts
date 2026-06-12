@@ -373,6 +373,21 @@ const STATEMENTS: ReadonlyArray<string> = [
  )`,
  `CREATE INDEX IF NOT EXISTS "idx_article_revisions"
     ON "article_revisions" ("article_id", "created_at" DESC)`,
+ // 会社概要: 資本金・設立
+ `ALTER TABLE "companies"
+   ADD COLUMN IF NOT EXISTS "capital" VARCHAR(100),
+   ADD COLUMN IF NOT EXISTS "founded_on" VARCHAR(100)`,
+ // 利用者の声（体験談）CMS
+ `CREATE TABLE IF NOT EXISTS "testimonials" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "quote" TEXT NOT NULL,
+   "who" VARCHAR(120) NOT NULL,
+   "published" BOOLEAN NOT NULL DEFAULT TRUE,
+   "sort_order" INTEGER NOT NULL DEFAULT 0,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_testimonials_pub_order"
+    ON "testimonials" ("published", "sort_order")`,
 ]
 
 let inflight: Promise<boolean> | null = null

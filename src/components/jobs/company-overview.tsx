@@ -16,6 +16,8 @@ type CompanyOverviewData = {
     city: string | null
     address: string | null
     employeeCount: string | null
+    capital: string | null
+    foundedOn: string | null
     description: string | null
     websiteUrl: string | null
     instagramUrl: string | null
@@ -72,6 +74,8 @@ export function CompanyOverview({
         {!isBlank(company.employeeCount) && (
           <Row label="従業員数">{company.employeeCount}名</Row>
         )}
+        {!isBlank(company.capital) && <Row label="資本金">{company.capital}</Row>}
+        {!isBlank(company.foundedOn) && <Row label="設立">{company.foundedOn}</Row>}
         {!isBlank(company.industry) && <Row label="業種">{company.industry}</Row>}
         {!isBlank(businessContent) && (
           <Row label="事業内容">

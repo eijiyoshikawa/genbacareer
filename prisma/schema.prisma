@@ -267,6 +267,8 @@ model Company {
   city             String?  @db.VarChar(50)
   address          String?
   employeeCount    String?  @map("employee_count") @db.VarChar(50)
+  capital          String?  @db.VarChar(100)
+  foundedOn        String?  @map("founded_on") @db.VarChar(100)
   description      String?
   logoUrl          String?  @map("logo_url") @db.VarChar(500)
   websiteUrl       String?  @map("website_url") @db.VarChar(500)
@@ -1261,4 +1263,17 @@ model AnalyticsEvent {
   @@index([name, createdAt(sort: Desc)], name: "idx_analytics_name_time")
   @@index([userId, createdAt(sort: Desc)], name: "idx_analytics_user_time")
   @@map("analytics_events")
+}
+
+/// 利用者の声（体験談）。TOP の VOICE セクションに表示。CMS 的に運用する。
+model Testimonial {
+  id        String   @id @default(uuid()) @db.Uuid
+  quote     String
+  who       String   @db.VarChar(120)
+  published Boolean  @default(true)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([published, sortOrder], name: "idx_testimonials_pub_order")
+  @@map("testimonials")
 }

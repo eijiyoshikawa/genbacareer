@@ -1,8 +1,10 @@
 import Link from "next/link"
+import { prisma } from "@/lib/db"
 
 type Voice = { quote: string; who: string }
 
-const VOICES: Voice[] = [
+// DB(testimonials)が空のときに使うフォールバック（サンプル）
+const FALLBACK_VOICES: Voice[] = [
   {
     quote:
       "未経験で入って1年。玉掛けと足場の資格を会社負担で取らせてもらい、給料も入社時より4万円上がりました。",
@@ -24,7 +26,18 @@ const VOICES: Voice[] = [
  * ブランドコピー + 利用者の声（体験談の前面化）。
  * 「この現場に来てよかった」を、一人ひとりに——という想いを伝えるセクション。
  */
-export function VoiceSection() {
+export async function VoiceSection() {
+  // DB の testimonials を優先。空 or エラー時はサンプルにフォールバック。
+  const rows = await prisma.testimonial
+    .findMany({
+      where: { published: true },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      take: 3,
+      select: { quote: true, who: true },
+    })
+    .catch(() => [] as Voice[])
+  const VOICES: Voice[] = rows.length > 0 ? rows : FALLBACK_VOICES
+
   return (
     <section className="bg-ink-900 text-white">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
