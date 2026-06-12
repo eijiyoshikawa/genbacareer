@@ -476,6 +476,17 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                   </p>
                 )}
 
+                {/* タグチップ列（建職バンク参考: タイトル直下） */}
+                {job.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {job.tags.slice(0, 14).map((t) => (
+                      <TagChip key={t} size="sm">
+                        {t}
+                      </TagChip>
+                    ))}
+                  </div>
+                )}
+
                 {job.company && (
                   <div className="flex items-center gap-3 p-3 border bg-white">
                     <div className="h-10 w-10 flex items-center justify-center bg-primary-50">
@@ -687,8 +698,8 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
             {/* 11.7 関連求人 (類似求人レコメンド) */}
             {relatedJobs.length > 0 && (
               <section className="border-t pt-6">
-                <h2 className="text-base font-bold text-gray-900">
-                  この求人を見た人におすすめ
+                <h2 className="section-bar text-lg font-bold text-gray-900 sm:text-xl">
+                  条件が近いおすすめ求人
                 </h2>
                 <ul className="mt-3 grid gap-2 sm:grid-cols-2">
                   {relatedJobs.map((r) => (
