@@ -26,7 +26,6 @@ import {
 } from "@/lib/structured-data"
 import { getCategoryLabel } from "@/lib/categories"
 import { groupTags } from "@/lib/job-enrichment"
-import { JobDescription } from "@/components/jobs/job-description"
 import { FormattedText } from "@/components/jobs/formatted-text"
 import { generateRecommendation } from "@/lib/job-recommendation"
 import { TagChip } from "@/components/jobs/tag-chip"
@@ -614,18 +613,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
               tagGroups={tagGroups}
             />
 
-            {/* Description */}
-            {job.description && (
-              <AccordionSection
-                id="description"
-                title="仕事内容"
-                defaultOpen
-              >
-                <JobDescription text={job.description} />
-              </AccordionSection>
-            )}
-
-            {/* こんなトコロがすごい！ */}
+            {/* この会社のここがすごい（注目ポイント） */}
             {job.company?.pitchHighlights && (
               <AccordionSection
                 id="pitch"
@@ -636,38 +624,21 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
               </AccordionSection>
             )}
 
-            {/* こんな人が向いています！ */}
-            {job.company?.idealCandidate && (
-              <AccordionSection
-                id="ideal"
-                title="こんな方を歓迎します"
-              >
-                <FormattedText text={job.company.idealCandidate} />
-              </AccordionSection>
-            )}
+            {/* 募集要項（左ラベル/右本文の2カラム・建職バンク参考）
+                ※ 仕事内容 / 求める人物像 / 企業からのメッセージ はここに統合 */}
+            <JobSpec job={job} />
 
-            {/* 働いている社員の声 */}
-            {job.company?.employeeVoice && (
-              <AccordionSection
-                id="voice"
-                title="現場で働く先輩の声"
-              >
-                <FormattedText text={job.company.employeeVoice} />
-              </AccordionSection>
-            )}
-
-            {/* 写真ギャラリー */}
+            {/* 写真ギャラリー（建職バンク参考: 募集要項の後に横並び） */}
             {photos.length > 0 && (
-              <AccordionSection
-                id="photos"
-                title="現場の写真"
-                defaultOpen
-              >
+              <section id="photos">
+                <h2 className="section-bar mb-3 text-xl font-bold text-gray-900 sm:text-2xl">
+                  現場の写真
+                </h2>
                 <PhotoGallery
                   photos={photos}
                   alt={job.company?.name ?? "求人写真"}
                 />
-              </AccordionSection>
+              </section>
             )}
 
             {/* Video gallery */}
@@ -681,9 +652,6 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                 </ClientErrorBoundary>
               </section>
             )}
-
-            {/* 募集要項（左ラベル/右本文の2カラム・建職バンク参考）*/}
-            <JobSpec job={job} />
 
 
             {/* 勤務地の地図 */}
