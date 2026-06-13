@@ -3,15 +3,24 @@
  *
  * 自社 (companyId 一致) の応募者を一括でステータス変更する。
  * Body: { ids: string[], status: string }
- * 応答: { ok: true, updated: number }
+ * 応答: { ok: true, updated: number, skipped: number }
  *
  * セキュリティ: 自社が紐づく Application のみ更新対象。他社の ID が紛れても
- * updateMany の where: companyId フィルタで自動除外される。
+ * companyId フィルタで自動除外される。
+ *
+ * ステータス遷移: 個別更新と同じ遷移ルールを適用し、無効な遷移はスキップする。
  */
 
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
+
+const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
+  applied: ["reviewing", "rejected"],
+  reviewing: ["interview", "rejected"],
+  interview: ["offered", "rejected"],
+  offered: ["hired", "rejected"],
+}
 
 const ALLOWED_STATUSES = [
   "applied",
@@ -50,15 +59,31 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   }
-  const { ids, status } = parsed.data
+  const { ids, status: newStatus } = parsed.data
 
-  const result = await prisma.application.updateMany({
-    where: {
-      id: { in: ids },
-      companyId,
-    },
-    data: { status },
+  // 現在のステータスを取得し、有効な遷移の ID のみ更新対象にする
+  const applications = await prisma.application.findMany({
+    where: { id: { in: ids }, companyId },
+    select: { id: true, status: true },
   })
 
-  return Response.json({ ok: true, updated: result.count })
+  const validIds = applications
+    .filter((app) => {
+      const allowed = VALID_STATUS_TRANSITIONS[app.status]
+      return allowed?.includes(newStatus)
+    })
+    .map((app) => app.id)
+
+  const skipped = ids.length - validIds.length
+
+  if (validIds.length === 0) {
+    return Response.json({ ok: true, updated: 0, skipped })
+  }
+
+  const result = await prisma.application.updateMany({
+    where: { id: { in: validIds }, companyId },
+    data: { status: newStatus },
+  })
+
+  return Response.json({ ok: true, updated: result.count, skipped })
 }

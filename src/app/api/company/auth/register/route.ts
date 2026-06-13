@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { hashSync } from "bcryptjs";
+import { hash } from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { PREFECTURES } from "@/lib/constants";
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const passwordHash = hashSync(password, 12);
+    const passwordHash = await hash(password, 12);
 
     const company = await prisma.$transaction(async (tx) => {
       const created = await tx.company.create({
