@@ -323,7 +323,6 @@ export default async function HomePage() {
     interviewArticles,
     featuredCompanies,
   ] = await Promise.all([
-    // materialized view から件数を取得（未作成時は groupBy にフォールバック）
     withTimeout(getCategoryCounts(), DB_DEADLINE_MS, [], "getCategoryCounts"),
     withTimeout(
       // 同一企業の連続表示を抑制するため candidate を 3 倍 (18 件) 取り、

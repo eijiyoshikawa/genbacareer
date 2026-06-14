@@ -63,7 +63,7 @@ const nextConfig: NextConfig = {
       "font-src 'self' data: https://fonts.gstatic.com",
       "img-src 'self' data: blob: https:",
       "media-src 'self' https://www.youtube.com https://player.vimeo.com",
-      "connect-src 'self' https://*.supabase.co https://*.sentry.io https://www.google-analytics.com https://va.vercel-scripts.com wss://*.supabase.co https://info.gbiz.go.jp",
+      "connect-src 'self' https://*.supabase.co https://*.sentry.io https://www.google-analytics.com https://va.vercel-scripts.com wss://*.supabase.co https://info.gbiz.go.jp https://api.line.me https://access.line.me",
       "frame-src 'self' https://www.youtube.com https://player.vimeo.com https://www.tiktok.com",
       "frame-ancestors 'none'",
       "form-action 'self'",

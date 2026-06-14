@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { computeRankScore } from "@/lib/ranking"
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -119,26 +120,81 @@ export async function PUT(
       ? new Date()
       : undefined
 
+  // 更新後の求人データ（既存値にマージ）でランクスコアを再計算
+  const company = await prisma.company.findUnique({
+    where: { id: ctx.companyId },
+    select: {
+      corporateNumber: true,
+      name: true,
+      tagline: true,
+      pitchHighlights: true,
+      idealCandidate: true,
+      employeeVoice: true,
+      photos: true,
+      instagramUrl: true,
+      tiktokUrl: true,
+      facebookUrl: true,
+      xUrl: true,
+      youtubeUrl: true,
+      lastContentUpdatedAt: true,
+    },
+  })
+
+  const mergedJob = await prisma.job.findUnique({
+    where: { id },
+    select: {
+      description: true,
+      requirements: true,
+      salaryMin: true,
+      salaryMax: true,
+      employmentType: true,
+      workHours: true,
+      holidays: true,
+      insurance: true,
+      bonus: true,
+      commuteAllowance: true,
+      companyFeatures: true,
+      businessContent: true,
+      publishedAt: true,
+      expiresAt: true,
+      viewCount: true,
+    },
+  })
+
+  const rankScore = computeRankScore(
+    {
+      description: data.description ?? mergedJob?.description ?? null,
+      requirements: data.requirements ?? mergedJob?.requirements ?? null,
+      salaryMin: data.salaryMin ?? mergedJob?.salaryMin ?? null,
+      salaryMax: data.salaryMax ?? mergedJob?.salaryMax ?? null,
+      employmentType: data.employmentType ?? mergedJob?.employmentType ?? null,
+      workHours: mergedJob?.workHours ?? null,
+      holidays: mergedJob?.holidays ?? null,
+      insurance: mergedJob?.insurance ?? null,
+      bonus: mergedJob?.bonus ?? null,
+      commuteAllowance: mergedJob?.commuteAllowance ?? null,
+      companyFeatures: mergedJob?.companyFeatures ?? null,
+      businessContent: mergedJob?.businessContent ?? null,
+      publishedAt: publishedAt ?? mergedJob?.publishedAt ?? null,
+      expiresAt: mergedJob?.expiresAt ?? null,
+      viewCount: mergedJob?.viewCount ?? null,
+    },
+    company ?? null
+  )
+
   const job = await prisma.job.update({
     where: { id },
     data: {
       ...data,
       ...(publishedAt ? { publishedAt } : {}),
+      rankScore,
     },
   })
 
-  // GbizINFO リマインダー: draft → active への初回公開で法人番号未登録なら
-  // 観測ログ。UI バナーで既に注意喚起しているため、ここでは記録のみ。
-  if (publishedAt) {
-    const company = await prisma.company.findUnique({
-      where: { id: existing.companyId ?? "" },
-      select: { corporateNumber: true, name: true },
-    })
-    if (company && !company.corporateNumber) {
-      console.info(
-        `[gbiz-reminder] job published without corporateNumber: companyId=${existing.companyId} name=${company.name} jobId=${id}`
-      )
-    }
+  if (publishedAt && company && !company.corporateNumber) {
+    console.info(
+      `[gbiz-reminder] job published without corporateNumber: companyId=${existing.companyId} name=${company.name} jobId=${id}`
+    )
   }
 
   return Response.json({ job })

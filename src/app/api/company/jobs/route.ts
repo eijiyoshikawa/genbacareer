@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { CATEGORIES } from "@/lib/categories"
 import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
+import { computeRankScore } from "@/lib/ranking"
 
 const VALID_CATEGORIES = CATEGORIES.map((c) => c.value)
 
@@ -99,6 +100,40 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const publishedAt = data.status === "active" ? new Date() : null
+
+  // 企業プロフィールを取得してランクスコア計算に使用（GbizINFO チェックも兼ねる）
+  const company = await prisma.company.findUnique({
+    where: { id: ctx.companyId },
+    select: {
+      corporateNumber: true,
+      name: true,
+      tagline: true,
+      pitchHighlights: true,
+      idealCandidate: true,
+      employeeVoice: true,
+      photos: true,
+      instagramUrl: true,
+      tiktokUrl: true,
+      facebookUrl: true,
+      xUrl: true,
+      youtubeUrl: true,
+      lastContentUpdatedAt: true,
+    },
+  })
+
+  const rankScore = computeRankScore(
+    {
+      description: data.description ?? null,
+      requirements: data.requirements ?? null,
+      salaryMin: data.salaryMin ?? null,
+      salaryMax: data.salaryMax ?? null,
+      employmentType: data.employmentType ?? null,
+      publishedAt,
+    },
+    company ?? null
+  )
+
   const job = await prisma.job.create({
     data: {
       companyId: ctx.companyId,
@@ -119,23 +154,15 @@ export async function POST(request: NextRequest) {
       tags: data.tags ?? [],
       videoUrls: data.videoUrls ?? [],
       status: data.status ?? "draft",
-      publishedAt: data.status === "active" ? new Date() : null,
+      publishedAt,
+      rankScore,
     },
   })
 
-  // GbizINFO リマインダー: 法人番号未登録の企業が active 求人を公開した場合、
-  // 観測用ログを出す（将来的にメール通知 / Slack 通知につなげる足場）。
-  // UI 側のバナーで既に注意喚起済みなので、ここでは強制せずログのみ。
-  if (data.status === "active") {
-    const company = await prisma.company.findUnique({
-      where: { id: ctx.companyId },
-      select: { corporateNumber: true, name: true },
-    })
-    if (company && !company.corporateNumber) {
-      console.info(
-        `[gbiz-reminder] job published without corporateNumber: companyId=${ctx.companyId} name=${company.name} jobId=${job.id}`
-      )
-    }
+  if (data.status === "active" && company && !company.corporateNumber) {
+    console.info(
+      `[gbiz-reminder] job published without corporateNumber: companyId=${ctx.companyId} name=${company.name} jobId=${job.id}`
+    )
   }
 
   return Response.json({ job }, { status: 201 })

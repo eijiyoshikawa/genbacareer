@@ -84,7 +84,7 @@ function generateSessionId(): string {
 // 含めない（VERCEL_ENV !== "production" の場合は noindex のみ）。
 const CANONICAL_HOSTS = new Set(["genbacareer.jp", "www.genbacareer.jp"])
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const host = (request.headers.get("host") ?? "").toLowerCase()
 
@@ -278,7 +278,10 @@ function decodeRoleFromJwt(token: string): string | null {
     // Try to extract payload from unencrypted JWT (3-part dot-separated).
     const parts = token.split(".")
     if (parts.length === 3) {
-      const payload = JSON.parse(atob(parts[1]))
+      // JWT uses base64url (- and _ instead of + and /), atob requires standard base64
+      const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+      const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")
+      const payload = JSON.parse(atob(padded))
       return payload.role ?? null
     }
     // Encrypted JWE token — cannot decode in middleware without the secret.
