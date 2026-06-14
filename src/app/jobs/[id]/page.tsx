@@ -520,22 +520,34 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                       {salaryUnitLabel(job.salaryType)}:
                     </dt>
                     <dd className="font-bold text-primary-700">
-                      {job.salaryMin
-                        ? formatSalary(
-                            job.salaryMin,
-                            job.salaryMax,
-                            job.salaryType
-                          )
-                            .replace(/^(月給|時給|年収|日給)\s*/, "")
-                        : "応相談"}
+                      <Link
+                        href="#spec-salary"
+                        className="inline-flex items-center gap-0.5 hover:underline"
+                      >
+                        {job.salaryMin
+                          ? formatSalary(
+                              job.salaryMin,
+                              job.salaryMax,
+                              job.salaryType
+                            )
+                              .replace(/^(月給|時給|年収|日給)\s*/, "")
+                          : "応相談"}
+                        <CaretRight weight="bold" className="h-3 w-3 opacity-60" />
+                      </Link>
                     </dd>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <MapPin weight="duotone" className="h-4 w-4 text-primary-500" />
                     <dt className="text-gray-500 mr-1">勤務地:</dt>
                     <dd className="font-medium text-gray-900">
-                      {job.prefecture}
-                      {job.city ? ` ${job.city}` : ""}
+                      <Link
+                        href="#spec-location"
+                        className="inline-flex items-center gap-0.5 hover:underline"
+                      >
+                        {job.prefecture}
+                        {job.city ? ` ${job.city}` : ""}
+                        <CaretRight weight="bold" className="h-3 w-3 opacity-60" />
+                      </Link>
                     </dd>
                   </div>
                   {hasOccupationMeta && (
@@ -543,16 +555,22 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                       <Briefcase weight="duotone" className="h-4 w-4 text-primary-500" />
                       <dt className="text-gray-500 mr-1">職種:</dt>
                       <dd className="font-medium text-gray-900 line-clamp-1">
-                        {job.occupationTitle ??
-                          job.occupationCategoryName ??
-                          job.jobTypeName}
-                        {job.occupationCategoryName &&
-                          job.occupationTitle &&
-                          job.occupationCategoryName !== job.occupationTitle && (
-                            <span className="ml-1.5 text-xs text-gray-500">
-                              （{job.occupationCategoryName}）
-                            </span>
-                          )}
+                        <Link
+                          href="#spec-description"
+                          className="inline-flex items-center gap-0.5 hover:underline"
+                        >
+                          {job.occupationTitle ??
+                            job.occupationCategoryName ??
+                            job.jobTypeName}
+                          {job.occupationCategoryName &&
+                            job.occupationTitle &&
+                            job.occupationCategoryName !== job.occupationTitle && (
+                              <span className="ml-1.5 text-xs text-gray-500">
+                                （{job.occupationCategoryName}）
+                              </span>
+                            )}
+                          <CaretRight weight="bold" className="h-3 w-3 opacity-60" />
+                        </Link>
                       </dd>
                     </div>
                   )}

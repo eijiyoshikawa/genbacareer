@@ -21,6 +21,7 @@ import {
   Search,
   X,
   ExternalLink,
+  Building2,
 } from "lucide-react"
 import { computeScoreBreakdown } from "@/lib/ranking"
 import {
@@ -42,6 +43,9 @@ type ProfileData = {
   pitchHighlights: string
   idealCandidate: string
   employeeVoice: string
+  capital: string
+  foundedOn: string
+  employeeCount: string
   logoUrl: string
   photos: string[]
   schedulingUrls: SchedulingUrl[]
@@ -284,6 +288,42 @@ export function ProfileForm({
           onChange={(url) => update("logoUrl", url)}
           size="md"
         />
+      </section>
+
+      {/* 会社基本情報（資本金 / 設立 / 従業員数） ============================ */}
+      <section className="accent-l border bg-white p-5 pl-6 shadow-sm space-y-3">
+        <div>
+          <h3 className="flex items-center gap-2 text-base font-bold text-gray-900">
+            <Building2 className="h-5 w-5 text-primary-500" />
+            会社基本情報
+          </h3>
+          <p className="text-xs text-gray-500 mt-1">
+            求人詳細ページの「会社概要」に表示されます。入力した項目のみ表示されます（空欄は非表示）。
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <BasicField
+            label="資本金"
+            placeholder="例: 1,000万円"
+            value={data.capital}
+            onChange={(v) => update("capital", v)}
+            maxLength={100}
+          />
+          <BasicField
+            label="設立"
+            placeholder="例: 2010年4月"
+            value={data.foundedOn}
+            onChange={(v) => update("foundedOn", v)}
+            maxLength={100}
+          />
+          <BasicField
+            label="従業員数"
+            placeholder="例: 50（「名」は不要）"
+            value={data.employeeCount}
+            onChange={(v) => update("employeeCount", v)}
+            maxLength={100}
+          />
+        </div>
       </section>
 
       {/* キャッチコピー ===================================================== */}
@@ -681,6 +721,34 @@ function UrlField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        className="mt-1 w-full border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+      />
+    </div>
+  )
+}
+
+function BasicField({
+  label,
+  placeholder,
+  value,
+  onChange,
+  maxLength,
+}: {
+  label: string
+  placeholder?: string
+  value: string
+  onChange: (v: string) => void
+  maxLength?: number
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-bold text-gray-700">{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        maxLength={maxLength}
         className="mt-1 w-full border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
       />
     </div>

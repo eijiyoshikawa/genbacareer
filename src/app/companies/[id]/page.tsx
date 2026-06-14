@@ -267,6 +267,15 @@ export default async function CompanyDetailPage({ params }: Props) {
     company.youtubeUrl,
   ].filter((u): u is string => !!u)
 
+  // 承認済み口コミ（第三者評価）があれば AggregateRating を付与。
+  // self-serving ではない実ユーザー評価なので Google のリッチリザルト対象。
+  const reviewCount = reviewStats._count._all
+  const reviewAvg = reviewStats._avg.rating
+  const rating =
+    reviewCount > 0 && reviewAvg != null
+      ? { average: Math.round(reviewAvg * 10) / 10, count: reviewCount }
+      : undefined
+
   const orgSchema = generateLocalBusinessSchema({
     id: company.id,
     name: company.name,
@@ -278,6 +287,7 @@ export default async function CompanyDetailPage({ params }: Props) {
     city: company.city ?? null,
     address: company.address ?? null,
     sameAs: sameAsLinks,
+    rating,
   })
 
   return (

@@ -21,6 +21,9 @@ const profileSchema = z.object({
   pitchHighlights: z.string().max(4000).optional().default(""),
   idealCandidate: z.string().max(4000).optional().default(""),
   employeeVoice: z.string().max(4000).optional().default(""),
+  capital: z.string().max(100).optional().default(""),
+  foundedOn: z.string().max(100).optional().default(""),
+  employeeCount: z.string().max(100).optional().default(""),
   logoUrl: urlOrEmpty(),
   photos: z
     .array(z.string().url().max(500))
@@ -89,6 +92,9 @@ export async function PATCH(request: NextRequest) {
       pitchHighlights: emptyToNull(body.pitchHighlights),
       idealCandidate: emptyToNull(body.idealCandidate),
       employeeVoice: emptyToNull(body.employeeVoice),
+      capital: emptyToNull(body.capital),
+      foundedOn: emptyToNull(body.foundedOn),
+      employeeCount: emptyToNull(body.employeeCount),
       logoUrl: emptyToNull(body.logoUrl),
       photos: body.photos ?? [],
       schedulingUrls: (body.schedulingUrls ?? []) as unknown as object,

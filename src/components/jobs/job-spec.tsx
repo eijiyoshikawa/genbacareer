@@ -83,7 +83,7 @@ export function JobSpec({ job }: { job: JobSpecData }) {
       <div className="border-t-2 border-gray-200">
         {/* 仕事内容 */}
         {(!isBlank(job.description) || !isBlank(job.jobConditionNotes)) && (
-          <SpecRow icon={<Briefcase weight="duotone" />} label="仕事内容">
+          <SpecRow id="spec-description" icon={<Briefcase weight="duotone" />} label="仕事内容">
             {!isBlank(job.description) && <Block body={job.description!} />}
             {!isBlank(job.jobConditionNotes) && (
               <Block title="特記事項" body={job.jobConditionNotes!} />
@@ -95,7 +95,7 @@ export function JobSpec({ job }: { job: JobSpecData }) {
         {(!isBlank(job.requiredExperience) ||
           !isBlank(job.requirements) ||
           !isBlank(job.education)) && (
-          <SpecRow icon={<IdentificationCard weight="duotone" />} label="応募条件">
+          <SpecRow id="spec-requirements" icon={<IdentificationCard weight="duotone" />} label="応募条件">
             {!isBlank(job.requiredExperience) && (
               <Block title="必要な経験・資格" body={job.requiredExperience!} />
             )}
@@ -115,7 +115,7 @@ export function JobSpec({ job }: { job: JobSpecData }) {
 
         {/* 雇用形態 */}
         {(!isBlank(job.employmentType) || !isBlank(job.trialPeriod)) && (
-          <SpecRow icon={<Briefcase weight="duotone" />} label="雇用形態">
+          <SpecRow id="spec-employment" icon={<Briefcase weight="duotone" />} label="雇用形態">
             {!isBlank(job.employmentType) && (
               <Block body={employmentLabel(job.employmentType!)} />
             )}
@@ -124,7 +124,7 @@ export function JobSpec({ job }: { job: JobSpecData }) {
         )}
 
         {/* 勤務地 */}
-        <SpecRow icon={<MapPin weight="duotone" />} label="勤務地">
+        <SpecRow id="spec-location" icon={<MapPin weight="duotone" />} label="勤務地">
           <Block
             body={[job.prefecture, job.city, job.address]
               .filter((v) => !isBlank(v))
@@ -138,7 +138,7 @@ export function JobSpec({ job }: { job: JobSpecData }) {
           !isBlank(job.bonus) ||
           !isBlank(job.fixedOvertime) ||
           !isBlank(job.commuteAllowance)) && (
-          <SpecRow icon={<Money weight="duotone" />} label="給与">
+          <SpecRow id="spec-salary" icon={<Money weight="duotone" />} label="給与">
             {salaryLabel(job.salaryMin, job.salaryMax, job.salaryType) && (
               <p className="text-lg font-extrabold text-primary-700">
                 {salaryLabel(job.salaryMin, job.salaryMax, job.salaryType)}
@@ -157,7 +157,7 @@ export function JobSpec({ job }: { job: JobSpecData }) {
 
         {/* 勤務時間 */}
         {(!isBlank(job.workHours) || !isBlank(job.workHoursNotes)) && (
-          <SpecRow icon={<Clock weight="duotone" />} label="勤務時間">
+          <SpecRow id="spec-worktime" icon={<Clock weight="duotone" />} label="勤務時間">
             {!isBlank(job.workHours) && <Block body={job.workHours!} />}
             {!isBlank(job.workHoursNotes) && <Block body={job.workHoursNotes!} />}
           </SpecRow>
@@ -167,7 +167,7 @@ export function JobSpec({ job }: { job: JobSpecData }) {
         {(!isBlank(job.holidays) ||
           !isBlank(job.holidaysOther) ||
           job.annualHolidays != null) && (
-          <SpecRow icon={<CalendarBlank weight="duotone" />} label="休日・休暇">
+          <SpecRow id="spec-holidays" icon={<CalendarBlank weight="duotone" />} label="休日・休暇">
             {job.annualHolidays != null && (
               <Block body={`年間休日：${job.annualHolidays}日`} />
             )}
@@ -180,7 +180,7 @@ export function JobSpec({ job }: { job: JobSpecData }) {
         {(!isBlank(job.insurance) ||
           (job.benefits && job.benefits.length > 0) ||
           !isBlank(job.smokingPolicy)) && (
-          <SpecRow icon={<Gift weight="duotone" />} label="待遇・福利厚生">
+          <SpecRow id="spec-benefits" icon={<Gift weight="duotone" />} label="待遇・福利厚生">
             {!isBlank(job.insurance) && <Block title="社会保険" body={job.insurance!} />}
             {job.benefits && job.benefits.length > 0 && (
               <ul className="space-y-1 text-sm leading-relaxed text-gray-700">
@@ -224,14 +224,19 @@ export function JobSpec({ job }: { job: JobSpecData }) {
 function SpecRow({
   icon,
   label,
+  id,
   children,
 }: {
   icon: ReactNode
   label: string
+  id?: string
   children: ReactNode
 }) {
   return (
-    <div className="grid grid-cols-1 gap-2 border-b border-gray-200 py-5 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-6">
+    <div
+      id={id}
+      className="grid scroll-mt-24 grid-cols-1 gap-2 border-b border-gray-200 py-5 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-6"
+    >
       <div className="flex items-center gap-2">
         <span className="text-primary-600 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>
         <span className="text-sm font-bold text-gray-900">{label}</span>

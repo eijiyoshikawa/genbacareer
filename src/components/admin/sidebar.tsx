@@ -28,6 +28,7 @@ import {
   AlertTriangle,
   Receipt,
   BookOpen,
+  Quote,
 } from "lucide-react"
 
 const navItems = [
@@ -40,6 +41,7 @@ const navItems = [
   { href: "/admin/segments", label: "セグメント配信", icon: Send },
   { href: "/admin/companies", label: "企業管理", icon: Building2 },
   { href: "/admin/articles", label: "記事管理", icon: FileText },
+  { href: "/admin/testimonials", label: "体験談（声）管理", icon: Quote },
   { href: "/admin/docs", label: "編集マニュアル", icon: BookOpen },
   { href: "/admin/job-templates", label: "求人テンプレ", icon: FileStack },
   { href: "/admin/job-quality", label: "求人精査", icon: ShieldCheck },

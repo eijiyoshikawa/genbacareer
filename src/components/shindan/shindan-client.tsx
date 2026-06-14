@@ -61,6 +61,12 @@ export function ShindanClient() {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<ShindanOption[]>([])
   const [picked, setPicked] = useState<number | null>(null)
+  // 流入元（?source=line_richmenu 等）。GA イベントに付与して経路別CVを計測。
+  // DOM には出さないため、初期化時に window から読んでも hydration mismatch にならない。
+  const [source] = useState(() => {
+    if (typeof window === "undefined") return "direct"
+    return new URLSearchParams(window.location.search).get("source") || "direct"
+  })
 
   const total = SHINDAN_QUESTIONS.length
   const done = step >= total
@@ -69,8 +75,8 @@ export function ShindanClient() {
   useEffect(() => {
     if (!done) return
     const ranked = scoreShindan(answers)
-    gtagEvent("shindan_complete", { top: ranked[0] ?? "none" })
-  }, [done, answers])
+    gtagEvent("shindan_complete", { top: ranked[0] ?? "none", source })
+  }, [done, answers, source])
 
   function choose(opt: ShindanOption, i: number) {
     if (picked !== null) return
@@ -195,7 +201,7 @@ export function ShindanClient() {
           <Link
             key={r.key}
             href={`/jobs?category=${r.key}&source=direct`}
-            onClick={() => gtagEvent("shindan_result_click", { category: r.key, rank: i + 1 })}
+            onClick={() => gtagEvent("shindan_result_click", { category: r.key, rank: i + 1, source })}
             className="press card group block p-4"
           >
             <div className="flex items-center gap-3">
@@ -229,7 +235,7 @@ export function ShindanClient() {
         href="https://lin.ee/OwURD4q"
         target="_blank"
         rel="noopener noreferrer"
-        onClick={() => gtagEvent("shindan_line_add", { top: top ?? "none" })}
+        onClick={() => gtagEvent("shindan_line_add", { top: top ?? "none", source })}
         className="press mt-7 flex w-full items-center justify-center gap-2 bg-[#06C755] px-6 py-3.5 text-sm font-extrabold text-white shadow hover:brightness-105"
       >
         <span className="text-base">💬</span>

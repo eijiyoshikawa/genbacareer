@@ -43,6 +43,14 @@
       "schedule": "0 9 * * *"
     },
     {
+      "path": "/api/cron/line-digest?mode=daily",
+      "schedule": "30 9 * * *"
+    },
+    {
+      "path": "/api/cron/line-digest?mode=weekly",
+      "schedule": "0 10 * * 1"
+    },
+    {
       "path": "/api/cron/refresh-gbiz",
       "schedule": "0 3 1 * *"
     },
