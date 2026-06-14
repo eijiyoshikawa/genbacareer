@@ -172,6 +172,54 @@ export async function getUserProfile(userId: string): Promise<LineUserProfile | 
   return res.json() as Promise<LineUserProfile>
 }
 
+// === 診断用（読み取り専用） ================================================
+// トークンの有効性確認や送信枠チェックに使う。状態を変更しないので運用診断で安全。
+
+export interface LineBotInfo {
+  userId: string
+  basicId: string
+  displayName: string
+  premiumId?: string
+  pictureUrl?: string
+  chatMode?: string
+  markAsReadMode?: string
+}
+
+/**
+ * Bot 自身の情報を取得する（GET /v2/bot/info）。
+ * 200 が返ればトークンは有効。401/403 ならトークンが無効/失効。
+ * @returns 成功時は LineBotInfo、失敗時は HTTP ステータスとレスポンス本文。
+ */
+export async function getBotInfo(): Promise<
+  { ok: true; info: LineBotInfo } | { ok: false; status: number; body: string }
+> {
+  if (!getToken()) return { ok: false, status: 0, body: "no token" }
+  const res = await callApi("/v2/bot/info", { method: "GET" })
+  if (!res.ok) {
+    return { ok: false, status: res.status, body: await res.text().catch(() => "") }
+  }
+  return { ok: true, info: (await res.json()) as LineBotInfo }
+}
+
+/** 当月の Push 送信上限（GET /v2/bot/message/quota）。type:"none" は無制限。 */
+export async function getMessageQuota(): Promise<
+  { type: "none" } | { type: "limited"; value: number } | null
+> {
+  if (!getToken()) return null
+  const res = await callApi("/v2/bot/message/quota", { method: "GET" })
+  if (!res.ok) return null
+  return res.json() as Promise<{ type: "none" } | { type: "limited"; value: number }>
+}
+
+/** 当月の送信済みメッセージ数（GET /v2/bot/message/quota/consumption）。 */
+export async function getQuotaConsumption(): Promise<number | null> {
+  if (!getToken()) return null
+  const res = await callApi("/v2/bot/message/quota/consumption", { method: "GET" })
+  if (!res.ok) return null
+  const json = (await res.json()) as { totalUsage: number }
+  return json.totalUsage
+}
+
 // === Rich Menu ============================================================
 
 export interface RichMenuBounds {
