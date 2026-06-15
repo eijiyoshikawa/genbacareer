@@ -79,6 +79,7 @@ export default async function AdminLineLeadsPage({ searchParams }: Props) {
   // ステータス別件数を Record 化（fall back 0）
   const statusCountMap: Record<LeadStatus, number> = {
     pending: 0,
+    follower: 0,
     line_added: 0,
     contacted: 0,
     qualified: 0,
