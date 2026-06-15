@@ -80,6 +80,9 @@ export default async function WizardDonePage({
         メール確認後、マイページから残りのプロフィール (資格・学歴・希望条件詳細)
         を追加できます。
       </p>
+      <p className="mt-2 text-[11px] text-[#06C755] font-medium">
+        ✓ ログイン後、マイページから「LINE 連携」で新着求人やスカウトを LINE で受け取れます。
+      </p>
     </div>
   )
 }
