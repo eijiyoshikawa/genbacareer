@@ -5,6 +5,7 @@ import type { Provider } from "next-auth/providers"
 import { compare } from "bcryptjs"
 import { prisma } from "./db"
 import { checkRateLimit } from "./rate-limit"
+import { bindLineUserToAccount } from "./line-link"
 
 /**
  * ログイン試行レート制限。
@@ -64,7 +65,9 @@ if (process.env.LINE_CLIENT_ID && process.env.LINE_CLIENT_SECRET) {
     clientId: process.env.LINE_CLIENT_ID,
     clientSecret: process.env.LINE_CLIENT_SECRET,
     authorization: {
-      params: { scope: "profile openid" },
+      // bot_prompt=aggressive: チャネルに公式アカウントをリンクしておくと、
+      // ログイン時に友だち追加が促され、その後 Push 送信が可能になる。
+      params: { scope: "profile openid", bot_prompt: "aggressive" },
     },
     profile(profile) {
       return {
@@ -280,6 +283,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             }
             user.id = existing.id
             ;(user as { role?: string }).role = "seeker"
+          }
+
+          // LINE ログイン経由なら sub(=Messaging API userId) を User へ紐付け、
+          // 配信パイプライン(LineLead)にも反映する。これで LINE 登録ユーザーも
+          // 即「LINE 到達可能」になる。
+          if (account.provider === "line" && account.providerAccountId && user.id) {
+            await bindLineUserToAccount({
+              userId: user.id,
+              lineUserId: account.providerAccountId,
+              displayName: user.name ?? null,
+              email: user.email,
+            }).catch(() => {})
           }
         }
       }

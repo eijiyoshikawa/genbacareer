@@ -21,15 +21,22 @@ import { JobCard } from "@/components/jobs/job-card"
 import { JobCardSkeletonGrid, Skeleton } from "@/components/ui/skeleton"
 import { calcProfileCompletion } from "@/lib/profile-completion"
 import { ProfileCompletionCard } from "@/components/mypage/profile-completion-card"
+import { LineLinkBanner } from "@/components/mypage/line-link-banner"
 import { isScoutEnabled } from "@/lib/feature-flags"
 
 export const metadata: Metadata = {
   title: "マイページ",
 }
 
-export default async function MyPage() {
+export default async function MyPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | undefined>>
+}) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
+
+  const linkStatus = (await searchParams)?.line_link
 
   // ヘッダーと profile completion 表示に必要な user だけ block で取得し、
   // 各 Link カードの count は <Suspense> で streaming する（TTFB 改善）。
@@ -46,6 +53,7 @@ export default async function MyPage() {
       desiredSalaryMin: true,
       resumeUrl: true,
       emailVerified: true,
+      lineUserId: true,
       createdAt: true,
     },
   })
@@ -57,6 +65,8 @@ export default async function MyPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
       <h1 className="text-2xl font-bold text-gray-900">マイページ</h1>
+
+      <LineLinkBanner linked={!!user.lineUserId} status={linkStatus} />
 
       <div className="mt-6">
         <ProfileCompletionCard

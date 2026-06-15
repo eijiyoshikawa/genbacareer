@@ -34,6 +34,8 @@ model User {
   resumeUrl         String?   @map("resume_url") @db.VarChar(500)
   profilePublic     Boolean   @default(false) @map("profile_public")
   authProvider      String    @default("email") @map("auth_provider") @db.VarChar(20)
+  // LINE 連携で取得した Messaging API userId（友だち Push / 運用アプローチ用）
+  lineUserId        String?   @map("line_user_id") @db.VarChar(50)
   emailVerified     DateTime? @map("email_verified") @db.Timestamptz()
   verificationToken String?   @unique @map("verification_token") @db.VarChar(64)
   verificationTokenExpiry DateTime? @map("verification_token_expiry") @db.Timestamptz()

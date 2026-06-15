@@ -388,6 +388,10 @@ const STATEMENTS: ReadonlyArray<string> = [
  )`,
  `CREATE INDEX IF NOT EXISTS "idx_testimonials_pub_order"
     ON "testimonials" ("published", "sort_order")`,
+ // LINE 連携: 求職者 User に Messaging API userId を保持（全登録経路を LINE 到達可能にする）
+ `ALTER TABLE "users"
+   ADD COLUMN IF NOT EXISTS "line_user_id" VARCHAR(50)`,
+ `CREATE INDEX IF NOT EXISTS "idx_users_line_user" ON "users" ("line_user_id")`,
  // LINE ダイジェスト配信: 通知の LINE Push 済みマーク
  `ALTER TABLE "notifications"
    ADD COLUMN IF NOT EXISTS "line_pushed_at" TIMESTAMPTZ`,

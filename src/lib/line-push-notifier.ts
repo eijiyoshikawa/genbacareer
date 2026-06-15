@@ -20,10 +20,15 @@ const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp
 
 async function findLineUserId(userId: string): Promise<string | null> {
   const user = await prisma.user
-    .findUnique({ where: { id: userId }, select: { email: true } })
+    .findUnique({ where: { id: userId }, select: { email: true, lineUserId: true } })
     .catch(() => null)
-  if (!user?.email) return null
+  if (!user) return null
 
+  // 1. LINE 連携済みなら User 本体の lineUserId を最優先（全登録経路で到達可能に）
+  if (user.lineUserId) return user.lineUserId
+
+  // 2. 後方互換: email→LineLead 突き合わせ（応募リード経由で bind されたケース）
+  if (!user.email) return null
   const lead = await prisma.lineLead
     .findFirst({
       where: {
