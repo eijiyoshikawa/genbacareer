@@ -177,11 +177,11 @@ export default async function RootLayout({
           本文へスキップ
         </a>
         <NavigationProgress />
+        <PreReleaseNotice />
         <Header />
         <main id="main-content" className="flex-1">{children}</main>
         <Footer />
         <CookieConsentBanner />
-        <PreReleaseNotice />
         <DeferredVercelTelemetry />
       </body>
     </html>
