@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Building2, ArrowRight } from "lucide-react";
 import { LineLoginButton } from "@/components/auth/line-login-button";
+import { LineInAppNotice } from "@/components/line-inapp-notice";
 import { PasswordInput } from "@/components/auth/password-input";
 
 /**
@@ -47,6 +48,7 @@ export default function LoginPage() {
     <div className="flex min-h-[calc(100vh-200px)] items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         <div className="bg-white p-8 shadow-lg">
+          <LineInAppNotice />
           <h1 className="mb-1 text-center text-2xl font-bold text-gray-900">
             求職者ログイン
           </h1>
