@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Zen_Kaku_Gothic_New } from "next/font/google";
+import { Noto_Sans_JP } from "next/font/google";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { NavigationProgress } from "@/components/navigation-progress";
@@ -13,10 +13,10 @@ import {
 import { ensureSchema } from "@/lib/ensure-schema";
 import "./globals.css";
 
-// ブランドフォント: Zen Kaku Gothic New（モダンで力強いゴシック体）。
+// ブランドフォント: Noto Sans JP（日本の求人サイトで定番。ニュートラルで高い可読性）。
 // 日本語ウェブフォントは大きいため preload:false で初期表示をブロックしない。
 // 取得前/失敗時はシステムゴシック (Hiragino / Yu Gothic) にフォールバック。
-const brandGothic = Zen_Kaku_Gothic_New({
+const brandGothic = Noto_Sans_JP({
   subsets: ["latin"],
   weight: ["400", "500", "700", "900"],
   display: "swap",
