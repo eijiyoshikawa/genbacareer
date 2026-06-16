@@ -22,6 +22,7 @@ import { JobCardSkeletonGrid, Skeleton } from "@/components/ui/skeleton"
 import { calcProfileCompletion } from "@/lib/profile-completion"
 import { ProfileCompletionCard } from "@/components/mypage/profile-completion-card"
 import { LineLinkBanner } from "@/components/mypage/line-link-banner"
+import { LineInAppNotice } from "@/components/line-inapp-notice"
 import { isScoutEnabled } from "@/lib/feature-flags"
 
 export const metadata: Metadata = {
@@ -66,6 +67,9 @@ export default async function MyPage({
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
       <h1 className="text-2xl font-bold text-gray-900">マイページ</h1>
 
+      <div className="mt-4">
+        <LineInAppNotice />
+      </div>
       <LineLinkBanner linked={!!user.lineUserId} status={linkStatus} />
 
       <div className="mt-6">

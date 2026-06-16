@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { PREFECTURES } from "@/lib/constants";
 import { LineLoginButton } from "@/components/auth/line-login-button";
+import { LineInAppNotice } from "@/components/line-inapp-notice";
 import { PostalCodeInput } from "@/components/forms/postal-code-input";
 
 export default function RegisterPage() {
@@ -129,6 +130,7 @@ export default function RegisterPage() {
     <div className="flex min-h-[calc(100vh-200px)] items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         <div className=" bg-white p-8 shadow-lg">
+          <LineInAppNotice />
           <h1 className="mb-6 text-center text-2xl font-bold text-gray-900">
             求職者 新規登録
           </h1>

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Mail, ArrowRight } from "lucide-react"
 import { LineLoginButton } from "@/components/auth/line-login-button"
+import { LineInAppNotice } from "@/components/line-inapp-notice"
 import { loadAnswers, saveAnswers } from "@/lib/registration/wizard-state"
 
 /**
@@ -55,6 +56,7 @@ export default function WizardEntryPage() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-10 sm:px-6 sm:py-14">
+      <LineInAppNotice />
       <header className="text-center mb-6">
         <p className="text-xs font-bold text-primary-600 tracking-wide">
           無料・約 1 分で完了
