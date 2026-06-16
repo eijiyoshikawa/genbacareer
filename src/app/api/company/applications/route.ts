@@ -18,14 +18,20 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "企業情報が見つかりません" }, { status: 403 })
   }
 
+  const VALID_APPLICATION_STATUSES = ["applied", "reviewing", "interview", "offered", "hired", "rejected"]
+
   const { searchParams } = request.nextUrl
   const page = Math.max(1, Number(searchParams.get("page")) || 1)
   const perPage = 20
-  const status = searchParams.get("status")
+  const statusParam = searchParams.get("status")
+  const status =
+    statusParam && statusParam !== "all" && VALID_APPLICATION_STATUSES.includes(statusParam)
+      ? statusParam
+      : null
 
   const where = {
     companyId,
-    ...(status && status !== "all" ? { status } : {}),
+    ...(status ? { status } : {}),
   }
 
   const [applications, total] = await Promise.all([

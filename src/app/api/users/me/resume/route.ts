@@ -12,6 +12,10 @@ export async function GET() {
     where: { userId: session.user.id },
   })
 
+  if (!resume) {
+    return Response.json({ error: "職務経歴書が見つかりません" }, { status: 404 })
+  }
+
   return Response.json({ resume })
 }
 
@@ -44,7 +48,11 @@ function sanitizeResumeData(body: Record<string, unknown>) {
   return {
     fullName: typeof body.fullName === "string" ? body.fullName : undefined,
     furigana: typeof body.furigana === "string" ? body.furigana : undefined,
-    birthDate: typeof body.birthDate === "string" ? new Date(body.birthDate) : undefined,
+    birthDate: (() => {
+      if (typeof body.birthDate !== "string") return undefined
+      const d = new Date(body.birthDate)
+      return isNaN(d.getTime()) ? undefined : d
+    })(),
     gender: typeof body.gender === "string" ? body.gender : undefined,
     postalCode: typeof body.postalCode === "string" ? body.postalCode : undefined,
     address: typeof body.address === "string" ? body.address : undefined,

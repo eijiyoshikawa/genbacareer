@@ -99,7 +99,13 @@ export async function PUT(request: NextRequest) {
       ...(data.prefecture !== undefined ? { prefecture: data.prefecture } : {}),
       ...(data.city !== undefined ? { city: data.city } : {}),
       ...(data.birthDate !== undefined
-        ? { birthDate: data.birthDate ? new Date(data.birthDate) : null }
+        ? {
+            birthDate: (() => {
+              if (!data.birthDate) return null
+              const d = new Date(data.birthDate)
+              return isNaN(d.getTime()) ? null : d
+            })(),
+          }
         : {}),
       ...(data.desiredCategories !== undefined
         ? { desiredCategories: data.desiredCategories }

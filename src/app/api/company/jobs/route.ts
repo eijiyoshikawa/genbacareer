@@ -39,20 +39,26 @@ async function getCompanySession() {
   return { session, companyId, role }
 }
 
+const VALID_JOB_STATUSES = ["draft", "active", "closed"] as const
+
 export async function GET(request: NextRequest) {
   const ctx = await getCompanySession()
   if (!ctx) {
-    return Response.json({ error: "企業アカウントでログインしてください" }, { status: 401 })
+    return Response.json({ error: "企業アカウントでログインしてください" }, { status: 403 })
   }
 
   const { searchParams } = request.nextUrl
   const page = Math.max(1, Number(searchParams.get("page")) || 1)
   const perPage = 20
-  const status = searchParams.get("status")
+  const statusParam = searchParams.get("status")
+  const status =
+    statusParam && statusParam !== "all" && (VALID_JOB_STATUSES as readonly string[]).includes(statusParam)
+      ? statusParam
+      : null
 
   const where = {
     companyId: ctx.companyId,
-    ...(status && status !== "all" ? { status } : {}),
+    ...(status ? { status } : {}),
   }
 
   const [jobs, total] = await Promise.all([

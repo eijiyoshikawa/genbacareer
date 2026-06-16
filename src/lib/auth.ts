@@ -191,12 +191,10 @@ providers.push(
             if (!consumed) {
               throw new Error("TOTP_INVALID")
             }
-            await prisma.companyUser
-              .update({
-                where: { id: companyUser.id },
-                data: { totpRecoveryCodes: consumed.remaining },
-              })
-              .catch(() => {})
+            await prisma.companyUser.update({
+              where: { id: companyUser.id },
+              data: { totpRecoveryCodes: consumed.remaining },
+            })
           }
         }
 
