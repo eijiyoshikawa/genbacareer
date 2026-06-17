@@ -101,14 +101,16 @@ export function middleware(request: NextRequest) {
   // ホスト書き換えからは除外する（後段の noindex は引き続き付与）。
   const isInfraEndpoint =
     pathname.startsWith("/api/cron") || pathname.startsWith("/api/webhooks")
+  // 本番の正規ホストは www.genbacareer.jp に集約する。
+  //   - *.vercel.app（ブランチ/プレビュー以外で本番到達したもの）→ www
+  //   - apex genbacareer.jp → www（www/非www の重複・redirect_uri 不一致を解消）
+  const isApexHost = host === "genbacareer.jp"
   if (
     process.env.VERCEL_ENV === "production" &&
-    isVercelHost &&
-    !CANONICAL_HOSTS.has(host) &&
-    !isInfraEndpoint
+    !isInfraEndpoint &&
+    ((isVercelHost && !CANONICAL_HOSTS.has(host)) || isApexHost)
   ) {
     const canonicalUrl = new URL(request.nextUrl)
-    // www を canonical にしておくと apex→www の 301 を 1 ホップ省ける。
     canonicalUrl.host = "www.genbacareer.jp"
     canonicalUrl.protocol = "https:"
     canonicalUrl.port = ""
