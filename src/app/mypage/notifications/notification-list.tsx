@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
-import { FileText, Megaphone, Bell } from "lucide-react"
+import { FileText, Megaphone, Bell, Mail } from "lucide-react"
 
 type NotificationItem = {
   id: string
@@ -16,6 +16,7 @@ type NotificationItem = {
 
 const ICON_BY_TYPE: Record<string, typeof Bell> = {
   application_status: FileText,
+  scout: Mail,
   promo: Megaphone,
   system: Bell,
 }

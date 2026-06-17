@@ -11,6 +11,7 @@ import { parsePrefs, isInQuietHours } from "@/lib/notification-prefs"
 
 export type NotificationType =
   | "application_status"
+  | "scout"
   | "system"
   | "promo"
 

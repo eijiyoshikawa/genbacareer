@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db"
 
+export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
+
 /**
  * 有効期限切れ求人のクローズ + 自動再掲載 (auto_renew) 求人の延長
  *
