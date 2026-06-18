@@ -44,7 +44,7 @@ export async function GET(request: Request) {
     await prisma.job
       .update({
         where: { id: j.id },
-        data: { expiresAt: newExpiry, publishedAt: now },
+        data: { expiresAt: newExpiry },
       })
       .then(() => {
         renewed++

@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 
   // ---------- Phase 1: SavedSearch ----------
   const searches = await prisma.savedSearch.findMany({
-    where: { alertEnabled: true },
+    where: { alertEnabled: true, user: { status: "active" } },
     orderBy: { lastNotifiedAt: { sort: "asc", nulls: "first" } },
     take: 500,
   })
@@ -80,6 +80,7 @@ export async function GET(request: Request) {
 
   // ---------- Phase 2: CompanyFollow ----------
   const follows = await prisma.companyFollow.findMany({
+    where: { user: { status: "active" } },
     orderBy: { lastNotifiedAt: { sort: "asc", nulls: "first" } },
     take: 500,
     select: {
