@@ -21,7 +21,8 @@ export default async function CompanyLayout({
   }
 
   const userId = (session.user as { id?: string }).id
-  const companyId = (session.user as { companyId?: string }).companyId ?? ""
+  const companyId = (session.user as { companyId?: string }).companyId
+  if (!companyId) redirect("/login")
 
   // PW 変更必須チェックと企業ステータス取得を並列実行
   const [cu, company] = await Promise.all([

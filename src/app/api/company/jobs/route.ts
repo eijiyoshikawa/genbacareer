@@ -5,11 +5,11 @@ import { prisma } from "@/lib/db"
 import { CATEGORIES } from "@/lib/categories"
 import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
 
-const VALID_CATEGORIES = CATEGORIES.map((c) => c.value)
+const VALID_CATEGORIES = CATEGORIES.map((c) => c.value) as [string, ...string[]]
 
 const jobSchema = z.object({
   title: z.string().min(1).max(200),
-  category: z.string().min(1).max(50),
+  category: z.enum(VALID_CATEGORIES),
   subcategory: z.string().max(50).nullable().optional(),
   employmentType: z.enum(["full_time", "part_time", "contract"]).nullable().optional(),
   description: z.string().nullable().optional(),
@@ -91,13 +91,6 @@ export async function POST(request: NextRequest) {
   }
 
   const data = parsed.data
-
-  if (!(VALID_CATEGORIES as readonly string[]).includes(data.category)) {
-    return Response.json(
-      { error: `無効なカテゴリです。有効な値: ${VALID_CATEGORIES.join(", ")}` },
-      { status: 400 }
-    )
-  }
 
   const job = await prisma.job.create({
     data: {
