@@ -668,6 +668,18 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                 ※ 仕事内容 / 求める人物像 / 企業からのメッセージ はここに統合 */}
             <JobSpec job={job} />
 
+            {/* 労働条件の明示に関する補足（職業安定法 / 2024年改正の明示事項）。
+                掲載できていない明示事項は企業の労働条件通知書で補完される旨と、
+                相違時の相談窓口を案内する（デザイン影響を抑えた注記ブロック）。 */}
+            <p className="mt-4 border border-gray-200 bg-gray-50 p-3 text-xs leading-relaxed text-gray-500">
+              ※ 労働条件の明示について：上記のほか、従事すべき業務・就業場所の「変更の範囲」、契約期間や更新の上限（有期雇用の場合）、試用期間中の労働条件などの詳細は、選考の過程で求人企業より労働条件通知書等の書面で明示されます。掲載内容と実際の労働条件に相違がある場合や求人内容に関するご相談は
+              <Link href="/contact" className="text-primary-600 underline">
+                お問い合わせ
+              </Link>
+              までご連絡ください。
+            </p>
+
+
             {/* 写真ギャラリー（建職バンク参考: 募集要項の後に横並び） */}
             {photos.length > 0 && (
               <section id="photos">
