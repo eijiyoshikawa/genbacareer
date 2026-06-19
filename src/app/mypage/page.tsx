@@ -338,7 +338,7 @@ async function QuickLinkCounts({ userId }: { userId: string }) {
     companyFollowCount,
     activeScoutCount,
   ] = await Promise.all([
-    prisma.application.count({ where: { userId } }),
+    prisma.application.count({ where: { userId } }).catch(() => 0),
     prisma.notification
       .count({ where: { userId, readAt: null } })
       .catch(() => 0),

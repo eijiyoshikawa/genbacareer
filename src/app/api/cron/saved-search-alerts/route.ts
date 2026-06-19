@@ -34,7 +34,8 @@ export async function GET(request: Request) {
 
   // ---------- Phase 1: SavedSearch ----------
   const searches = await prisma.savedSearch.findMany({
-    where: { alertEnabled: true },
+    // 退会済み(status!=active)ユーザーには通知しない
+    where: { alertEnabled: true, user: { status: "active" } },
     orderBy: { lastNotifiedAt: { sort: "asc", nulls: "first" } },
     take: 500,
   })
@@ -80,6 +81,8 @@ export async function GET(request: Request) {
 
   // ---------- Phase 2: CompanyFollow ----------
   const follows = await prisma.companyFollow.findMany({
+    // 退会済み(status!=active)ユーザーには通知しない
+    where: { user: { status: "active" } },
     orderBy: { lastNotifiedAt: { sort: "asc", nulls: "first" } },
     take: 500,
     select: {
