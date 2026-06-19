@@ -18,21 +18,15 @@ export function BrandLogo({
   const accent =
     variant === "dark" ? "text-primary-400" : "text-primary-500"
 
+  // 横長ワードマーク SVG(明背景向け・濃グレー文字)は Footer 等の暗背景で視認性が
+  // 落ちるため、Header 以外（Footer / モバイルメニュー）ではテキストのワードマークを使う。
+  // variant により明暗どちらの背景でも読めるよう配色を切り替える。
   return (
-    <span className={`inline-flex items-center gap-2 ${className}`}>
-      {/* ロゴマーク（public/brand/genbacareer-mark.svg） */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/brand/genbacareer-mark.svg"
-        alt="ゲンバキャリア"
-        className="h-8 w-8 shrink-0 object-contain"
-      />
-      {variant !== "icon" && (
-        <span className={`text-lg font-extrabold tracking-tight ${wordColor}`}>
-          ゲンバ
-          <span className={accent}>キャリア</span>
-        </span>
-      )}
+    <span className={`inline-flex items-center ${className}`}>
+      <span className={`text-lg font-extrabold tracking-tight ${wordColor}`}>
+        ゲンバ
+        <span className={accent}>キャリア</span>
+      </span>
     </span>
   )
 }
