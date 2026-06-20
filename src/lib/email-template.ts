@@ -205,7 +205,7 @@ export function renderEmailLayout(opts: EmailLayoutOptions): string {
     ? (() => {
         const { bg, fg } = ctaColors(opts.cta.variant)
         return `<p style="margin:24px 0;text-align:left;">
-          <a href="${opts.cta.url}" style="display:inline-block;padding:14px 28px;background:${bg};color:${fg};text-decoration:none;font-weight:bold;font-size:15px;border-radius:6px;">${escapeHtml(
+          <a href="${escapeHtml(opts.cta.url)}" style="display:inline-block;padding:14px 28px;background:${bg};color:${fg};text-decoration:none;font-weight:bold;font-size:15px;border-radius:6px;">${escapeHtml(
             opts.cta.label,
           )}</a>
         </p>`
@@ -246,13 +246,13 @@ export function renderEmailLayout(opts: EmailLayoutOptions): string {
     : ""
 
   const secondaryHtml = opts.secondaryLink
-    ? `<p style="margin:0 0 24px;font-size:14px;"><a href="${opts.secondaryLink.url}" style="color:${BRAND.primary};text-decoration:underline;">${escapeHtml(opts.secondaryLink.label)}</a></p>`
+    ? `<p style="margin:0 0 24px;font-size:14px;"><a href="${escapeHtml(opts.secondaryLink.url)}" style="color:${BRAND.primary};text-decoration:underline;">${escapeHtml(opts.secondaryLink.label)}</a></p>`
     : ""
 
   const unsubscribeHtml = opts.unsubscribe
     ? `<div style="margin-top:24px;padding-top:16px;border-top:1px solid ${BRAND.divider};">
         <p style="font-size:12px;color:${BRAND.muted};margin:0 0 4px;">このメールの配信を停止する場合</p>
-        <p style="font-size:12px;color:${BRAND.muted};margin:0;">→ <a href="${opts.unsubscribe.url}" style="color:${BRAND.primary};">${escapeHtml(opts.unsubscribe.label)}</a></p>
+        <p style="font-size:12px;color:${BRAND.muted};margin:0;">→ <a href="${escapeHtml(opts.unsubscribe.url)}" style="color:${BRAND.primary};">${escapeHtml(opts.unsubscribe.label)}</a></p>
       </div>`
     : ""
 

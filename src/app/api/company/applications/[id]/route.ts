@@ -149,8 +149,9 @@ export async function PUT(
   // 採用確定時の自動請求
   if (newStatus === "hired") {
     try {
+      // pending/invoiced は成功済み or 処理中なのでスキップ。failed は再試行する。
       const existingBilling = await prisma.billingEvent.findFirst({
-        where: { applicationId: id, eventType: "hired" },
+        where: { applicationId: id, eventType: "hired", status: { in: ["pending", "invoiced"] } },
       })
       if (!existingBilling) {
         const { createHiringInvoice } = await import("@/lib/billing")

@@ -61,8 +61,6 @@ type FormState = {
 
 const STEPS = ["基本情報", "勤務地", "給与・条件", "プレビュー"] as const
 
-const DRAFT_KEY = "genbacareer.job-wizard.draft"
-
 function buildInitial(initial?: JobWizardData): FormState {
   return {
     title: initial?.title ?? "",
@@ -123,6 +121,7 @@ export function JobWizard({
 }) {
   const router = useRouter()
   const isEditing = !!initialData?.id
+  const DRAFT_KEY = `genbacareer.job-wizard.draft.${companyId}`
 
   const [step, setStep] = useState(0)
   const [form, setForm] = useState<FormState>(() => buildInitial(initialData))
@@ -166,7 +165,7 @@ export function JobWizard({
     } catch {
       // ignore parse errors
     }
-  }, [isEditing])
+  }, [isEditing, DRAFT_KEY])
 
   useEffect(() => {
     if (isEditing) return
@@ -183,9 +182,7 @@ export function JobWizard({
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     }
-  }, [form, isEditing])
-
-  void companyId
+  }, [form, isEditing, DRAFT_KEY])
 
   const validateStep = useCallback(
     (current: number): string | null => {

@@ -87,20 +87,27 @@ export async function POST(request: Request) {
       })
 
       // 退会後に通知が来ても困るので関連レコードを削除
+      const warnOnFail = (label: string) => (e: unknown) => {
+        console.error(
+          `[delete-account] secondary delete failed (${label}) userId=${userId}:`,
+          e instanceof Error ? e.message : e
+        )
+        return null
+      }
       await Promise.all([
-        tx.savedSearch.deleteMany({ where: { userId } }).catch(() => null),
-        tx.jobFavorite.deleteMany({ where: { userId } }).catch(() => null),
-        tx.notification.deleteMany({ where: { userId } }).catch(() => null),
+        tx.savedSearch.deleteMany({ where: { userId } }).catch(warnOnFail("savedSearch")),
+        tx.jobFavorite.deleteMany({ where: { userId } }).catch(warnOnFail("jobFavorite")),
+        tx.notification.deleteMany({ where: { userId } }).catch(warnOnFail("notification")),
         // メッセージテンプレートはユーザー固有の PII を含むため削除
         tx.applicationMessageTemplate
           .deleteMany({ where: { userId } })
-          .catch(() => null),
+          .catch(warnOnFail("messageTemplate")),
         // CompanyFollow / Resume が存在する場合は同様に削除
         tx.$executeRawUnsafe(
           `DELETE FROM "company_follows" WHERE "user_id" = $1::uuid`,
           userId
-        ).catch(() => null),
-        tx.resume.deleteMany({ where: { userId } }).catch(() => null),
+        ).catch(warnOnFail("companyFollow")),
+        tx.resume.deleteMany({ where: { userId } }).catch(warnOnFail("resume")),
       ])
     })
   } catch (e) {

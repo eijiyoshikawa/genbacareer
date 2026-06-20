@@ -68,7 +68,12 @@ export async function backfillDedupeKeys(limit = 100): Promise<number> {
     await prisma.job
       .update({ where: { id: r.id }, data: { dedupeKey: key } })
       .then(() => processed++)
-      .catch(() => {})
+      .catch((e: unknown) => {
+        console.error(
+          `[dedupe] Failed to update dedupeKey for job ${r.id}:`,
+          e instanceof Error ? e.message : e
+        )
+      })
   }
   return processed
 }
@@ -103,7 +108,13 @@ export async function mergeDuplicates(maxGroups = 50): Promise<{
         orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
         select: { id: true },
       })
-      .catch(() => [])
+      .catch((e: unknown) => {
+        console.error(
+          `[dedupe] Failed to fetch jobs for dedupeKey ${g.dedupe_key}:`,
+          e instanceof Error ? e.message : e
+        )
+        return []
+      })
     if (jobs.length < 2) continue
     const representative = jobs[0]
     const dupIds = jobs.slice(1).map((j) => j.id)
@@ -112,7 +123,13 @@ export async function mergeDuplicates(maxGroups = 50): Promise<{
         where: { id: { in: dupIds } },
         data: { status: "closed", dedupedTo: representative.id },
       })
-      .catch(() => ({ count: 0 }))
+      .catch((e: unknown) => {
+        console.error(
+          `[dedupe] Failed to close duplicates for dedupeKey ${g.dedupe_key}:`,
+          e instanceof Error ? e.message : e
+        )
+        return { count: 0 }
+      })
     closed += r.count
   }
 

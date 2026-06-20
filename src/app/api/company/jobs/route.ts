@@ -20,8 +20,8 @@ const jobSchema = z.object({
   prefecture: z.string().min(1).max(10),
   city: z.string().max(50).nullable().optional(),
   address: z.string().nullable().optional(),
-  benefits: z.array(z.string()).optional(),
-  tags: z.array(z.string()).optional(),
+  benefits: z.array(z.string().max(100)).max(50).optional(),
+  tags: z.array(z.string().max(50)).max(30).optional(),
   videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
   status: z.enum(["draft", "active", "closed"]).optional(),
 })
