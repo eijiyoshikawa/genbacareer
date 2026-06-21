@@ -9,7 +9,7 @@ export function generateOrganizationSchema(): Record<string, unknown> {
     name: "ゲンバキャリア",
     alternateName: "Genba Career",
     url: BASE_URL,
-    logo: `${BASE_URL}/logo-demo.jpg`,
+    logo: `${BASE_URL}/logo.png`,
     sameAs: ["https://lin.ee/OwURD4q"],
     contactPoint: {
       "@type": "ContactPoint",

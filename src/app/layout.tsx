@@ -66,9 +66,9 @@ export const metadata: Metadata = {
     url: siteUrl,
     images: [
       {
-        url: "/logo-demo.jpg",
-        width: 1200,
-        height: 630,
+        url: "/logo.png",
+        width: 1000,
+        height: 1000,
         alt: "ゲンバキャリア | 建設業界特化型求人サイト",
       },
     ],
@@ -81,9 +81,9 @@ export const metadata: Metadata = {
     description: "建築・土木・電気・内装の求人を網羅。LINE で気軽に応募。",
     images: [
       {
-        url: "/logo-demo.jpg",
-        width: 1200,
-        height: 630,
+        url: "/logo.png",
+        width: 1000,
+        height: 1000,
         alt: "ゲンバキャリア | 建設業界特化型求人サイト",
       },
     ],
@@ -108,14 +108,14 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "ゲンバキャリア",
   },
-  // /logo-demo.jpg を全アイコン用途に統一。
+  // /logo.png (1000x1000・透過) を全アイコン用途に統一。
   // - ブラウザタブ favicon (icon)
   // - iOS ホーム画面 (apple)
   // - 検索結果 / SNS の OG 画像は openGraph.images で指定済み
   icons: {
-    icon: [{ url: "/logo-demo.jpg", type: "image/jpeg" }],
-    apple: [{ url: "/logo-demo.jpg" }],
-    shortcut: ["/logo-demo.jpg"],
+    icon: [{ url: "/logo.png", type: "image/png" }],
+    apple: [{ url: "/logo.png" }],
+    shortcut: ["/logo.png"],
   },
 };
 
