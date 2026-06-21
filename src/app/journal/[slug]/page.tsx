@@ -95,7 +95,7 @@ export default async function ArticlePage({ params }: Props) {
   if (!article) notFound()
 
   // Increment view count (non-blocking)
-  prisma.article.update({ where: { id: article.id }, data: { viewCount: { increment: 1 } } }).catch(() => {})
+  void prisma.article.update({ where: { id: article.id }, data: { viewCount: { increment: 1 } } }).catch(() => {})
 
   // 13.4 trackEvent("view_article")
   void trackEvent({
@@ -315,17 +315,6 @@ export default async function ArticlePage({ params }: Props) {
           className="article-body mt-8"
           dangerouslySetInnerHTML={{ __html: article.body }}
         />
-
-        {/* Tags */}
-        {article.tags.length > 0 && (
-          <div className="mt-8 flex flex-wrap gap-2">
-            {article.tags.map((tag) => (
-              <span key={tag} className="border border-gray-200 px-2.5 py-1 text-xs text-gray-500">
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
 
         {/* Bottom share */}
         <div className="mt-8 flex justify-end">

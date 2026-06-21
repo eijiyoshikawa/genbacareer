@@ -8,6 +8,7 @@ import { ApplicationActionPanel } from "@/components/company/application-action-
 import { SchedulingUrlsPanel } from "@/components/company/scheduling-urls-panel"
 import { parseSchedulingUrls } from "@/lib/scheduling-urls"
 import { EarlyResignationButton } from "@/components/company/early-resignation-button"
+import { isValidUuid } from "@/lib/uuid"
 
 export const metadata: Metadata = {
   title: "応募者詳細",
@@ -42,6 +43,7 @@ export default async function ApplicationDetailPage({
   if (!companyId) redirect("/login")
 
   const { id } = await params
+  if (!isValidUuid(id)) notFound()
 
   const app = await prisma.application.findUnique({
     where: { id },

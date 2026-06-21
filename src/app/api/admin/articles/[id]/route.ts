@@ -14,6 +14,7 @@ const articleUpdateSchema = z.object({
   excerpt: z.string().max(500).nullable().optional(),
   body: z.string().min(1).optional(),
   category: z.string().min(1).max(50).optional(),
+  subcategory: z.string().max(50).nullable().optional(),
   tags: z.array(z.string()).optional(),
   imageUrl: z.string().url().max(500).nullable().optional().or(z.literal("")),
   metaDescription: z.string().max(300).nullable().optional(),
@@ -119,6 +120,7 @@ export async function PUT(
       ...(d.excerpt !== undefined ? { excerpt: empty(d.excerpt) } : {}),
       ...(d.body !== undefined ? { body: d.body } : {}),
       ...(d.category !== undefined ? { category: d.category } : {}),
+      ...(d.subcategory !== undefined ? { subcategory: empty(d.subcategory) } : {}),
       ...(d.tags !== undefined ? { tags: d.tags } : {}),
       ...(d.imageUrl !== undefined ? { imageUrl: empty(d.imageUrl) } : {}),
       ...(d.metaDescription !== undefined

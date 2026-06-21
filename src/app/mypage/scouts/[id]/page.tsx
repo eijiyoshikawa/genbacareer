@@ -12,6 +12,7 @@ import Link from "next/link"
 import { ArrowLeft, Building2, MapPin, Briefcase, Clock } from "lucide-react"
 import type { Metadata } from "next"
 import { DeclineScoutButton } from "./decline-button"
+import { isValidUuid } from "@/lib/uuid"
 
 export const dynamic = "force-dynamic"
 
@@ -25,6 +26,7 @@ type Props = {
 
 export default async function ScoutDetailPage({ params }: Props) {
   const { id } = await params
+  if (!isValidUuid(id)) notFound()
   const session = await auth()
   if (!session?.user) redirect("/login")
   const userId = (session.user as { id?: string }).id

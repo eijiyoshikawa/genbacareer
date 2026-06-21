@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ARTICLE_CATEGORIES } from "@/lib/article-categories"
+import { CATEGORIES } from "@/lib/categories"
 
 export type ArticleFormValues = {
   slug: string
@@ -11,6 +12,7 @@ export type ArticleFormValues = {
   excerpt: string
   body: string
   category: string
+  subcategory: string // 関連求人表示用の求人カテゴリ
   tags: string // カンマ区切りで保持
   imageUrl: string
   metaDescription: string
@@ -26,6 +28,7 @@ export const emptyArticleForm: ArticleFormValues = {
   excerpt: "",
   body: "",
   category: "career",
+  subcategory: "",
   tags: "",
   imageUrl: "",
   metaDescription: "",
@@ -67,6 +70,7 @@ export function ArticleForm({ mode, articleId, initialValues }: Props) {
       excerpt: form.excerpt || null,
       body: form.body,
       category: form.category,
+      subcategory: form.subcategory || null,
       tags,
       imageUrl: form.imageUrl || null,
       metaDescription: form.metaDescription || null,
@@ -230,6 +234,27 @@ export function ArticleForm({ mode, articleId, initialValues }: Props) {
               placeholder="ゲンバキャリア編集部"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            関連求人カテゴリ（サブカテゴリ）
+          </label>
+          <select
+            value={form.subcategory}
+            onChange={(e) => update("subcategory", e.target.value)}
+            className="mt-1 block w-full border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          >
+            <option value="">なし（関連求人を表示しない）</option>
+            {CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-gray-500">
+            設定すると記事下部に該当カテゴリの求人3件を表示します
+          </p>
         </div>
 
         <div>

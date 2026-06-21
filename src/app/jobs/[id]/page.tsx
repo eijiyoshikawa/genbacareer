@@ -187,7 +187,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
 
   // プレビューモードではトラッキングを行わない（社内チェックを実件数に混ぜないため）
   if (!isPreview) {
-    prisma.job
+    void prisma.job
       .update({ where: { id }, data: { viewCount: { increment: 1 } } })
       .catch(() => {})
   }

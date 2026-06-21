@@ -29,6 +29,7 @@ export default async function AdminArticleEditPage({
     excerpt: article.excerpt ?? "",
     body: article.body,
     category: article.category,
+    subcategory: article.subcategory ?? "",
     tags: article.tags.join(", "),
     imageUrl: article.imageUrl ?? "",
     metaDescription: article.metaDescription ?? "",
