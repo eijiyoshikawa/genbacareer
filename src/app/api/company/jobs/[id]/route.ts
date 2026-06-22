@@ -3,30 +3,31 @@ import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 
-const updateJobSchema = z.object({
-  title: z.string().min(1).max(200).optional(),
-  category: z.string().min(1).max(50).optional(),
-  subcategory: z.string().max(50).nullable().optional(),
-  employmentType: z.enum(["full_time", "part_time", "contract"]).nullable().optional(),
-  description: z.string().nullable().optional(),
-  requirements: z.string().nullable().optional(),
-  salaryMin: z.number().int().min(0).nullable().optional(),
-  salaryMax: z.number().int().min(0).nullable().optional(),
-  salaryType: z.enum(["monthly", "hourly", "annual"]).nullable().optional(),
-  prefecture: z.string().min(1).max(10).optional(),
-  city: z.string().max(50).nullable().optional(),
-  address: z.string().nullable().optional(),
-  benefits: z.array(z.string()).optional(),
-  tags: z.array(z.string()).optional(),
-  videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
-  status: z.enum(["draft", "active", "closed"]).optional(),
-  /**
-   * 楽観ロック用 ISO timestamp。GET で取得した updatedAt をそのまま PUT に
-   * 渡すと、別タブ / 別ユーザーが同じレコードを編集した場合に競合検出して
-   * 409 を返す（強制上書きを防ぐ）。
-   */
-  expectedUpdatedAt: z.string().datetime().optional(),
-})
+const updateJobSchema = z
+  .object({
+    title: z.string().min(1).max(200).optional(),
+    category: z.string().min(1).max(50).optional(),
+    subcategory: z.string().max(50).nullable().optional(),
+    employmentType: z.enum(["full_time", "part_time", "contract"]).nullable().optional(),
+    description: z.string().nullable().optional(),
+    requirements: z.string().nullable().optional(),
+    salaryMin: z.number().int().min(0).nullable().optional(),
+    salaryMax: z.number().int().min(0).nullable().optional(),
+    salaryType: z.enum(["monthly", "hourly", "annual"]).nullable().optional(),
+    prefecture: z.string().min(1).max(10).optional(),
+    city: z.string().max(50).nullable().optional(),
+    address: z.string().nullable().optional(),
+    benefits: z.array(z.string()).optional(),
+    tags: z.array(z.string()).optional(),
+    videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
+    status: z.enum(["draft", "active", "closed"]).optional(),
+    expectedUpdatedAt: z.string().datetime().optional(),
+  })
+  .refine(
+    (d) =>
+      d.salaryMin == null || d.salaryMax == null || d.salaryMin <= d.salaryMax,
+    { message: "給与下限は上限以下にしてください", path: ["salaryMin"] }
+  )
 
 async function getCompanySession() {
   const session = await auth()

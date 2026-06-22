@@ -7,24 +7,30 @@ import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
 
 const VALID_CATEGORIES = CATEGORIES.map((c) => c.value)
 
-const jobSchema = z.object({
-  title: z.string().min(1).max(200),
-  category: z.string().min(1).max(50),
-  subcategory: z.string().max(50).nullable().optional(),
-  employmentType: z.enum(["full_time", "part_time", "contract"]).nullable().optional(),
-  description: z.string().nullable().optional(),
-  requirements: z.string().nullable().optional(),
-  salaryMin: z.number().int().min(0).nullable().optional(),
-  salaryMax: z.number().int().min(0).nullable().optional(),
-  salaryType: z.enum(["monthly", "hourly", "annual"]).nullable().optional(),
-  prefecture: z.string().min(1).max(10),
-  city: z.string().max(50).nullable().optional(),
-  address: z.string().nullable().optional(),
-  benefits: z.array(z.string()).optional(),
-  tags: z.array(z.string()).optional(),
-  videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
-  status: z.enum(["draft", "active", "closed"]).optional(),
-})
+const jobSchema = z
+  .object({
+    title: z.string().min(1).max(200),
+    category: z.string().min(1).max(50),
+    subcategory: z.string().max(50).nullable().optional(),
+    employmentType: z.enum(["full_time", "part_time", "contract"]).nullable().optional(),
+    description: z.string().nullable().optional(),
+    requirements: z.string().nullable().optional(),
+    salaryMin: z.number().int().min(0).nullable().optional(),
+    salaryMax: z.number().int().min(0).nullable().optional(),
+    salaryType: z.enum(["monthly", "hourly", "annual"]).nullable().optional(),
+    prefecture: z.string().min(1).max(10),
+    city: z.string().max(50).nullable().optional(),
+    address: z.string().nullable().optional(),
+    benefits: z.array(z.string()).optional(),
+    tags: z.array(z.string()).optional(),
+    videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
+    status: z.enum(["draft", "active", "closed"]).optional(),
+  })
+  .refine(
+    (d) =>
+      d.salaryMin == null || d.salaryMax == null || d.salaryMin <= d.salaryMax,
+    { message: "給与下限は上限以下にしてください", path: ["salaryMin"] }
+  )
 
 async function getCompanySession() {
   const session = await auth()

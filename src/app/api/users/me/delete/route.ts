@@ -88,19 +88,14 @@ export async function POST(request: Request) {
 
       // 退会後に通知が来ても困るので関連レコードを削除
       await Promise.all([
-        tx.savedSearch.deleteMany({ where: { userId } }).catch(() => null),
-        tx.jobFavorite.deleteMany({ where: { userId } }).catch(() => null),
-        tx.notification.deleteMany({ where: { userId } }).catch(() => null),
+        tx.savedSearch.deleteMany({ where: { userId } }),
+        tx.jobFavorite.deleteMany({ where: { userId } }),
+        tx.notification.deleteMany({ where: { userId } }),
         // メッセージテンプレートはユーザー固有の PII を含むため削除
-        tx.applicationMessageTemplate
-          .deleteMany({ where: { userId } })
-          .catch(() => null),
+        tx.applicationMessageTemplate.deleteMany({ where: { userId } }),
         // CompanyFollow / Resume が存在する場合は同様に削除
-        tx.$executeRawUnsafe(
-          `DELETE FROM "company_follows" WHERE "user_id" = $1::uuid`,
-          userId
-        ).catch(() => null),
-        tx.resume.deleteMany({ where: { userId } }).catch(() => null),
+        tx.companyFollow.deleteMany({ where: { userId } }),
+        tx.resume.deleteMany({ where: { userId } }),
       ])
     })
   } catch (e) {
