@@ -116,6 +116,12 @@ export async function POST(request: Request) {
       { status: 400 },
     )
   }
+  if (resignedAt > new Date()) {
+    return Response.json(
+      { error: "退職日は過去の日付である必要があります" },
+      { status: 400 },
+    )
+  }
   if (resignedAt <= app.hiredAt) {
     return Response.json(
       { error: "退職日は入社日より後である必要があります" },

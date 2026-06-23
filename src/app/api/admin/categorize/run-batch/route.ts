@@ -33,7 +33,14 @@ export async function POST(request: NextRequest) {
   } catch {
     body = {}
   }
-  const { limit } = bodySchema.parse(body || {})
+  const parsed = bodySchema.safeParse(body || {})
+  if (!parsed.success) {
+    return Response.json(
+      { error: "invalid_body", issues: parsed.error.issues },
+      { status: 400 },
+    )
+  }
+  const { limit } = parsed.data
 
   // JobCategoryClassification がまだない Job を取得
   // (1:1 関係なので、relation でなく LEFT JOIN 相当を生クエリで)
