@@ -480,6 +480,23 @@ const STATEMENTS: ReadonlyArray<string> = [
     ON "lottery_draws" ("user_id", "created_at" DESC)`,
  `CREATE INDEX IF NOT EXISTS "idx_lottery_draws_fulfillment"
     ON "lottery_draws" ("is_win", "fulfillment", "created_at" DESC)`,
+ // ギフトコード在庫プール（当選時に自動割り当て＋LINE自動送付）
+ `CREATE TABLE IF NOT EXISTS "gift_codes" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "prize_id" UUID NOT NULL REFERENCES "lottery_prizes" ("id") ON DELETE CASCADE,
+   "code" VARCHAR(255) NOT NULL,
+   "status" VARCHAR(20) NOT NULL DEFAULT 'available',
+   "draw_id" UUID UNIQUE,
+   "assigned_user_id" UUID,
+   "assigned_at" TIMESTAMPTZ,
+   "delivered_via" VARCHAR(20),
+   "delivered_at" TIMESTAMPTZ,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE UNIQUE INDEX IF NOT EXISTS "uq_gift_codes_prize_code"
+    ON "gift_codes" ("prize_id", "code")`,
+ `CREATE INDEX IF NOT EXISTS "idx_gift_codes_prize_status"
+    ON "gift_codes" ("prize_id", "status")`,
 ]
 
 let inflight: Promise<boolean> | null = null

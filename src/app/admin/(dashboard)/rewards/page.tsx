@@ -5,6 +5,7 @@ import {
   PrizeCreateForm,
   PrizeToggle,
   FulfillButton,
+  GiftCodeUpload,
 } from "@/components/admin/rewards-admin"
 
 export const dynamic = "force-dynamic"
@@ -27,7 +28,7 @@ function fmt(d: Date): string {
 }
 
 export default async function AdminRewardsPage() {
-  const [prizes, pendingDraws, stats] = await Promise.all([
+  const [prizes, pendingDraws, stats, codeAvail, codeTotal] = await Promise.all([
     prisma.lotteryPrize.findMany({ orderBy: [{ active: "desc" }, { sortOrder: "asc" }] }),
     prisma.lotteryDraw.findMany({
       where: { isWin: true, fulfillment: "pending" },
@@ -36,11 +37,30 @@ export default async function AdminRewardsPage() {
       include: { user: { select: { email: true, name: true } } },
     }),
     prisma.lotteryDraw.count(),
+    prisma.giftCode.groupBy({
+      by: ["prizeId"],
+      where: { status: "available" },
+      _count: true,
+    }),
+    prisma.giftCode.groupBy({ by: ["prizeId"], _count: true }),
   ])
 
+  const availByPrize = new Map(codeAvail.map((c) => [c.prizeId, c._count]))
+  const totalByPrize = new Map(codeTotal.map((c) => [c.prizeId, c._count]))
+
+  // amazon_gift は「未割当コード枚数」を在庫とみなして抽選対象か判定する
+  const isEligible = (p: (typeof prizes)[number]): boolean => {
+    if (!p.active) return false
+    if (p.kind === "amazon_gift") return (availByPrize.get(p.id) ?? 0) > 0
+    return p.stock === null || p.stock > 0
+  }
   const totalWeight = prizes
-    .filter((p) => p.active && (p.stock === null || p.stock > 0))
+    .filter(isEligible)
     .reduce((s, p) => s + Math.max(0, p.weight), 0)
+
+  const giftPrizes = prizes
+    .filter((p) => p.kind === "amazon_gift")
+    .map((p) => ({ id: p.id, name: p.name }))
 
   return (
     <div>
@@ -81,11 +101,19 @@ export default async function AdminRewardsPage() {
                   </tr>
                 ) : (
                   prizes.map((p) => {
-                    const eligible = p.active && (p.stock === null || p.stock > 0)
+                    const eligible = isEligible(p)
                     const prob =
                       eligible && totalWeight > 0
                         ? ((Math.max(0, p.weight) / totalWeight) * 100).toFixed(1) + "%"
                         : "—"
+                    const stockLabel =
+                      p.kind === "amazon_gift"
+                        ? `コード ${availByPrize.get(p.id) ?? 0}/${totalByPrize.get(p.id) ?? 0}`
+                        : p.kind === "none"
+                          ? "—"
+                          : p.stock === null
+                            ? "無制限"
+                            : String(p.stock)
                     return (
                       <tr key={p.id}>
                         <td className="px-3 py-2 font-medium text-gray-800">{p.name}</td>
@@ -95,9 +123,7 @@ export default async function AdminRewardsPage() {
                         </td>
                         <td className="px-3 py-2 text-gray-600">{p.weight}</td>
                         <td className="px-3 py-2 text-gray-600">{prob}</td>
-                        <td className="px-3 py-2 text-gray-600">
-                          {p.stock === null ? "無制限" : p.stock}
-                        </td>
+                        <td className="px-3 py-2 text-gray-600">{stockLabel}</td>
                         <td className="px-3 py-2">
                           <PrizeToggle id={p.id} active={p.active} />
                         </td>
@@ -109,6 +135,8 @@ export default async function AdminRewardsPage() {
             </table>
           </div>
         </section>
+
+        <GiftCodeUpload prizes={giftPrizes} />
 
         {/* 引き渡し待ちの当選 */}
         <section>

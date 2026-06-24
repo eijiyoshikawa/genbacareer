@@ -22,6 +22,20 @@
 
 import { prisma } from "@/lib/db"
 import { Prisma } from "@prisma/client"
+import { pushMessage, isMessagingConfigured } from "@/lib/line-messaging"
+
+/** 当選者へ LINE で送るギフトコード案内文。 */
+function buildGiftMessage(prizeName: string, code: string): string {
+  return [
+    "🎉 抽選にご当選おめでとうございます！",
+    "",
+    `景品: ${prizeName}`,
+    `ギフトコード: ${code}`,
+    "",
+    "Amazon の「アカウントサービス ＞ ギフトカードを登録する」よりご利用いただけます。",
+    "※このメッセージは大切に保管してください。",
+  ].join("\n")
+}
 
 /** 制度のパラメータ。運用しながら調整する想定でここに集約する。 */
 export const POINT_RULES = {
@@ -319,20 +333,33 @@ export type LotteryResult = {
   kind: string
   balance: number
   drawId: string
+  // 受け取り状況: line=LINEで自動送付済 / pending=運営から連絡（LINE未連携・送信失敗等） / none=ハズレ
+  delivery: "line" | "pending" | "none"
 }
 
-/** 当選可能な在庫（ハズレ以外で在庫が残っている景品）が存在するか。 */
+/**
+ * 当選可能な在庫が残っている景品があるか。
+ * Amazon ギフト（amazon_gift）は「未割当のギフトコード枚数」を在庫とみなす。
+ * それ以外は数値 stock（null=無制限）で判定。
+ */
 async function hasWinnableStock(
   client: Prisma.TransactionClient | typeof prisma,
 ): Promise<boolean> {
-  const n = await client.lotteryPrize.count({
-    where: {
-      active: true,
-      kind: { not: "none" },
-      OR: [{ stock: null }, { stock: { gt: 0 } }],
-    },
+  const prizes = await client.lotteryPrize.findMany({
+    where: { active: true, kind: { not: "none" } },
+    select: { id: true, kind: true, stock: true },
   })
-  return n > 0
+  for (const p of prizes) {
+    if (p.kind === "amazon_gift") {
+      const c = await client.giftCode.count({
+        where: { prizeId: p.id, status: "available" },
+      })
+      if (c > 0) return true
+    } else if (p.stock === null || p.stock > 0) {
+      return true
+    }
+  }
+  return false
 }
 
 /**
@@ -345,7 +372,8 @@ export async function drawLottery(
   userId: string,
   now = new Date(),
 ): Promise<LotteryResult> {
-  return prisma.$transaction(async (tx) => {
+  // 1) ポイント消費・当選判定・コード割り当てを 1 トランザクションで原子的に処理
+  const res = await prisma.$transaction(async (tx) => {
     // 当選景品の在庫切れ時は抽選を停止（ポイントは消費しない）
     if (!(await hasWinnableStock(tx))) {
       throw new PointError(
@@ -373,22 +401,33 @@ export async function drawLottery(
       refId: null,
     })
 
-    // 抽選対象（active かつ在庫あり）を取得し重み付き抽選
-    const prizes = await tx.lotteryPrize.findMany({
-      where: {
-        active: true,
-        OR: [{ stock: null }, { stock: { gt: 0 } }],
-      },
-    })
-    const totalWeight = prizes.reduce((s, p) => s + Math.max(0, p.weight), 0)
-    if (prizes.length === 0 || totalWeight <= 0) {
+    // 抽選対象を取得。amazon_gift は「未割当コード枚数」を在庫とみなして判定。
+    const prizes = await tx.lotteryPrize.findMany({ where: { active: true } })
+    const giftIds = prizes.filter((p) => p.kind === "amazon_gift").map((p) => p.id)
+    const counts = giftIds.length
+      ? await tx.giftCode.groupBy({
+          by: ["prizeId"],
+          where: { prizeId: { in: giftIds }, status: "available" },
+          _count: true,
+        })
+      : []
+    const availByPrize = new Map(counts.map((c) => [c.prizeId, c._count]))
+    const inStock = (p: (typeof prizes)[number]): boolean => {
+      if (p.kind === "none") return true
+      if (p.kind === "amazon_gift") return (availByPrize.get(p.id) ?? 0) > 0
+      return p.stock === null || p.stock > 0
+    }
+
+    const eligible = prizes.filter((p) => inStock(p) && Math.max(0, p.weight) > 0)
+    const totalWeight = eligible.reduce((s, p) => s + Math.max(0, p.weight), 0)
+    if (eligible.length === 0 || totalWeight <= 0) {
       throw new PointError("NO_PRIZES", "現在抽選を受け付けていません")
     }
 
-    // [0, totalWeight) の整数で抽選（乱数は実行時のみ生成）
+    // [0, totalWeight) の整数で重み付き抽選（乱数は実行時のみ生成）
     let r = Math.floor(Math.random() * totalWeight)
-    let chosen = prizes[prizes.length - 1]
-    for (const p of prizes) {
+    let chosen = eligible[eligible.length - 1]
+    for (const p of eligible) {
       r -= Math.max(0, p.weight)
       if (r < 0) {
         chosen = p
@@ -397,19 +436,6 @@ export async function drawLottery(
     }
 
     const isWin = chosen.kind !== "none"
-    // 当選景品の在庫を減算
-    if (isWin && chosen.stock !== null) {
-      await tx.lotteryPrize.update({
-        where: { id: chosen.id },
-        data: { stock: { decrement: 1 } },
-      })
-    }
-
-    const balanceRow = await tx.user.findUnique({
-      where: { id: userId },
-      select: { pointBalance: true },
-    })
-
     const draw = await tx.lotteryDraw.create({
       data: {
         userId,
@@ -417,7 +443,6 @@ export async function drawLottery(
         prizeId: isWin ? chosen.id : null,
         prizeName: chosen.name,
         isWin,
-        // 金券/実物は運用で発行 → pending。特典/ハズレは not_applicable。
         fulfillment:
           isWin && (chosen.kind === "amazon_gift" || chosen.kind === "physical")
             ? "pending"
@@ -425,15 +450,89 @@ export async function drawLottery(
       },
     })
 
+    // 当選景品の在庫処理
+    let assignedCode: string | null = null
+    let assignedCodeId: string | null = null
+    if (isWin) {
+      if (chosen.kind === "amazon_gift") {
+        // 未割当コードを 1 枚だけ原子的に確保（同時抽選でも二重発行しない）
+        const rows = await tx.$queryRaw<Array<{ id: string; code: string }>>(Prisma.sql`
+          UPDATE "gift_codes" SET
+            "status" = 'assigned',
+            "draw_id" = ${draw.id}::uuid,
+            "assigned_user_id" = ${userId}::uuid,
+            "assigned_at" = NOW()
+          WHERE "id" = (
+            SELECT "id" FROM "gift_codes"
+            WHERE "prize_id" = ${chosen.id}::uuid AND "status" = 'available'
+            ORDER BY "created_at" LIMIT 1
+            FOR UPDATE SKIP LOCKED
+          )
+          RETURNING "id", "code"
+        `)
+        if (rows.length > 0) {
+          assignedCodeId = rows[0].id
+          assignedCode = rows[0].code
+        }
+      } else if (chosen.stock !== null) {
+        await tx.lotteryPrize.update({
+          where: { id: chosen.id },
+          data: { stock: { decrement: 1 } },
+        })
+      }
+    }
+
+    const u = await tx.user.findUnique({
+      where: { id: userId },
+      select: { pointBalance: true, lineUserId: true },
+    })
+
     return {
       isWin,
-      prizeName: chosen.name,
-      prizeId: isWin ? chosen.id : null,
-      kind: chosen.kind,
-      balance: balanceRow?.pointBalance ?? 0,
+      chosen,
       drawId: draw.id,
+      assignedCode,
+      assignedCodeId,
+      balance: u?.pointBalance ?? 0,
+      lineUserId: u?.lineUserId ?? null,
     }
   })
+
+  // 2) コミット後に LINE 自動送付（ネットワーク I/O はトランザクション外で実施）
+  let delivery: "line" | "pending" | "none" = res.isWin ? "pending" : "none"
+  if (res.isWin && res.assignedCode && res.assignedCodeId) {
+    if (res.lineUserId && isMessagingConfigured()) {
+      try {
+        await pushMessage(res.lineUserId, [
+          { type: "text", text: buildGiftMessage(res.chosen.name, res.assignedCode) },
+        ])
+        await prisma.$transaction([
+          prisma.giftCode.update({
+            where: { id: res.assignedCodeId },
+            data: { deliveredVia: "line", deliveredAt: new Date() },
+          }),
+          prisma.lotteryDraw.update({
+            where: { id: res.drawId },
+            data: { fulfillment: "fulfilled", fulfilledAt: new Date() },
+          }),
+        ])
+        delivery = "line"
+      } catch {
+        // 送信失敗 → pending のまま（管理画面の手動対応リストに残る）
+        delivery = "pending"
+      }
+    }
+  }
+
+  return {
+    isWin: res.isWin,
+    prizeName: res.chosen.name,
+    prizeId: res.isWin ? res.chosen.id : null,
+    kind: res.chosen.kind,
+    balance: res.balance,
+    drawId: res.drawId,
+    delivery,
+  }
 }
 
 /** マイページ表示用: 残高・履歴・抽選可否などをまとめて取得。 */
