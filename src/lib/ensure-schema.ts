@@ -263,9 +263,12 @@ const STATEMENTS: ReadonlyArray<string> = [
  )`,
  `CREATE INDEX IF NOT EXISTS "idx_search_logs_time"
     ON "search_logs" ("created_at" DESC)`,
+ // 注意: ここは partial index (WHERE query IS NOT NULL) にしないこと。
+ // schema.prisma の @@index は partial を表現できず、`prisma db push` が
+ // この index を「未作成」と誤認して同名作成を試み "already exists" で失敗する
+ // (2026-06 の db push 障害の原因)。schema.prisma と定義を完全一致させる。
  `CREATE INDEX IF NOT EXISTS "idx_search_logs_query"
-    ON "search_logs" ("query", "created_at" DESC)
-    WHERE "query" IS NOT NULL`,
+    ON "search_logs" ("query", "created_at" DESC)`,
  // 通報・レポート (6.2)
  `CREATE TABLE IF NOT EXISTS "reports" (
    "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
