@@ -46,9 +46,10 @@ export default async function AdminRewardsPage() {
     <div>
       <h1 className="text-xl font-bold text-gray-900">ポイント・抽選 管理</h1>
       <p className="mt-1 text-sm text-gray-500">
-        付与ルール: 閲覧 +{POINT_RULES.viewJob}pt/件（1日上限 {POINT_RULES.viewJobDailyCap}pt）/
-        面談 +{POINT_RULES.careerInterview}pt/回 / 抽選 {POINT_RULES.lotteryCost}pt（1日 {POINT_RULES.lotteryDailyCap} 回まで）/
-        累計抽選回数 {stats}
+        付与ルール: 初回登録 +{POINT_RULES.signupBonus}pt（上限外）/ ログイン +{POINT_RULES.loginBonus}pt（1日1回）/
+        閲覧 +{POINT_RULES.viewJob}pt/件（{Math.round(POINT_RULES.viewDwellMs / 1000)}秒以上）/
+        ログイン＋閲覧は1日 {POINT_RULES.dailyEarnCap}pt まで / 面談 +{POINT_RULES.careerInterview}pt（{POINT_RULES.careerInterviewCooldownDays}日に1回・同一企業不可・上限外）/
+        抽選 {POINT_RULES.lotteryCost}pt（1日 {POINT_RULES.lotteryDailyCap} 回まで・当選在庫切れ時は停止）/ 累計抽選 {stats} 回
       </p>
 
       <div className="mt-6 space-y-6">

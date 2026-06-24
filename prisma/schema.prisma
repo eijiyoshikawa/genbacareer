@@ -1328,6 +1328,9 @@ model CareerInterview {
   id             String    @id @default(uuid()) @db.Uuid
   userId         String    @map("user_id") @db.Uuid
   coordinator    String?   @db.VarChar(100)
+  // 面談相手の企業（同一企業での面談ポイント重複付与を防ぐために記録）
+  companyId      String?   @map("company_id") @db.Uuid
+  companyName    String?   @map("company_name") @db.VarChar(200)
   // scheduled | completed | no_show | canceled
   status         String    @default("scheduled") @db.VarChar(20)
   scheduledAt    DateTime? @map("scheduled_at") @db.Timestamptz()

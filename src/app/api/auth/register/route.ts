@@ -7,6 +7,7 @@ import { generateToken } from "@/lib/tokens";
 import { sendEmailVerificationEmail } from "@/lib/email";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { trackEvent } from "@/lib/track";
+import { awardSignupBonus } from "@/lib/points";
 
 const registerSchema = z.object({
   name: z.string().min(1, "氏名は必須です。"),
@@ -102,6 +103,9 @@ export async function POST(request: Request) {
       userId: user.id,
       payload: { prefecture, authProvider: "email" },
     });
+
+    // ポイント制度: 初回登録ボーナス（1 回のみ・日次上限の対象外）。失敗は握りつぶす。
+    void awardSignupBonus(user.id).catch(() => {});
 
     try {
       await sendEmailVerificationEmail(email, verificationToken);
