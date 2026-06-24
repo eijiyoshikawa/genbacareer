@@ -427,6 +427,21 @@ async function QuickLinkCounts({ userId }: { userId: string }) {
       </Link>
 
       <Link
+        href="/mypage/rewards"
+        className="flex items-center gap-4 border bg-white p-5 shadow-sm transition hover:shadow-md"
+      >
+        <div className="flex h-10 w-10 items-center justify-center bg-amber-100">
+          <Sparkles className="h-5 w-5 text-amber-700" />
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900">ポイント・抽選</p>
+          <p className="text-sm text-gray-500">
+            求人閲覧やキャリア面談でポイントを貯めて抽選
+          </p>
+        </div>
+      </Link>
+
+      <Link
         href="/mypage/saved-searches"
         className="flex items-center gap-4 border bg-white p-5 shadow-sm transition hover:shadow-md"
       >

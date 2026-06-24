@@ -50,6 +50,9 @@ model User {
   deletedAt         DateTime? @map("deleted_at") @db.Timestamptz()
   // 退会フォームで利用規約に同意した時刻 / 18 歳以上であることの確認時刻
   termsAcceptedAt   DateTime? @map("terms_accepted_at") @db.Timestamptz()
+  // ポイント制度 (2026-06 追加): 閲覧・キャリア面談で貯まり、抽選で消費する。
+  // 残高は PointLedger の合算をキャッシュした値（更新は必ず同一トランザクション内）。
+  pointBalance      Int       @default(0) @map("point_balance")
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
@@ -67,6 +70,9 @@ model User {
   reportsSubmitted  Report[] @relation("ReportReporter")
   scoutsReceived    ScoutMessage[]
   earlyResignations EarlyResignation[]
+  pointLedgers      PointLedger[]
+  careerInterviews  CareerInterview[]
+  lotteryDraws      LotteryDraw[]
 
   @@map("users")
 }
@@ -1280,4 +1286,106 @@ model Testimonial {
 
   @@index([published, sortOrder], name: "idx_testimonials_pub_order")
   @@map("testimonials")
+}
+
+// ========================================
+// ポイント制度 / 抽選 (2026-06 追加)
+// ========================================
+// 求職者が「求人閲覧」「キャリア面談の完了」でポイントを獲得し、
+// 貯めたポイントを消費して抽選を回す制度。上限・冪等付与で不正を防ぐ。
+//
+// 重要な前提（法務）:
+//   - ポイントは購入・現金化・譲渡いずれも不可（資金決済法の前払式支払手段に該当させない）
+//   - 景品額・当選確率は LotteryPrize で管理し、景品表示法の表示義務に対応する
+
+// 全ポイント増減を記録する追記専用台帳。残高は User.pointBalance にキャッシュする。
+model PointLedger {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  // 正: 付与 / 負: 消費
+  delta     Int
+  // 付与/消費の理由: view_job | career_interview | lottery_spend | admin_adjust | expire
+  reason    String   @db.VarChar(30)
+  // 重複付与防止のための冪等キー（例: "view_job:<jobId>:<YYYY-MM-DD>"）。
+  // 同一ユーザー内で一意。これにより同じ求人の同日二重付与を DB レベルで防ぐ。
+  dedupeKey String?  @map("dedupe_key") @db.VarChar(120)
+  // 関連レコード（jobId / careerInterviewId / lotteryDrawId 等）
+  refId     String?  @map("ref_id") @db.VarChar(64)
+  // 付与時点の残高（監査・表示用）
+  balance   Int
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey], name: "uq_point_ledger_user_dedupe")
+  @@index([userId, createdAt(sort: Desc)], name: "idx_point_ledger_user_time")
+  @@index([reason, createdAt(sort: Desc)], name: "idx_point_ledger_reason_time")
+  @@map("point_ledgers")
+}
+
+// キャリア面談。コーディネーターが実施し、完了確定時にポイントを付与する。
+model CareerInterview {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  coordinator    String?   @db.VarChar(100)
+  // scheduled | completed | no_show | canceled
+  status         String    @default("scheduled") @db.VarChar(20)
+  scheduledAt    DateTime? @map("scheduled_at") @db.Timestamptz()
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz()
+  // ポイント付与済みかどうか（冪等付与のためのフラグ）
+  pointsAwarded  Boolean   @default(false) @map("points_awarded")
+  note           String?   @db.VarChar(1000)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)], name: "idx_career_interviews_user")
+  @@index([status, createdAt(sort: Desc)], name: "idx_career_interviews_status")
+  @@map("career_interviews")
+}
+
+// 抽選景品マスタ。当選確率(weight)・在庫・景品額(景表法管理)を持つ。
+// 「ハズレ」も 1 レコードとして weight を持たせて確率管理する。
+model LotteryPrize {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(100)
+  // amazon_gift | service_perk | physical | none(ハズレ)
+  kind      String   @default("service_perk") @db.VarChar(20)
+  // 景品額（円）。景表法の上限管理・表示に使用。ハズレ/特典は 0 でも可。
+  valueJpy  Int      @default(0) @map("value_jpy")
+  // 抽選の重み（相対確率）。全 active プライズの合計を分母に抽選する。
+  weight    Int      @default(1)
+  // 残り在庫。null は無制限。0 になると当選対象から外れる。
+  stock     Int?
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  draws LotteryDraw[]
+
+  @@index([active, sortOrder], name: "idx_lottery_prizes_active")
+  @@map("lottery_prizes")
+}
+
+// 抽選結果。1 レコード = 1 回の抽選。消費ポイントと結果を記録する。
+model LotteryDraw {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  cost        Int
+  prizeId     String?   @map("prize_id") @db.Uuid
+  prizeName   String    @map("prize_name") @db.VarChar(100)
+  isWin       Boolean   @map("is_win")
+  // 当選景品の引き渡し状況: pending | fulfilled（金券コード発行済等） | not_applicable
+  fulfillment String    @default("pending") @db.VarChar(20)
+  fulfilledAt DateTime? @map("fulfilled_at") @db.Timestamptz()
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prize LotteryPrize? @relation(fields: [prizeId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)], name: "idx_lottery_draws_user")
+  @@index([isWin, fulfillment, createdAt(sort: Desc)], name: "idx_lottery_draws_fulfillment")
+  @@map("lottery_draws")
 }
