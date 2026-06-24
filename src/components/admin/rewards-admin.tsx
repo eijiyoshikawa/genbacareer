@@ -24,6 +24,7 @@ async function postJson(url: string, body: unknown, method = "POST") {
 export function InterviewAwardForm() {
   const router = useRouter()
   const [email, setEmail] = useState("")
+  const [companyName, setCompanyName] = useState("")
   const [coordinator, setCoordinator] = useState("")
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -33,12 +34,14 @@ export function InterviewAwardForm() {
     setMsg(null)
     const { ok, data } = await postJson("/api/admin/career-interviews", {
       email,
+      companyName,
       coordinator,
     })
     setBusy(false)
     if (ok) {
-      setMsg(`付与しました（+${data.granted} pt）`)
+      setMsg(data.message ?? `付与しました（+${data.granted} pt）`)
       setEmail("")
+      setCompanyName("")
       router.refresh()
     } else {
       setMsg(data.error ?? "エラーが発生しました")
@@ -49,7 +52,9 @@ export function InterviewAwardForm() {
     <div className="rounded-lg border bg-white p-4">
       <h3 className="font-bold text-gray-900">キャリア面談の完了を記録</h3>
       <p className="mt-1 text-xs text-gray-500">
-        対象求職者のメールアドレスを入力すると、面談完了として記録しポイントを付与します。
+        対象求職者のメールアドレスを入力すると面談完了として記録し、+50pt を付与します。
+        ただし <strong>7 日に 1 回</strong>・<strong>同一企業では再付与しない</strong>制限があり、
+        条件に該当する場合は記録のみでポイントは付与されません。
       </p>
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <label className="text-sm">
@@ -63,11 +68,20 @@ export function InterviewAwardForm() {
           />
         </label>
         <label className="text-sm">
+          <span className="block text-xs text-gray-500">面談先の企業名（同一企業判定用）</span>
+          <input
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            placeholder="株式会社〇〇"
+            className="mt-0.5 w-56 rounded border px-2 py-1.5 text-sm"
+          />
+        </label>
+        <label className="text-sm">
           <span className="block text-xs text-gray-500">担当者（任意）</span>
           <input
             value={coordinator}
             onChange={(e) => setCoordinator(e.target.value)}
-            className="mt-0.5 w-40 rounded border px-2 py-1.5 text-sm"
+            className="mt-0.5 w-32 rounded border px-2 py-1.5 text-sm"
           />
         </label>
         <button
@@ -76,7 +90,7 @@ export function InterviewAwardForm() {
           disabled={busy || !email}
           className="rounded bg-primary-600 px-3 py-1.5 text-sm font-bold text-white disabled:bg-gray-300"
         >
-          付与する
+          記録する
         </button>
       </div>
       {msg && <p className="mt-2 text-sm text-gray-700">{msg}</p>}
@@ -88,7 +102,7 @@ export function InterviewAwardForm() {
 export function PrizeCreateForm() {
   const router = useRouter()
   const [name, setName] = useState("")
-  const [kind, setKind] = useState("service_perk")
+  const [kind, setKind] = useState("amazon_gift")
   const [valueJpy, setValueJpy] = useState("0")
   const [weight, setWeight] = useState("1")
   const [stock, setStock] = useState("")

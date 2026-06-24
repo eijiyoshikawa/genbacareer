@@ -441,6 +441,10 @@ const STATEMENTS: ReadonlyArray<string> = [
    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
  )`,
+ // 面談相手の企業（同一企業での重複付与防止）
+ `ALTER TABLE "career_interviews"
+   ADD COLUMN IF NOT EXISTS "company_id" UUID,
+   ADD COLUMN IF NOT EXISTS "company_name" VARCHAR(200)`,
  `CREATE INDEX IF NOT EXISTS "idx_career_interviews_user"
     ON "career_interviews" ("user_id", "created_at" DESC)`,
  `CREATE INDEX IF NOT EXISTS "idx_career_interviews_status"

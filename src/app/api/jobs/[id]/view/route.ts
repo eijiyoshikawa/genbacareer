@@ -13,7 +13,7 @@ import { auth } from "@/lib/auth"
 import { getSessionIdIfExists } from "@/lib/session-id"
 import { recordJobView, extractUtmFromUrl } from "@/lib/tracking"
 import { trackEvent } from "@/lib/track"
-import { awardJobViewPoints } from "@/lib/points"
+import { awardJobViewPoints, awardDailyLoginBonus } from "@/lib/points"
 import {
   checkRateLimit,
   getClientIp,
@@ -42,8 +42,9 @@ export async function POST(
     return Response.json({ ok: false }, { status: 400 })
   }
 
-  // body から referrer / utm を取得（クライアントが知っている情報）
-  let body: { referrer?: string; pageUrl?: string } = {}
+  // body から referrer / utm / dwell を取得（クライアントが知っている情報）
+  // dwell=true は「10 秒以上滞在した後の 2 回目のシグナル」を表し、閲覧ポイント付与の条件。
+  let body: { referrer?: string; pageUrl?: string; dwell?: boolean } = {}
   try {
     body = await request.json()
   } catch {
@@ -72,10 +73,14 @@ export async function POST(
     utm,
   }).catch(() => {})
 
-  // ポイント制度: ログインユーザーは閲覧でポイント付与（同一求人は 1 日 1 回・上限あり）。
-  // 付与失敗が閲覧記録/レスポンスを壊さないよう握りつぶす。
+  // ポイント制度（ログインユーザーのみ・付与失敗は握りつぶす）:
+  //  - ログインボーナス（1 日 1 回）はその日の最初のアクセスで付与
+  //  - 閲覧ポイントは 10 秒以上滞在した dwell シグナル時のみ付与（同一求人は 1 日 1 回・上限あり）
   if (userId) {
-    void awardJobViewPoints(userId, id).catch(() => {})
+    void awardDailyLoginBonus(userId).catch(() => {})
+    if (body.dwell === true) {
+      void awardJobViewPoints(userId, id).catch(() => {})
+    }
   }
 
   // 13.4 独自イベントトラッキング (AnalyticsEvent への記録)

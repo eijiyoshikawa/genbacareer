@@ -32,9 +32,8 @@ export default async function RewardsPage() {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
 
-  const { balance, history, prizes, rules, canDraw } = await getPointsSummary(
-    session.user.id,
-  )
+  const { balance, history, prizes, rules, canDraw, lotteryOpen, drawsRemaining } =
+    await getPointsSummary(session.user.id)
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
@@ -63,13 +62,27 @@ export default async function RewardsPage() {
       </div>
 
       {/* 貯め方 */}
-      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+      <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+        <div className="rounded-lg border bg-white p-4">
+          <p className="font-bold text-gray-900">初回登録</p>
+          <p className="mt-1 text-gray-600">
+            +{rules.signupBonus} pt
+            <span className="block text-xs text-gray-400">（1 回のみ・上限外）</span>
+          </p>
+        </div>
+        <div className="rounded-lg border bg-white p-4">
+          <p className="font-bold text-gray-900">ログイン</p>
+          <p className="mt-1 text-gray-600">
+            +{rules.loginBonus} pt
+            <span className="block text-xs text-gray-400">（1 日 1 回）</span>
+          </p>
+        </div>
         <div className="rounded-lg border bg-white p-4">
           <p className="font-bold text-gray-900">求人を見る</p>
           <p className="mt-1 text-gray-600">
             +{rules.viewJob} pt / 件
             <span className="block text-xs text-gray-400">
-              （同一求人は 1 日 1 回・1 日 {rules.viewJobDailyCap} pt まで）
+              （{Math.round(rules.viewDwellMs / 1000)} 秒以上の閲覧・同一求人は 1 日 1 回）
             </span>
           </p>
         </div>
@@ -77,14 +90,23 @@ export default async function RewardsPage() {
           <p className="font-bold text-gray-900">キャリア面談</p>
           <p className="mt-1 text-gray-600">
             +{rules.careerInterview} pt / 回
-            <span className="block text-xs text-gray-400">（完了ごと）</span>
+            <span className="block text-xs text-gray-400">（7 日に 1 回・上限外）</span>
           </p>
         </div>
       </div>
+      <p className="mt-2 text-xs text-gray-400">
+        ※ ログイン＋求人閲覧で貯まるポイントは 1 日あたり合計 {rules.dailyEarnCap} pt までです（初回登録・キャリア面談は上限の対象外）。
+      </p>
 
       {/* 抽選 */}
       <div className="mt-6">
-        <RewardsSpin cost={rules.lotteryCost} canDraw={canDraw} balance={balance} />
+        <RewardsSpin
+          cost={rules.lotteryCost}
+          canDraw={canDraw}
+          balance={balance}
+          lotteryOpen={lotteryOpen}
+          drawsRemaining={drawsRemaining}
+        />
       </div>
 
       {/* 景品一覧 */}
@@ -113,7 +135,11 @@ export default async function RewardsPage() {
             ))}
           </ul>
           <p className="mt-2 text-xs text-gray-400">
-            ※ 景品内容・当選確率・在庫は予告なく変更される場合があります。ポイントの購入・換金・譲渡はできません。
+            ※ 当選確率・当選数上限・提供条件などの詳細は
+            <Link href="/terms#lottery" className="text-primary-600 underline">
+              利用規約
+            </Link>
+            をご確認ください。景品内容・在庫は予告なく変更される場合があります。ポイントの購入・換金・譲渡はできません。
           </p>
         </section>
       )}

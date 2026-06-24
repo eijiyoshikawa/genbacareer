@@ -15,17 +15,21 @@ export function RewardsSpin({
   cost,
   canDraw,
   balance,
+  lotteryOpen,
+  drawsRemaining,
 }: {
   cost: number
   canDraw: boolean
   balance: number
+  lotteryOpen: boolean
+  drawsRemaining: number
 }) {
   const router = useRouter()
   const [spinning, setSpinning] = useState(false)
   const [result, setResult] = useState<DrawResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const disabled = spinning || (!canDraw && !result)
+  const disabled = spinning || !canDraw
 
   async function spin() {
     setSpinning(true)
@@ -55,7 +59,7 @@ export function RewardsSpin({
         <h2 className="text-base font-bold text-gray-900">抽選にチャレンジ</h2>
       </div>
       <p className="mt-1 text-sm text-gray-600">
-        1 回 {cost} ポイントで抽選を回せます（現在の残高: {balance} pt）
+        1 回 {cost} ポイントで抽選を回せます（残高: {balance} pt／本日あと {drawsRemaining} 回）
       </p>
 
       <button
@@ -77,9 +81,15 @@ export function RewardsSpin({
         )}
       </button>
 
-      {!canDraw && !result && !spinning && (
+      {!spinning && (
         <p className="mt-2 text-center text-xs text-gray-500">
-          ポイントが {cost} pt 貯まると抽選できます
+          {!lotteryOpen
+            ? "ただいま景品の準備中です。ポイントは引き続き貯められます。"
+            : drawsRemaining <= 0
+              ? "本日の抽選は上限に達しました。明日また回せます。"
+              : balance < cost
+                ? `ポイントが ${cost} pt 貯まると抽選できます`
+                : null}
         </p>
       )}
 

@@ -37,12 +37,28 @@ export async function POST(request: Request) {
     data: {
       userId: user.id,
       coordinator: typeof body.coordinator === "string" ? body.coordinator.slice(0, 100) : null,
+      companyName:
+        typeof body.companyName === "string" && body.companyName.trim()
+          ? body.companyName.trim().slice(0, 200)
+          : null,
       note: typeof body.note === "string" ? body.note.slice(0, 1000) : null,
       status: "scheduled",
       scheduledAt: new Date(),
     },
   })
 
-  const granted = await awardCareerInterviewPoints(interview.id)
-  return Response.json({ ok: true, granted, interviewId: interview.id })
+  const result = await awardCareerInterviewPoints(interview.id)
+  const messages: Record<string, string> = {
+    awarded: `面談完了として記録し、${result.granted}pt を付与しました`,
+    weekly_capped: "面談を記録しました（7日以内に付与済みのため今回はポイント付与なし）",
+    same_company: "面談を記録しました（同一企業のため今回はポイント付与なし）",
+    already: "すでに付与済みです",
+  }
+  return Response.json({
+    ok: true,
+    granted: result.granted,
+    reason: result.reason,
+    message: messages[result.reason] ?? "記録しました",
+    interviewId: interview.id,
+  })
 }

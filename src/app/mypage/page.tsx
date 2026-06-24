@@ -24,6 +24,7 @@ import { ProfileCompletionCard } from "@/components/mypage/profile-completion-ca
 import { LineLinkBanner } from "@/components/mypage/line-link-banner"
 import { LineInAppNotice } from "@/components/line-inapp-notice"
 import { isScoutEnabled } from "@/lib/feature-flags"
+import { awardDailyLoginBonus } from "@/lib/points"
 
 export const metadata: Metadata = {
   title: "マイページ",
@@ -36,6 +37,9 @@ export default async function MyPage({
 }) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
+
+  // ポイント制度: その日最初のマイページ訪問でログインボーナス（1 日 1 回・冪等）。
+  void awardDailyLoginBonus(session.user.id).catch(() => {})
 
   const linkStatus = (await searchParams)?.line_link
 
