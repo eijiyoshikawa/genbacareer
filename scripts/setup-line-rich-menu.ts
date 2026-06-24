@@ -14,14 +14,16 @@
  *     - 用意できない場合、scripts/rich-menu-template.svg を Canva / Figma 等で
  *       PNG エクスポートしてください。サイズ厳密。
  *
- * Rich Menu は 2 行 3 列の 6 ボタン構成:
+ * Rich Menu は 2 行 3 列の 6 ボタン構成（面談・ポイント導線を前面に）:
  *
- *   ┌────────────┬────────────┬────────────┐
- *   │ 求人を探す │  マガジン  │ 適職診断   │
- *   ├────────────┼────────────┼────────────┤
- *   │ 運営会社   │お問い合わせ│ 公式 SNS   │
- *   └────────────┴────────────┴────────────┘
+ *   ┌──────────────┬────────────┬──────────────┐
+ *   │ 無料相談・面談│ 求人を探す │ ポイント・抽選│
+ *   ├──────────────┼────────────┼──────────────┤
+ *   │ 適職診断     │  マガジン  │ お問い合わせ │
+ *   └──────────────┴────────────┴──────────────┘
  *
+ * 「無料相談・面談」は公式 LINE → フォーム入力（/contact）の導線。
+ * 専用の面談予約フォーム / LIFF がある場合は uri を差し替えてください。
  * 既存の Rich Menu は削除して作り直す。
  */
 
@@ -81,16 +83,31 @@ const richMenuDef = {
   name: "GenbaCareer Main Menu",
   chatBarText: "メニュー",
   areas: [
+    // 上段: 面談相談 / 求人 / ポイント抽選 を最優先導線として配置
     {
       bounds: { x: 0, y: 0, width: COL_W, height: ROW_H },
-      action: { type: "uri" as const, label: "求人を探す", uri: `${SITE}/jobs` },
+      action: {
+        type: "uri" as const,
+        label: "無料相談・面談",
+        // 公式 LINE → フォーム入力の導線。専用の面談予約フォームがあれば差し替える。
+        uri: `${SITE}/contact?source=line_consult`,
+      },
     },
     {
       bounds: { x: COL_W, y: 0, width: COL_W, height: ROW_H },
-      action: { type: "uri" as const, label: "マガジン", uri: `${SITE}/journal` },
+      action: { type: "uri" as const, label: "求人を探す", uri: `${SITE}/jobs` },
     },
     {
       bounds: { x: COL_W * 2, y: 0, width: WIDTH - COL_W * 2, height: ROW_H },
+      action: {
+        type: "uri" as const,
+        label: "ポイント・抽選",
+        uri: `${SITE}/mypage/rewards?source=line_richmenu`,
+      },
+    },
+    // 下段: 適職診断 / マガジン / お問い合わせ
+    {
+      bounds: { x: 0, y: ROW_H, width: COL_W, height: HEIGHT - ROW_H },
       action: {
         type: "uri" as const,
         label: "適職診断",
@@ -98,19 +115,15 @@ const richMenuDef = {
       },
     },
     {
-      bounds: { x: 0, y: ROW_H, width: COL_W, height: HEIGHT - ROW_H },
-      action: { type: "message" as const, label: "運営会社", text: "会社" },
-    },
-    {
       bounds: { x: COL_W, y: ROW_H, width: COL_W, height: HEIGHT - ROW_H },
-      action: { type: "uri" as const, label: "お問い合わせ", uri: `${SITE}/contact` },
+      action: { type: "uri" as const, label: "マガジン", uri: `${SITE}/journal` },
     },
     {
       bounds: { x: COL_W * 2, y: ROW_H, width: WIDTH - COL_W * 2, height: HEIGHT - ROW_H },
       action: {
         type: "uri" as const,
-        label: "公式 SNS",
-        uri: "https://www.instagram.com/let_kensetsu",
+        label: "お問い合わせ",
+        uri: `${SITE}/contact?source=line_richmenu`,
       },
     },
   ],
@@ -127,13 +140,14 @@ async function ensureImage() {
   }
   console.log("→ Rich Menu 画像が無いので SVG から自動生成します…")
 
+  // ※ areas（ボタン定義）と同じ並び順にすること
   const cells = [
-    { label: "求人を探す",  sub: "JOBS",     bg: "#fff7ed", emoji: "🔍" },
-    { label: "マガジン",    sub: "MAGAZINE", bg: "#fffbeb", emoji: "📰" },
-    { label: "適職診断",    sub: "SHINDAN",  bg: "#fff7ed", emoji: "🧭" },
-    { label: "運営会社",    sub: "COMPANY",  bg: "#ffffff", emoji: "🏢" },
-    { label: "お問い合わせ", sub: "CONTACT",  bg: "#ffffff", emoji: "💬" },
-    { label: "公式 SNS",    sub: "SNS",      bg: "#ffffff", emoji: "📷" },
+    { label: "無料相談・面談", sub: "SODAN",    bg: "#fff7ed", emoji: "💬" },
+    { label: "求人を探す",    sub: "JOBS",     bg: "#fffbeb", emoji: "🔍" },
+    { label: "ポイント・抽選", sub: "POINT",    bg: "#fff7ed", emoji: "🎁" },
+    { label: "適職診断",      sub: "SHINDAN",  bg: "#ffffff", emoji: "🧭" },
+    { label: "マガジン",      sub: "MAGAZINE", bg: "#ffffff", emoji: "📰" },
+    { label: "お問い合わせ",   sub: "CONTACT",  bg: "#ffffff", emoji: "📩" },
   ]
 
   const W = WIDTH, H = HEIGHT, cw = COL_W, ch = ROW_H
