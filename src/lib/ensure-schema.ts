@@ -398,6 +398,81 @@ const STATEMENTS: ReadonlyArray<string> = [
  // 未送信通知の絞り込み用（daily/weekly ダイジェスト cron）
  `CREATE INDEX IF NOT EXISTS "idx_notifications_line_pending"
     ON "notifications" ("created_at") WHERE "line_pushed_at" IS NULL`,
+ // ========================================
+ // ポイント制度 / 抽選 (2026-06 追加)
+ // ※ 既存 DB の index drift で `prisma db push` が止まるため、
+ //   ここで冪等 DDL を流して新規テーブルを確実に作成する。
+ // ========================================
+ // User 残高キャッシュ
+ `ALTER TABLE "users"
+   ADD COLUMN IF NOT EXISTS "point_balance" INTEGER NOT NULL DEFAULT 0`,
+ // ポイント台帳（追記専用）
+ `CREATE TABLE IF NOT EXISTS "point_ledgers" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "user_id" UUID NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE,
+   "delta" INTEGER NOT NULL,
+   "reason" VARCHAR(30) NOT NULL,
+   "dedupe_key" VARCHAR(120),
+   "ref_id" VARCHAR(64),
+   "balance" INTEGER NOT NULL,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ // (user_id, dedupe_key) 一意 → 同一求人の同日二重付与を DB レベルで防止
+ // (Postgres は NULL を distinct 扱いするため dedupe_key=NULL の消費系は衝突しない)
+ `CREATE UNIQUE INDEX IF NOT EXISTS "uq_point_ledger_user_dedupe"
+    ON "point_ledgers" ("user_id", "dedupe_key")`,
+ `CREATE INDEX IF NOT EXISTS "idx_point_ledger_user_time"
+    ON "point_ledgers" ("user_id", "created_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_point_ledger_reason_time"
+    ON "point_ledgers" ("reason", "created_at" DESC)`,
+ // キャリア面談
+ `CREATE TABLE IF NOT EXISTS "career_interviews" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "user_id" UUID NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE,
+   "coordinator" VARCHAR(100),
+   "status" VARCHAR(20) NOT NULL DEFAULT 'scheduled',
+   "scheduled_at" TIMESTAMPTZ,
+   "completed_at" TIMESTAMPTZ,
+   "points_awarded" BOOLEAN NOT NULL DEFAULT false,
+   "note" VARCHAR(1000),
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_career_interviews_user"
+    ON "career_interviews" ("user_id", "created_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_career_interviews_status"
+    ON "career_interviews" ("status", "created_at" DESC)`,
+ // 抽選景品マスタ
+ `CREATE TABLE IF NOT EXISTS "lottery_prizes" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "name" VARCHAR(100) NOT NULL,
+   "kind" VARCHAR(20) NOT NULL DEFAULT 'service_perk',
+   "value_jpy" INTEGER NOT NULL DEFAULT 0,
+   "weight" INTEGER NOT NULL DEFAULT 1,
+   "stock" INTEGER,
+   "active" BOOLEAN NOT NULL DEFAULT true,
+   "sort_order" INTEGER NOT NULL DEFAULT 0,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_lottery_prizes_active"
+    ON "lottery_prizes" ("active", "sort_order")`,
+ // 抽選結果
+ `CREATE TABLE IF NOT EXISTS "lottery_draws" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "user_id" UUID NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE,
+   "cost" INTEGER NOT NULL,
+   "prize_id" UUID REFERENCES "lottery_prizes" ("id") ON DELETE SET NULL,
+   "prize_name" VARCHAR(100) NOT NULL,
+   "is_win" BOOLEAN NOT NULL,
+   "fulfillment" VARCHAR(20) NOT NULL DEFAULT 'pending',
+   "fulfilled_at" TIMESTAMPTZ,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_lottery_draws_user"
+    ON "lottery_draws" ("user_id", "created_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_lottery_draws_fulfillment"
+    ON "lottery_draws" ("is_win", "fulfillment", "created_at" DESC)`,
 ]
 
 let inflight: Promise<boolean> | null = null
