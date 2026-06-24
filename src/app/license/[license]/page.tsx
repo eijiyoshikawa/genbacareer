@@ -17,9 +17,12 @@ import {
 } from "@/lib/structured-data"
 import { Certificate, BookOpen } from "@phosphor-icons/react/dist/ssr"
 
-// ビルド時の SSG prerender は走らせない (description / requirements の
-// contains 検索が重く 60s タイムアウトする実績あり)。
-// 初回リクエスト時に生成 → ISR 6h でキャッシュする運用に切替。
+// 共有ヘッダーが await auth()（cookies 参照＝動的）を使うため、ISR(revalidate)だけだと
+// キャッシュ再生成時に Server Components が DYNAMIC_SERVER_USAGE を投げて 500 になる
+// （特に generateStaticParams が空＝オンデマンド生成のページで顕在化）。
+// salary / companies/ranking と同様、force-dynamic に統一して競合を回避する。
+// ビルド時 prerender は generateStaticParams が空配列を返すことで引き続き抑止。
+export const dynamic = "force-dynamic"
 export const revalidate = 21600
 export const dynamicParams = true
 
