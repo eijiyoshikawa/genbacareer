@@ -13,6 +13,7 @@ import { auth } from "@/lib/auth"
 import { getSessionIdIfExists } from "@/lib/session-id"
 import { recordJobView, extractUtmFromUrl } from "@/lib/tracking"
 import { trackEvent } from "@/lib/track"
+import { awardJobViewPoints } from "@/lib/points"
 import {
   checkRateLimit,
   getClientIp,
@@ -70,6 +71,12 @@ export async function POST(
     referer,
     utm,
   }).catch(() => {})
+
+  // ポイント制度: ログインユーザーは閲覧でポイント付与（同一求人は 1 日 1 回・上限あり）。
+  // 付与失敗が閲覧記録/レスポンスを壊さないよう握りつぶす。
+  if (userId) {
+    void awardJobViewPoints(userId, id).catch(() => {})
+  }
 
   // 13.4 独自イベントトラッキング (AnalyticsEvent への記録)
   void trackEvent({
