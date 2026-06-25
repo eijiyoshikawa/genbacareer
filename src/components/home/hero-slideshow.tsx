@@ -155,18 +155,18 @@ export function HeroSlideshow({
           <button
             type="button"
             onClick={prev}
-            className="hidden sm:flex absolute left-4 top-1/2 -translate-y-1/2 z-20 h-10 w-10 items-center justify-center bg-white/90 text-ink-900 shadow hover:bg-white"
+            className="group/nav hidden sm:flex absolute left-5 top-1/2 -translate-y-1/2 z-20 h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-ink-900/25 text-white shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-110 hover:border-transparent hover:bg-brand-yellow-500 hover:text-ink-900 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-yellow-300 active:scale-95"
             aria-label="前のスライド"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-5 w-5 transition-transform duration-200 group-hover/nav:-translate-x-0.5" strokeWidth={2.5} />
           </button>
           <button
             type="button"
             onClick={next}
-            className="hidden sm:flex absolute right-4 top-1/2 -translate-y-1/2 z-20 h-10 w-10 items-center justify-center bg-white/90 text-ink-900 shadow hover:bg-white"
+            className="group/nav hidden sm:flex absolute right-5 top-1/2 -translate-y-1/2 z-20 h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-ink-900/25 text-white shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-110 hover:border-transparent hover:bg-brand-yellow-500 hover:text-ink-900 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-yellow-300 active:scale-95"
             aria-label="次のスライド"
           >
-            <ChevronRight className="h-5 w-5" />
+            <ChevronRight className="h-5 w-5 transition-transform duration-200 group-hover/nav:translate-x-0.5" strokeWidth={2.5} />
           </button>
         </>
       )}
@@ -181,8 +181,10 @@ export function HeroSlideshow({
               onClick={() => go(i)}
               aria-label={`スライド ${i + 1} に移動`}
               aria-current={i === index}
-              className={`h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full transition ${
-                i === index ? "bg-white" : "bg-white/40 hover:bg-white/70"
+              className={`h-2 sm:h-2.5 rounded-full transition-all duration-300 ${
+                i === index
+                  ? "w-5 sm:w-6 bg-brand-yellow-500"
+                  : "w-2 sm:w-2.5 bg-white/40 hover:bg-white/70"
               }`}
             />
           ))}
