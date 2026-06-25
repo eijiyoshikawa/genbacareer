@@ -9,6 +9,7 @@ type DrawResult = {
   prizeName: string
   kind: string
   balance: number
+  delivery: "line" | "pending" | "none"
 }
 
 export function RewardsSpin({
@@ -111,11 +112,11 @@ export function RewardsSpin({
             <>
               <p className="text-lg font-extrabold">🎉 当選！</p>
               <p className="mt-1 text-sm font-bold">{result.prizeName}</p>
-              {(result.kind === "amazon_gift" || result.kind === "physical") && (
-                <p className="mt-1 text-xs text-emerald-700">
-                  景品の引き渡し方法は運営よりご連絡します
-                </p>
-              )}
+              <p className="mt-1 text-xs text-emerald-700">
+                {result.delivery === "line"
+                  ? "公式LINEにギフトコードをお送りしました📩 ご確認ください。"
+                  : "受け取り方法は運営よりご連絡します。公式LINEを友だち追加いただくと、次回から自動でお受け取りいただけます。"}
+              </p>
             </>
           ) : (
             <>

@@ -17,9 +17,10 @@ import {
 } from "@/lib/structured-data"
 import { Certificate, BookOpen } from "@phosphor-icons/react/dist/ssr"
 
-// ビルド時の SSG prerender は走らせない (description / requirements の
-// contains 検索が重く 60s タイムアウトする実績あり)。
-// 初回リクエスト時に生成 → ISR 6h でキャッシュする運用に切替。
+// ビルド時の SSG prerender は走らせない（generateStaticParams が空配列）。
+// 初回リクエストで生成 → ISR 6h でキャッシュ。
+// （共有ヘッダーをクライアント化し auth() をサーバーで読まなくしたため、
+//   ISR 再生成時の DYNAMIC_SERVER_USAGE 競合は解消済み）
 export const revalidate = 21600
 export const dynamicParams = true
 

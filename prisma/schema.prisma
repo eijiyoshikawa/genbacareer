@@ -1366,7 +1366,8 @@ model LotteryPrize {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
-  draws LotteryDraw[]
+  draws     LotteryDraw[]
+  giftCodes GiftCode[]
 
   @@index([active, sortOrder], name: "idx_lottery_prizes_active")
   @@map("lottery_prizes")
@@ -1391,4 +1392,30 @@ model LotteryDraw {
   @@index([userId, createdAt(sort: Desc)], name: "idx_lottery_draws_user")
   @@index([isWin, fulfillment, createdAt(sort: Desc)], name: "idx_lottery_draws_fulfillment")
   @@map("lottery_draws")
+}
+
+// ギフトコード在庫プール。Amazon ギフト等のコードを事前登録しておき、
+// 当選時に 1 枚を原子的に割り当て、公式 LINE で自動送付する。
+// available なコード枚数が、その景品の実質的な「当選数上限（在庫）」になる。
+model GiftCode {
+  id             String    @id @default(uuid()) @db.Uuid
+  prizeId        String    @map("prize_id") @db.Uuid
+  // コード本文（機微情報）。割り当て前は available、割り当て後は assigned。
+  code           String    @db.VarChar(255)
+  // available | assigned
+  status         String    @default("available") @db.VarChar(20)
+  drawId         String?   @unique @map("draw_id") @db.Uuid
+  assignedUserId String?   @map("assigned_user_id") @db.Uuid
+  assignedAt     DateTime? @map("assigned_at") @db.Timestamptz()
+  // line | manual | null（送付方法）
+  deliveredVia   String?   @map("delivered_via") @db.VarChar(20)
+  deliveredAt    DateTime? @map("delivered_at") @db.Timestamptz()
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  prize LotteryPrize @relation(fields: [prizeId], references: [id], onDelete: Cascade)
+
+  // 同一景品内でのコード重複登録を防止
+  @@unique([prizeId, code], name: "uq_gift_codes_prize_code")
+  @@index([prizeId, status], name: "idx_gift_codes_prize_status")
+  @@map("gift_codes")
 }

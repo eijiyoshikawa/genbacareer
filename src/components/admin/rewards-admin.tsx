@@ -201,6 +201,90 @@ export function PrizeCreateForm() {
   )
 }
 
+/** Amazon ギフトのコードを在庫プールに一括登録するフォーム */
+export function GiftCodeUpload({
+  prizes,
+}: {
+  prizes: { id: string; name: string }[]
+}) {
+  const router = useRouter()
+  const [prizeId, setPrizeId] = useState(prizes[0]?.id ?? "")
+  const [codes, setCodes] = useState("")
+  const [msg, setMsg] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  if (prizes.length === 0) {
+    return (
+      <div className="rounded-lg border bg-white p-4">
+        <h3 className="font-bold text-gray-900">ギフトコードの登録</h3>
+        <p className="mt-1 text-xs text-gray-500">
+          先に「種別＝金券（Amazonギフト等）」の景品を追加してください。
+        </p>
+      </div>
+    )
+  }
+
+  async function submit() {
+    setBusy(true)
+    setMsg(null)
+    const { ok, data } = await postJson(`/api/admin/lottery-prizes/${prizeId}/codes`, {
+      codes,
+    })
+    setBusy(false)
+    if (ok) {
+      setMsg(`登録 ${data.added} 件（重複スキップ ${data.skipped} 件）／現在の在庫 ${data.available} 件`)
+      setCodes("")
+      router.refresh()
+    } else {
+      setMsg(data.error ?? "エラーが発生しました")
+    }
+  }
+
+  return (
+    <div className="rounded-lg border bg-white p-4">
+      <h3 className="font-bold text-gray-900">ギフトコードの登録（在庫プール）</h3>
+      <p className="mt-1 text-xs text-gray-500">
+        Amazonギフトのコードを改行・カンマ区切りで貼り付け。登録した枚数がそのまま当選数の上限になり、
+        当選時に1枚ずつ自動で割り当て・LINE自動送付されます。
+      </p>
+      <div className="mt-3 space-y-2">
+        <label className="block text-sm">
+          <span className="text-xs text-gray-500">対象景品（金券）</span>
+          <select
+            value={prizeId}
+            onChange={(e) => setPrizeId(e.target.value)}
+            className="mt-0.5 block w-full max-w-sm rounded border px-2 py-1.5 text-sm"
+          >
+            {prizes.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <textarea
+          value={codes}
+          onChange={(e) => setCodes(e.target.value)}
+          rows={5}
+          placeholder={"XXXX-XXXXXX-XXXX\nYYYY-YYYYYY-YYYY"}
+          className="block w-full rounded border px-2 py-1.5 font-mono text-sm"
+        />
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy || !prizeId || !codes.trim()}
+            className="rounded bg-primary-600 px-3 py-1.5 text-sm font-bold text-white disabled:bg-gray-300"
+          >
+            コードを登録
+          </button>
+          {msg && <span className="text-sm text-gray-700">{msg}</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** 景品の有効/無効トグル */
 export function PrizeToggle({ id, active }: { id: string; active: boolean }) {
   const router = useRouter()

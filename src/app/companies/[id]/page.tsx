@@ -24,7 +24,11 @@ import {
   Heart,
 } from "@phosphor-icons/react/dist/ssr"
 
-export const revalidate = 3600 // 1 hour ISR
+// このページは本体で await auth() を使い、ログインユーザーのフォロー/ブロック状態を
+// 出し分ける（＝個人化＝動的）。ISR(revalidate)のままだと再生成時に
+// DYNAMIC_SERVER_USAGE で 500 になるため force-dynamic に統一する。
+export const dynamic = "force-dynamic"
+export const revalidate = 3600
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 

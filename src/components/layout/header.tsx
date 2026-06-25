@@ -1,8 +1,10 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { LinkButton } from "@/components/ui/button"
 import { HeaderMobileMenu } from "./header-mobile-menu"
 import { HeaderLogoutButton } from "./header-logout-button"
-import { auth } from "@/lib/auth"
 
 /**
  * ログインユーザーの role から「マイページ」相当の遷移先を決定する。
@@ -34,17 +36,36 @@ function isCompanyRole(role: string | undefined): boolean {
 }
 
 /**
- * サイト共通ヘッダー。
+ * サイト共通ヘッダー（クライアントコンポーネント）。
  *
- * await auth() でセッションを取得し、ログイン状態に応じて表示を切り替える:
+ * セッションは /api/auth/session をクライアントで取得し、ログイン状態に応じて表示を切替:
  *   - 未ログイン: 「ログイン / 無料で始める」
  *   - ログイン中: 「マイページ（or 企業ダッシュボード/管理画面） / ログアウト」
+ *
+ * サーバー側で auth()（cookies）を読まないことで、Header を含む全ページを静的化でき、
+ * ISR ページがバックグラウンド再生成に失敗（DYNAMIC_SERVER_USAGE）する問題を防ぐ。
  */
-export async function Header() {
-  const session = await auth()
-  const role = session?.user
-    ? ((session.user as { role?: string }).role ?? "seeker")
-    : undefined
+export function Header() {
+  // 認証状態はクライアントで取得する。これにより Header を含む全ページが
+  // サーバー側で cookies を読まずに静的化でき、ISR ページの再生成が
+  // DYNAMIC_SERVER_USAGE で 500 になる問題を回避する。
+  // 初期状態（未取得）は未ログイン表示＝公開ビュー（SEO 上もこれが正）。
+  const [role, setRole] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    let active = true
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!active) return
+        setRole(
+          data?.user ? ((data.user as { role?: string }).role ?? "seeker") : undefined,
+        )
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [])
   const myPage = resolveMyPageTarget(role)
   // 企業アカウントには求職者向けのブラウズ機能（求人検索/フィード/マップ/マガジン）は
   // 見せず、ダッシュボードのみに集約する。求人プレビューは各求人の
