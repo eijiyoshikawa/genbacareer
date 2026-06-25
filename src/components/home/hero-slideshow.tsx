@@ -76,64 +76,77 @@ export function HeroSlideshow({
       aria-roledescription="carousel"
       aria-label="ゲンバキャリア お知らせ・特集スライドショー"
     >
-      <div className="relative aspect-[16/7] sm:aspect-[21/8] min-h-[260px] sm:min-h-[360px]">
-        {slides.map((s, i) => (
-          <div
-            key={s.image + i}
-            className={`absolute inset-0 transition-opacity duration-700 ${
-              i === index ? "opacity-100" : "opacity-0 pointer-events-none"
-            }`}
-            aria-hidden={i !== index}
-          >
-            <Image
-              src={s.image}
-              alt=""
-              fill
-              priority={i === 0}
-              sizes="100vw"
-              className="object-cover"
-            />
-            {/* 暗オーバーレイ (左→右でフェード) */}
-            <div
-              aria-hidden
-              className="absolute inset-0 bg-gradient-to-r from-ink-900/90 via-ink-900/55 to-ink-900/15"
-            />
-            {/* コンテンツ */}
-            <div className="relative z-10 mx-auto flex h-full max-w-7xl items-center px-4 sm:px-6 lg:px-8">
-              <div className="max-w-xl text-white">
-                {s.badge && (
-                  <span
-                    className={`inline-block px-3 py-1 text-xs font-extrabold tracking-wide ${
-                      s.badgeColor ?? "bg-brand-yellow-500 text-ink-900"
+      <div className="relative aspect-[16/11] sm:aspect-[21/8] min-h-[340px] sm:min-h-[420px]">
+        {slides.map((s, i) => {
+          // マガジン風: 写真を主役にし、下からのグラデーション上に見出しを下寄せ配置。
+          // スライド全体をリンクにして、写真クリックでも記事へ遷移できるようにする。
+          const inner = (
+            <>
+              <Image
+                src={s.image}
+                alt=""
+                fill
+                priority={i === 0}
+                sizes="100vw"
+                className="object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-[1.04]"
+              />
+              {/* 下→上の暗グラデ（写真の上側はほぼ素のまま見せる） */}
+              <div
+                aria-hidden
+                className="absolute inset-0 bg-gradient-to-t from-ink-900/95 via-ink-900/45 to-ink-900/5"
+              />
+              {/* コンテンツ（下寄せ） */}
+              <div className="relative z-10 mx-auto flex h-full max-w-7xl items-end px-4 pb-10 sm:px-6 sm:pb-14 lg:px-8">
+                <div className="max-w-2xl text-white">
+                  {s.badge && (
+                    <span
+                      className={`inline-block px-2.5 py-1 text-[11px] font-extrabold tracking-wide ${
+                        s.badgeColor ?? "bg-brand-yellow-500 text-ink-900"
+                      }`}
+                    >
+                      {s.badge}
+                    </span>
+                  )}
+                  <h2
+                    className={`text-2xl font-extrabold leading-tight tracking-tight drop-shadow-lg line-clamp-2 sm:text-4xl lg:text-[2.75rem] ${
+                      s.badge ? "mt-2.5" : ""
                     }`}
                   >
-                    {s.badge}
-                  </span>
-                )}
-                <h2
-                  className={`text-2xl sm:text-4xl lg:text-5xl font-extrabold leading-tight tracking-tight drop-shadow-lg ${
-                    s.badge ? "mt-3" : ""
-                  }`}
-                >
-                  {s.title}
-                </h2>
-                {s.subtitle && (
-                  <p className="mt-3 text-sm sm:text-base text-white/90 leading-relaxed drop-shadow max-w-lg">
-                    {s.subtitle}
-                  </p>
-                )}
-                {s.ctaLabel && s.ctaHref && (
-                  <Link
-                    href={s.ctaHref}
-                    className="press mt-5 inline-flex items-center gap-1.5 bg-primary-600 px-5 py-2.5 text-sm font-extrabold text-white shadow hover:bg-primary-700"
-                  >
-                    {s.ctaLabel}
-                  </Link>
-                )}
+                    {s.title}
+                  </h2>
+                  {s.subtitle && (
+                    <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/85 drop-shadow line-clamp-2 sm:text-base">
+                      {s.subtitle}
+                    </p>
+                  )}
+                  {s.ctaLabel && (
+                    <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-extrabold text-brand-yellow-300 transition-all group-hover:gap-2.5">
+                      {s.ctaLabel}
+                      <ChevronRight className="h-4 w-4" />
+                    </span>
+                  )}
+                </div>
               </div>
+            </>
+          )
+          return (
+            <div
+              key={s.image + i}
+              className={`absolute inset-0 transition-opacity duration-700 ${
+                i === index ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}
+              aria-hidden={i !== index}
+            >
+              {s.ctaHref ? (
+                <Link href={s.ctaHref} className="group block h-full w-full">
+                  {inner}
+                </Link>
+              ) : (
+                <div className="group block h-full w-full">{inner}</div>
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* prev / next (PC のみ表示) */}

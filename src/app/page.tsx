@@ -363,6 +363,7 @@ export default async function HomePage() {
     magazineArticles,
     interviewArticles,
     featuredCompanies,
+    heroArticles,
   ] = await Promise.all([
     // materialized view から件数を取得（未作成時は groupBy にフォールバック）
     withTimeout(getCategoryCounts(), DB_DEADLINE_MS, [], "getCategoryCounts"),
@@ -461,11 +462,47 @@ export default async function HomePage() {
       [] as FeaturedCompany[],
       "featuredCompanies",
     ),
+    // トップ Hero スライドショー用: カバー写真ありの公開記事 最新 5 件
+    withTimeout(
+      prisma.article
+        .findMany({
+          where: { ...publishedArticleFilter(), imageUrl: { not: null } },
+          orderBy: { publishedAt: "desc" },
+          take: 5,
+          select: {
+            slug: true,
+            title: true,
+            excerpt: true,
+            category: true,
+            imageUrl: true,
+          },
+        })
+        .catch(() => []),
+      DB_DEADLINE_MS,
+      [],
+      "heroArticles",
+    ),
   ])
 
   // A4: 同一企業の連続表示を抑制した上で、表示用 6 件に絞る
   // メインのランキングは 6 件、サイドバー「注目求人」は 7 件使うため余裕を持って確保
   const diversifiedRecommendedJobs = diversifyByCompany(recommendedJobs).slice(0, 8)
+
+  // Hero スライドショー: 記事のカバー写真から生成し、各スライドはその記事にリンク。
+  // 画像付き公開記事が無い場合は静的スライド（HERO_SLIDES）にフォールバックする。
+  const heroSlides: HeroSlide[] =
+    heroArticles.length > 0
+      ? heroArticles
+          .filter((a) => a.imageUrl)
+          .map((a) => ({
+            image: a.imageUrl as string,
+            badge: CATEGORY_LABELS[a.category] ?? undefined,
+            title: a.title,
+            subtitle: a.excerpt ?? undefined,
+            ctaLabel: "記事を読む",
+            ctaHref: `/journal/${a.slug}`,
+          }))
+      : HERO_SLIDES
 
   // 職種別の平均月給（給与相場グラフ用）。月給制・提示額ありの公開求人から算出。
   const salaryAgg = await withTimeout(
@@ -512,7 +549,7 @@ export default async function HomePage() {
   return (
     <div className="bg-white">
       {/* === Hero スライドショー ============================================== */}
-      <HeroSlideshow slides={HERO_SLIDES} />
+      <HeroSlideshow slides={heroSlides} />
 
       {/* === 3 軸クイック検索パネル =========================================== */}
       <QuickSearchPanel totalJobs={totalJobs} />
