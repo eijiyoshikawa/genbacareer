@@ -53,7 +53,45 @@ export async function fuzzySearchJobs(
   // - title と description それぞれの類似度の最大値を採用
   // - 0.05 以上を閾値（ある程度関連がある）
   // - 同点は publishedAt DESC
+  // オプショナルフィルターは動的にパラメータ位置を採番することで
+  // 「prefecture なしで employmentType だけ指定」等の組み合わせでも
+  // 正しい $N が使われるようにする。
   try {
+    const bindParams: unknown[] = [input.q, categories]
+    const optConditions: string[] = []
+
+    if (input.prefecture) {
+      bindParams.push(input.prefecture)
+      optConditions.push(`prefecture = $${bindParams.length}`)
+    }
+    if (input.city) {
+      bindParams.push(input.city)
+      optConditions.push(`city = $${bindParams.length}`)
+    }
+    if (input.employmentType) {
+      bindParams.push(input.employmentType)
+      optConditions.push(`employment_type = $${bindParams.length}`)
+    }
+    if (input.source) {
+      bindParams.push(input.source)
+      optConditions.push(`source = $${bindParams.length}`)
+    }
+    if (input.publishedSince) {
+      bindParams.push(input.publishedSince)
+      optConditions.push(`published_at >= $${bindParams.length}`)
+    }
+    if (input.salaryMin) {
+      bindParams.push(input.salaryMin)
+      optConditions.push(`salary_min >= $${bindParams.length}`)
+    }
+    if (input.salaryMax) {
+      bindParams.push(input.salaryMax)
+      optConditions.push(`salary_max <= $${bindParams.length}`)
+    }
+
+    const extraWhere =
+      optConditions.length > 0 ? `AND ${optConditions.join(" AND ")}` : ""
+
     const rows = await prisma.$queryRawUnsafe<
       { id: string; similarity: number }[]
     >(
@@ -68,12 +106,7 @@ export async function fuzzySearchJobs(
         FROM jobs
         WHERE status = 'active'
           AND category = ANY($2)
-          ${input.prefecture ? "AND prefecture = $3" : ""}
-          ${input.employmentType ? `AND employment_type = $4` : ""}
-          ${input.source ? `AND source = $5` : ""}
-          ${input.publishedSince ? `AND published_at >= $6` : ""}
-          ${input.salaryMin ? `AND salary_min >= $7` : ""}
-          ${input.salaryMax ? `AND salary_max <= $8` : ""}
+          ${extraWhere}
       )
       SELECT id, similarity
       FROM scored
@@ -81,14 +114,7 @@ export async function fuzzySearchJobs(
       ORDER BY similarity DESC, published_at DESC NULLS LAST
       LIMIT ${limit} OFFSET ${offset};
       `,
-      input.q,
-      categories,
-      ...(input.prefecture ? [input.prefecture] : []),
-      ...(input.employmentType ? [input.employmentType] : []),
-      ...(input.source ? [input.source] : []),
-      ...(input.publishedSince ? [input.publishedSince] : []),
-      ...(input.salaryMin ? [input.salaryMin] : []),
-      ...(input.salaryMax ? [input.salaryMax] : [])
+      ...bindParams
     )
     return rows
   } catch (e) {

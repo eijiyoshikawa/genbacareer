@@ -13,12 +13,12 @@ import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
 
+// "hired" は意図的に除外。採用確定には hiredAt の記録・請求書生成・候補者への通知が必要であり、
+// これらは個別の PUT /api/company/applications/[id] エンドポイントでのみ処理される。
 const ALLOWED_STATUSES = [
-  "applied",
   "reviewing",
   "interview",
   "offered",
-  "hired",
   "rejected",
 ] as const
 
