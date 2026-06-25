@@ -148,7 +148,7 @@ const THEMED_BUCKETS: Array<{
     desc: "高収入の現場リーダー候補。",
     query: "高収入",
     image:
-      "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1000&q=70",
+      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1000&q=70",
     bg: "from-rose-500 to-rose-700",
   },
   {
@@ -172,7 +172,7 @@ const THEMED_BUCKETS: Array<{
     desc: "現場リーダー / 監督候補。",
     query: "経験者",
     image:
-      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1000&q=70",
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1000&q=70",
     bg: "from-cyan-600 to-cyan-800",
   },
 ]
