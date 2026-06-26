@@ -31,7 +31,9 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get("category")
   const employmentType = searchParams.get("employment_type")
   const salaryMin = searchParams.get("salary_min")
-  const q = searchParams.get("q")
+  const rawQ = searchParams.get("q")
+  // DB 負荷対策: 検索キーワードは最大 200 文字に制限
+  const q = rawQ && rawQ.length > 200 ? null : rawQ
   const rawPage = Math.max(1, Number(searchParams.get("page") ?? "1"))
   const rawLimit = Math.min(
     50,

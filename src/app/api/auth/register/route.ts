@@ -119,7 +119,18 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Registration error:", error);
+    // Prisma 固有制約違反 (P2002): 同時リクエストによるメール重複
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      (error as { code?: string }).code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "このメールアドレスは既に登録されています。" },
+        { status: 409 }
+      );
+    }
+    console.error("Registration error:", (error as { code?: string } | null)?.code ?? "unknown");
     return NextResponse.json(
       { error: "サーバーエラーが発生しました。" },
       { status: 500 }

@@ -32,6 +32,11 @@ export async function POST(request: NextRequest) {
   })
 
   if (!user || !user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
+    // タイミング攻撃対策: token が存在しない場合も存在して期限切れの場合も
+    // 同じ遅延を入れることで応答時間から token の有無を推測されるのを防ぐ
+    if (!user) {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
     return Response.json(
       { error: "リセットリンクが無効または期限切れです。再度お試しください。" },
       { status: 400 }

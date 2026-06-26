@@ -5,12 +5,11 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ApplicationStatusSelect } from "@/components/company/application-status-select"
 
+// hired は請求書作成を伴うため個別操作のみ許可、applied は後退遷移なので除外
 const STATUS_OPTIONS = [
-  { value: "applied", label: "応募済み" },
   { value: "reviewing", label: "選考中" },
   { value: "interview", label: "面接" },
   { value: "offered", label: "内定" },
-  { value: "hired", label: "採用" },
   { value: "rejected", label: "不採用" },
 ] as const
 
