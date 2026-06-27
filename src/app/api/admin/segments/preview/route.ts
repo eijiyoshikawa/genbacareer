@@ -45,6 +45,6 @@ function parseSegment(sp: URLSearchParams): Segment {
   if (lb === "true") s.lineBound = true
   if (lb === "false") s.lineBound = false
   const days = Number(sp.get("createdSinceDays") ?? "")
-  if (Number.isFinite(days) && days > 0) s.createdSinceDays = days
+  if (Number.isFinite(days) && days > 0) s.createdSinceDays = Math.min(days, 730)
   return s
 }

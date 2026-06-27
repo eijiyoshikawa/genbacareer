@@ -258,14 +258,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           })
           if (!existing) {
             // OAuth プロバイダ経由のメールは確認済みとみなす（Google/LINE が検証済みのため）
-            const created = await prisma.user.create({
-              data: {
-                email: user.email,
-                name: user.name ?? null,
-                authProvider: account.provider,
-                emailVerified: new Date(),
-              },
-            })
+            let created: { id: string }
+            try {
+              created = await prisma.user.create({
+                data: {
+                  email: user.email,
+                  name: user.name ?? null,
+                  authProvider: account.provider,
+                  emailVerified: new Date(),
+                },
+                select: { id: true },
+              })
+            } catch {
+              // 同時リクエストによる競合: 既に作成済みのレコードを取得
+              const race = await prisma.user.findUnique({
+                where: { email: user.email },
+                select: { id: true },
+              })
+              if (!race) return false
+              created = race
+            }
             user.id = created.id
             ;(user as { role?: string }).role = "seeker"
           } else {

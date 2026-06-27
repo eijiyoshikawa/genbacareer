@@ -1,6 +1,53 @@
 import { type NextRequest } from "next/server"
+import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+
+const educationEntrySchema = z.object({
+  period: z.string().max(50).optional(),
+  school: z.string().max(200).optional(),
+  faculty: z.string().max(200).optional(),
+  degree: z.string().max(100).optional(),
+}).strict()
+
+const workEntrySchema = z.object({
+  period: z.string().max(50).optional(),
+  company: z.string().max(200).optional(),
+  position: z.string().max(200).optional(),
+  description: z.string().max(2000).optional(),
+}).strict()
+
+const licenseEntrySchema = z.object({
+  name: z.string().max(200),
+  acquiredAt: z.string().max(50).optional(),
+}).strict()
+
+const careerDetailEntrySchema = z.object({
+  company: z.string().max(200).optional(),
+  period: z.string().max(50).optional(),
+  position: z.string().max(200).optional(),
+  description: z.string().max(4000).optional(),
+}).strict()
+
+const resumeSchema = z.object({
+  fullName: z.string().max(100).optional(),
+  furigana: z.string().max(100).optional(),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  gender: z.string().max(20).optional().nullable(),
+  postalCode: z.string().max(10).optional().nullable(),
+  address: z.string().max(500).optional().nullable(),
+  phone: z.string().max(20).optional().nullable(),
+  email: z.string().email().max(255).optional().nullable(),
+  educationHistory: z.array(educationEntrySchema).max(20).optional().nullable(),
+  workHistory: z.array(workEntrySchema).max(30).optional().nullable(),
+  licenses: z.array(licenseEntrySchema).max(50).optional().nullable(),
+  motivation: z.string().max(4000).optional().nullable(),
+  selfPr: z.string().max(4000).optional().nullable(),
+  careerSummary: z.string().max(2000).optional().nullable(),
+  careerDetails: z.array(careerDetailEntrySchema).max(30).optional().nullable(),
+  skills: z.array(z.string().max(100)).max(50).optional(),
+  qualifications: z.array(z.string().max(200)).max(50).optional(),
+})
 
 export async function GET() {
   const session = await auth()
@@ -21,43 +68,63 @@ export async function PUT(request: NextRequest) {
     return Response.json({ error: "ログインが必要です" }, { status: 401 })
   }
 
-  let body: Record<string, unknown>
+  let body: unknown
   try {
     body = await request.json()
   } catch {
     return Response.json({ error: "リクエストの形式が正しくありません" }, { status: 400 })
   }
 
+  const parsed = resumeSchema.safeParse(body)
+  if (!parsed.success) {
+    return Response.json(
+      { error: "入力内容に誤りがあります", details: parsed.error.issues },
+      { status: 400 }
+    )
+  }
+
+  const data = parsed.data
+
   const resume = await prisma.resume.upsert({
     where: { userId: session.user.id },
     create: {
       userId: session.user.id,
-      ...sanitizeResumeData(body),
+      ...buildResumeData(data),
     },
-    update: sanitizeResumeData(body),
+    update: buildResumeData(data),
   })
 
   return Response.json({ resume })
 }
 
-function sanitizeResumeData(body: Record<string, unknown>) {
+function buildResumeData(data: z.infer<typeof resumeSchema>) {
   return {
-    fullName: typeof body.fullName === "string" ? body.fullName : undefined,
-    furigana: typeof body.furigana === "string" ? body.furigana : undefined,
-    birthDate: typeof body.birthDate === "string" ? new Date(body.birthDate) : undefined,
-    gender: typeof body.gender === "string" ? body.gender : undefined,
-    postalCode: typeof body.postalCode === "string" ? body.postalCode : undefined,
-    address: typeof body.address === "string" ? body.address : undefined,
-    phone: typeof body.phone === "string" ? body.phone : undefined,
-    email: typeof body.email === "string" ? body.email : undefined,
-    educationHistory: body.educationHistory !== undefined ? body.educationHistory as object : undefined,
-    workHistory: body.workHistory !== undefined ? body.workHistory as object : undefined,
-    licenses: body.licenses !== undefined ? body.licenses as object : undefined,
-    motivation: typeof body.motivation === "string" ? body.motivation : undefined,
-    selfPr: typeof body.selfPr === "string" ? body.selfPr : undefined,
-    careerSummary: typeof body.careerSummary === "string" ? body.careerSummary : undefined,
-    careerDetails: body.careerDetails !== undefined ? body.careerDetails as object : undefined,
-    skills: Array.isArray(body.skills) ? body.skills.filter((s): s is string => typeof s === "string") : undefined,
-    qualifications: Array.isArray(body.qualifications) ? body.qualifications.filter((s): s is string => typeof s === "string") : undefined,
+    ...(data.fullName !== undefined ? { fullName: data.fullName } : {}),
+    ...(data.furigana !== undefined ? { furigana: data.furigana } : {}),
+    ...(data.birthDate !== undefined
+      ? { birthDate: data.birthDate ? new Date(data.birthDate) : null }
+      : {}),
+    ...(data.gender !== undefined ? { gender: data.gender } : {}),
+    ...(data.postalCode !== undefined ? { postalCode: data.postalCode } : {}),
+    ...(data.address !== undefined ? { address: data.address } : {}),
+    ...(data.phone !== undefined ? { phone: data.phone } : {}),
+    ...(data.email !== undefined ? { email: data.email } : {}),
+    ...(data.educationHistory !== undefined
+      ? { educationHistory: data.educationHistory as unknown as object }
+      : {}),
+    ...(data.workHistory !== undefined
+      ? { workHistory: data.workHistory as unknown as object }
+      : {}),
+    ...(data.licenses !== undefined
+      ? { licenses: data.licenses as unknown as object }
+      : {}),
+    ...(data.motivation !== undefined ? { motivation: data.motivation } : {}),
+    ...(data.selfPr !== undefined ? { selfPr: data.selfPr } : {}),
+    ...(data.careerSummary !== undefined ? { careerSummary: data.careerSummary } : {}),
+    ...(data.careerDetails !== undefined
+      ? { careerDetails: data.careerDetails as unknown as object }
+      : {}),
+    ...(data.skills !== undefined ? { skills: data.skills } : {}),
+    ...(data.qualifications !== undefined ? { qualifications: data.qualifications } : {}),
   }
 }

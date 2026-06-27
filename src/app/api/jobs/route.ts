@@ -30,8 +30,10 @@ export async function GET(request: NextRequest) {
   const prefecture = searchParams.get("prefecture")
   const category = searchParams.get("category")
   const employmentType = searchParams.get("employment_type")
-  const salaryMin = searchParams.get("salary_min")
-  const q = searchParams.get("q")
+  const salaryMinRaw = searchParams.get("salary_min")
+  const salaryMin = salaryMinRaw && Number.isFinite(Number(salaryMinRaw)) ? Number(salaryMinRaw) : null
+  const qRaw = searchParams.get("q")
+  const q = qRaw ? qRaw.slice(0, 200) : null
   const rawPage = Math.max(1, Number(searchParams.get("page") ?? "1"))
   const rawLimit = Math.min(
     50,
@@ -53,7 +55,7 @@ export async function GET(request: NextRequest) {
     ...(prefecture && { prefecture }),
     ...categoryFilter,
     ...(employmentType && { employmentType }),
-    ...(salaryMin && { salaryMin: { gte: Number(salaryMin) } }),
+    ...(salaryMin !== null && { salaryMin: { gte: salaryMin } }),
     ...(q && {
       OR: [
         { title: { contains: q, mode: "insensitive" as const } },

@@ -20,6 +20,10 @@ export async function GET(
 
   const { id } = await params
 
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
+
   const job = await prisma.job.findUnique({
     where: { id },
     include: {

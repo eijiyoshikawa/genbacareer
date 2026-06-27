@@ -13,7 +13,7 @@ import { prisma } from "@/lib/db"
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 
 const schema = z.object({
-  token: z.string().min(16),
+  token: z.string().regex(/^[a-f0-9]{64}$/i, "確認トークンの形式が正しくありません"),
 })
 
 export async function POST(request: NextRequest) {

@@ -22,7 +22,8 @@ export const runtime = "nodejs"
 const STATE_MAX_AGE_MS = 10 * 60 * 1000
 
 function signState(payload: string): string {
-  const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? ""
+  const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET
+  if (!secret) throw new Error("AUTH_SECRET is not configured")
   return crypto.createHmac("sha256", secret).update(payload).digest("hex")
 }
 
@@ -30,7 +31,12 @@ function verifyState(state: string): { ok: boolean; companyId?: string } {
   const parts = state.split(".")
   if (parts.length !== 4) return { ok: false }
   const [companyId, nonce, ts, sig] = parts
-  const expected = signState(`${companyId}.${nonce}.${ts}`)
+  let expected: string
+  try {
+    expected = signState(`${companyId}.${nonce}.${ts}`)
+  } catch {
+    return { ok: false }
+  }
   if (
     expected.length !== sig.length ||
     !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))
