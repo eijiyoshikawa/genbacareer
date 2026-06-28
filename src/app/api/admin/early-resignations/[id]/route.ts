@@ -79,59 +79,72 @@ export async function PATCH(
 
   const now = new Date()
 
-  switch (parsed.data.action) {
-    case "approve": {
-      if (row.status !== "reported") {
-        return Response.json(
-          { error: `現在のステータス (${row.status}) からは承認できません` },
-          { status: 409 },
-        )
+  // ステータス遷移の妥当性チェックと更新をアトミックに行う（楽観的ロック）
+  // where に現在のステータスを含めることで、並行リクエストによる二重処理を防止する
+  try {
+    switch (parsed.data.action) {
+      case "approve": {
+        if (row.status !== "reported") {
+          return Response.json(
+            { error: `現在のステータス (${row.status}) からは承認できません` },
+            { status: 409 },
+          )
+        }
+        await prisma.earlyResignation.update({
+          where: { id, status: "reported" },
+          data: {
+            status: "approved",
+            adminNote: parsed.data.adminNote ?? null,
+            approvedBy: me.userId,
+            approvedAt: now,
+          },
+        })
+        return Response.json({ ok: true })
       }
-      await prisma.earlyResignation.update({
-        where: { id },
-        data: {
-          status: "approved",
-          adminNote: parsed.data.adminNote ?? null,
-          approvedBy: me.userId,
-          approvedAt: now,
-        },
-      })
-      return Response.json({ ok: true })
-    }
-    case "reject": {
-      if (row.status !== "reported") {
-        return Response.json(
-          { error: `現在のステータス (${row.status}) からは却下できません` },
-          { status: 409 },
-        )
+      case "reject": {
+        if (row.status !== "reported") {
+          return Response.json(
+            { error: `現在のステータス (${row.status}) からは却下できません` },
+            { status: 409 },
+          )
+        }
+        await prisma.earlyResignation.update({
+          where: { id, status: "reported" },
+          data: {
+            status: "rejected",
+            adminNote: parsed.data.adminNote,
+            rejectedBy: me.userId,
+            rejectedAt: now,
+          },
+        })
+        return Response.json({ ok: true })
       }
-      await prisma.earlyResignation.update({
-        where: { id },
-        data: {
-          status: "rejected",
-          adminNote: parsed.data.adminNote,
-          rejectedBy: me.userId,
-          rejectedAt: now,
-        },
-      })
-      return Response.json({ ok: true })
-    }
-    case "mark_invoiced": {
-      if (row.status !== "approved") {
-        return Response.json(
-          { error: "承認済の申請のみ請求書発行マークできます" },
-          { status: 409 },
-        )
+      case "mark_invoiced": {
+        if (row.status !== "approved") {
+          return Response.json(
+            { error: "承認済の申請のみ請求書発行マークできます" },
+            { status: 409 },
+          )
+        }
+        await prisma.earlyResignation.update({
+          where: { id, status: "approved" },
+          data: {
+            status: "invoiced",
+            mfCreditNoteId: parsed.data.mfCreditNoteId ?? null,
+            invoicedAt: now,
+          },
+        })
+        return Response.json({ ok: true })
       }
-      await prisma.earlyResignation.update({
-        where: { id },
-        data: {
-          status: "invoiced",
-          mfCreditNoteId: parsed.data.mfCreditNoteId ?? null,
-          invoicedAt: now,
-        },
-      })
-      return Response.json({ ok: true })
     }
+  } catch (e) {
+    // Prisma P2025: 更新対象レコードが見つからない（並行リクエストでステータスが変わった場合）
+    if (typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "P2025") {
+      return Response.json(
+        { error: "ステータスが変更されました。ページを再読み込みしてください。" },
+        { status: 409 },
+      )
+    }
+    throw e
   }
 }

@@ -22,7 +22,8 @@ export const runtime = "nodejs"
 const STATE_MAX_AGE_MS = 10 * 60 * 1000
 
 function signState(payload: string): string {
-  const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? ""
+  const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET
+  if (!secret) throw new Error("AUTH_SECRET is not configured")
   return crypto.createHmac("sha256", secret).update(payload).digest("hex")
 }
 

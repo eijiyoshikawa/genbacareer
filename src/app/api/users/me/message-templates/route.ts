@@ -54,23 +54,33 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const count = await prisma.applicationMessageTemplate
-    .count({ where: { userId: session.user.id } })
-    .catch(() => 0)
-  if (count >= 10) {
-    return Response.json(
-      { error: "テンプレートは 10 件までです。不要なものを削除してください。" },
-      { status: 400 }
-    )
-  }
+  // カウントと作成をトランザクション内で行い TOCTOU 競合を防ぐ
+  class LimitExceededError extends Error {}
 
-  const created = await prisma.applicationMessageTemplate.create({
-    data: {
-      userId: session.user.id,
-      name: parsed.data.name,
-      body: parsed.data.body,
-      sortOrder: parsed.data.sortOrder ?? 100,
-    },
-  })
+  let created: Awaited<ReturnType<typeof prisma.applicationMessageTemplate.create>>
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      const count = await tx.applicationMessageTemplate.count({
+        where: { userId: session.user.id },
+      })
+      if (count >= 10) throw new LimitExceededError()
+      return tx.applicationMessageTemplate.create({
+        data: {
+          userId: session.user.id,
+          name: parsed.data.name,
+          body: parsed.data.body,
+          sortOrder: parsed.data.sortOrder ?? 100,
+        },
+      })
+    })
+  } catch (e) {
+    if (e instanceof LimitExceededError) {
+      return Response.json(
+        { error: "テンプレートは 10 件までです。不要なものを削除してください。" },
+        { status: 400 }
+      )
+    }
+    throw e
+  }
   return Response.json({ template: created }, { status: 201 })
 }

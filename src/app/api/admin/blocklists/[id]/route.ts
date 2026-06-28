@@ -59,6 +59,6 @@ export async function DELETE(
     return Response.json({ error: "権限がありません" }, { status: 403 })
   }
   const { id } = await params
-  await prisma.blocklist.delete({ where: { id } }).catch(() => {})
+  await prisma.blocklist.delete({ where: { id } })
   return Response.json({ ok: true })
 }

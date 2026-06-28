@@ -169,7 +169,7 @@ export async function getUserProfile(userId: string): Promise<LineUserProfile | 
     method: "GET",
   })
   if (!res.ok) return null
-  return res.json() as Promise<LineUserProfile>
+  return (await res.json()) as LineUserProfile
 }
 
 // === Rich Menu ============================================================

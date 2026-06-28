@@ -196,7 +196,10 @@ providers.push(
                 where: { id: companyUser.id },
                 data: { totpRecoveryCodes: consumed.remaining },
               })
-              .catch(() => {})
+              .catch((err: unknown) => {
+                // 使用済みリカバリーコードの削除に失敗した場合、そのコードが再利用可能になるためログで記録する
+                console.error("[auth] Failed to invalidate TOTP recovery code:", err)
+              })
           }
         }
 

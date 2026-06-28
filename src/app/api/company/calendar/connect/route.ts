@@ -16,7 +16,8 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 function signState(payload: string): string {
-  const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? ""
+  const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET
+  if (!secret) throw new Error("AUTH_SECRET is not configured")
   return crypto.createHmac("sha256", secret).update(payload).digest("hex")
 }
 
