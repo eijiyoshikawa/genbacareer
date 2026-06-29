@@ -40,7 +40,7 @@ export async function GET(
     },
   })
 
-  if (!job) {
+  if (!job || job.status === "draft") {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
   }
 

@@ -54,6 +54,36 @@ export async function fuzzySearchJobs(
   // - 0.05 以上を閾値（ある程度関連がある）
   // - 同点は publishedAt DESC
   try {
+    // Build positional params and WHERE clauses dynamically to avoid
+    // parameter position mismatch when optional filters are omitted.
+    const params: unknown[] = [input.q, categories]
+    const clauses: string[] = []
+
+    if (input.prefecture) {
+      params.push(input.prefecture)
+      clauses.push(`AND prefecture = $${params.length}`)
+    }
+    if (input.employmentType) {
+      params.push(input.employmentType)
+      clauses.push(`AND employment_type = $${params.length}`)
+    }
+    if (input.source) {
+      params.push(input.source)
+      clauses.push(`AND source = $${params.length}`)
+    }
+    if (input.publishedSince) {
+      params.push(input.publishedSince)
+      clauses.push(`AND published_at >= $${params.length}`)
+    }
+    if (input.salaryMin) {
+      params.push(input.salaryMin)
+      clauses.push(`AND salary_min >= $${params.length}`)
+    }
+    if (input.salaryMax) {
+      params.push(input.salaryMax)
+      clauses.push(`AND salary_max <= $${params.length}`)
+    }
+
     const rows = await prisma.$queryRawUnsafe<
       { id: string; similarity: number }[]
     >(
@@ -68,12 +98,7 @@ export async function fuzzySearchJobs(
         FROM jobs
         WHERE status = 'active'
           AND category = ANY($2)
-          ${input.prefecture ? "AND prefecture = $3" : ""}
-          ${input.employmentType ? `AND employment_type = $4` : ""}
-          ${input.source ? `AND source = $5` : ""}
-          ${input.publishedSince ? `AND published_at >= $6` : ""}
-          ${input.salaryMin ? `AND salary_min >= $7` : ""}
-          ${input.salaryMax ? `AND salary_max <= $8` : ""}
+          ${clauses.join("\n          ")}
       )
       SELECT id, similarity
       FROM scored
@@ -81,14 +106,7 @@ export async function fuzzySearchJobs(
       ORDER BY similarity DESC, published_at DESC NULLS LAST
       LIMIT ${limit} OFFSET ${offset};
       `,
-      input.q,
-      categories,
-      ...(input.prefecture ? [input.prefecture] : []),
-      ...(input.employmentType ? [input.employmentType] : []),
-      ...(input.source ? [input.source] : []),
-      ...(input.publishedSince ? [input.publishedSince] : []),
-      ...(input.salaryMin ? [input.salaryMin] : []),
-      ...(input.salaryMax ? [input.salaryMax] : [])
+      ...params
     )
     return rows
   } catch (e) {
