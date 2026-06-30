@@ -28,8 +28,7 @@ import { CATEGORY_LABELS } from "@/lib/article-categories"
 import { RecommendedForYou } from "@/components/jobs/recommended-for-you"
 import { Section } from "@/components/ui/section"
 import { getCategoryCounts } from "@/lib/job-stats"
-import { HeroSlideshow, type HeroSlide } from "@/components/home/hero-slideshow"
-import { QuickSearchPanel } from "@/components/home/quick-search-panel"
+import { HeroSearch } from "@/components/home/hero-search"
 import {
   FeaturedCompanyLogos,
   type FeaturedCompany,
@@ -57,49 +56,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 }
 
-// Hero スライドショー用の見本データ。
-// あとから運営側で差し替え運用する想定。本番では cms / 設定パネル化を検討。
-const HERO_SLIDES: HeroSlide[] = [
-  {
-    image:
-      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1800&q=72",
-    badge: "今、稼げる業界",
-    title: "稼げる業界で、新しい自分を見つけませんか。",
-    subtitle:
-      "未経験から高収入も狙える建設業界。履歴書なし、LINE で気軽に応募できます。",
-    ctaLabel: "求人を探す",
-    ctaHref: "/jobs",
-  },
-  {
-    image:
-      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1800&q=72",
-    badge: "未経験から高収入",
-    title: "未経験スタートでも、しっかり稼げる。",
-    subtitle:
-      "20〜30 代が未経験から活躍中。研修・資格支援が充実した会社を厳選しました。",
-    ctaLabel: "未経験 OK の求人",
-    ctaHref: "/jobs?q=未経験",
-  },
-  {
-    image:
-      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1800&q=72",
-    badge: "手に職・国家資格",
-    title: "資格を取って、収入も自分も伸ばす。",
-    subtitle:
-      "施工管理技士・電気工事士・玉掛けなど、会社負担で取得できる求人を厳選。",
-    ctaLabel: "資格支援ありの求人",
-    ctaHref: "/jobs?q=資格",
-  },
-  {
-    image:
-      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1800&q=72",
-    badge: "全国 47 都道府県",
-    title: "地元で、安定して長く稼ぐ。",
-    subtitle: "全国の求人を網羅。あなたの街で好条件の現場と出会えます。",
-    ctaLabel: "地域から探す",
-    ctaHref: "/jobs",
-  },
-]
 
 // トップ「お知らせ」プレースホルダー (運用が始まったら CMS / DB から取得に切替)
 const ANNOUNCEMENTS: Array<{ date: string; label: string; href?: string }> = [
@@ -363,7 +319,6 @@ export default async function HomePage() {
     magazineArticles,
     interviewArticles,
     featuredCompanies,
-    heroArticles,
   ] = await Promise.all([
     // materialized view から件数を取得（未作成時は groupBy にフォールバック）
     withTimeout(getCategoryCounts(), DB_DEADLINE_MS, [], "getCategoryCounts"),
@@ -462,47 +417,12 @@ export default async function HomePage() {
       [] as FeaturedCompany[],
       "featuredCompanies",
     ),
-    // トップ Hero スライドショー用: カバー写真ありの公開記事 最新 5 件
-    withTimeout(
-      prisma.article
-        .findMany({
-          where: { ...publishedArticleFilter(), imageUrl: { not: null } },
-          orderBy: { publishedAt: "desc" },
-          take: 5,
-          select: {
-            slug: true,
-            title: true,
-            excerpt: true,
-            category: true,
-            imageUrl: true,
-          },
-        })
-        .catch(() => []),
-      DB_DEADLINE_MS,
-      [],
-      "heroArticles",
-    ),
   ])
 
   // A4: 同一企業の連続表示を抑制した上で、表示用 6 件に絞る
   // メインのランキングは 6 件、サイドバー「注目求人」は 7 件使うため余裕を持って確保
   const diversifiedRecommendedJobs = diversifyByCompany(recommendedJobs).slice(0, 8)
 
-  // Hero スライドショー: 記事のカバー写真から生成し、各スライドはその記事にリンク。
-  // 画像付き公開記事が無い場合は静的スライド（HERO_SLIDES）にフォールバックする。
-  const heroSlides: HeroSlide[] =
-    heroArticles.length > 0
-      ? heroArticles
-          .filter((a) => a.imageUrl)
-          .map((a) => ({
-            image: a.imageUrl as string,
-            badge: CATEGORY_LABELS[a.category] ?? undefined,
-            title: a.title,
-            subtitle: a.excerpt ?? undefined,
-            ctaLabel: "記事を読む",
-            ctaHref: `/journal/${a.slug}`,
-          }))
-      : HERO_SLIDES
 
   // 職種別の平均月給（給与相場グラフ用）。月給制・提示額ありの公開求人から算出。
   const salaryAgg = await withTimeout(
@@ -548,11 +468,8 @@ export default async function HomePage() {
 
   return (
     <div className="bg-white">
-      {/* === Hero スライドショー ============================================== */}
-      <HeroSlideshow slides={heroSlides} />
-
-      {/* === 3 軸クイック検索パネル =========================================== */}
-      <QuickSearchPanel totalJobs={totalJobs} />
+      {/* === Hero（写真ストリップ + 職種×勤務地 検索）======================= */}
+      <HeroSearch totalJobs={totalJobs} />
 
       {/* === お知らせ（1 行マーキー）======================================== */}
       <AnnounceMarquee items={ANNOUNCEMENTS} />
