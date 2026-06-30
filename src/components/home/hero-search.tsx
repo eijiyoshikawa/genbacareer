@@ -148,15 +148,17 @@ export function HeroSearch({ totalJobs }: { totalJobs?: number }) {
           {/* 人気キーワード */}
           <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
             {[
-              { label: "未経験OK", q: "未経験" },
-              { label: "資格取得支援", q: "資格" },
-              { label: "寮あり", q: "寮" },
-              { label: "週休2日", q: "週休2日" },
-              { label: "高収入", q: "高収入" },
+              { label: "未経験OK", href: `/jobs?q=${encodeURIComponent("未経験")}` },
+              { label: "資格取得支援", href: `/jobs?q=${encodeURIComponent("資格")}` },
+              { label: "寮あり", href: `/jobs?q=${encodeURIComponent("寮")}` },
+              { label: "週休2日", href: `/jobs?q=${encodeURIComponent("週休2日")}` },
+              { label: "高収入", href: `/jobs?q=${encodeURIComponent("高収入")}` },
+              // SNS・動画ありはキーワードではなく検索フィルタ（/jobs の sns=with）
+              { label: "SNSあり", href: "/jobs?sns=with" },
             ].map((c) => (
               <a
-                key={c.q}
-                href={`/jobs?q=${encodeURIComponent(c.q)}`}
+                key={c.label}
+                href={c.href}
                 className="press inline-flex items-center bg-white/15 px-2.5 py-1 text-xs font-bold text-white ring-1 ring-white/20 hover:bg-white/25"
               >
                 #{c.label}
