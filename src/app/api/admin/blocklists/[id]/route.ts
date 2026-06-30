@@ -41,13 +41,17 @@ export async function PATCH(
     return Response.json({ error: "入力エラー" }, { status: 400 })
   }
 
-  await prisma.blocklist.update({
-    where: { id },
-    data: {
-      ...(parsed.data.enabled !== undefined ? { enabled: parsed.data.enabled } : {}),
-      ...(parsed.data.note !== undefined ? { note: parsed.data.note } : {}),
-    },
-  })
+  try {
+    await prisma.blocklist.update({
+      where: { id },
+      data: {
+        ...(parsed.data.enabled !== undefined ? { enabled: parsed.data.enabled } : {}),
+        ...(parsed.data.note !== undefined ? { note: parsed.data.note } : {}),
+      },
+    })
+  } catch {
+    return Response.json({ error: "not_found" }, { status: 404 })
+  }
   return Response.json({ ok: true })
 }
 

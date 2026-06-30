@@ -512,6 +512,176 @@ const STATEMENTS: ReadonlyArray<string> = [
     ON "gift_codes" ("prize_id", "code")`,
  `CREATE INDEX IF NOT EXISTS "idx_gift_codes_prize_status"
     ON "gift_codes" ("prize_id", "status")`,
+ // ========================================
+ // C2-C8 掲載プラン / C8 ローテーション / C3 早期退職 / スカウト (2026-05 追加)
+ // prisma/migrations/manual/{company_plan_columns,company_rotation_key,
+ // early_resignations,scout_messages}.sql として手動 psql 実行が前提だったが、
+ // 他の項目同様に本番で実行漏れのリスクがあるため、ここでも冪等に補完する。
+ // ========================================
+ `ALTER TABLE "companies"
+    ADD COLUMN IF NOT EXISTS "plan_type" VARCHAR(20) NOT NULL DEFAULT 'success_fee',
+    ADD COLUMN IF NOT EXISTS "plan_paid_until" TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS "plan_activated_at" TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS "plan_prepaid_full" BOOLEAN NOT NULL DEFAULT true,
+    ADD COLUMN IF NOT EXISTS "plan_tier" INTEGER NOT NULL DEFAULT 3,
+    ADD COLUMN IF NOT EXISTS "plan_notes" VARCHAR(500),
+    ADD COLUMN IF NOT EXISTS "plan_expiry_notified_at" TIMESTAMPTZ`,
+ `DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'companies_plan_type_check') THEN
+      ALTER TABLE "companies" ADD CONSTRAINT "companies_plan_type_check"
+        CHECK (plan_type IN ('success_fee','monthly_12','monthly_24','campaign_free','sns_client'));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'companies_plan_tier_check') THEN
+      ALTER TABLE "companies" ADD CONSTRAINT "companies_plan_tier_check"
+        CHECK (plan_tier BETWEEN 0 AND 3);
+    END IF;
+  END $$`,
+ `CREATE INDEX IF NOT EXISTS "idx_companies_plan_expiry"
+    ON "companies" ("plan_type", "plan_paid_until")`,
+ `ALTER TABLE "companies"
+    ADD COLUMN IF NOT EXISTS "rotation_key" INTEGER NOT NULL DEFAULT 0`,
+ `UPDATE "companies" SET "rotation_key" = floor(random() * 1000000)::int
+    WHERE "rotation_key" = 0`,
+ `CREATE INDEX IF NOT EXISTS "idx_companies_plan_tier_rotation"
+    ON "companies" ("plan_tier" DESC, "rotation_key" ASC)`,
+ `DROP INDEX IF EXISTS "idx_companies_plan_tier"`,
+ // 早期退職 / 戻入処理 (C3)
+ `ALTER TABLE "applications" ADD COLUMN IF NOT EXISTS "hired_at" TIMESTAMPTZ`,
+ `UPDATE "applications" SET "hired_at" = "updated_at"
+    WHERE "status" = 'hired' AND "hired_at" IS NULL`,
+ `CREATE TABLE IF NOT EXISTS "early_resignations" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "application_id" UUID NOT NULL UNIQUE,
+   "company_id" UUID NOT NULL,
+   "job_id" UUID NOT NULL,
+   "user_id" UUID NOT NULL,
+   "hired_at" TIMESTAMPTZ NOT NULL,
+   "resigned_at" TIMESTAMPTZ NOT NULL,
+   "months_after_hire" INTEGER NOT NULL,
+   "refund_rate" INTEGER NOT NULL,
+   "original_fee_amount" INTEGER NOT NULL,
+   "refund_amount" INTEGER NOT NULL,
+   "status" VARCHAR(20) NOT NULL DEFAULT 'reported',
+   "company_note" TEXT,
+   "admin_note" TEXT,
+   "reported_by" UUID,
+   "approved_by" UUID,
+   "approved_at" TIMESTAMPTZ,
+   "rejected_by" UUID,
+   "rejected_at" TIMESTAMPTZ,
+   "mf_credit_note_id" VARCHAR(100),
+   "invoiced_at" TIMESTAMPTZ,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'early_resignations_application_id_fkey') THEN
+      ALTER TABLE "early_resignations" ADD CONSTRAINT "early_resignations_application_id_fkey"
+        FOREIGN KEY ("application_id") REFERENCES "applications"("id") ON DELETE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'early_resignations_company_id_fkey') THEN
+      ALTER TABLE "early_resignations" ADD CONSTRAINT "early_resignations_company_id_fkey"
+        FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'early_resignations_job_id_fkey') THEN
+      ALTER TABLE "early_resignations" ADD CONSTRAINT "early_resignations_job_id_fkey"
+        FOREIGN KEY ("job_id") REFERENCES "jobs"("id") ON DELETE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'early_resignations_user_id_fkey') THEN
+      ALTER TABLE "early_resignations" ADD CONSTRAINT "early_resignations_user_id_fkey"
+        FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;
+    END IF;
+  END $$`,
+ `DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'early_resignations_status_check') THEN
+      ALTER TABLE "early_resignations" ADD CONSTRAINT "early_resignations_status_check"
+        CHECK (status IN ('reported','approved','rejected','invoiced'));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'early_resignations_resigned_after_hired_check') THEN
+      ALTER TABLE "early_resignations" ADD CONSTRAINT "early_resignations_resigned_after_hired_check"
+        CHECK (resigned_at > hired_at);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'early_resignations_refund_rate_check') THEN
+      ALTER TABLE "early_resignations" ADD CONSTRAINT "early_resignations_refund_rate_check"
+        CHECK (refund_rate BETWEEN 0 AND 100);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'early_resignations_months_check') THEN
+      ALTER TABLE "early_resignations" ADD CONSTRAINT "early_resignations_months_check"
+        CHECK (months_after_hire >= 1);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'early_resignations_amounts_check') THEN
+      ALTER TABLE "early_resignations" ADD CONSTRAINT "early_resignations_amounts_check"
+        CHECK (refund_amount >= 0 AND original_fee_amount > 0 AND refund_amount <= original_fee_amount);
+    END IF;
+  END $$`,
+ `CREATE INDEX IF NOT EXISTS "idx_early_resignations_company"
+    ON "early_resignations" ("company_id", "status", "created_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_early_resignations_status"
+    ON "early_resignations" ("status", "created_at" DESC)`,
+ // スカウトメッセージ機能
+ `CREATE TABLE IF NOT EXISTS "scout_messages" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "company_id" UUID NOT NULL,
+   "job_id" UUID NOT NULL,
+   "user_id" UUID NOT NULL,
+   "company_user_id" UUID,
+   "subject" VARCHAR(120) NOT NULL,
+   "body" TEXT NOT NULL,
+   "status" VARCHAR(20) NOT NULL DEFAULT 'sent',
+   "sent_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   "read_at" TIMESTAMPTZ,
+   "expires_at" TIMESTAMPTZ NOT NULL,
+   "email_sent_at" TIMESTAMPTZ,
+   "decline_reason" VARCHAR(200),
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_company_id_fkey') THEN
+      ALTER TABLE "scout_messages" ADD CONSTRAINT "scout_messages_company_id_fkey"
+        FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_job_id_fkey') THEN
+      ALTER TABLE "scout_messages" ADD CONSTRAINT "scout_messages_job_id_fkey"
+        FOREIGN KEY ("job_id") REFERENCES "jobs"("id") ON DELETE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_user_id_fkey') THEN
+      ALTER TABLE "scout_messages" ADD CONSTRAINT "scout_messages_user_id_fkey"
+        FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;
+    END IF;
+  END $$`,
+ `CREATE INDEX IF NOT EXISTS "idx_scouts_inbox"
+    ON "scout_messages" ("user_id", "status", "sent_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_scouts_outbox"
+    ON "scout_messages" ("company_id", "sent_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_scouts_expiry"
+    ON "scout_messages" ("expires_at")`,
+ `DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_status_check') THEN
+      ALTER TABLE "scout_messages" ADD CONSTRAINT "scout_messages_status_check"
+        CHECK (status IN ('sent','read','expired','declined'));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_body_len_check') THEN
+      ALTER TABLE "scout_messages" ADD CONSTRAINT "scout_messages_body_len_check"
+        CHECK (char_length(body) BETWEEN 20 AND 2000);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_subject_len_check') THEN
+      ALTER TABLE "scout_messages" ADD CONSTRAINT "scout_messages_subject_len_check"
+        CHECK (char_length(subject) BETWEEN 5 AND 120);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_expiry_after_sent_check') THEN
+      ALTER TABLE "scout_messages" ADD CONSTRAINT "scout_messages_expiry_after_sent_check"
+        CHECK (expires_at > sent_at);
+    END IF;
+  END $$`,
+ `CREATE UNIQUE INDEX IF NOT EXISTS "scout_messages_active_unique"
+    ON "scout_messages" ("company_id", "job_id", "user_id")
+    WHERE status NOT IN ('expired','declined')`,
 ]
 
 let inflight: Promise<boolean> | null = null

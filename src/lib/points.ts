@@ -125,10 +125,11 @@ async function appendLedger(
     refId?: string | null
   },
 ): Promise<number> {
-  const user = await tx.user.findUnique({
-    where: { id: args.userId },
-    select: { pointBalance: true },
-  })
+  // 行ロックして残高を取得（同一ユーザーへの同時付与/消費でも read-modify-write が競合しないように）
+  const rows = await tx.$queryRaw<Array<{ pointBalance: number }>>(Prisma.sql`
+    SELECT "point_balance" AS "pointBalance" FROM "users" WHERE "id" = ${args.userId}::uuid FOR UPDATE
+  `)
+  const user = rows[0]
   if (!user) return 0
   const newBalance = user.pointBalance + args.delta
   if (newBalance < 0) {
