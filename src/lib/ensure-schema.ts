@@ -237,6 +237,21 @@ const STATEMENTS: ReadonlyArray<string> = [
     ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS "terms_accepted_at" TIMESTAMPTZ`,
  `CREATE INDEX IF NOT EXISTS "idx_users_status" ON "users" ("status")`,
+ // 認証トークン列（パスワードリセット / メールアドレス確認）。
+ // schema.prisma 定義のみで ensureSchema 未収録だったため、db push 未適用の
+ // 本番で reset/verify フロー（forgot-password・signup 確認メール）が
+ // P2022「column does not exist」で 500 になっていた。冪等に補完する。
+ `ALTER TABLE "users"
+    ADD COLUMN IF NOT EXISTS "email_verified" TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS "verification_token" VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS "verification_token_expiry" TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS "reset_token" VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS "reset_token_expiry" TIMESTAMPTZ`,
+ // @unique 相当の一意 index（Prisma 既定名に合わせ db push と整合させる）
+ `CREATE UNIQUE INDEX IF NOT EXISTS "users_verification_token_key"
+    ON "users" ("verification_token")`,
+ `CREATE UNIQUE INDEX IF NOT EXISTS "users_reset_token_key"
+    ON "users" ("reset_token")`,
  // PR #88: 求人の自動再掲載期限
  `ALTER TABLE "jobs"
     ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ,

@@ -46,6 +46,8 @@ export async function POST(request: NextRequest) {
     await prisma.user.update({
       where: { id: user.id },
       data: { resetToken: hashToken(token), resetTokenExpiry: expiry },
+      // 更新後に全カラムを SELECT して返さない（無関係なカラム欠落で巻き込まれないよう）
+      select: { id: true },
     })
 
     try {
