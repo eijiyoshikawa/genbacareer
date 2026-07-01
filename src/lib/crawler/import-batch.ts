@@ -211,27 +211,31 @@ async function upsertHelloworkCompany(
   job: HelloworkJobData,
   cache: Map<string, string>
 ): Promise<string | null> {
-  const name = normalizeCompanyName(job.companyName)
+  // Company.name/prefecture/city は Job より短い上限 (VarChar(200)/(10)/(50)) のため個別に truncate する。
+  const name = truncate(normalizeCompanyName(job.companyName), 200)
   if (!name || name === "不明") return null
 
   const cached = cache.get(name)
   if (cached) return cached
+
+  const prefecture = job.prefecture ? truncate(job.prefecture, 10) : null
+  const city = job.city ? truncate(job.city, 50) : null
 
   const company = await prisma.company.upsert({
     where: { company_source_name_unique: { source: "hellowork", name } },
     create: {
       source: "hellowork",
       name,
-      prefecture: job.prefecture || null,
-      city: job.city,
+      prefecture,
+      city,
       address: job.address,
       status: "approved",
     },
     update: {
       // 既存レコードの prefecture/city/address は最新ジョブの値で更新
       // （HW 側で住所が変わる可能性があるため）
-      prefecture: job.prefecture || null,
-      city: job.city,
+      prefecture,
+      city,
       address: job.address,
     },
     select: { id: true },

@@ -28,8 +28,8 @@ export default async function OGImage({
     })
     .catch(() => null)
 
-  const title = truncate(job?.title ?? "求人情報", 60)
-  const companyName = truncate(job?.company?.name ?? "", 30)
+  const title = truncate(sanitizeForOgImage(job?.title ?? "求人情報"), 60)
+  const companyName = truncate(sanitizeForOgImage(job?.company?.name ?? ""), 30)
   const location = [job?.prefecture, job?.city].filter(Boolean).join(" ") || ""
   const salary = formatSalary(
     job?.salaryMin ?? null,
@@ -165,6 +165,18 @@ function Tag({ children }: { children: string }) {
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s
   return s.slice(0, max - 1) + "…"
+}
+
+// next/og の既定フォント (satori) は一部の装飾記号のグリフを持たず、
+// 動的フォント取得にフォールバックする。取得先が 400 を返す記号が混ざると
+// ImageResponse 全体が例外で落ち、OGP 画像が生成できなくなる
+// (SNS シェア時にプレビュー画像が表示されない)。
+// タイトル・社名で見た目上意味を持たない装飾記号は事前に空白へ正規化する。
+function sanitizeForOgImage(s: string): string {
+  return s
+    .replace(/[≪≫◇◆■●○▲▼★☆※【】〔〕《》｜]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 function formatSalary(
