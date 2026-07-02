@@ -23,6 +23,7 @@ import {
   replyMessage,
   getUserProfile,
   isMessagingConfigured,
+  type FlexMessage,
 } from "@/lib/line-messaging"
 import { prisma } from "@/lib/db"
 import { generateAiReply, isAiReplyConfigured } from "@/lib/ai-reply"
@@ -55,6 +56,53 @@ const GREETING_TEXT = [
 ].join("\n")
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
+
+// 友だち追加直後に送る「適職診断」誘導カード（あいさつに続けて送信）。
+// ボタンタップで診断ページへ遷移（流入元は source=line_follow で計測）。
+const SHINDAN_FLEX: FlexMessage = {
+  type: "flex",
+  altText: "まずは無料の建設業 適職診断（約1分）はいかがですか？",
+  contents: {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "🧭 建設業 適職診断",
+          weight: "bold",
+          size: "lg",
+          color: "#14181b",
+        },
+        {
+          type: "text",
+          text: "かんたん8問・約1分。あなたに向いている職種がわかり、そのまま求人も探せます。",
+          wrap: true,
+          size: "sm",
+          color: "#57534e",
+          margin: "md",
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          color: "#f37524",
+          action: {
+            type: "uri",
+            label: "適職診断をはじめる（無料）",
+            uri: `${SITE_URL}/shindan?source=line_follow`,
+          },
+        },
+      ],
+    },
+  },
+}
 
 // 直近 14 日以内の lead と自動 bind する
 const AUTO_BIND_WINDOW_DAYS = 14
@@ -299,7 +347,11 @@ async function handleEvent(ev: LineEvent): Promise<void> {
       }
 
       if (ev.replyToken) {
-        await replyMessage(ev.replyToken, [{ type: "text", text: GREETING_TEXT }])
+        // あいさつ → 続けて適職診断への誘導カードを送る
+        await replyMessage(ev.replyToken, [
+          { type: "text", text: GREETING_TEXT },
+          SHINDAN_FLEX,
+        ])
       }
       return
     }
