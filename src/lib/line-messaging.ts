@@ -313,3 +313,31 @@ export async function deleteRichMenu(richMenuId: string): Promise<boolean> {
   })
   return res.ok
 }
+
+/** 現在の「デフォルトリッチメニュー」ID を取得（未設定なら null）。 */
+export async function getDefaultRichMenuId(): Promise<string | null> {
+  if (!getToken()) return null
+  const res = await callApi("/v2/bot/user/all/richmenu", { method: "GET" })
+  if (!res.ok) return null
+  const json = (await res.json().catch(() => null)) as { richMenuId?: string } | null
+  return json?.richMenuId ?? null
+}
+
+/**
+ * Messaging API で設定した「デフォルトリッチメニュー」を解除する。
+ * これを解除しないと LINE 公式アカウント Manager (GUI) で作成した
+ * リッチメニューが表示されない（API のデフォルトが GUI より優先されるため）。
+ */
+export async function cancelDefaultRichMenu(): Promise<boolean> {
+  if (!getToken()) return false
+  const res = await callApi("/v2/bot/user/all/richmenu", { method: "DELETE" })
+  if (!res.ok) {
+    console.warn(
+      "[line.richmenu.cancelDefault] failed",
+      res.status,
+      await res.text().catch(() => ""),
+    )
+    return false
+  }
+  return true
+}
