@@ -14,6 +14,16 @@ import * as Sentry from "@sentry/nextjs"
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("./sentry.server.config")
+
+    // 本番 DB が `prisma db push` 未反映でも 500 を防ぐセルフヒーリング。
+    // 従来は src/app/layout.tsx の RootLayout でのみ呼んでいたが、Route
+    // Handler (/api/**) は React tree を経由しないため RootLayout が
+    // 一度も実行されないサーバーレス関数では ensureSchema が永遠に走らず、
+    // P2022 (column does not exist) が API 専用 lambda で再発し続けていた。
+    // instrumentation.ts の register() はランタイム起動時に一度だけ、
+    // ページ/API 問わず必ず呼ばれるためここで確実に走らせる。
+    const { ensureSchema } = await import("@/lib/ensure-schema")
+    void ensureSchema()
   }
   if (process.env.NEXT_RUNTIME === "edge") {
     await import("./sentry.edge.config")

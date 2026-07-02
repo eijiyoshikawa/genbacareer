@@ -39,7 +39,9 @@ export function cleanTitle(
   t = t.replace(/^〒?\d{3}-?\d{4}\s*/, "")
 
   // 装飾記号を空白に正規化
-  t = t.replace(/[■◆◎●▼▲★☆※]/g, " ")
+  // ≪≫ / ◇ は next/og の opengraph-image が動的フォント取得を試みて
+  // 400 で失敗することがあるため（他の装飾記号と同様に）ここで除去する。
+  t = t.replace(/[■◆◇◎●▼▲★☆※≪≫]/g, " ")
   t = t.replace(/[【】〔〕《》]/g, " ")
 
   // 連続スペース・全角空白を半角 1 つに

@@ -217,21 +217,34 @@ async function upsertHelloworkCompany(
   const cached = cache.get(name)
   if (cached) return cached
 
+  // Company.name は VarChar(200) / prefecture は VarChar(10) / city は VarChar(50)。
+  // HW API 側の想定外データ（結合済み住所文字列など）で上限を超えると
+  // upsert が P2000 "value too long for the column's type" で落ちるため、
+  // toJobRecord と同様に防御的に truncate する。
+  const truncatedName = truncate(name, 200)
+  const truncatedPrefecture = truncate(job.prefecture || null, 10)
+  const truncatedCity = truncate(job.city, 50)
+
   const company = await prisma.company.upsert({
-    where: { company_source_name_unique: { source: "hellowork", name } },
+    where: {
+      company_source_name_unique: {
+        source: "hellowork",
+        name: truncatedName,
+      },
+    },
     create: {
       source: "hellowork",
-      name,
-      prefecture: job.prefecture || null,
-      city: job.city,
+      name: truncatedName,
+      prefecture: truncatedPrefecture,
+      city: truncatedCity,
       address: job.address,
       status: "approved",
     },
     update: {
       // 既存レコードの prefecture/city/address は最新ジョブの値で更新
       // （HW 側で住所が変わる可能性があるため）
-      prefecture: job.prefecture || null,
-      city: job.city,
+      prefecture: truncatedPrefecture,
+      city: truncatedCity,
       address: job.address,
     },
     select: { id: true },
