@@ -217,21 +217,28 @@ async function upsertHelloworkCompany(
   const cached = cache.get(name)
   if (cached) return cached
 
+  // schema 上限超過を防ぐ最終防御。Company.name/prefecture/city は VarChar のため、
+  // HelloWork 側の値がまれに上限を超えると upsert が P2000 (value too long) で
+  // 失敗し、その企業に紐づく求人が丸ごと取り込めなくなっていた。
+  const truncatedName = truncate(name, 200)
+  const truncatedPrefecture = truncate(job.prefecture || null, 10)
+  const truncatedCity = truncate(job.city, 50)
+
   const company = await prisma.company.upsert({
-    where: { company_source_name_unique: { source: "hellowork", name } },
+    where: { company_source_name_unique: { source: "hellowork", name: truncatedName } },
     create: {
       source: "hellowork",
-      name,
-      prefecture: job.prefecture || null,
-      city: job.city,
+      name: truncatedName,
+      prefecture: truncatedPrefecture,
+      city: truncatedCity,
       address: job.address,
       status: "approved",
     },
     update: {
       // 既存レコードの prefecture/city/address は最新ジョブの値で更新
       // （HW 側で住所が変わる可能性があるため）
-      prefecture: job.prefecture || null,
-      city: job.city,
+      prefecture: truncatedPrefecture,
+      city: truncatedCity,
       address: job.address,
     },
     select: { id: true },
