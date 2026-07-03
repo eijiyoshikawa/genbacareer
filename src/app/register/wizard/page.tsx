@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { getProviders } from "next-auth/react"
 import { Mail, ArrowRight } from "lucide-react"
 import { LineLoginButton } from "@/components/auth/line-login-button"
 import { GoogleLoginButton } from "@/components/auth/google-login-button"
@@ -24,6 +25,8 @@ export default function WizardEntryPage() {
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [error, setError] = useState("")
   const [pending, setPending] = useState(false)
+  // Google プロバイダが本番で設定されている時だけボタンを出す（未設定でも壊さない）
+  const [googleEnabled, setGoogleEnabled] = useState(false)
 
   // セッションにメアドが残っていれば再開
   useEffect(() => {
@@ -33,6 +36,13 @@ export default function WizardEntryPage() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setEmail(a.email)
     }
+  }, [])
+
+  // 有効な認証プロバイダを確認し、Google が構成済みならボタンを表示
+  useEffect(() => {
+    getProviders()
+      .then((p) => setGoogleEnabled(!!p?.google))
+      .catch(() => {})
   }, [])
 
   const handleStart = (e: React.FormEvent) => {
@@ -80,7 +90,9 @@ export default function WizardEntryPage() {
           size="lg"
           fullWidth
         />
-        <GoogleLoginButton label="Google で登録" callbackUrl="/mypage" size="lg" fullWidth />
+        {googleEnabled && (
+          <GoogleLoginButton label="Google で登録" callbackUrl="/mypage" size="lg" fullWidth />
+        )}
       </div>
       <p className="mt-2 text-center text-[11px] text-gray-500">
         最速・確認不要ですぐに応募できます
