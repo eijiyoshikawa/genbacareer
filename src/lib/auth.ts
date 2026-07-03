@@ -256,6 +256,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         account.provider !== "company-credentials" &&
         account.provider !== "admin-credentials"
       ) {
+        // 方法A: LINE ログインは、まず lineUserId で既存アカウントを検索する。
+        // Google / メールで登録し「LINE 連携」済みのアカウントがあれば、
+        // その同一アカウントにログインさせる（placeholder アカウントを新規作成しない）。
+        // これで「Google / メール / LINE のどのボタンからでも同じ 1 アカウント」に入れる。
+        if (account.provider === "line" && account.providerAccountId) {
+          const linked = await prisma.user.findFirst({
+            where: { lineUserId: account.providerAccountId },
+            select: { id: true, emailVerified: true },
+            orderBy: { createdAt: "asc" },
+          })
+          if (linked) {
+            if (!linked.emailVerified) {
+              await prisma.user.update({
+                where: { id: linked.id },
+                data: { emailVerified: new Date() },
+              })
+            }
+            user.id = linked.id
+            ;(user as { role?: string }).role = "seeker"
+            return true
+          }
+        }
+
         if (user.email) {
           const existing = await prisma.user.findUnique({
             where: { email: user.email },
