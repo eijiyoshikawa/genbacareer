@@ -47,9 +47,14 @@ function loadDotEnv() {
 }
 loadDotEnv()
 
-const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN
+// トークンの優先順位: コマンド引数 > 環境変数 > .env(.local)
+//   node scripts/line-richmenu-fix.mjs "＜チャネルアクセストークン＞"
+const TOKEN = process.argv[2] || process.env.LINE_CHANNEL_ACCESS_TOKEN
 if (!TOKEN) {
-  console.error("✖ LINE_CHANNEL_ACCESS_TOKEN が未設定です（.env.local / .env を確認）")
+  console.error("✖ LINE のチャネルアクセストークンが見つかりません。")
+  console.error("  次のいずれかで渡してください:")
+  console.error('  1) 引数で直接:  node scripts/line-richmenu-fix.mjs "＜トークン＞"')
+  console.error("  2) .env.local に LINE_CHANNEL_ACCESS_TOKEN=... を記載")
   process.exit(1)
 }
 
