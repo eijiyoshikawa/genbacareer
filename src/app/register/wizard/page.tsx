@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Mail, ArrowRight } from "lucide-react"
 import { LineLoginButton } from "@/components/auth/line-login-button"
+import { GoogleLoginButton } from "@/components/auth/google-login-button"
 import { LineInAppNotice } from "@/components/line-inapp-notice"
 import { loadAnswers, saveAnswers } from "@/lib/registration/wizard-state"
 
@@ -71,16 +72,23 @@ export default function WizardEntryPage() {
         </p>
       </header>
 
-      {/* LINE で 1 タップ登録 */}
-      <LineLoginButton
-        label="LINE で 1 タップ登録"
-        callbackUrl="/mypage"
-        fullWidth
-      />
+      {/* かんたん登録: LINE / Google を主導線として前面に */}
+      <div className="space-y-2.5">
+        <LineLoginButton
+          label="LINE で 1 タップ登録"
+          callbackUrl="/mypage"
+          size="lg"
+          fullWidth
+        />
+        <GoogleLoginButton label="Google で登録" callbackUrl="/mypage" size="lg" fullWidth />
+      </div>
+      <p className="mt-2 text-center text-[11px] text-gray-500">
+        最速・確認不要ですぐに応募できます
+      </p>
 
       <div className="my-4 flex items-center gap-2 text-xs text-gray-400">
         <span className="flex-1 border-t border-gray-200" />
-        または メールアドレスで
+        または メールアドレスで登録
         <span className="flex-1 border-t border-gray-200" />
       </div>
 

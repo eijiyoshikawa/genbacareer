@@ -2,8 +2,6 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { hashSync } from "bcryptjs"
 import { prisma } from "@/lib/db"
-import { generateToken } from "@/lib/tokens"
-import { sendEmailVerificationEmail } from "@/lib/email"
 import {
   checkRateLimit,
   getClientIp,
@@ -16,12 +14,11 @@ import { normalizePhone, isMobilePhone } from "@/lib/registration/phone"
  * 求職者ウィザード登録 API (POST /api/registration/wizard)。
  *
  * /register/wizard の最終ステップで呼び出され、収集した回答をまとめて
- * User テーブルに保存 → 確認メール送信 → 完了画面に遷移させる。
+ * User テーブルに保存 → 完了画面に遷移させる。
  *
- * 既存の /api/auth/register と並列で運用 (既存ユーザーには影響しない)。
+ * 方針: メール確認は「応募の前提条件にしない」。登録時点で emailVerified を
+ * セットし、確認メールなしで即・応募できる状態にする（OAuth 登録と同等）。
  */
-
-const VERIFICATION_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000
 
 const wizardSchema = z.object({
   email: z.string().email("メールアドレスの形式が正しくありません"),
@@ -78,10 +75,6 @@ export async function POST(request: Request) {
     }
 
     const passwordHash = hashSync(password, 12)
-    const verificationToken = generateToken()
-    const verificationTokenExpiry = new Date(
-      Date.now() + VERIFICATION_TOKEN_EXPIRY_MS,
-    )
 
     const name = `${answers.nameLast} ${answers.nameFirst}`
     const normalizedPhone = normalizePhone(answers.phone)
@@ -100,25 +93,12 @@ export async function POST(request: Request) {
         desiredCategories: [],
         desiredSalaryMin: answers.desiredSalaryMin,
         authProvider: "email",
-        verificationToken,
-        verificationTokenExpiry,
+        // メール確認を応募の前提にしないため、登録時点で確認済み扱いにする。
+        emailVerified: new Date(),
         termsAcceptedAt: new Date(),
         // 18 歳以上は規約同意で担保 (Wizard では生年月日を取らない)
       },
     })
-
-    // 確認メール送信。失敗しても User 作成は成立しているので、
-    // クライアントには emailSent: false で通知し、再送導線を表示する。
-    let emailSent = true
-    try {
-      await sendEmailVerificationEmail(email, verificationToken)
-    } catch (e) {
-      emailSent = false
-      console.warn(
-        `[wizard-register] verification email failed for ${email}:`,
-        e instanceof Error ? e.message : e,
-      )
-    }
 
     // イベント計測
     void trackEvent({
@@ -128,17 +108,13 @@ export async function POST(request: Request) {
         hasExperience:
           (answers.experiencedSubcategories?.length ?? 0) > 0,
         desiredPrefCount: answers.desiredPrefectures?.length ?? 0,
-        emailSent,
       },
     })
 
     return NextResponse.json({
       ok: true,
       email,
-      emailSent,
-      message: emailSent
-        ? "確認メールを送信しました。メール内の URL をクリックして登録を完了してください。"
-        : "登録は完了しましたが、確認メールの送信に失敗しました。完了画面の再送ボタンからお試しください。",
+      message: "登録が完了しました。さっそく求人を探して応募できます。",
     })
   } catch (err) {
     console.error("[wizard-register] failed:", err)
