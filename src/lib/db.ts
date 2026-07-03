@@ -44,3 +44,21 @@ export const prisma =
   new PrismaClient(datasourceUrl ? { datasourceUrl } : undefined)
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
+
+/**
+ * ensureSchema の自己修復は、これまで app/layout.tsx (ページレンダリング経路) からの
+ * fire-and-forget 呼び出しのみに依存していた。Vercel は Route Handler 専用の Lambda を
+ * 別インスタンスとして起動することがあり、その cold start ではページを一度も
+ * レンダリングしないため ensureSchema が実行されず、db push 未反映のカラムに対して
+ * P2022 (column does not exist) が発生していた
+ * (例: 2026-07-01 /api/registration/wizard が point_balance 列で 500)。
+ *
+ * prisma モジュール読み込み時に一度だけ発火させることで、prisma を使う経路を
+ * ページ/API 問わず確実にカバーする。ensure-schema.ts 側は本ファイルの prisma を
+ * 参照するため動的 import で読み込む (循環 import 回避 + ビルド時は no-op)。
+ */
+if (process.env.NEXT_PHASE !== "phase-production-build") {
+  import("./ensure-schema")
+    .then(({ ensureSchema }) => void ensureSchema())
+    .catch(() => {})
+}
