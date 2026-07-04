@@ -41,6 +41,7 @@ export function ApplicationsBulkTable({
   const [bulkStatus, setBulkStatus] = useState<string>("reviewing")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const allChecked =
     applications.length > 0 &&
@@ -70,6 +71,7 @@ export function ApplicationsBulkTable({
 
     setBusy(true)
     setError(null)
+    setNotice(null)
     try {
       const res = await fetch("/api/company/applications/bulk", {
         method: "POST",
@@ -79,9 +81,17 @@ export function ApplicationsBulkTable({
           status: bulkStatus,
         }),
       })
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
         throw new Error(data.error ?? `HTTP ${res.status}`)
+      }
+      // 現在のステータスから遷移不可なものは API 側で自動的に除外される
+      // (例: 「応募済み」を選んだまま一括「採用」はできない)。無言で変わらないと
+      // 失敗したように見えるため、スキップ件数がある場合は明示する。
+      if (data.skipped > 0) {
+        setNotice(
+          `${data.updated} 件を変更しました（${data.skipped} 件は現在のステータスから直接変更できないためスキップしました）`
+        )
       }
       setSelectedIds(new Set())
       router.refresh()
@@ -94,6 +104,13 @@ export function ApplicationsBulkTable({
 
   return (
     <div className="mt-4">
+      {/* 適用結果 (一部スキップ) の通知。選択解除後も見えるよう一括操作バーの外に置く */}
+      {notice && (
+        <div className="mb-2 border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          {notice}
+        </div>
+      )}
+
       {/* 一括操作バー */}
       {selectedIds.size > 0 && (
         <div className="sticky top-2 z-10 mb-2 flex items-center gap-3 border border-primary-300 bg-primary-50 px-3 py-2 shadow">

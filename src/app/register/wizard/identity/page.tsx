@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { StepShell } from "@/components/registration/step-shell"
 import { WizardProgress } from "@/components/registration/wizard-progress"
 import {
@@ -90,7 +91,15 @@ export default function IdentityStepPage() {
         return
       }
 
-      // 成功 → セッション破棄 → 完了画面へ
+      // 成功 → 完了画面は「そのまま応募できます」と案内するため、ここで即ログインさせる
+      // (これが無いと done 画面の「マイページへ」が /login に弾かれてしまう)。
+      // ログイン自体に失敗しても登録は成立しているので、完了画面へは進める。
+      await signIn("seeker-credentials", {
+        email: answers.email,
+        password,
+        redirect: false,
+      }).catch(() => null)
+
       clearAnswers()
       router.push("/register/wizard/done")
     } catch {

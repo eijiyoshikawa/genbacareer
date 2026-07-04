@@ -74,6 +74,7 @@ model User {
   careerInterviews  CareerInterview[]
   lotteryDraws      LotteryDraw[]
 
+  @@index([lineUserId], name: "idx_users_line_user_id")
   @@map("users")
 }
 
