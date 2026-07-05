@@ -103,13 +103,19 @@ export async function GET(request: NextRequest) {
     prisma.job.count({ where }),
   ])
 
+  // ゲストは常に page=1 / 上限 GUEST_LIMIT 件しか取得できないため、実際の
+  // 総件数をそのまま返すと「2 ページ目以降がある」という誤った pagination
+  // メタデータになる (実際は何ページ目をリクエストしても page=1 と同じ結果)。
+  // ゲスト向けには見える範囲に total を切り詰めて一貫させる。
+  const visibleTotal = loggedIn ? total : Math.min(total, GUEST_LIMIT)
+
   return Response.json({
     jobs,
     pagination: {
       page,
       limit,
-      total,
-      totalPages: Math.ceil(total / limit),
+      total: visibleTotal,
+      totalPages: Math.ceil(visibleTotal / limit),
     },
   })
 }

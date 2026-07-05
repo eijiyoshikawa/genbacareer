@@ -134,8 +134,12 @@ export async function PUT(
     ...(parsed.data.note ? { note: parsed.data.note } : {}),
   }
 
-  const updated = await prisma.application.update({
-    where: { id },
+  // where に status: currentStatus も入れて楽観ロックにする。これが無いと、
+  // 同じ遷移を狙った 2 重リクエスト (二重クリック / クライアント再送) が両方とも
+  // 読み取り時点の currentStatus で遷移チェックを通過し、通知メール・inbox 通知
+  // (billing は別途 applicationId の unique 制約で保護済み) が二重送信される。
+  const result = await prisma.application.updateMany({
+    where: { id, status: currentStatus },
     data: {
       status: newStatus,
       statusHistory: [...history, entry],
@@ -145,6 +149,15 @@ export async function PUT(
         : {}),
     },
   })
+
+  if (result.count === 0) {
+    return Response.json(
+      { error: "ステータスが他の操作で更新されています。再読み込みしてください" },
+      { status: 409 }
+    )
+  }
+
+  const updated = await prisma.application.findUniqueOrThrow({ where: { id } })
 
   // 採用確定時の自動請求
   if (newStatus === "hired") {

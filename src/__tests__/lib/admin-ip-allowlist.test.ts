@@ -29,9 +29,19 @@ describe("extractClientIp", () => {
     }
   }
 
-  it("returns first IP from x-forwarded-for", () => {
+  it("returns last IP from x-forwarded-for (trust nearest hop, not client-supplied value)", () => {
+    // "1.2.3.4" ここは攻撃者が自分で送ってきた偽装値かもしれない。
+    // 最後の "10.0.0.1" が実際に接続してきた相手 (最も信頼できるホップ)。
     const h = mockHeaders({ "x-forwarded-for": "1.2.3.4, 10.0.0.1" })
-    expect(extractClientIp(h)).toBe("1.2.3.4")
+    expect(extractClientIp(h)).toBe("10.0.0.1")
+  })
+
+  it("prefers x-vercel-forwarded-for over x-forwarded-for", () => {
+    const h = mockHeaders({
+      "x-vercel-forwarded-for": "203.0.113.10",
+      "x-forwarded-for": "1.2.3.4, 10.0.0.1",
+    })
+    expect(extractClientIp(h)).toBe("203.0.113.10")
   })
 
   it("falls back to x-real-ip", () => {
@@ -39,7 +49,7 @@ describe("extractClientIp", () => {
     expect(extractClientIp(h)).toBe("5.6.7.8")
   })
 
-  it("returns null when both headers missing", () => {
+  it("returns null when all headers missing", () => {
     expect(extractClientIp(mockHeaders({}))).toBeNull()
   })
 })

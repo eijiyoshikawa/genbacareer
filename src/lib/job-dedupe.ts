@@ -24,15 +24,21 @@ function normalize(s: string): string {
     .toLowerCase()
 }
 
+/**
+ * companyId も companyName も無い求人は null を返す (呼び出し側は dedupeKey を
+ * セットしない)。両方無いジョブに固定の "?" プレースホルダを使うと、会社情報が
+ * 欠落した無関係な求人同士がたまたま同じタイトル/都道府県というだけで同一キーに
+ * なり、mergeDuplicates() で誤って片方を重複として閉じてしまう恐れがあるため。
+ */
 export function computeDedupeKey(input: {
   title: string
   companyId?: string | null
   companyName?: string | null
   prefecture: string
-}): string {
+}): string | null {
+  const companyN = input.companyId ?? (input.companyName ? normalize(input.companyName) : null)
+  if (!companyN) return null
   const titleN = normalize(input.title)
-  const companyN =
-    input.companyId ?? (input.companyName ? normalize(input.companyName) : "?")
   const prefN = normalize(input.prefecture)
   return createHash("sha1").update(`${titleN}|${companyN}|${prefN}`).digest("hex")
 }
@@ -65,6 +71,7 @@ export async function backfillDedupeKeys(limit = 100): Promise<number> {
       companyName: r.company?.name ?? null,
       prefecture: r.prefecture,
     })
+    if (!key) continue
     await prisma.job
       .update({ where: { id: r.id }, data: { dedupeKey: key } })
       .then(() => processed++)

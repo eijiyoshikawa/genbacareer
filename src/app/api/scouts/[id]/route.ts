@@ -123,13 +123,23 @@ export async function PATCH(
     )
   }
 
-  await prisma.scoutMessage.update({
-    where: { id },
+  // findUnique と update の間に /api/cron/expire-scouts が同じ行を expired に
+  // 更新する可能性がある (TOCTOU)。WHERE 句で status を再確認し、その隙間で
+  // 状態が変わっていたら declined に上書きしない。
+  const result = await prisma.scoutMessage.updateMany({
+    where: { id, status: { in: ["sent", "read"] } },
     data: {
       status: "declined",
       declineReason: parsed.data.declineReason ?? null,
     },
   })
+
+  if (result.count === 0) {
+    return NextResponse.json(
+      { error: "このスカウトは既に終了しています" },
+      { status: 409 },
+    )
+  }
 
   return NextResponse.json({ ok: true })
 }

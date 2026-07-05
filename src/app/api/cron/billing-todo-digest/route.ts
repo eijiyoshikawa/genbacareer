@@ -7,6 +7,7 @@
  *   A. BillingEvent.status='pending' の件数 + 合計金額
  *   B. BillingEvent.status='invoiced' の件数 + 合計金額 (入金待ち)
  *   C. EarlyResignation.status='approved' の件数 + 合計返金額
+ *   D. BillingEvent.status='failed' の件数 + 合計金額 (発行失敗・要再試行)
  *
  * いずれかが > 0 の場合のみメール送信 (静かな日はスキップ)。
  * 宛先は ADMIN_NOTIFY_EMAIL (info@let-inc.net) 固定。
@@ -15,6 +16,7 @@
 import { prisma } from "@/lib/db"
 import { sendEmail } from "@/lib/email"
 import { renderEmailLayout, renderEmailText, baseUrl } from "@/lib/email-template"
+import { verifyCronRequest } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -22,13 +24,11 @@ export const runtime = "nodejs"
 const ADMIN_EMAIL = "info@let-inc.net"
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!verifyCronRequest(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const [pending, invoiced, refunds, byCompany] = await Promise.all([
+  const [pending, invoiced, refunds, failed, byCompany] = await Promise.all([
     prisma.billingEvent.aggregate({
       where: { status: "pending" },
       _count: true,
@@ -43,6 +43,11 @@ export async function GET(request: Request) {
       where: { status: "approved" },
       _count: true,
       _sum: { refundAmount: true },
+    }),
+    prisma.billingEvent.aggregate({
+      where: { status: "failed" },
+      _count: true,
+      _sum: { amount: true },
     }),
     // 企業別 pending 小計 (上位 5 社)
     prisma.billingEvent.groupBy({
@@ -61,8 +66,10 @@ export async function GET(request: Request) {
   const invoicedAmount = invoiced._sum.amount ?? 0
   const refundCount = refunds._count ?? 0
   const refundAmount = refunds._sum.refundAmount ?? 0
+  const failedCount = failed._count ?? 0
+  const failedAmount = failed._sum.amount ?? 0
 
-  const totalTasks = pendingCount + refundCount
+  const totalTasks = pendingCount + refundCount + failedCount
 
   if (totalTasks === 0) {
     console.log("[cron/billing-todo-digest] no tasks, skipping email")
@@ -106,6 +113,10 @@ export async function GET(request: Request) {
         label: "C. 戻入 credit note 待ち",
         value: `${refundCount} 件 / ¥${refundAmount.toLocaleString()}`,
       },
+      {
+        label: "D. 発行失敗 (要再試行)",
+        value: `${failedCount} 件 / ¥${failedAmount.toLocaleString()}`,
+      },
     ],
     detailSection:
       breakdownKv.length > 0
@@ -132,7 +143,7 @@ export async function GET(request: Request) {
   })
 
   console.log(
-    `[cron/billing-todo-digest] pendingCount=${pendingCount} pendingAmount=${pendingAmount} refundCount=${refundCount}`,
+    `[cron/billing-todo-digest] pendingCount=${pendingCount} pendingAmount=${pendingAmount} refundCount=${refundCount} failedCount=${failedCount}`,
   )
 
   return Response.json({
@@ -141,5 +152,7 @@ export async function GET(request: Request) {
     pendingAmount,
     invoicedCount,
     refundCount,
+    failedCount,
+    failedAmount,
   })
 }

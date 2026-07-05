@@ -19,6 +19,7 @@ import { prisma } from "@/lib/db"
 import { sendEmail } from "@/lib/email"
 import { renderEmailLayout, renderEmailText, baseUrl } from "@/lib/email-template"
 import { PLAN_LABELS, type PlanType } from "@/lib/plans"
+import { verifyCronRequest } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -26,9 +27,7 @@ export const runtime = "nodejs"
 const SOON_THRESHOLD_DAYS = 30
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!verifyCronRequest(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -110,11 +109,18 @@ export async function GET(request: Request) {
       })
     }
 
-    await prisma.company.update({
-      where: { id: c.id },
-      data: { planExpiryNotifiedAt: now },
-    })
-    notified += 1
+    // メール送信後にこの update が失敗すると、次回の cron 実行でも
+    // planExpiryNotifiedAt が null のままなので同じ企業に再度メールが飛ぶ。
+    // try/catch で囲み、この企業の失敗が残りの企業の処理を止めないようにする。
+    try {
+      await prisma.company.update({
+        where: { id: c.id },
+        data: { planExpiryNotifiedAt: now },
+      })
+      notified += 1
+    } catch (e) {
+      console.error(`[cron/plan-expiry-notice] flag update failed for ${c.id}:`, e)
+    }
   }
 
   console.log(

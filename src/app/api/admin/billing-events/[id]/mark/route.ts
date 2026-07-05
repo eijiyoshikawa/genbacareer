@@ -78,7 +78,10 @@ export async function POST(
 
   switch (parsed.data.action) {
     case "mark_invoiced": {
-      if (row.status !== "pending") {
+      // "failed" からの再試行も許可する。自動請求 (MoneyForward 連携等) が
+      // 一度失敗した BillingEvent は "failed" のまま放置されると、admin が
+      // 手動発行してもここでしか invoiced に戻せず、実質請求不能になっていた。
+      if (row.status !== "pending" && row.status !== "failed") {
         return Response.json(
           { error: `現在のステータス (${row.status}) からは請求書発行マークできません` },
           { status: 409 },
@@ -108,6 +111,14 @@ export async function POST(
       return Response.json({ ok: true })
     }
     case "mark_failed": {
+      // 既に入金確認済みの請求を failed に戻すと、集計・売上照合から
+      // 静かに消えてしまう。paid からの遷移だけは禁止する。
+      if (row.status === "paid") {
+        return Response.json(
+          { error: "入金確認済みのため failed にはできません" },
+          { status: 409 },
+        )
+      }
       await prisma.billingEvent.update({
         where: { id },
         data: { status: "failed" },

@@ -130,6 +130,18 @@ API レスポンスの主要タグ → `HelloworkJobData` マッピング:
 | `salaryType` | `chgnkeitai` → 金額レンジ推定 | monthly/hourly/annual |
 | `requirements` | `menkyo_skku3_n` | 必要な免許 |
 
+## バックフィル
+
+- `backfill-hellowork-plantier.ts` — HelloWork Company の `planTier` を 0 に修正する。
+  `upsertHelloworkCompany()` の `create` が `planTier` を明示していなかったため、スキーマの
+  `@default(3)` が適用され、取り込み済みの HelloWork 企業が有償 direct 企業と同列で
+  上位表示されるバグがあった（import-batch.ts で修正済み。既存データにはこのバックフィルが必要）。
+
+  ```bash
+  pnpm tsx --env-file=.env.local scripts/backfill-hellowork-plantier.ts dryrun
+  pnpm tsx --env-file=.env.local scripts/backfill-hellowork-plantier.ts apply
+  ```
+
 ## 既知の制約
 
 - 公式 API は **検索条件での絞り込み非対応**（職種・賃金・資格等）。全件取得して自前 DB で絞り込む設計。

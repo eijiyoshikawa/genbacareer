@@ -17,15 +17,36 @@ import {
   formatSearchLabel,
   toSearchQueryString,
 } from "@/lib/saved-searches"
+import { verifyCronRequest } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 export const maxDuration = 300
 
+const MATCH_LIMIT = 5
+
+/**
+ * 次回実行の起点 (lastNotifiedAt) を決める。
+ *
+ * 取得件数が limit ちょうど (= まだバックログが残っている可能性がある) の場合は
+ * "今" まで進めず、今回通知したバッチの中で一番新しい publishedAt + 1ms に
+ * 留める。こうしないと、1 日の新着が limit を超えた保存検索/フォローで
+ * 古い方の求人が「lastNotifiedAt が今日まで進んだせいで二度と検索対象に
+ * 入らない」まま消えてしまう。
+ */
+function nextWatermark(
+  matches: Array<{ publishedAt: Date | null }>,
+  limit: number,
+  startedAt: Date
+): Date {
+  if (matches.length < limit) return startedAt
+  const last = matches[matches.length - 1]?.publishedAt
+  if (!last) return startedAt
+  return new Date(last.getTime() + 1)
+}
+
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!verifyCronRequest(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -45,11 +66,13 @@ export async function GET(request: Request) {
   for (const s of searches) {
     searchProcessed++
     try {
-      const matches = await findNewMatchingJobs(s, 5)
+      const matches = await findNewMatchingJobs(s, MATCH_LIMIT)
+      const watermark = nextWatermark(matches, MATCH_LIMIT, startedAt)
+
       if (matches.length === 0) {
         await prisma.savedSearch.update({
           where: { id: s.id },
-          data: { lastNotifiedAt: startedAt },
+          data: { lastNotifiedAt: watermark },
         })
         continue
       }
@@ -70,7 +93,7 @@ export async function GET(request: Request) {
 
       await prisma.savedSearch.update({
         where: { id: s.id },
-        data: { lastNotifiedAt: startedAt },
+        data: { lastNotifiedAt: watermark },
       })
       searchNotified++
     } catch (e) {
@@ -116,18 +139,19 @@ export async function GET(request: Request) {
             status: "active",
             publishedAt: { gte: since },
           },
-          orderBy: { publishedAt: "desc" },
-          take: 5,
-          select: { id: true, title: true },
+          orderBy: { publishedAt: "asc" },
+          take: MATCH_LIMIT,
+          select: { id: true, title: true, publishedAt: true },
         })
         .catch(() => [])
+      const watermark = nextWatermark(matches, MATCH_LIMIT, startedAt)
 
       if (matches.length === 0) {
         await prisma.companyFollow.update({
           where: {
             userId_companyId: { userId: f.userId, companyId: f.companyId },
           },
-          data: { lastNotifiedAt: startedAt },
+          data: { lastNotifiedAt: watermark },
         })
         continue
       }
@@ -150,7 +174,7 @@ export async function GET(request: Request) {
         where: {
           userId_companyId: { userId: f.userId, companyId: f.companyId },
         },
-        data: { lastNotifiedAt: startedAt },
+        data: { lastNotifiedAt: watermark },
       })
       followNotified++
     } catch (e) {

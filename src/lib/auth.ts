@@ -5,6 +5,7 @@ import type { Provider } from "next-auth/providers"
 import { compare } from "bcryptjs"
 import { prisma } from "./db"
 import { checkRateLimit } from "./rate-limit"
+import { extractClientIp } from "./client-ip"
 
 /**
  * ログイン試行レート制限。
@@ -13,14 +14,11 @@ import { checkRateLimit } from "./rate-limit"
  * 連続失敗の brute force / credential stuffing を抑止する。
  *
  * NextAuth v5 では authorize の第 2 引数で Request を受け取れる。
- * x-forwarded-for ヘッダから IP を抽出して使用。
+ * spoofing 耐性のある IP 抽出は src/lib/client-ip.ts に集約。
  */
 function getIpFromRequest(req: Request | undefined): string {
   if (!req) return "unknown"
-  const fwd = req.headers.get("x-forwarded-for")
-  if (fwd) return fwd.split(",")[0].trim()
-  const real = req.headers.get("x-real-ip")
-  return real ?? "unknown"
+  return extractClientIp(req.headers) ?? "unknown"
 }
 
 /**

@@ -20,6 +20,7 @@ import {
   fallbackSalary,
 } from "@/lib/job-enrichment"
 import { computeRankScore } from "@/lib/ranking"
+import { computeDedupeKey } from "@/lib/job-dedupe"
 import type { HelloworkJobData } from "./hellowork"
 
 // ========================================
@@ -124,19 +125,28 @@ function toJobRecord(
     null
   )
 
+  const finalTitle = truncate(title, 500) || "求人"
+  const finalPrefecture = truncate(job.prefecture, 20) || "不明"
+
   return {
     source: job.source,
     helloworkId: truncate(job.helloworkId, 50),
-    title: truncate(title, 500) || "求人",
+    title: finalTitle,
     category,
     companyId,
+    dedupeKey: computeDedupeKey({
+      title: finalTitle,
+      companyId,
+      companyName: job.companyName ?? null,
+      prefecture: finalPrefecture,
+    }),
     employmentType: job.employmentType,
     description: job.description,
     requirements: job.requirements,
     salaryMin: salary.min,
     salaryMax: salary.max,
     salaryType: salary.type,
-    prefecture: truncate(job.prefecture, 20) || "不明",
+    prefecture: finalPrefecture,
     city: job.city ? truncate(job.city, 100) : null,
     address: job.address,
     tags,
@@ -206,6 +216,10 @@ async function upsertHelloworkCompany(
       city: job.city,
       address: job.address,
       status: "approved",
+      // Company.planTier defaults to 3 (paid tier) at the schema level. HelloWork
+      // is reference-only data and must never outrank paying direct listings —
+      // see planTier() in src/lib/plans.ts, which fixes source="hellowork" to 0.
+      planTier: 0,
     },
     update: {
       // 既存レコードの prefecture/city/address は最新ジョブの値で更新
@@ -380,7 +394,9 @@ export function inferCategory(
  * @param jobs - パース済みのハローワーク求人データ配列
  * @param options - オプション設定
  * @param options.dryRun - true の場合、DB 変更を行わずに統計のみ返す
- * @param options.closeOrphans - true の場合、今回のバッチに含まれない HW 求人を closed にする（デフォルト: true）
+ * @param options.closeOrphans - true の場合、今回のバッチに含まれない HW 求人を closed にする（デフォルト: false）。
+ *   ローテーション取り込み中の部分バッチで誤って true になると、まだ処理していない
+ *   大多数の既存求人を一括で closed にしてしまうため、危険側 (false) をデフォルトにする。
  * @returns インポート統計
  *
  * @example
@@ -397,7 +413,7 @@ export async function importHelloworkJobs(
   jobs: HelloworkJobData[],
   options: { dryRun?: boolean; closeOrphans?: boolean } = {}
 ): Promise<ImportStats> {
-  const { dryRun = false, closeOrphans = true } = options
+  const { dryRun = false, closeOrphans = false } = options
   const startedAt = new Date()
 
   let created = 0
