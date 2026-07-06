@@ -311,6 +311,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                   name: user.name ?? null,
                   authProvider: account.provider,
                   emailVerified: new Date(),
+                  // スカウト受信の前提となる企業公開は既定で ON
+                  profilePublic: true,
                 },
               })
               user.id = created.id

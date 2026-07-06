@@ -95,6 +95,8 @@ export async function POST(request: Request) {
         authProvider: "email",
         // メール確認を応募の前提にしないため、登録時点で確認済み扱いにする。
         emailVerified: new Date(),
+        // スカウト受信の前提となる企業公開は既定で ON（マイページからオフ可能）
+        profilePublic: true,
         termsAcceptedAt: new Date(),
         // 18 歳以上は規約同意で担保 (Wizard では生年月日を取らない)
       },
