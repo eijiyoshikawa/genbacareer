@@ -40,7 +40,20 @@ import { SeoFooterLinks } from "@/components/home/seo-footer-links"
 import { SalaryStats, type SalaryStatRow } from "@/components/home/salary-stats"
 import { VoiceSection } from "@/components/home/voice-section"
 import { LineLoginButton } from "@/components/auth/line-login-button"
+import { unstable_cache } from "next/cache"
 import type { Metadata } from "next"
+
+// 「掲載求人数」の表示値は週 1 回だけ更新する（毎日の増減で数字が揺れて
+// 見えるのを防ぐ）。ページ本体の ISR(24h) や求人リスト・カテゴリ件数の
+// 鮮度には影響しない — この合計値のみ 7 日間 Data Cache に保持される。
+const getWeeklyTotalJobs = unstable_cache(
+  async () => {
+    const counts = await getCategoryCounts()
+    return counts.reduce((sum, c) => sum + c.count, 0)
+  },
+  ["weekly-total-jobs"],
+  { revalidate: 7 * 24 * 60 * 60 },
+)
 
 // ホームは ISR で 24 時間キャッシュ。/api/cron/warmup が 5 分おきに叩いて
 // CDN キャッシュとラムダをウォームに保つため、PageSpeed や初回訪問でも
@@ -489,7 +502,14 @@ export default async function HomePage() {
     }))
     .sort((a, b) => b.avgMax - a.avgMax)
 
-  const totalJobs = categoryCounts.reduce((sum, c) => sum + c.count, 0)
+  // 表示用の掲載求人数（週1更新）。キャッシュ取得に失敗した場合のみ
+  // その場の categoryCounts 合算にフォールバックする。
+  const totalJobs = await withTimeout(
+    getWeeklyTotalJobs(),
+    DB_DEADLINE_MS,
+    categoryCounts.reduce((sum, c) => sum + c.count, 0),
+    "weeklyTotalJobs",
+  )
   const categoriesWithCounts = categories.map((c) => ({
     ...c,
     count: categoryCounts.find((cc) => cc.category === c.key)?.count ?? 0,
