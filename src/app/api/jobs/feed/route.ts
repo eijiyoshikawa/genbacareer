@@ -12,6 +12,7 @@ import { type NextRequest } from "next/server"
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { buildPublicJobOrderBy } from "@/lib/job-sort"
+import { getMagazineImagePool, pickPoolImage } from "@/lib/journal-images"
 
 const PAGE_SIZE = 10
 
@@ -39,33 +40,37 @@ export async function GET(request: NextRequest) {
     cursorPublishedAt = last?.publishedAt ?? null
   }
 
-  const jobs = await prisma.job.findMany({
-    where: {
-      status: "active",
-      ...(cursorPublishedAt
-        ? { publishedAt: { lt: cursorPublishedAt } }
-        : {}),
-    },
-    orderBy: buildPublicJobOrderBy("recommended"),
-    take: PAGE_SIZE,
-    select: {
-      id: true,
-      title: true,
-      prefecture: true,
-      city: true,
-      salaryMin: true,
-      salaryMax: true,
-      salaryType: true,
-      employmentType: true,
-      category: true,
-      tags: true,
-      description: true,
-      imageUrls: true,
-      company: {
-        select: { name: true, logoUrl: true, photos: true },
+  // 写真の無い求人の背景にはマガジン記事のカバー写真を転用する
+  const [jobs, imagePool] = await Promise.all([
+    prisma.job.findMany({
+      where: {
+        status: "active",
+        ...(cursorPublishedAt
+          ? { publishedAt: { lt: cursorPublishedAt } }
+          : {}),
       },
-    },
-  })
+      orderBy: buildPublicJobOrderBy("recommended"),
+      take: PAGE_SIZE,
+      select: {
+        id: true,
+        title: true,
+        prefecture: true,
+        city: true,
+        salaryMin: true,
+        salaryMax: true,
+        salaryType: true,
+        employmentType: true,
+        category: true,
+        tags: true,
+        description: true,
+        imageUrls: true,
+        company: {
+          select: { name: true, logoUrl: true, photos: true },
+        },
+      },
+    }),
+    getMagazineImagePool(),
+  ])
 
   return Response.json({
     jobs: jobs.map((j) => ({
@@ -82,7 +87,10 @@ export async function GET(request: NextRequest) {
       description: j.description,
       companyName: j.company?.name ?? null,
       companyLogoUrl: j.company?.logoUrl ?? null,
-      image: j.imageUrls?.[0] ?? j.company?.photos?.[0] ?? null,
+      image:
+        j.imageUrls?.[0] ??
+        j.company?.photos?.[0] ??
+        pickPoolImage(imagePool, j.id),
     })),
   })
 }

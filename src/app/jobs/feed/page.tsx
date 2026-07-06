@@ -14,6 +14,7 @@ import type { Metadata } from "next"
 import { FeedSwiper, type FeedJob } from "./feed-swiper"
 import { auth } from "@/lib/auth"
 import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import { getMagazineImagePool, pickPoolImage } from "@/lib/journal-images"
 
 // ビルド時 prerender をスキップ。
 // Supabase 接続プールが build フェーズで枯渇し P2024 で失敗するのを回避
@@ -34,7 +35,9 @@ export default async function JobFeedPage() {
   const loggedIn = !!session?.user?.id
   const initialLimit = loggedIn ? INITIAL_LIMIT : GUEST_LIMIT
 
-  const jobs = await prisma.job.findMany({
+  // 写真の無い求人の背景にはマガジン記事のカバー写真を転用する
+  const [jobs, imagePool] = await Promise.all([
+    prisma.job.findMany({
     where: { status: "active" },
     orderBy: buildPublicJobOrderBy("recommended"),
     take: initialLimit,
@@ -55,7 +58,9 @@ export default async function JobFeedPage() {
         select: { name: true, logoUrl: true, photos: true },
       },
     },
-  })
+    }),
+    getMagazineImagePool(),
+  ])
 
   const initial: FeedJob[] = jobs.map((j) => ({
     id: j.id,
@@ -71,7 +76,10 @@ export default async function JobFeedPage() {
     description: j.description,
     companyName: j.company?.name ?? null,
     companyLogoUrl: j.company?.logoUrl ?? null,
-    image: j.imageUrls?.[0] ?? j.company?.photos?.[0] ?? null,
+    image:
+      j.imageUrls?.[0] ??
+      j.company?.photos?.[0] ??
+      pickPoolImage(imagePool, j.id),
   }))
 
   return (
