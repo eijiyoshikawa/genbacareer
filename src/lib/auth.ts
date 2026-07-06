@@ -261,21 +261,32 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // その同一アカウントにログインさせる（placeholder アカウントを新規作成しない）。
         // これで「Google / メール / LINE のどのボタンからでも同じ 1 アカウント」に入れる。
         if (account.provider === "line" && account.providerAccountId) {
-          const linked = await prisma.user.findFirst({
-            where: { lineUserId: account.providerAccountId },
-            select: { id: true, emailVerified: true },
-            orderBy: { createdAt: "asc" },
-          })
-          if (linked) {
-            if (!linked.emailVerified) {
-              await prisma.user.update({
-                where: { id: linked.id },
-                data: { emailVerified: new Date() },
-              })
+          // 検索に失敗しても LINE ログイン自体は壊さない（DB drift 等で
+          // 例外が出ると OAuth コールバック全体がエラーになりループするため）。
+          try {
+            const linked = await prisma.user.findFirst({
+              where: { lineUserId: account.providerAccountId },
+              select: { id: true, emailVerified: true },
+              orderBy: { createdAt: "asc" },
+            })
+            if (linked) {
+              if (!linked.emailVerified) {
+                await prisma.user
+                  .update({
+                    where: { id: linked.id },
+                    data: { emailVerified: new Date() },
+                  })
+                  .catch(() => {})
+              }
+              user.id = linked.id
+              ;(user as { role?: string }).role = "seeker"
+              return true
             }
-            user.id = linked.id
-            ;(user as { role?: string }).role = "seeker"
-            return true
+          } catch (e) {
+            console.error(
+              "[auth.line] lineUserId lookup failed (fallback to email path):",
+              e instanceof Error ? e.message : e,
+            )
           }
         }
 
