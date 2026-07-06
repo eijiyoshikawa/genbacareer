@@ -50,6 +50,7 @@ export default async function JobFeedPage() {
       category: true,
       tags: true,
       description: true,
+      imageUrls: true,
       company: {
         select: { name: true, logoUrl: true, photos: true },
       },
@@ -70,7 +71,7 @@ export default async function JobFeedPage() {
     description: j.description,
     companyName: j.company?.name ?? null,
     companyLogoUrl: j.company?.logoUrl ?? null,
-    companyPhoto: j.company?.photos?.[0] ?? null,
+    image: j.imageUrls?.[0] ?? j.company?.photos?.[0] ?? null,
   }))
 
   return (
