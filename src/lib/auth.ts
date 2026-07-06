@@ -1,6 +1,7 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google"
+import Line from "next-auth/providers/line"
 import type { Provider } from "next-auth/providers"
 import { compare } from "bcryptjs"
 import { prisma } from "./db"
@@ -53,31 +54,32 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   )
 }
 
-// LINE Login (optional) — uses generic OAuth provider
+// LINE Login (optional) — 公式プロバイダを使用。
+// 手書きの汎用 OIDC 設定だと LINE 必須の `state` パラメータが送られず
+// authorize が INVALID_REQUEST ("'state' is not specified.") で即エラーになる。
+// 公式プロバイダは checks:["state"] と id_token の HS256 検証を内蔵している。
 // 注: LINE Login の email scope は別途権限申請が必要なため、profile + openid のみ要求。
 // email が取れないケースに備え、profile() で LINE sub からプレースホルダ email を生成する。
 if (process.env.LINE_CLIENT_ID && process.env.LINE_CLIENT_SECRET) {
-  providers.push({
-    id: "line",
-    name: "LINE",
-    type: "oidc",
-    issuer: "https://access.line.me",
-    clientId: process.env.LINE_CLIENT_ID,
-    clientSecret: process.env.LINE_CLIENT_SECRET,
-    authorization: {
-      // bot_prompt=aggressive: チャネルに公式アカウントをリンクしておくと、
-      // ログイン時に友だち追加が促され、その後 Push 送信が可能になる。
-      params: { scope: "profile openid", bot_prompt: "aggressive" },
-    },
-    profile(profile) {
-      return {
-        id: profile.sub,
-        name: profile.name,
-        email: profile.email ?? `line_${profile.sub}@line.local`,
-        image: profile.picture,
-      }
-    },
-  })
+  providers.push(
+    Line({
+      clientId: process.env.LINE_CLIENT_ID,
+      clientSecret: process.env.LINE_CLIENT_SECRET,
+      authorization: {
+        // bot_prompt=aggressive: チャネルに公式アカウントをリンクしておくと、
+        // ログイン時に友だち追加が促され、その後 Push 送信が可能になる。
+        params: { scope: "profile openid", bot_prompt: "aggressive" },
+      },
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email ?? `line_${profile.sub}@line.local`,
+          image: profile.picture,
+        }
+      },
+    }),
+  )
 }
 
 // Admin credentials
