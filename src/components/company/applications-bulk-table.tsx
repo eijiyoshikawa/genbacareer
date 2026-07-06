@@ -1,5 +1,6 @@
 "use client"
 
+import { CandidateAvatar } from "@/components/company/candidate-avatar"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -22,6 +23,7 @@ export type ApplicationRow = {
   job: { id: string; title: string }
   user: {
     name: string | null
+    avatarUrl?: string | null
     email: string | null
     phone: string | null
     prefecture: string | null
@@ -176,12 +178,21 @@ export function ApplicationsBulkTable({
                   />
                 </td>
                 <td className="px-4 py-3">
-                  <p className="text-sm font-medium text-gray-900">
-                    {app.user.name ?? "名前未設定"}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {app.user.prefecture ?? ""}
-                  </p>
+                  <div className="flex items-center gap-2.5">
+                    <CandidateAvatar
+                      avatarUrl={app.user.avatarUrl ?? null}
+                      name={app.user.name}
+                      size="sm"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {app.user.name ?? "名前未設定"}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {app.user.prefecture ?? ""}
+                      </p>
+                    </div>
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <p className="text-sm text-gray-600">{app.user.email}</p>

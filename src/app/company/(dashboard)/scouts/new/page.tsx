@@ -11,6 +11,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { CandidateAvatar } from "@/components/company/candidate-avatar"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
@@ -92,6 +93,7 @@ export default async function ScoutNewPage({ searchParams }: Props) {
         status: true,
         jobSearchStatus: true,
         prefecture: true,
+        avatarUrl: true,
       },
     }),
     prisma.scoutMessage.findFirst({
@@ -142,10 +144,15 @@ export default async function ScoutNewPage({ searchParams }: Props) {
         <p className="mt-1 font-bold text-ink-900">{job.title}</p>
 
         <p className="mt-4 text-xs font-bold text-gray-500">[求職者]</p>
-        <p className="mt-1 font-bold text-ink-900">{user.name ?? "求職者"}</p>
-        <p className="text-xs text-gray-500">
-          {user.prefecture} · 求職状況: {labelJobSearchStatus(user.jobSearchStatus)}
-        </p>
+        <div className="mt-1 flex items-center gap-3">
+          <CandidateAvatar avatarUrl={user.avatarUrl} name={user.name} size="sm" />
+          <div>
+            <p className="font-bold text-ink-900">{user.name ?? "求職者"}</p>
+            <p className="text-xs text-gray-500">
+              {user.prefecture} · 求職状況: {labelJobSearchStatus(user.jobSearchStatus)}
+            </p>
+          </div>
+        </div>
 
         <p className="mt-4 text-xs font-bold text-gray-500">[件名 (自動生成)]</p>
         <p className="mt-1 text-sm text-ink-900 bg-warm-50 p-2">{subject}</p>
