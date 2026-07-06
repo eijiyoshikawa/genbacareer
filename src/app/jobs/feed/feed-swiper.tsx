@@ -31,11 +31,15 @@ export interface FeedJob {
   description: string | null
   companyName: string | null
   companyLogoUrl: string | null
-  /** 背景写真（求人画像 or 企業写真）。無ければ職種別のデフォルト写真を使う。 */
+  /**
+   * 背景写真。サーバー側で 求人画像 → 企業写真 → マガジン記事のカバー写真
+   * の順に解決済み。null は「公開記事に写真が 1 枚も無い」場合のみで、
+   * そのときだけ下の職種別デフォルト写真に落ちる。
+   */
   image: string | null
 }
 
-// 写真が無い求人でも「真っ黒」にならないよう、職種ごとのデフォルト背景写真。
+// 最終フォールバック（マガジンに写真付き記事が無い場合のみ使用）。
 // 本番で表示実績のある Unsplash 建設系画像のみ使用。
 const CATEGORY_IMAGE: Record<string, string> = {
   construction:
