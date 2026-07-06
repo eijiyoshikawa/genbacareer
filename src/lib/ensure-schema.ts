@@ -237,6 +237,10 @@ const STATEMENTS: ReadonlyArray<string> = [
     ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS "terms_accepted_at" TIMESTAMPTZ`,
  `CREATE INDEX IF NOT EXISTS "idx_users_status" ON "users" ("status")`,
+ // プロフィール公開の既定値を ON に（スカウト受信の前提。新規登録時に適用）
+ `ALTER TABLE "users" ALTER COLUMN "profile_public" SET DEFAULT true`,
+ // 求職者の顔写真（プロフィール画像）
+ `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" VARCHAR(500)`,
  // 認証トークン列（パスワードリセット / メールアドレス確認）。
  // schema.prisma 定義のみで ensureSchema 未収録だったため、db push 未適用の
  // 本番で reset/verify フロー（forgot-password・signup 確認メール）が

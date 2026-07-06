@@ -268,10 +268,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           try {
             const linked = await prisma.user.findFirst({
               where: { lineUserId: account.providerAccountId },
-              select: { id: true, emailVerified: true },
+              select: { id: true, emailVerified: true, status: true },
               orderBy: { createdAt: "asc" },
             })
             if (linked) {
+              // 凍結 / 退会済みは OAuth 経由でもログイン拒否
+              // （credentials ログインと同じ扱いに揃える）
+              if (linked.status === "suspended" || linked.status === "deleted") {
+                return false
+              }
               if (!linked.emailVerified) {
                 await prisma.user
                   .update({
@@ -293,29 +298,50 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         if (user.email) {
-          const existing = await prisma.user.findUnique({
+          let existing = await prisma.user.findUnique({
             where: { email: user.email },
-            select: { id: true, emailVerified: true },
+            select: { id: true, emailVerified: true, status: true },
           })
           if (!existing) {
             // OAuth プロバイダ経由のメールは確認済みとみなす（Google/LINE が検証済みのため）
-            const created = await prisma.user.create({
-              data: {
-                email: user.email,
-                name: user.name ?? null,
-                authProvider: account.provider,
-                emailVerified: new Date(),
-              },
-            })
-            user.id = created.id
-            ;(user as { role?: string }).role = "seeker"
-          } else {
-            // 既存ユーザーが OAuth で初めてログインした場合も emailVerified を埋める
-            if (!existing.emailVerified) {
-              await prisma.user.update({
-                where: { id: existing.id },
-                data: { emailVerified: new Date() },
+            try {
+              const created = await prisma.user.create({
+                data: {
+                  email: user.email,
+                  name: user.name ?? null,
+                  authProvider: account.provider,
+                  emailVerified: new Date(),
+                  // スカウト受信の前提となる企業公開は既定で ON
+                  profilePublic: true,
+                },
               })
+              user.id = created.id
+              ;(user as { role?: string }).role = "seeker"
+            } catch {
+              // 二重クリック / 複数タブの同時ログインで create が競合 (P2002)
+              // した場合は、勝った方のレコードを引き直してそのままログインさせる
+              existing = await prisma.user.findUnique({
+                where: { email: user.email },
+                select: { id: true, emailVerified: true, status: true },
+              })
+              if (!existing) return false
+            }
+          }
+          if (existing) {
+            // 凍結 / 退会済みは OAuth 経由でもログイン拒否
+            // （credentials ログインと同じ扱いに揃える）
+            if (existing.status === "suspended" || existing.status === "deleted") {
+              return false
+            }
+            // 既存ユーザーが OAuth で初めてログインした場合も emailVerified を埋める
+            // （失敗してもログイン自体は通す — 非致命）
+            if (!existing.emailVerified) {
+              await prisma.user
+                .update({
+                  where: { id: existing.id },
+                  data: { emailVerified: new Date() },
+                })
+                .catch(() => {})
             }
             user.id = existing.id
             ;(user as { role?: string }).role = "seeker"
