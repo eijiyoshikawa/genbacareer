@@ -19,7 +19,7 @@ import { notifyNewLead } from "@/lib/lead-notifications"
 import { findRelatedJobs } from "@/lib/job-matching"
 import { getSessionIdIfExists } from "@/lib/session-id"
 import { extractUtmFromUrl } from "@/lib/tracking"
-import { verifyLiffAccessToken, isLiffServerConfigured } from "@/lib/liff"
+import { verifyLiffAccessToken, getLiffUserId, isLiffServerConfigured } from "@/lib/liff"
 
 export const dynamic = "force-dynamic"
 
@@ -67,6 +67,16 @@ export async function POST(request: NextRequest) {
     if (!v.ok) {
       return Response.json(
         { error: "invalid_liff_token", reason: v.reason },
+        { status: 401 }
+      )
+    }
+    // トークンの有効性だけでなく、トークン本人の userId と身元を突き合わせる。
+    // これが無いと「自分の有効な accessToken + 他人の lineUserId」を送るだけで、
+    // 任意の LINE ユーザー宛に応募データを紐付け・push メッセージを送れてしまう。
+    const actualUserId = await getLiffUserId(parsed.accessToken)
+    if (!actualUserId || actualUserId !== parsed.lineUserId) {
+      return Response.json(
+        { error: "invalid_liff_token", reason: "user_id_mismatch" },
         { status: 401 }
       )
     }

@@ -125,15 +125,22 @@ async function appendLedger(
     refId?: string | null
   },
 ): Promise<number> {
-  const user = await tx.user.findUnique({
-    where: { id: args.userId },
-    select: { pointBalance: true },
-  })
-  if (!user) return 0
-  const newBalance = user.pointBalance + args.delta
-  if (newBalance < 0) {
+  // 残高の read-then-write は同時リクエストでロストアップデート（二重付与/二重消費）を招くため、
+  // 条件付き UPDATE で残高チェックと更新を 1 クエリで原子的に行う（行ロックは tx コミットまで保持される）。
+  const rows = await tx.$queryRaw<Array<{ point_balance: number }>>(Prisma.sql`
+    UPDATE "users" SET "point_balance" = "point_balance" + ${args.delta}
+    WHERE "id" = ${args.userId}::uuid AND "point_balance" + ${args.delta} >= 0
+    RETURNING "point_balance"
+  `)
+  if (rows.length === 0) {
+    const exists = await tx.user.findUnique({
+      where: { id: args.userId },
+      select: { id: true },
+    })
+    if (!exists) return 0
     throw new PointError("INSUFFICIENT_BALANCE", "ポイントが不足しています")
   }
+  const newBalance = rows[0].point_balance
   try {
     await tx.pointLedger.create({
       data: {
@@ -146,16 +153,16 @@ async function appendLedger(
       },
     })
   } catch (e) {
-    // 冪等キー重複（既に付与済み）は正常系としてスキップ
+    // 冪等キー重複（既に付与済み）は正常系としてスキップ。残高更新はロールバックされる。
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      await tx.user.update({
+        where: { id: args.userId },
+        data: { pointBalance: { increment: -args.delta } },
+      })
       return 0
     }
     throw e
   }
-  await tx.user.update({
-    where: { id: args.userId },
-    data: { pointBalance: newBalance },
-  })
   return args.delta
 }
 
@@ -374,6 +381,10 @@ export async function drawLottery(
 ): Promise<LotteryResult> {
   // 1) ポイント消費・当選判定・コード割り当てを 1 トランザクションで原子的に処理
   const res = await prisma.$transaction(async (tx) => {
+    // 同一ユーザーの同時リクエストを直列化（トランザクション終了で自動解放）。
+    // これが無いと「本日の抽選回数」の count→create が TOCTOU になり、日次上限を超えて抽選できてしまう。
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`
+
     // 当選景品の在庫切れ時は抽選を停止（ポイントは消費しない）
     if (!(await hasWinnableStock(tx))) {
       throw new PointError(

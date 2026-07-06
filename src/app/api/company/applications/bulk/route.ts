@@ -3,28 +3,23 @@
  *
  * 自社 (companyId 一致) の応募者を一括でステータス変更する。
  * Body: { ids: string[], status: string }
- * 応答: { ok: true, updated: number }
+ * 応答: { ok: true, updated: number, skipped: Array<{ id, error }> }
  *
- * セキュリティ: 自社が紐づく Application のみ更新対象。他社の ID が紛れても
- * updateMany の where: companyId フィルタで自動除外される。
+ * セキュリティ: 自社が紐づく Application のみ更新対象（updateApplicationStatus 内で
+ * companyId を照合し、他社の ID は skipped に回る）。
+ *
+ * 1 件ずつ updateApplicationStatus() に委譲する（かつては updateMany で直接
+ * status を書き換えていたため、状態遷移バリデーション・hiredAt 打刻・採用時の
+ * 自動請求・通知が一括更新経路だけ丸ごと素通りしていた）。
  */
 
-import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
-
-const ALLOWED_STATUSES = [
-  "applied",
-  "reviewing",
-  "interview",
-  "offered",
-  "hired",
-  "rejected",
-] as const
+import { updateApplicationStatus, APPLICATION_STATUSES } from "@/lib/application-status"
 
 const schema = z.object({
   ids: z.array(z.string().uuid()).min(1).max(200),
-  status: z.enum(ALLOWED_STATUSES),
+  status: z.enum(APPLICATION_STATUSES),
 })
 
 export async function POST(request: Request) {
@@ -36,6 +31,7 @@ export async function POST(request: Request) {
   if (!companyId) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
   }
+  const userId = (session.user as { id?: string }).id ?? "unknown"
 
   let body: unknown
   try {
@@ -52,13 +48,21 @@ export async function POST(request: Request) {
   }
   const { ids, status } = parsed.data
 
-  const result = await prisma.application.updateMany({
-    where: {
-      id: { in: ids },
+  let updated = 0
+  const skipped: Array<{ id: string; error: string }> = []
+  for (const id of ids) {
+    const result = await updateApplicationStatus({
+      applicationId: id,
       companyId,
-    },
-    data: { status },
-  })
+      newStatus: status,
+      by: userId,
+    })
+    if (result.ok) {
+      updated++
+    } else {
+      skipped.push({ id, error: result.error })
+    }
+  }
 
-  return Response.json({ ok: true, updated: result.count })
+  return Response.json({ ok: true, updated, skipped })
 }

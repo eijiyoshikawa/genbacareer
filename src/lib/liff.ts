@@ -8,6 +8,7 @@
  */
 
 const VERIFY_URL = "https://api.line.me/oauth2/v2.1/verify"
+const PROFILE_URL = "https://api.line.me/v2/profile"
 
 function getLiffChannelId(): string {
   return process.env.LIFF_CHANNEL_ID ?? process.env.NEXT_PUBLIC_LIFF_CHANNEL_ID ?? ""
@@ -50,5 +51,28 @@ export async function verifyLiffAccessToken(token: string): Promise<LiffVerifyRe
     return { ok: true, clientId: json.client_id, expiresIn: json.expires_in }
   } catch (e) {
     return { ok: false, reason: e instanceof Error ? e.message : "unknown" }
+  }
+}
+
+/**
+ * accessToken の持ち主本人の LINE userId を取得する。
+ *
+ * verifyLiffAccessToken はトークンの有効性と発行元チャネルしか確認しないため、
+ * 「有効な自分の accessToken + 他人の lineUserId」を送るなりすましを防げない。
+ * クライアントが送ってきた lineUserId は必ずこの戻り値と突き合わせて検証すること。
+ */
+export async function getLiffUserId(accessToken: string): Promise<string | null> {
+  if (!accessToken) return null
+  try {
+    const res = await fetch(PROFILE_URL, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    })
+    if (!res.ok) return null
+    const json = (await res.json()) as { userId?: string }
+    return json.userId ?? null
+  } catch {
+    return null
   }
 }

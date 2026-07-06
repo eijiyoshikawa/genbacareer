@@ -65,6 +65,14 @@ function mapKind(type: string | null | undefined): FlexNotificationKind {
  * 通知を Flex Message + テキストの 2 メッセージで送信。
  * link は省略可。kind を指定するとラベル・アクセント色を切り替え。
  */
+/**
+ * 戻り値:
+ * - "sent": 実際に LINE Push できた
+ * - "skipped": 友だち未連携 / Messaging 未設定など、そもそも送る対象でなかった（要再送ではない）
+ * - "failed": 送る対象ではあったが LINE API 呼び出しが失敗した（呼び出し側は要再送として扱うべき）
+ */
+export type PushResult = "sent" | "skipped" | "failed"
+
 export async function pushUserNotification(input: {
   userId: string
   title: string
@@ -73,11 +81,11 @@ export async function pushUserNotification(input: {
   linkLabel?: string
   linkUrl?: string | null
   kind?: FlexNotificationKind | string | null
-}): Promise<void> {
-  if (!isMessagingConfigured()) return
+}): Promise<PushResult> {
+  if (!isMessagingConfigured()) return "skipped"
 
   const lineUserId = await findLineUserId(input.userId)
-  if (!lineUserId) return
+  if (!lineUserId) return "skipped"
 
   const kind = mapKind(input.kind)
   const url = input.linkUrl
@@ -108,9 +116,11 @@ export async function pushUserNotification(input: {
 
   try {
     await pushMessage(lineUserId, [flex, { type: "text", text: textFallback }])
+    return "sent"
   } catch (e) {
     console.warn(
       `[line-push-notifier] failed: ${e instanceof Error ? e.message : e}`
     )
+    return "failed"
   }
 }

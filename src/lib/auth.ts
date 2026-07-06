@@ -334,12 +334,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               return false
             }
             // 既存ユーザーが OAuth で初めてログインした場合も emailVerified を埋める
-            // （失敗してもログイン自体は通す — 非致命）
+            // （失敗してもログイン自体は通す — 非致命）。
+            // 未認証のまま passwordHash が設定されている場合、それは
+            // 「そのメールの持ち主でない第三者が先に credentials 登録した」可能性がある
+            // (アカウント乗っ取り目的でメールを騙って登録し、後から本人が OAuth で
+            // ログインしてくるのを待つ攻撃)。OAuth プロバイダがメール所有を検証した
+            // このタイミングで、信頼できない passwordHash を無効化しておく。
             if (!existing.emailVerified) {
               await prisma.user
                 .update({
                   where: { id: existing.id },
-                  data: { emailVerified: new Date() },
+                  data: { emailVerified: new Date(), passwordHash: null },
                 })
                 .catch(() => {})
             }

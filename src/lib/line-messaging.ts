@@ -139,7 +139,11 @@ export async function replyMessage(replyToken: string, messages: LineMessage[]):
     body: JSON.stringify({ replyToken, messages }),
   })
   if (!res.ok) {
-    console.warn("[line.reply] failed", res.status, await res.text().catch(() => ""))
+    const body = await res.text().catch(() => "")
+    console.warn("[line.reply] failed", res.status, body)
+    // 呼び出し側は成否を try/catch で判定する設計のため、ログだけで握り潰すと
+    // 「送信済み」として扱われてしまう（配信ログ改竄・通知ロスト）。必ず投げる。
+    throw new Error(`LINE reply failed: ${res.status} ${body}`)
   }
 }
 
@@ -152,7 +156,11 @@ export async function pushMessage(to: string, messages: LineMessage[]): Promise<
     body: JSON.stringify({ to, messages }),
   })
   if (!res.ok) {
-    console.warn("[line.push] failed", res.status, await res.text().catch(() => ""))
+    const body = await res.text().catch(() => "")
+    console.warn("[line.push] failed", res.status, body)
+    // 呼び出し側は成否を try/catch で判定する設計のため、ログだけで握り潰すと
+    // 「送信済み」として扱われてしまう（配信ログ改竄・通知ロスト）。必ず投げる。
+    throw new Error(`LINE push failed: ${res.status} ${body}`)
   }
 }
 
