@@ -32,6 +32,8 @@ model User {
   // frequency (immediate | daily | weekly) / quietHoursStart-End (0-23, JST)
   notificationPrefs Json      @default("{}") @map("notification_prefs")
   resumeUrl         String?   @map("resume_url") @db.VarChar(500)
+  // 顔写真（プロフィール画像）。スカウト時に企業へ表示される
+  avatarUrl         String?   @map("avatar_url") @db.VarChar(500)
   // 企業へのプロフィール公開（スカウト受信の前提）。新規登録時は既定で ON
   profilePublic     Boolean   @default(true) @map("profile_public")
   authProvider      String    @default("email") @map("auth_provider") @db.VarChar(20)
