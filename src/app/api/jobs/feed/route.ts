@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
       category: true,
       tags: true,
       description: true,
+      imageUrls: true,
       company: {
         select: { name: true, logoUrl: true, photos: true },
       },
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
       description: j.description,
       companyName: j.company?.name ?? null,
       companyLogoUrl: j.company?.logoUrl ?? null,
-      companyPhoto: j.company?.photos?.[0] ?? null,
+      image: j.imageUrls?.[0] ?? j.company?.photos?.[0] ?? null,
     })),
   })
 }
