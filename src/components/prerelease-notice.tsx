@@ -12,10 +12,11 @@ import { Info, X } from "lucide-react"
  *  - 来訪のたびに開くモーダル（毎回表示）。ユーザーが「今後表示しない」を選べる（localStorage）
  *  - バナーの「詳細」ボタンでいつでもモーダルを再表示できる（= 表示/非表示をユーザーが選択可）
  *
- * 非表示対象: マガジン(/journal)・管理(/admin)・企業(/company)・LIFF(/liff)
+ * 非表示対象: マガジン(/journal)・管理(/admin)・企業(/company)・LIFF(/liff)・
+ *             求人フィード(/jobs/feed = フルスクリーン没入型のためバーの高さ干渉を避ける)
  * auth 等には一切触れない純表示コンポーネント。ブランド配色（オレンジ系）。
  */
-const HIDDEN_PREFIXES = ["/journal", "/admin", "/company", "/liff"]
+const HIDDEN_PREFIXES = ["/journal", "/admin", "/company", "/liff", "/jobs/feed"]
 const OPTOUT_KEY = "prerelease_modal_optout_v1"
 
 export function PreReleaseNotice() {
