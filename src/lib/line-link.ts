@@ -78,8 +78,22 @@ export async function bindLineUserToAccount(input: {
   lineUserId: string
   displayName: string | null
   email: string | null
-}): Promise<void> {
+}): Promise<{ ok: boolean; reason?: "already_linked_to_other_user" }> {
   const { userId, lineUserId, displayName, email } = input
+
+  // 同じ LINE userId が既に別の User に紐付いていないか確認する。
+  // 確認せず上書きすると、その LINE アカウントでの以後のログインが
+  // どちらのユーザーに解決されるか不定になり、一方が LINE ログインで
+  // 到達不能になる（1 LINE アカウント = 1 User の前提が崩れる）。
+  const conflicting = await prisma.user
+    .findFirst({ where: { lineUserId, NOT: { id: userId } }, select: { id: true } })
+    .catch(() => null)
+  if (conflicting) {
+    console.warn(
+      `[line-link] lineUserId ${lineUserId} already bound to user ${conflicting.id}; refusing to rebind to ${userId}`
+    )
+    return { ok: false, reason: "already_linked_to_other_user" }
+  }
 
   // 1. User 本体へ保存（raw: Prisma Client 未再生成の環境でも動くよう updateMany 経由でなく
   //    型付き update を使う。lineUserId は schema に追加済み）
@@ -101,7 +115,7 @@ export async function bindLineUserToAccount(input: {
         data: { lineDisplayName: displayName ?? undefined },
       })
       .catch(() => {})
-    return
+    return { ok: true }
   }
 
   await prisma.lineLead
@@ -118,4 +132,6 @@ export async function bindLineUserToAccount(input: {
     .catch((e) =>
       console.warn(`[line-link] lead upsert failed: ${e instanceof Error ? e.message : e}`)
     )
+
+  return { ok: true }
 }

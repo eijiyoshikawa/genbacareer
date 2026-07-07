@@ -17,7 +17,9 @@ const updateProfileSchema = z.object({
   city: z.string().max(50).nullable().optional(),
   birthDate: z.string().nullable().optional(),
   desiredCategories: z.array(z.string()).optional(),
-  desiredSalaryMin: z.number().int().min(0).nullable().optional(),
+  // UI は 20万〜50万円/5万円刻みの選択式だが、過去の自由入力データ (レンジ外の値) を
+  // 持つ既存ユーザーがそのまま再送信しても弾かれないよう、現実的な上限のみでガードする。
+  desiredSalaryMin: z.number().int().min(0).max(2_000_000).nullable().optional(),
   profilePublic: z.boolean().optional(),
   jobSearchStatus: z.enum(JOB_SEARCH_STATUS_VALUES).optional(),
   blockedCompanyIds: z.array(z.string().uuid()).max(200).optional(),

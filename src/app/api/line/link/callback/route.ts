@@ -111,12 +111,13 @@ export async function GET(request: NextRequest) {
 
   // 4. 紐付け
   const email = (session?.user as { email?: string } | undefined)?.email ?? null
-  await bindLineUserToAccount({
+  const bindResult = await bindLineUserToAccount({
     userId: sessionUserId,
     lineUserId: sub,
     displayName,
     email,
   })
+  if (!bindResult.ok) return fail(request, "already_linked")
 
   // Cookie を破棄して完了画面へ（new Response でヘッダを組み立てる）
   return new Response(null, {
