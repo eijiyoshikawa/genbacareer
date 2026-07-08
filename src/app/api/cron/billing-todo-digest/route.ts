@@ -24,7 +24,7 @@ const ADMIN_EMAIL = "info@let-inc.net"
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
   const refundCount = refunds._count ?? 0
   const refundAmount = refunds._sum.refundAmount ?? 0
 
-  const totalTasks = pendingCount + refundCount
+  const totalTasks = pendingCount + invoicedCount + refundCount
 
   if (totalTasks === 0) {
     console.log("[cron/billing-todo-digest] no tasks, skipping email")

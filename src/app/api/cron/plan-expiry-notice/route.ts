@@ -28,7 +28,7 @@ const SOON_THRESHOLD_DAYS = 30
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -81,6 +81,7 @@ export async function GET(request: Request) {
       ],
     }
 
+    let mailFailed = false
     if (c.contactEmail) {
       try {
         await sendEmail({
@@ -90,6 +91,7 @@ export async function GET(request: Request) {
           text: renderEmailText(layout),
         })
       } catch (err) {
+        mailFailed = true
         mailFailures += 1
         console.error(`[cron/plan-expiry-notice] mail failed for ${c.id}:`, err)
       }
@@ -108,6 +110,13 @@ export async function GET(request: Request) {
       }).catch((e) => {
         console.error(`[cron/plan-expiry-notice] notif failed for ${c.id}:`, e)
       })
+    }
+
+    // メール送信が失敗した場合は planExpiryNotifiedAt を更新しない。
+    // 更新してしまうと planExpiryNotifiedAt: null の絞り込みから外れ、
+    // 翌日以降の cron 実行でも二度と再送されなくなるため。
+    if (c.contactEmail && mailFailed) {
+      continue
     }
 
     await prisma.company.update({

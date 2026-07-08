@@ -85,50 +85,67 @@ export async function POST(request: NextRequest) {
   const referer = request.headers.get("referer")
   const utm = extractUtmFromUrl(parsed.pageUrl ?? referer ?? "")
 
-  // リード保存。失敗しても致命的ではないが、原則必須なので await する。
-  let leadId: string | null = null
-  try {
-    const lead = await prisma.lineLead.create({
-      data: {
+  // 二重送信対策: 同一求人 + 電話番号の応募が直近 2 分以内にあれば新規作成せず
+  // 既存の lead を使い回す（ダブルタップ / フォームのリトライで重複リード・
+  // 重複通知が発生するのを防ぐ）。
+  const recentDuplicate = await prisma.lineLead
+    .findFirst({
+      where: {
         jobId: job.id,
+        phone: parsed.phone,
+        createdAt: { gte: new Date(Date.now() - 2 * 60 * 1000) },
+      },
+      select: { id: true },
+      orderBy: { createdAt: "desc" },
+    })
+    .catch(() => null)
+
+  // リード保存。失敗しても致命的ではないが、原則必須なので await する。
+  let leadId: string | null = recentDuplicate?.id ?? null
+  if (!recentDuplicate) {
+    try {
+      const lead = await prisma.lineLead.create({
+        data: {
+          jobId: job.id,
+          name: parsed.name,
+          phone: parsed.phone,
+          email: parsed.email,
+          experienceYears: parsed.experienceYears ?? null,
+          notes: parsed.notes ?? null,
+          ipAddress: ip,
+          userAgent: request.headers.get("user-agent")?.slice(0, 500) ?? null,
+          sessionId,
+          utmSource: utm.source,
+          utmMedium: utm.medium,
+          utmCampaign: utm.campaign,
+          referer: referer?.slice(0, 500) ?? null,
+        },
+        select: { id: true },
+      })
+      leadId = lead.id
+
+      // 新規 lead 通知（Slack / メール）。失敗してもユーザー体験は阻害しない。
+      void notifyNewLead({
+        leadId: lead.id,
         name: parsed.name,
         phone: parsed.phone,
         email: parsed.email,
         experienceYears: parsed.experienceYears ?? null,
         notes: parsed.notes ?? null,
-        ipAddress: ip,
-        userAgent: request.headers.get("user-agent")?.slice(0, 500) ?? null,
-        sessionId,
-        utmSource: utm.source,
-        utmMedium: utm.medium,
-        utmCampaign: utm.campaign,
-        referer: referer?.slice(0, 500) ?? null,
-      },
-      select: { id: true },
-    })
-    leadId = lead.id
-
-    // 新規 lead 通知（Slack / メール）。失敗してもユーザー体験は阻害しない。
-    void notifyNewLead({
-      leadId: lead.id,
-      name: parsed.name,
-      phone: parsed.phone,
-      email: parsed.email,
-      experienceYears: parsed.experienceYears ?? null,
-      notes: parsed.notes ?? null,
-      job: {
-        id: job.id,
-        title: job.title,
-        prefecture: job.prefecture,
-        city: job.city,
-      },
-    })
-  } catch (e) {
-    // line_leads テーブル未作成などのケースは ensure-schema が走れば次回成功する。
-    // この場合でも LINE 遷移は妨げず、ユーザー体験を優先する。
-    console.error(
-      `[line-lead] DB insert failed: ${e instanceof Error ? e.message : e}`
-    )
+        job: {
+          id: job.id,
+          title: job.title,
+          prefecture: job.prefecture,
+          city: job.city,
+        },
+      })
+    } catch (e) {
+      // line_leads テーブル未作成などのケースは ensure-schema が走れば次回成功する。
+      // この場合でも LINE 遷移は妨げず、ユーザー体験を優先する。
+      console.error(
+        `[line-lead] DB insert failed: ${e instanceof Error ? e.message : e}`
+      )
+    }
   }
 
   const lineUrl = buildLineApplyUrl({

@@ -24,6 +24,21 @@ import { PLAN_TYPES, planTier } from "@/lib/plans"
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * "YYYY-MM-DD" は日付のみの契約終了日として扱う。`new Date(str)` は
+ * これを UTC 0時として解釈してしまい、JST ではその日の 9:00 相当になる。
+ * 「その日いっぱい有効」という意図に合わせ、JST 23:59:59.999 として解釈する。
+ * ISO datetime (タイムゾーン付き) はそのまま渡す。
+ */
+function parsePlanPaidUntil(value: string): Date {
+  if (DATE_ONLY_RE.test(value)) {
+    return new Date(`${value}T23:59:59.999+09:00`)
+  }
+  return new Date(value)
+}
+
 const schema = z.object({
   planType: z.enum(PLAN_TYPES),
   planPaidUntil: z.iso.datetime().nullable().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable()),
@@ -118,7 +133,7 @@ export async function POST(
     where: { id },
     data: {
       planType,
-      planPaidUntil: planPaidUntil ? new Date(planPaidUntil) : null,
+      planPaidUntil: planPaidUntil ? parsePlanPaidUntil(planPaidUntil) : null,
       planActivatedAt: activatedAt,
       planPrepaidFull,
       planNotes,

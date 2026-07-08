@@ -49,6 +49,36 @@ export async function fuzzySearchJobs(
       ? [input.category]
       : [...CONSTRUCTION_CATEGORY_VALUES]
 
+  // 条件節と bind パラメータを同時に組み立てる（$N はパラメータ配列の実際の
+  // 位置と一致させる必要がある。固定番号だと、途中のフィルタが省略された際に
+  // 配列側だけ詰まってズレてしまう＝プレースホルダ不一致で SQL エラーになる）。
+  const conditions: string[] = []
+  const params: unknown[] = [input.q, categories]
+  if (input.prefecture) {
+    conditions.push(`AND prefecture = $${params.length + 1}`)
+    params.push(input.prefecture)
+  }
+  if (input.employmentType) {
+    conditions.push(`AND employment_type = $${params.length + 1}`)
+    params.push(input.employmentType)
+  }
+  if (input.source) {
+    conditions.push(`AND source = $${params.length + 1}`)
+    params.push(input.source)
+  }
+  if (input.publishedSince) {
+    conditions.push(`AND published_at >= $${params.length + 1}`)
+    params.push(input.publishedSince)
+  }
+  if (input.salaryMin) {
+    conditions.push(`AND salary_min >= $${params.length + 1}`)
+    params.push(input.salaryMin)
+  }
+  if (input.salaryMax) {
+    conditions.push(`AND salary_max <= $${params.length + 1}`)
+    params.push(input.salaryMax)
+  }
+
   // raw query で similarity を計算しつつ where もまとめる。
   // - title と description それぞれの類似度の最大値を採用
   // - 0.05 以上を閾値（ある程度関連がある）
@@ -68,12 +98,7 @@ export async function fuzzySearchJobs(
         FROM jobs
         WHERE status = 'active'
           AND category = ANY($2)
-          ${input.prefecture ? "AND prefecture = $3" : ""}
-          ${input.employmentType ? `AND employment_type = $4` : ""}
-          ${input.source ? `AND source = $5` : ""}
-          ${input.publishedSince ? `AND published_at >= $6` : ""}
-          ${input.salaryMin ? `AND salary_min >= $7` : ""}
-          ${input.salaryMax ? `AND salary_max <= $8` : ""}
+          ${conditions.join("\n          ")}
       )
       SELECT id, similarity
       FROM scored
@@ -81,14 +106,7 @@ export async function fuzzySearchJobs(
       ORDER BY similarity DESC, published_at DESC NULLS LAST
       LIMIT ${limit} OFFSET ${offset};
       `,
-      input.q,
-      categories,
-      ...(input.prefecture ? [input.prefecture] : []),
-      ...(input.employmentType ? [input.employmentType] : []),
-      ...(input.source ? [input.source] : []),
-      ...(input.publishedSince ? [input.publishedSince] : []),
-      ...(input.salaryMin ? [input.salaryMin] : []),
-      ...(input.salaryMax ? [input.salaryMax] : [])
+      ...params
     )
     return rows
   } catch (e) {

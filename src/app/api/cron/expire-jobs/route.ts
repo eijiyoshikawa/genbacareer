@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -49,7 +49,9 @@ export async function GET(request: Request) {
       .then(() => {
         renewed++
       })
-      .catch(() => null)
+      .catch((e) => {
+        console.error(`[cron/expire-jobs] renew failed for job ${j.id}:`, e)
+      })
   }
 
   // 2) auto_renew でないものは closed に

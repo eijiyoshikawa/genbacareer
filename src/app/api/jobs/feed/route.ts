@@ -4,8 +4,12 @@
  * 縦スワイプフィード (11.5) の追加読み込み用 API。
  * cursor は直前ページの末尾 jobId。それより rank が低い (or 同 rank なら publishedAt が古い) ものを返す。
  *
- * 簡略化のため、cursor は createdAt 降順で「指定 ID より古い」ものを返す
- * (rankScore のタイブレイクは厳密でなくても UX 上問題ない)。
+ * 一覧は rankScore DESC, publishedAt DESC でソートしているため、
+ * cursor によるフィルタも同じ複合キー (rankScore, publishedAt) で
+ * 行う必要がある。publishedAt だけで絞ると、rankScore が高いが
+ * publishedAt が新しい求人が次ページで重複表示されたり、逆に
+ * cursor と同じ publishedAt で rankScore が低い求人が永久に
+ * 除外されたりする。
  */
 
 import { type NextRequest } from "next/server"
@@ -28,21 +32,31 @@ export async function GET(request: NextRequest) {
   const cursor = searchParams.get("cursor")
 
   let cursorPublishedAt: Date | null = null
+  let cursorRankScore: number | null = null
   if (cursor) {
     const last = await prisma.job
       .findUnique({
         where: { id: cursor },
-        select: { publishedAt: true },
+        select: { publishedAt: true, rankScore: true },
       })
       .catch(() => null)
     cursorPublishedAt = last?.publishedAt ?? null
+    cursorRankScore = last?.rankScore ?? null
   }
 
   const jobs = await prisma.job.findMany({
     where: {
       status: "active",
-      ...(cursorPublishedAt
-        ? { publishedAt: { lt: cursorPublishedAt } }
+      ...(cursorPublishedAt !== null && cursorRankScore !== null
+        ? {
+            OR: [
+              { rankScore: { lt: cursorRankScore } },
+              {
+                rankScore: cursorRankScore,
+                publishedAt: { lt: cursorPublishedAt },
+              },
+            ],
+          }
         : {}),
     },
     orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],

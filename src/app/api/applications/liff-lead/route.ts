@@ -92,70 +92,87 @@ export async function POST(request: NextRequest) {
   const referer = request.headers.get("referer")
   const utm = extractUtmFromUrl(parsed.pageUrl ?? referer ?? "")
 
-  // lead 保存（lineUserId / lineDisplayName を直接バインド、status=line_added）
-  let leadId: string | null = null
-  try {
-    const lead = await prisma.lineLead.create({
-      data: {
+  // 二重送信対策: 同一求人 + LINE ユーザーの応募が直近 2 分以内にあれば新規作成
+  // せず既存の lead を使い回す（ダブルタップ / リトライで重複リード・重複 push
+  // が発生するのを防ぐ）。
+  const recentDuplicate = await prisma.lineLead
+    .findFirst({
+      where: {
         jobId: job.id,
+        lineUserId: parsed.lineUserId,
+        createdAt: { gte: new Date(Date.now() - 2 * 60 * 1000) },
+      },
+      select: { id: true },
+      orderBy: { createdAt: "desc" },
+    })
+    .catch(() => null)
+
+  // lead 保存（lineUserId / lineDisplayName を直接バインド、status=line_added）
+  let leadId: string | null = recentDuplicate?.id ?? null
+  if (!recentDuplicate) {
+    try {
+      const lead = await prisma.lineLead.create({
+        data: {
+          jobId: job.id,
+          name: parsed.name,
+          phone: parsed.phone,
+          email: parsed.email,
+          experienceYears: parsed.experienceYears ?? null,
+          notes: parsed.notes ?? null,
+          ipAddress: ip,
+          userAgent: request.headers.get("user-agent")?.slice(0, 500) ?? null,
+          sessionId,
+          utmSource: utm.source,
+          utmMedium: utm.medium,
+          utmCampaign: utm.campaign,
+          referer: referer?.slice(0, 500) ?? null,
+          lineUserId: parsed.lineUserId,
+          lineDisplayName: parsed.lineDisplayName ?? null,
+          status: "line_added",
+        },
+        select: { id: true },
+      })
+      leadId = lead.id
+
+      // 通知
+      void notifyNewLead({
+        leadId: lead.id,
         name: parsed.name,
         phone: parsed.phone,
         email: parsed.email,
         experienceYears: parsed.experienceYears ?? null,
         notes: parsed.notes ?? null,
-        ipAddress: ip,
-        userAgent: request.headers.get("user-agent")?.slice(0, 500) ?? null,
-        sessionId,
-        utmSource: utm.source,
-        utmMedium: utm.medium,
-        utmCampaign: utm.campaign,
-        referer: referer?.slice(0, 500) ?? null,
-        lineUserId: parsed.lineUserId,
-        lineDisplayName: parsed.lineDisplayName ?? null,
-        status: "line_added",
-      },
-      select: { id: true },
-    })
-    leadId = lead.id
-
-    // 通知
-    void notifyNewLead({
-      leadId: lead.id,
-      name: parsed.name,
-      phone: parsed.phone,
-      email: parsed.email,
-      experienceYears: parsed.experienceYears ?? null,
-      notes: parsed.notes ?? null,
-      job: {
-        id: job.id,
-        title: job.title,
-        prefecture: job.prefecture,
-        city: job.city,
-      },
-    })
-
-    // 受付確認 Push（LINE Messaging API 設定済みの場合）
-    if (isMessagingConfigured()) {
-      const ack = [
-        `${parsed.name} さん、ご応募ありがとうございます🎉`,
-        "",
-        "▼ 応募内容",
-        buildLineMessage({
-          jobId: job.id,
+        job: {
+          id: job.id,
           title: job.title,
           prefecture: job.prefecture,
           city: job.city,
-          helloworkId: job.helloworkId,
-        }),
-        "",
-        "担当より 1 営業日以内にこちらの LINE トークでご連絡いたします。",
-      ].join("\n")
-      void pushMessage(parsed.lineUserId, [{ type: "text", text: ack }]).catch(() => {})
+        },
+      })
+
+      // 受付確認 Push（LINE Messaging API 設定済みの場合）
+      if (isMessagingConfigured()) {
+        const ack = [
+          `${parsed.name} さん、ご応募ありがとうございます🎉`,
+          "",
+          "▼ 応募内容",
+          buildLineMessage({
+            jobId: job.id,
+            title: job.title,
+            prefecture: job.prefecture,
+            city: job.city,
+            helloworkId: job.helloworkId,
+          }),
+          "",
+          "担当より 1 営業日以内にこちらの LINE トークでご連絡いたします。",
+        ].join("\n")
+        void pushMessage(parsed.lineUserId, [{ type: "text", text: ack }]).catch(() => {})
+      }
+    } catch (e) {
+      console.error(
+        `[liff-lead] DB insert failed: ${e instanceof Error ? e.message : e}`
+      )
     }
-  } catch (e) {
-    console.error(
-      `[liff-lead] DB insert failed: ${e instanceof Error ? e.message : e}`
-    )
   }
 
   // おすすめ求人を 3 件

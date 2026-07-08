@@ -138,6 +138,29 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // 2.5 重複送信チェック（アプリケーション層の保険）。
+  // 本来は DB 側の partial unique index (scout_messages_active_unique,
+  // prisma/migrations/manual/scout_messages.sql) が保証するが、そのマイグレーション
+  // は `prisma migrate` の管理外で手動実行が必要なため、未適用の環境（新規 DB や
+  // `prisma db push` のみで構築した環境）では index が存在せず重複が素通りしてしまう。
+  // ここでの事前チェックは同時リクエストの完全なレースは防げないが、通常の
+  // 二重クリック等は防止できる。
+  const existingActive = await prisma.scoutMessage.findFirst({
+    where: {
+      companyId: auth.companyId,
+      jobId,
+      userId,
+      status: { notIn: ["expired", "declined"] },
+    },
+    select: { id: true },
+  })
+  if (existingActive) {
+    return NextResponse.json(
+      { error: "この求職者には既にアクティブなスカウトが送信済みです" },
+      { status: 409 },
+    )
+  }
+
   // 3. スカウト本体を作成
   const sentAt = new Date()
   const expiresAt = buildScoutExpiry(sentAt)

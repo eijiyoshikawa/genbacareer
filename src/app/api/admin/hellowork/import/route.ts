@@ -25,6 +25,7 @@
  */
 
 import { type NextRequest } from "next/server"
+import crypto from "crypto"
 import { fetchAllJobs } from "@/lib/crawler/hellowork"
 import { importHelloworkJobs } from "@/lib/crawler/import-batch"
 
@@ -41,8 +42,14 @@ function authenticateAdmin(request: NextRequest): boolean {
   const authHeader = request.headers.get("authorization")
   if (!authHeader) return false
   const [scheme, token] = authHeader.split(" ")
-  if (scheme?.toLowerCase() !== "bearer") return false
-  return token === apiKey
+  if (scheme?.toLowerCase() !== "bearer" || !token) return false
+  // timingSafeEqual は等長必須。長さ不一致は即 false。
+  if (token.length !== apiKey.length) return false
+  try {
+    return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(apiKey))
+  } catch {
+    return false
+  }
 }
 
 // ========================================

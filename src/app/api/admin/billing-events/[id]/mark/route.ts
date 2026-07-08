@@ -78,7 +78,11 @@ export async function POST(
 
   switch (parsed.data.action) {
     case "mark_invoiced": {
-      if (row.status !== "pending") {
+      // pending (通常フロー) に加え failed (MoneyForward 連携失敗後、admin が
+      // 手動で請求書を発行したケース) からも遷移可能にする。failed のままだと
+      // 一度失敗した採用は二度と請求書発行済みにマークできず、実質請求が
+      // 永久に宙に浮いてしまうため。
+      if (row.status !== "pending" && row.status !== "failed") {
         return Response.json(
           { error: `現在のステータス (${row.status}) からは請求書発行マークできません` },
           { status: 409 },

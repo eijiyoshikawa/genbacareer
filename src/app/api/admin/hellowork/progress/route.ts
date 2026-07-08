@@ -14,6 +14,7 @@
  */
 
 import { type NextRequest } from "next/server"
+import crypto from "crypto"
 import { syncDataIds } from "@/lib/crawler/rotation-planner"
 import { prisma } from "@/lib/db"
 
@@ -25,7 +26,14 @@ function authenticate(request: NextRequest): boolean {
   const auth = request.headers.get("authorization")
   if (!auth) return false
   const [scheme, token] = auth.split(" ")
-  return scheme?.toLowerCase() === "bearer" && token === apiKey
+  if (scheme?.toLowerCase() !== "bearer" || !token) return false
+  // timingSafeEqual は等長必須。長さ不一致は即 false。
+  if (token.length !== apiKey.length) return false
+  try {
+    return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(apiKey))
+  } catch {
+    return false
+  }
 }
 
 export async function GET(request: NextRequest) {
