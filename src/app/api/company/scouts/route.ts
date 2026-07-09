@@ -133,11 +133,19 @@ export async function POST(request: NextRequest) {
       name: true,
       status: true,
       jobSearchStatus: true,
+      profilePublic: true,
       notificationPrefs: true,
     },
   })
   if (!user) {
     return NextResponse.json({ error: "求職者が見つかりません" }, { status: 404 })
+  }
+
+  if (!user.profilePublic) {
+    return NextResponse.json(
+      { error: "この求職者はプロフィールを非公開に設定しているため、スカウトを送信できません" },
+      { status: 403 },
+    )
   }
 
   if (!canSendScout({ job, user })) {

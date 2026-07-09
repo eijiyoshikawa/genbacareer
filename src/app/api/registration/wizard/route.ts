@@ -31,7 +31,7 @@ const wizardSchema = z.object({
     experienceYears: z.string().optional(),
     companyCount: z.string().optional(),
     desiredPrefectures: z.array(z.string()).optional(),
-    desiredSalaryMin: z.number().optional(),
+    desiredSalaryMin: z.number().int().min(0).max(10_000_000).optional(),
     desiredTransferTiming: z.string().optional(),
     nameLast: z.string().min(1, "姓を入力してください"),
     nameFirst: z.string().min(1, "名を入力してください"),

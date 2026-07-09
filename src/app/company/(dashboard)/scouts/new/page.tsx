@@ -94,6 +94,7 @@ export default async function ScoutNewPage({ searchParams }: Props) {
         jobSearchStatus: true,
         prefecture: true,
         avatarUrl: true,
+        profilePublic: true,
       },
     }),
     prisma.scoutMessage.findFirst({
@@ -145,7 +146,11 @@ export default async function ScoutNewPage({ searchParams }: Props) {
 
         <p className="mt-4 text-xs font-bold text-gray-500">[求職者]</p>
         <div className="mt-1 flex items-center gap-3">
-          <CandidateAvatar avatarUrl={user.avatarUrl} name={user.name} size="sm" />
+          <CandidateAvatar
+            avatarUrl={user.profilePublic ? user.avatarUrl : null}
+            name={user.name}
+            size="sm"
+          />
           <div>
             <p className="font-bold text-ink-900">{user.name ?? "求職者"}</p>
             <p className="text-xs text-gray-500">
@@ -165,7 +170,13 @@ export default async function ScoutNewPage({ searchParams }: Props) {
         </div>
       )}
 
-      {!canSend && !existing && (
+      {!canSend && !existing && !user.profilePublic && (
+        <div className="mt-4 border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+          この求職者はプロフィールを非公開に設定しているため、スカウトを送信できません。
+        </div>
+      )}
+
+      {!canSend && !existing && user.profilePublic && (
         <div className="mt-4 border border-red-300 bg-red-50 p-3 text-sm text-red-700">
           現在この組合せでは送信できません。
           求人が active で、求職者が「求職中」または「在職中(スカウト歓迎)」のときのみ送信できます。

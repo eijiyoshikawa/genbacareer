@@ -17,7 +17,7 @@ const updateProfileSchema = z.object({
   city: z.string().max(50).nullable().optional(),
   birthDate: z.string().nullable().optional(),
   desiredCategories: z.array(z.string()).optional(),
-  desiredSalaryMin: z.number().int().min(0).nullable().optional(),
+  desiredSalaryMin: z.number().int().min(0).max(10_000_000).nullable().optional(),
   profilePublic: z.boolean().optional(),
   jobSearchStatus: z.enum(JOB_SEARCH_STATUS_VALUES).optional(),
   blockedCompanyIds: z.array(z.string().uuid()).max(200).optional(),
