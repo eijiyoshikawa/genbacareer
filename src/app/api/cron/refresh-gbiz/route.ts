@@ -12,7 +12,7 @@ import { fetchSnapshot, isGbizConfigured } from "@/lib/gbizinfo"
  *
  * Vercel Cron Jobs 設定例 (vercel.json):
  *   { "path": "/api/cron/refresh-gbiz", "schedule": "0 3 1 * *" }
- *   → 毎月 1 日 03:00 JST に実行
+ *   → cron 式は UTC のため、毎月 1 日 03:00 UTC (= 12:00 JST) に実行
  *
  * Authorization: Bearer ${CRON_SECRET} で認証。
  */

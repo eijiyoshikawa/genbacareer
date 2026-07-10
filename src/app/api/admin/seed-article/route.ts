@@ -44,7 +44,9 @@ const ARTICLE_BODY = `<p>建設業界は2026年現在、国内総生産（GDP）
 export async function POST(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // CRON_SECRET 未設定時も含めて必ず検証する（fail-closed）。
+  // 他の /api/admin, /api/cron エンドポイントと同様、未設定なら常に拒否する。
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

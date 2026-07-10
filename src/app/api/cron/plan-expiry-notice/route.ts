@@ -59,6 +59,15 @@ export async function GET(request: Request) {
   for (const c of companies) {
     if (!c.planPaidUntil) continue
 
+    // 重複実行 (Vercel Cron の再試行等) でも二重送信しないよう、
+    // メール送信前に planExpiryNotifiedAt を条件付きで先取りする。
+    // 既に他の実行が同じ企業を掴んでいれば count=0 になりスキップする。
+    const claimed = await prisma.company.updateMany({
+      where: { id: c.id, planExpiryNotifiedAt: null },
+      data: { planExpiryNotifiedAt: now },
+    })
+    if (claimed.count === 0) continue
+
     const planLabel = PLAN_LABELS[c.planType as PlanType] ?? c.planType
     const billingUrl = `${baseUrl()}/company/billing`
     const expiryStr = c.planPaidUntil.toLocaleDateString("ja-JP", {
@@ -110,10 +119,6 @@ export async function GET(request: Request) {
       })
     }
 
-    await prisma.company.update({
-      where: { id: c.id },
-      data: { planExpiryNotifiedAt: now },
-    })
     notified += 1
   }
 

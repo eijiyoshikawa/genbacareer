@@ -78,7 +78,11 @@ export async function POST(
 
   switch (parsed.data.action) {
     case "mark_invoiced": {
-      if (row.status !== "pending") {
+      // pending からの正常遷移に加え、failed からも遷移可能にする。
+      // MF 側では請求書発行に成功したが、直後の DB 書き込みが失敗して
+      // failed のまま残るケースがあるため（実際には請求書が存在するのに
+      // アプリ側では追跡できない状態を admin が手動で復旧する）。
+      if (row.status !== "pending" && row.status !== "failed") {
         return Response.json(
           { error: `現在のステータス (${row.status}) からは請求書発行マークできません` },
           { status: 409 },

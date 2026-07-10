@@ -125,15 +125,24 @@ async function appendLedger(
     refId?: string | null
   },
 ): Promise<number> {
-  const user = await tx.user.findUnique({
-    where: { id: args.userId },
-    select: { pointBalance: true },
-  })
-  if (!user) return 0
-  const newBalance = user.pointBalance + args.delta
-  if (newBalance < 0) {
+  // 残高の read-then-write は同時リクエスト下で lost update を起こす
+  // （例: 抽選の同時連打で残高が 1 回分しか減らないのに複数回当選できてしまう）。
+  // WHERE 句に残高条件を含む単一 UPDATE 文にすることで、行ロックにより
+  // 同時実行時も後続の更新が最新残高を見てから判定するようにする。
+  const rows = await tx.$queryRaw<Array<{ point_balance: number }>>(Prisma.sql`
+    UPDATE "users" SET "point_balance" = "point_balance" + ${args.delta}
+    WHERE "id" = ${args.userId}::uuid AND "point_balance" + ${args.delta} >= 0
+    RETURNING "point_balance"
+  `)
+  if (rows.length === 0) {
+    const exists = await tx.user.findUnique({
+      where: { id: args.userId },
+      select: { id: true },
+    })
+    if (!exists) return 0
     throw new PointError("INSUFFICIENT_BALANCE", "ポイントが不足しています")
   }
+  const newBalance = rows[0].point_balance
   try {
     await tx.pointLedger.create({
       data: {
@@ -146,16 +155,17 @@ async function appendLedger(
       },
     })
   } catch (e) {
-    // 冪等キー重複（既に付与済み）は正常系としてスキップ
+    // 冪等キー重複（既に付与済み）は正常系としてスキップ。
+    // 既に確保した残高分は巻き戻す（付与しない分だけ加算していたため）。
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      await tx.user.update({
+        where: { id: args.userId },
+        data: { pointBalance: { decrement: args.delta } },
+      })
       return 0
     }
     throw e
   }
-  await tx.user.update({
-    where: { id: args.userId },
-    data: { pointBalance: newBalance },
-  })
   return args.delta
 }
 
@@ -346,7 +356,7 @@ async function hasWinnableStock(
   client: Prisma.TransactionClient | typeof prisma,
 ): Promise<boolean> {
   const prizes = await client.lotteryPrize.findMany({
-    where: { active: true, kind: { not: "none" } },
+    where: { active: true, kind: { not: "none" }, weight: { gt: 0 } },
     select: { id: true, kind: true, stock: true },
   })
   for (const p of prizes) {
@@ -374,6 +384,11 @@ export async function drawLottery(
 ): Promise<LotteryResult> {
   // 1) ポイント消費・当選判定・コード割り当てを 1 トランザクションで原子的に処理
   const res = await prisma.$transaction(async (tx) => {
+    // 同一ユーザーの同時抽選をトランザクション単位で直列化する。
+    // これが無いと「1 日の抽選回数上限」チェック (count → create) が
+    // TOCTOU になり、同時連打で上限を超えて抽選できてしまう。
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId})::bigint)`
+
     // 当選景品の在庫切れ時は抽選を停止（ポイントは消費しない）
     if (!(await hasWinnableStock(tx))) {
       throw new PointError(
