@@ -28,11 +28,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   driver: "ドライバー・重機",
   management: "施工管理・現場監督",
   survey: "測量・設計",
-  manufacturing: "製造・工場",
-  office: "事務",
-  sales: "営業・販売",
-  service: "サービス・接客",
-  it: "IT・エンジニア",
   other: "その他",
 }
 
@@ -52,7 +47,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const prefLabel = PREFECTURES[prefecture]
 
   if (!prefLabel) {
-    return { title: "ページが見つかりません" }
+    return {
+      title: "ページが見つかりません",
+      robots: { index: false, follow: false },
+    }
   }
 
   const title = `${prefLabel}の求人一覧`

@@ -32,7 +32,10 @@ export async function generateMetadata({
 }: Props): Promise<Metadata> {
   const { audience } = await params
   if (audience !== "seeker" && audience !== "employer") {
-    return { title: "ページが見つかりません" }
+    return {
+      title: "ページが見つかりません",
+      robots: { index: false, follow: false },
+    }
   }
   const label = AUDIENCE_LABELS[audience]
   return {

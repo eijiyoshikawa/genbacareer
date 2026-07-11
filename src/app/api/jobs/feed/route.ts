@@ -11,6 +11,7 @@
 import { type NextRequest } from "next/server"
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
+import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 
 const PAGE_SIZE = 10
 
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
   const jobs = await prisma.job.findMany({
     where: {
       status: "active",
+      category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
       ...(cursorPublishedAt
         ? { publishedAt: { lt: cursorPublishedAt } }
         : {}),

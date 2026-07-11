@@ -26,6 +26,9 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { kjno } = await params
   const result = await safeFetch(() => getHwJob(kjno))
+  if (!result.ok && result.reason === "not-found") {
+    return { title: "求人詳細", robots: { index: false, follow: false } }
+  }
   if (!result.ok || !result.data?.job) {
     return { title: "求人詳細" }
   }

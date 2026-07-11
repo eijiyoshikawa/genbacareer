@@ -42,7 +42,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       updatedAt: true,
     },
   })
-  if (!article) return { title: "記事が見つかりません" }
+  if (!article)
+    return {
+      title: "記事が見つかりません",
+      robots: { index: false, follow: false },
+    }
 
   const description =
     article.metaDescription ?? article.excerpt ?? undefined

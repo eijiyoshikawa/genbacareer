@@ -17,6 +17,7 @@ export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
   title: "スカウト詳細",
+  robots: { index: false, follow: false },
 }
 
 type Props = {

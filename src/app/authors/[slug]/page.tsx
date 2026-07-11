@@ -33,7 +33,11 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const author = getAuthorBySlug(slug)
-  if (!author) return { title: "著者が見つかりません" }
+  if (!author)
+    return {
+      title: "著者が見つかりません",
+      robots: { index: false, follow: false },
+    }
   return {
     title: `${author.name} | ${author.role}`,
     description: author.bio,

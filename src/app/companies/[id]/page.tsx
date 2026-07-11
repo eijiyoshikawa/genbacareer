@@ -34,7 +34,11 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  if (!isValidUuid(id)) return { title: "企業が見つかりません" }
+  if (!isValidUuid(id))
+    return {
+      title: "企業が見つかりません",
+      robots: { index: false, follow: false },
+    }
   const company = await prisma.company
     .findUnique({
       where: { id },
@@ -51,7 +55,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .catch(() => null)
 
   if (!company || company.status !== "approved" || company.source !== "direct") {
-    return { title: "企業が見つかりません" }
+    return {
+      title: "企業が見つかりません",
+      robots: { index: false, follow: false },
+    }
   }
 
   const title = `${company.name} の企業情報・求人 | ゲンバキャリア`

@@ -35,7 +35,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category } = await params
   const cat = CATEGORIES.find((c) => c.value === category)
   if (!cat || !isConstructionCategory(category)) {
-    return { title: "ページが見つかりません" }
+    return {
+      title: "ページが見つかりません",
+      robots: { index: false, follow: false },
+    }
   }
 
   const title = `全国の${cat.label}求人 | ゲンバキャリア`

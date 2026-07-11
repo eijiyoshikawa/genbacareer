@@ -22,7 +22,10 @@ export async function generateMetadata({
 }: Props): Promise<Metadata> {
   const { audience, slug } = await params
   if (audience !== "seeker" && audience !== "employer") {
-    return { title: "ページが見つかりません" }
+    return {
+      title: "ページが見つかりません",
+      robots: { index: false, follow: false },
+    }
   }
 
   const article = await prisma.article.findFirst({
@@ -36,7 +39,10 @@ export async function generateMetadata({
   })
 
   if (!article || article.category !== helpCategory(audience)) {
-    return { title: "ページが見つかりません" }
+    return {
+      title: "ページが見つかりません",
+      robots: { index: false, follow: false },
+    }
   }
 
   return {

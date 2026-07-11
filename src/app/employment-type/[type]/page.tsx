@@ -35,7 +35,11 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { type } = await params
   const lp = getEmploymentLpBySlug(type)
-  if (!lp) return { title: "ページが見つかりません" }
+  if (!lp)
+    return {
+      title: "ページが見つかりません",
+      robots: { index: false, follow: false },
+    }
   return {
     title: lp.heading,
     description: lp.description,

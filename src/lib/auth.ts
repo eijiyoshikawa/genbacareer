@@ -254,7 +254,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (user.email) {
           const existing = await prisma.user.findUnique({
             where: { email: user.email },
-            select: { id: true, emailVerified: true },
+            select: { id: true, emailVerified: true, status: true },
           })
           if (!existing) {
             // OAuth プロバイダ経由のメールは確認済みとみなす（Google/LINE が検証済みのため）
@@ -269,6 +269,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             user.id = created.id
             ;(user as { role?: string }).role = "seeker"
           } else {
+            // 凍結 / 退会済アカウントは OAuth 経由でもログイン拒否
+            // (seeker-credentials と同じ制御。ここが抜けると凍結を素通りできてしまう)
+            if (existing.status === "suspended" || existing.status === "deleted") {
+              return false
+            }
             // 既存ユーザーが OAuth で初めてログインした場合も emailVerified を埋める
             if (!existing.emailVerified) {
               await prisma.user.update({

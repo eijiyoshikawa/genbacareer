@@ -78,7 +78,9 @@ export async function POST(
 
   switch (parsed.data.action) {
     case "mark_invoiced": {
-      if (row.status !== "pending") {
+      // "failed" (MoneyForward 連携失敗) からも手動発行で復旧できるようにする。
+      // でないと失敗した BillingEvent が永久に未回収のまま残ってしまう。
+      if (row.status !== "pending" && row.status !== "failed") {
         return Response.json(
           { error: `現在のステータス (${row.status}) からは請求書発行マークできません` },
           { status: 409 },

@@ -13,6 +13,10 @@
  *      → admin 承認済の戻入だが credit note 未発行
  *      → MF で credit note 発行 → /admin/early-resignations で「返金処理済」マーク
  *
+ *   D. BillingEvent.status = 'failed'
+ *      → MoneyForward 連携失敗 (env 未設定 / API エラー)。放置すると永久に未回収になるため、
+ *        pending と同様に「発行済をマーク」で手動発行 → 復旧できるようにする。
+ *
  * 各エントリに金額を併記し、企業別に小計を取る。
  */
 
@@ -21,7 +25,7 @@ import Link from "next/link"
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import type { Metadata } from "next"
-import { FileText, CheckCircle, RefreshCcw } from "lucide-react"
+import { FileText, CheckCircle, RefreshCcw, AlertTriangle } from "lucide-react"
 import { MarkBillingButton } from "./mark-billing-button"
 
 export const dynamic = "force-dynamic"
@@ -35,7 +39,7 @@ export default async function AdminBillingTodoPage() {
   const role = (session?.user as { role?: string } | undefined)?.role
   if (role !== "admin") redirect("/login")
 
-  const [pending, invoiced, refundApproved] = await Promise.all([
+  const [pending, invoiced, refundApproved, failed] = await Promise.all([
     // A. 採用確定 → 請求書未発行
     prisma.billingEvent.findMany({
       where: { status: "pending" },
@@ -90,11 +94,31 @@ export default async function AdminBillingTodoPage() {
         job: { select: { title: true } },
       },
     }),
+    // D. MoneyForward 連携失敗 → 手動発行での復旧待ち
+    prisma.billingEvent.findMany({
+      where: { status: "failed" },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        amount: true,
+        createdAt: true,
+        company: { select: { id: true, name: true } },
+        application: {
+          select: {
+            id: true,
+            hiredAt: true,
+            user: { select: { name: true } },
+            job: { select: { title: true } },
+          },
+        },
+      },
+    }),
   ])
 
   const pendingTotal = pending.reduce((sum, r) => sum + r.amount, 0)
   const invoicedTotal = invoiced.reduce((sum, r) => sum + r.amount, 0)
   const refundTotal = refundApproved.reduce((sum, r) => sum + r.refundAmount, 0)
+  const failedTotal = failed.reduce((sum, r) => sum + r.amount, 0)
 
   // 企業別小計 (pending のみ、ダッシュボードに出すため)
   const byCompany = new Map<string, { name: string; total: number; count: number }>()
@@ -120,7 +144,7 @@ export default async function AdminBillingTodoPage() {
       </p>
 
       {/* サマリー */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div className="mt-6 grid gap-4 sm:grid-cols-4">
         <StatCard
           icon={<FileText className="h-5 w-5 text-amber-700" />}
           label="請求書発行待ち"
@@ -141,6 +165,13 @@ export default async function AdminBillingTodoPage() {
           amount={refundTotal}
           count={refundApproved.length}
           className="border-red-300 bg-red-50"
+        />
+        <StatCard
+          icon={<AlertTriangle className="h-5 w-5 text-rose-700" />}
+          label="MF連携失敗 (要復旧)"
+          amount={failedTotal}
+          count={failed.length}
+          className="border-rose-400 bg-rose-50"
         />
       </div>
 
@@ -317,6 +348,56 @@ export default async function AdminBillingTodoPage() {
                     >
                       → 戻入申請ページで処理
                     </Link>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* D. failed */}
+      <section className="mt-10">
+        <h2 className="text-lg font-bold text-gray-900">
+          <AlertTriangle className="mr-2 inline-block h-5 w-5 text-rose-700" />
+          D. MoneyForward 連携失敗 — 要手動復旧 ({failed.length} 件)
+        </h2>
+        {failed.length === 0 ? (
+          <div className="mt-3 border bg-warm-50 p-6 text-center text-sm text-gray-500">
+            復旧待ちの失敗はありません。
+          </div>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {failed.map((r) => (
+              <li key={r.id} className="border border-rose-300 bg-rose-50 p-4 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-gray-900">
+                      <Link
+                        href={`/admin/companies/${r.company.id}`}
+                        className="hover:underline"
+                      >
+                        {r.company.name}
+                      </Link>
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      採用者: {r.application.user.name ?? "—"} ・ 求人:{" "}
+                      {r.application.job?.title ?? "—"}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      採用確定:{" "}
+                      {r.application.hiredAt?.toLocaleDateString("ja-JP", {
+                        timeZone: "Asia/Tokyo",
+                      }) ?? "—"}
+                      {" / "}
+                      請求発生: {r.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xl font-bold text-rose-700">
+                      ¥{r.amount.toLocaleString()}
+                    </p>
+                    <MarkBillingButton id={r.id} action="mark_invoiced" />
                   </div>
                 </div>
               </li>

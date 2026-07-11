@@ -52,7 +52,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const catLabel = CATEGORIES[category]
 
   if (!prefLabel || !catLabel) {
-    return { title: "ページが見つかりません" }
+    return {
+      title: "ページが見つかりません",
+      robots: { index: false, follow: false },
+    }
+  }
+
+  if (!isConstructionCategory(category)) {
+    return {
+      title: "ページが見つかりません",
+      robots: { index: false, follow: false },
+    }
   }
 
   const title = `${prefLabel}の${catLabel}求人一覧`

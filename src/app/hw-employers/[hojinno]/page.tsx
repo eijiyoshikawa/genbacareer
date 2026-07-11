@@ -20,6 +20,9 @@ const DEFAULT_LIMIT = 20
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { hojinno } = await params
   const result = await safeFetch(() => getHwEmployerJobs(hojinno, { limit: 1 }))
+  if (!result.ok && result.reason === "not-found") {
+    return { title: "事業所", robots: { index: false, follow: false } }
+  }
   if (!result.ok || !result.data?.employer?.name) {
     return { title: "事業所" }
   }

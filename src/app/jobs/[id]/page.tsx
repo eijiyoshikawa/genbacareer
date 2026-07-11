@@ -67,12 +67,20 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  if (!isValidUuid(id)) return { title: "求人が見つかりません" }
+  if (!isValidUuid(id))
+    return {
+      title: "求人が見つかりません",
+      robots: { index: false, follow: false },
+    }
   const job = await prisma.job.findUnique({
     where: { id },
     select: { title: true, prefecture: true, category: true },
   })
-  if (!job) return { title: "求人が見つかりません" }
+  if (!job)
+    return {
+      title: "求人が見つかりません",
+      robots: { index: false, follow: false },
+    }
   return {
     title: job.title,
     description: `${job.prefecture}の${job.title}の求人詳細。ゲンバキャリアで建設業界の最新求人をチェック。`,

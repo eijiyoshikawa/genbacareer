@@ -17,7 +17,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     where: { id },
     select: { title: true },
   })
-  if (!job) return { title: "求人が見つかりません" }
+  if (!job)
+    return {
+      title: "求人が見つかりません",
+      robots: { index: false, follow: false },
+    }
   return { title: `${job.title} に応募` }
 }
 
