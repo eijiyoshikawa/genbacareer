@@ -32,6 +32,22 @@ const schema = z.object({
   planNotes: z.string().max(500).nullable(),
 })
 
+/**
+ * 管理画面の `<input type="date">` は "YYYY-MM-DD" のみを渡してくる。
+ * `new Date("YYYY-MM-DD")` は UTC 深夜 0 時として解釈されてしまい
+ * (= JST では同日 9 時)、expire-plans cron (毎日 14 時 JST 実行) が
+ * 「契約終了日」当日の午後にプランを失効させてしまう (契約終了日の
+ * 残り時間を切り捨てる形になる)。日付のみの入力は JST の当日 23:59:59
+ * として扱うことで、契約終了日いっぱいプランが有効な状態を保つ。
+ * ISO datetime (時刻付き) が渡された場合はそのまま解釈する。
+ */
+function parsePlanDate(value: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T23:59:59+09:00`)
+  }
+  return new Date(value)
+}
+
 async function requireAdmin() {
   const session = await auth()
   if (!session?.user) return null
@@ -105,7 +121,7 @@ export async function POST(
   }
 
   // planActivatedAt が未指定 + planType 変更時は now() を入れる
-  let activatedAt: Date | null = planActivatedAt ? new Date(planActivatedAt) : null
+  let activatedAt: Date | null = planActivatedAt ? parsePlanDate(planActivatedAt) : null
   if (!activatedAt) {
     if (company.planType !== planType) {
       activatedAt = new Date()
@@ -118,7 +134,7 @@ export async function POST(
     where: { id },
     data: {
       planType,
-      planPaidUntil: planPaidUntil ? new Date(planPaidUntil) : null,
+      planPaidUntil: planPaidUntil ? parsePlanDate(planPaidUntil) : null,
       planActivatedAt: activatedAt,
       planPrepaidFull,
       planNotes,

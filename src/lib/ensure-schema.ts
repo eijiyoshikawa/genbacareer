@@ -516,6 +516,15 @@ const STATEMENTS: ReadonlyArray<string> = [
     ON "gift_codes" ("prize_id", "code")`,
  `CREATE INDEX IF NOT EXISTS "idx_gift_codes_prize_status"
     ON "gift_codes" ("prize_id", "status")`,
+ // scout_messages: 「同じ求人・同じ求職者にアクティブなスカウトは 1 件のみ」を
+ // DB レベルで保証する partial unique index。schema.prisma では表現できない
+ // (Prisma は filtered/partial unique index 未対応) ため、prisma/migrations/manual/
+ // scout_messages.sql の手動実行に依存していたが、db push / migrate reset のみで
+ // 構築した環境ではこの制約が欠落し、重複スカウト送信を防げなくなる。
+ // ensureSchema の自動実行対象に含めて確実に反映されるようにする。
+ `CREATE UNIQUE INDEX IF NOT EXISTS "scout_messages_active_unique"
+    ON "scout_messages" ("company_id", "job_id", "user_id")
+    WHERE status NOT IN ('expired', 'declined')`,
 ]
 
 let inflight: Promise<boolean> | null = null

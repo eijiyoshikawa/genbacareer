@@ -54,7 +54,7 @@ describe("canSendScout", () => {
     expect(
       canSendScout({
         job: { status: "active" },
-        user: { status: "active", jobSearchStatus: "searching" },
+        user: { status: "active", jobSearchStatus: "searching", profilePublic: true },
       }),
     ).toBe(true)
   })
@@ -63,7 +63,7 @@ describe("canSendScout", () => {
     expect(
       canSendScout({
         job: { status: "active" },
-        user: { status: "active", jobSearchStatus: "employed_open" },
+        user: { status: "active", jobSearchStatus: "employed_open", profilePublic: true },
       }),
     ).toBe(true)
   })
@@ -72,7 +72,7 @@ describe("canSendScout", () => {
     expect(
       canSendScout({
         job: { status: "closed" },
-        user: { status: "active", jobSearchStatus: "searching" },
+        user: { status: "active", jobSearchStatus: "searching", profilePublic: true },
       }),
     ).toBe(false)
   })
@@ -81,7 +81,7 @@ describe("canSendScout", () => {
     expect(
       canSendScout({
         job: { status: "active" },
-        user: { status: "active", jobSearchStatus: "hired" },
+        user: { status: "active", jobSearchStatus: "hired", profilePublic: true },
       }),
     ).toBe(false)
   })
@@ -90,7 +90,16 @@ describe("canSendScout", () => {
     expect(
       canSendScout({
         job: { status: "active" },
-        user: { status: "suspended", jobSearchStatus: "searching" },
+        user: { status: "suspended", jobSearchStatus: "searching", profilePublic: true },
+      }),
+    ).toBe(false)
+  })
+
+  it("returns false when profile is not public, even if otherwise eligible", () => {
+    expect(
+      canSendScout({
+        job: { status: "active" },
+        user: { status: "active", jobSearchStatus: "searching", profilePublic: false },
       }),
     ).toBe(false)
   })

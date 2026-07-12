@@ -10,7 +10,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 
-type Action = "mark_invoiced" | "mark_paid" | "mark_failed"
+type Action = "mark_invoiced" | "mark_paid" | "mark_failed" | "mark_retry"
 
 export function MarkBillingButton({
   id,
@@ -31,14 +31,18 @@ export function MarkBillingButton({
       ? "発行済をマーク"
       : action === "mark_paid"
         ? "入金確認"
-        : "失敗マーク"
+        : action === "mark_retry"
+          ? "再試行 (発行待ちに戻す)"
+          : "失敗マーク"
 
   const bgClass =
     action === "mark_invoiced"
       ? "bg-amber-600 hover:bg-amber-700"
       : action === "mark_paid"
         ? "bg-green-600 hover:bg-green-700"
-        : "bg-red-600 hover:bg-red-700"
+        : action === "mark_retry"
+          ? "bg-blue-600 hover:bg-blue-700"
+          : "bg-red-600 hover:bg-red-700"
 
   async function submit() {
     setError("")

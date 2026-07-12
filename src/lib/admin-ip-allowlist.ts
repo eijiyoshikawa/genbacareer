@@ -9,7 +9,9 @@
  *
  * - IPv4 / IPv6 / CIDR 表記対応 (CIDR は単純なプレフィックスマッチ)
  * - 開発環境 (NODE_ENV !== "production") では loopback (127.0.0.1, ::1) を常に許可
- * - Vercel 経由の場合 `x-forwarded-for` 先頭がクライアント IP
+ * - `x-forwarded-for` はクライアントが任意の値を送信できるため信頼しない。
+ *   Vercel のエッジが上書き設定する `x-vercel-forwarded-for` (常に実際の
+ *   接続元 IP 一つだけが入る) を優先して使う。
  */
 
 const LOOPBACK_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"])
@@ -24,15 +26,28 @@ export function parseAllowlist(envValue: string | undefined): string[] {
 
 /**
  * リクエストヘッダからクライアント IP を抽出する。
- * Vercel は `x-forwarded-for` をセットする。先頭 (左端) が元クライアント。
+ *
+ * `x-forwarded-for` はクライアントが自由に送信できるヘッダであり、
+ * 先頭 (左端) の値を信用すると `X-Forwarded-For: <allowlist内IP>` を
+ * 付けて送るだけで allowlist をすり抜けられてしまう。
+ * Vercel のエッジは接続元 IP を `x-vercel-forwarded-for` に
+ * (クライアントからは上書き不可能な形で) セットするため、これを優先する。
+ * 同ヘッダが無い環境向けのフォールバックとして、`x-forwarded-for` を使う
+ * 場合は最後 (直近のプロキシが追記した値) を採用する。
  */
 export function extractClientIp(headers: {
   get(name: string): string | null
 }): string | null {
+  const vercelIp = headers.get("x-vercel-forwarded-for")
+  if (vercelIp) {
+    const first = vercelIp.split(",")[0]?.trim()
+    if (first) return first
+  }
   const xff = headers.get("x-forwarded-for")
   if (xff) {
-    const first = xff.split(",")[0]?.trim()
-    if (first) return first
+    const parts = xff.split(",").map((s) => s.trim()).filter(Boolean)
+    const last = parts[parts.length - 1]
+    if (last) return last
   }
   const xri = headers.get("x-real-ip")
   if (xri) return xri.trim()

@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
       name: true,
       status: true,
       jobSearchStatus: true,
+      profilePublic: true,
       notificationPrefs: true,
     },
   })

@@ -62,11 +62,19 @@ export async function POST(request: NextRequest) {
   }
 
   // LIFF access token の verify（なりすまし防止）
+  // トークンが有効なだけでなく、その持ち主 (profile API が返す userId) が
+  // クライアント申告の lineUserId と一致することまで確認する。
   if (isLiffServerConfigured()) {
     const v = await verifyLiffAccessToken(parsed.accessToken)
     if (!v.ok) {
       return Response.json(
         { error: "invalid_liff_token", reason: v.reason },
+        { status: 401 }
+      )
+    }
+    if (v.userId !== parsed.lineUserId) {
+      return Response.json(
+        { error: "invalid_liff_token", reason: "user_id_mismatch" },
         { status: 401 }
       )
     }

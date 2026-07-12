@@ -172,15 +172,19 @@ export function middleware(request: NextRequest) {
     "/company/candidates",
   ]
   const adminRoutes = ["/admin"]
+  // /api/admin/* は画面ではなく API だが、有効なセッション Cookie さえあれば
+  // IP 制限をすり抜けて叩けてしまわないよう、IP allowlist の適用範囲には含める
+  // (ログイン画面リダイレクト等の isAdminRoute とは別枠で扱う)。
+  const adminIpGatedRoutes = ["/admin", "/api/admin"]
 
   const isSeekerRoute = seekerRoutes.some((r) => pathname.startsWith(r))
   const isCompanyRoute = companyRoutes.some((r) => pathname.startsWith(r))
   const isAdminRoute =
     adminRoutes.some((r) => pathname.startsWith(r)) && pathname !== "/admin/login"
-  const isAdminAnyRoute = adminRoutes.some((r) => pathname.startsWith(r))
+  const isAdminAnyRoute = adminIpGatedRoutes.some((r) => pathname.startsWith(r))
 
-  // /admin/* への IP allowlist 制御。ADMIN_IP_ALLOWLIST 未設定なら無制限。
-  // 設定済みなら /admin/login 含めて全 /admin パスに適用 (ブルートフォース防御も兼ねる)。
+  // /admin/* + /api/admin/* への IP allowlist 制御。ADMIN_IP_ALLOWLIST 未設定なら無制限。
+  // 設定済みなら /admin/login 含めて全パスに適用 (ブルートフォース防御も兼ねる)。
   if (isAdminAnyRoute) {
     const allowlist = parseAllowlist(process.env.ADMIN_IP_ALLOWLIST)
     if (allowlist.length > 0) {

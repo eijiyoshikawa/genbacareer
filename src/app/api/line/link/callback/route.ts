@@ -111,12 +111,18 @@ export async function GET(request: NextRequest) {
 
   // 4. 紐付け
   const email = (session?.user as { email?: string } | undefined)?.email ?? null
-  await bindLineUserToAccount({
+  const result = await bindLineUserToAccount({
     userId: sessionUserId,
     lineUserId: sub,
     displayName,
     email,
   })
+  if (result === "already_linked_to_other_account") {
+    return fail(request, "already_linked_elsewhere")
+  }
+  if (result === "error") {
+    return fail(request, "link_failed")
+  }
 
   // Cookie を破棄して完了画面へ（new Response でヘッダを組み立てる）
   return new Response(null, {

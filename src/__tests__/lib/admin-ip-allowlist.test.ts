@@ -29,9 +29,18 @@ describe("extractClientIp", () => {
     }
   }
 
-  it("returns first IP from x-forwarded-for", () => {
+  it("prefers x-vercel-forwarded-for (edge-set, not client-spoofable)", () => {
+    const h = mockHeaders({
+      "x-vercel-forwarded-for": "9.9.9.9",
+      "x-forwarded-for": "1.2.3.4, 10.0.0.1",
+    })
+    expect(extractClientIp(h)).toBe("9.9.9.9")
+  })
+
+  it("falls back to the LAST entry of x-forwarded-for, not the client-controlled first entry", () => {
+    // クライアントが自称する先頭値ではなく、直近のプロキシが追記した末尾を信用する
     const h = mockHeaders({ "x-forwarded-for": "1.2.3.4, 10.0.0.1" })
-    expect(extractClientIp(h)).toBe("1.2.3.4")
+    expect(extractClientIp(h)).toBe("10.0.0.1")
   })
 
   it("falls back to x-real-ip", () => {
@@ -39,7 +48,7 @@ describe("extractClientIp", () => {
     expect(extractClientIp(h)).toBe("5.6.7.8")
   })
 
-  it("returns null when both headers missing", () => {
+  it("returns null when all headers missing", () => {
     expect(extractClientIp(mockHeaders({}))).toBeNull()
   })
 })

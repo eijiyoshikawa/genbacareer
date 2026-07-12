@@ -72,22 +72,41 @@ export function verifyLinkState(state: string | null): string | null {
  * - 同 lineUserId の LineLead があれば status/displayName を更新
  * - 無ければ「フォロワー」レコードを作成（email は User の実 email を入れ、
  *   email→LineLead 突き合わせのブロードキャスト/通知でも到達できるように）
+ *
+ * @returns "linked" | "already_linked_to_other_account" | "error"
+ *   同じ lineUserId が既に別の User に紐付いている場合は上書きしない。
+ *   上書きすると 1 つの LINE アカウントが複数の User に紐付いた状態になり、
+ *   auth.ts の LINE ログイン解決 (findFirst + orderBy createdAt asc) が
+ *   意図しないアカウントへログインさせてしまう恐れがあるため。
  */
 export async function bindLineUserToAccount(input: {
   userId: string
   lineUserId: string
   displayName: string | null
   email: string | null
-}): Promise<void> {
+}): Promise<"linked" | "already_linked_to_other_account" | "error"> {
   const { userId, lineUserId, displayName, email } = input
+
+  const conflictingOwner = await prisma.user
+    .findFirst({ where: { lineUserId }, select: { id: true } })
+    .catch(() => null)
+  if (conflictingOwner && conflictingOwner.id !== userId) {
+    console.warn(
+      `[line-link] lineUserId ${lineUserId} already linked to a different user (${conflictingOwner.id}); refusing to relink to ${userId}`
+    )
+    return "already_linked_to_other_account"
+  }
 
   // 1. User 本体へ保存（raw: Prisma Client 未再生成の環境でも動くよう updateMany 経由でなく
   //    型付き update を使う。lineUserId は schema に追加済み）
-  await prisma.user
+  const updated = await prisma.user
     .update({ where: { id: userId }, data: { lineUserId } })
-    .catch((e) =>
+    .then(() => true)
+    .catch((e) => {
       console.warn(`[line-link] user update failed: ${e instanceof Error ? e.message : e}`)
-    )
+      return false
+    })
+  if (!updated) return "error"
 
   // 2. LineLead 側へ反映（既存があれば更新、無ければフォロワー作成）
   const existing = await prisma.lineLead
@@ -101,7 +120,7 @@ export async function bindLineUserToAccount(input: {
         data: { lineDisplayName: displayName ?? undefined },
       })
       .catch(() => {})
-    return
+    return "linked"
   }
 
   await prisma.lineLead
@@ -118,4 +137,5 @@ export async function bindLineUserToAccount(input: {
     .catch((e) =>
       console.warn(`[line-link] lead upsert failed: ${e instanceof Error ? e.message : e}`)
     )
+  return "linked"
 }

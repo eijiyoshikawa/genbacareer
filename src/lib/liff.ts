@@ -8,6 +8,7 @@
  */
 
 const VERIFY_URL = "https://api.line.me/oauth2/v2.1/verify"
+const PROFILE_URL = "https://api.line.me/v2/profile"
 
 function getLiffChannelId(): string {
   return process.env.LIFF_CHANNEL_ID ?? process.env.NEXT_PUBLIC_LIFF_CHANNEL_ID ?? ""
@@ -21,6 +22,9 @@ export interface LiffVerifyResult {
   ok: boolean
   clientId?: string
   expiresIn?: number
+  /** トークンの持ち主として LINE が返す実際の userId。呼び出し側は
+   *  クライアント申告の lineUserId とここを突き合わせてなりすましを検出する。 */
+  userId?: string
   reason?: string
 }
 
@@ -47,7 +51,29 @@ export async function verifyLiffAccessToken(token: string): Promise<LiffVerifyRe
     if (typeof json.expires_in === "number" && json.expires_in <= 0) {
       return { ok: false, reason: "expired" }
     }
-    return { ok: true, clientId: json.client_id, expiresIn: json.expires_in }
+
+    // verify API はトークンの有効性のみを保証し、誰の userId かは返さない。
+    // クライアントが申告する lineUserId が本当にこのトークンの持ち主か、
+    // profile API を叩いて突き合わせる (なりすまし防止の本体)。
+    const profileRes = await fetch(PROFILE_URL, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+    if (!profileRes.ok) {
+      return { ok: false, reason: `profile_http_${profileRes.status}` }
+    }
+    const profile = (await profileRes.json()) as { userId?: string }
+    if (!profile.userId) {
+      return { ok: false, reason: "profile_missing_user_id" }
+    }
+
+    return {
+      ok: true,
+      clientId: json.client_id,
+      expiresIn: json.expires_in,
+      userId: profile.userId,
+    }
   } catch (e) {
     return { ok: false, reason: e instanceof Error ? e.message : "unknown" }
   }

@@ -94,6 +94,7 @@ export default async function ScoutNewPage({ searchParams }: Props) {
         jobSearchStatus: true,
         prefecture: true,
         avatarUrl: true,
+        profilePublic: true,
       },
     }),
     prisma.scoutMessage.findFirst({
