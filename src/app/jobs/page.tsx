@@ -155,6 +155,20 @@ export default async function JobsPage({ searchParams }: Props) {
     }),
   }
 
+  // ブロック企業 / NG キーワード除外だけを抜き出したもの。fuzzy 検索の
+  // 結果（id リスト）にも同じ除外を掛けるために where とは別に持っておく。
+  const exclusionWhere = {
+    ...(blockedCompanyIds.length > 0 && {
+      companyId: { notIn: blockedCompanyIds },
+    }),
+    ...(blockedKeywords.length > 0 && {
+      AND: blockedKeywords.map((kw) => ({
+        title: { not: { contains: kw, mode: "insensitive" as const } },
+        description: { not: { contains: kw, mode: "insensitive" as const } },
+      })),
+    }),
+  }
+
   const orderBy = buildOrderBy(sort)
 
   // 検索クエリがあり、デフォルトの「おすすめ順」の場合は pg_trgm で類似度順に並べる
@@ -209,34 +223,40 @@ export default async function JobsPage({ searchParams }: Props) {
     },
   } as const
 
-  const [jobs, total] = await Promise.all([
-    fuzzyIds
-      ? prisma.job
-          .findMany({
-            where: { id: { in: fuzzyIds } },
-            select: jobListSelect,
-          })
-          // fuzzy で返ってきた id 順を維持
-          .then((rows) => {
-            const order = new Map(fuzzyIds!.map((id, i) => [id, i]))
-            return rows.sort(
-              (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)
-            )
-          })
-          .then((rows) =>
-            rows.slice((page - 1) * limit, (page - 1) * limit + limit)
-          )
-      : prisma.job.findMany({
-          where,
-          orderBy,
-          skip: (page - 1) * limit,
-          take: limit,
+  const { jobs, total } = fuzzyIds
+    ? await (async () => {
+        // ブロック企業 / NG キーワードの除外を fuzzy 結果にも適用する。
+        // これを省くと、ブロック設定をしていても検索キーワードで
+        // ヒットしたブロック対象求人が一覧に出てしまう。
+        const rows = await prisma.job.findMany({
+          where: { id: { in: fuzzyIds }, ...exclusionWhere },
           select: jobListSelect,
-        }),
-    fuzzyIds
-      ? Promise.resolve(fuzzyIds.length)
-      : prisma.job.count({ where }),
-  ])
+        })
+        const order = new Map(fuzzyIds.map((id, i) => [id, i]))
+        const sorted = rows.sort(
+          (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)
+        )
+        // total は除外適用後の実件数。fuzzySearchJobs 自体が上位 100 件で
+        // 打ち切られるため、実際の一致件数がそれを超える場合はここでも
+        // 100 件が上限になる（fuzzy 検索の既知の制約）。
+        return {
+          jobs: sorted.slice((page - 1) * limit, (page - 1) * limit + limit),
+          total: sorted.length,
+        }
+      })()
+    : await (async () => {
+        const [jobs, total] = await Promise.all([
+          prisma.job.findMany({
+            where,
+            orderBy,
+            skip: (page - 1) * limit,
+            take: limit,
+            select: jobListSelect,
+          }),
+          prisma.job.count({ where }),
+        ])
+        return { jobs, total }
+      })()
 
   // ログイン中ならお気に入り Set を取得（カードの星表示用）
   const favoriteIds = loggedIn

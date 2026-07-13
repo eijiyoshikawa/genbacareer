@@ -19,7 +19,7 @@ import { notifyNewLead } from "@/lib/lead-notifications"
 import { findRelatedJobs } from "@/lib/job-matching"
 import { getSessionIdIfExists } from "@/lib/session-id"
 import { extractUtmFromUrl } from "@/lib/tracking"
-import { verifyLiffAccessToken, isLiffServerConfigured } from "@/lib/liff"
+import { verifyLiffAccessToken, fetchLiffProfile, isLiffServerConfigured } from "@/lib/liff"
 
 export const dynamic = "force-dynamic"
 
@@ -61,7 +61,12 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // LIFF access token の verify（なりすまし防止）
+  // LIFF access token の verify（なりすまし防止）。
+  // verify は「トークンが有効か」しか確認しないため、実際の持ち主 (userId) を
+  // プロフィール API で取得し、クライアント申告の lineUserId より優先する。
+  // これをしないと、他人の accessToken で任意の lineUserId を騙って
+  // push 通知の送信先や LineLead の紐付けを乗っ取れてしまう。
+  let lineUserId = parsed.lineUserId
   if (isLiffServerConfigured()) {
     const v = await verifyLiffAccessToken(parsed.accessToken)
     if (!v.ok) {
@@ -70,6 +75,14 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+    const profile = await fetchLiffProfile(parsed.accessToken)
+    if (!profile.ok || !profile.userId) {
+      return Response.json(
+        { error: "invalid_liff_token", reason: profile.reason ?? "profile_fetch_failed" },
+        { status: 401 }
+      )
+    }
+    lineUserId = profile.userId
   }
 
   // 対象求人
@@ -110,7 +123,7 @@ export async function POST(request: NextRequest) {
         utmMedium: utm.medium,
         utmCampaign: utm.campaign,
         referer: referer?.slice(0, 500) ?? null,
-        lineUserId: parsed.lineUserId,
+        lineUserId,
         lineDisplayName: parsed.lineDisplayName ?? null,
         status: "line_added",
       },
@@ -150,7 +163,7 @@ export async function POST(request: NextRequest) {
         "",
         "担当より 1 営業日以内にこちらの LINE トークでご連絡いたします。",
       ].join("\n")
-      void pushMessage(parsed.lineUserId, [{ type: "text", text: ack }]).catch(() => {})
+      void pushMessage(lineUserId, [{ type: "text", text: ack }]).catch(() => {})
     }
   } catch (e) {
     console.error(

@@ -110,11 +110,17 @@ export async function GET(request: Request) {
       })
     }
 
-    await prisma.company.update({
-      where: { id: c.id },
-      data: { planExpiryNotifiedAt: now },
-    })
-    notified += 1
+    try {
+      await prisma.company.update({
+        where: { id: c.id },
+        data: { planExpiryNotifiedAt: now },
+      })
+      notified += 1
+    } catch (e) {
+      // 失敗しても他社の処理は継続する。ここが失敗すると次回実行時に
+      // 同じ会社が再度対象になり、メールが重複送信される点に注意。
+      console.error(`[cron/plan-expiry-notice] mark-notified failed for ${c.id}:`, e)
+    }
   }
 
   console.log(

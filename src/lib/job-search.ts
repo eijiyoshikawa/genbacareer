@@ -49,6 +49,42 @@ export async function fuzzySearchJobs(
       ? [input.category]
       : [...CONSTRUCTION_CATEGORY_VALUES]
 
+  // プレースホルダ番号は積んだ params の数から都度採番する。固定番号にすると、
+  // フィルタの一部だけが指定されたとき（連番が飛ぶ）に $N とパラメータ配列の
+  // 添字がずれて "there is no parameter $N" になり、fuzzy 検索全体が
+  // フォールバックしてしまうため。
+  const params: unknown[] = [input.q, categories]
+  const conditions: string[] = []
+
+  if (input.prefecture) {
+    params.push(input.prefecture)
+    conditions.push(`AND prefecture = $${params.length}`)
+  }
+  if (input.city) {
+    params.push(input.city)
+    conditions.push(`AND city = $${params.length}`)
+  }
+  if (input.employmentType) {
+    params.push(input.employmentType)
+    conditions.push(`AND employment_type = $${params.length}`)
+  }
+  if (input.source) {
+    params.push(input.source)
+    conditions.push(`AND source = $${params.length}`)
+  }
+  if (input.publishedSince) {
+    params.push(input.publishedSince)
+    conditions.push(`AND published_at >= $${params.length}`)
+  }
+  if (input.salaryMin) {
+    params.push(input.salaryMin)
+    conditions.push(`AND salary_min >= $${params.length}`)
+  }
+  if (input.salaryMax) {
+    params.push(input.salaryMax)
+    conditions.push(`AND salary_max <= $${params.length}`)
+  }
+
   // raw query で similarity を計算しつつ where もまとめる。
   // - title と description それぞれの類似度の最大値を採用
   // - 0.05 以上を閾値（ある程度関連がある）
@@ -68,12 +104,7 @@ export async function fuzzySearchJobs(
         FROM jobs
         WHERE status = 'active'
           AND category = ANY($2)
-          ${input.prefecture ? "AND prefecture = $3" : ""}
-          ${input.employmentType ? `AND employment_type = $4` : ""}
-          ${input.source ? `AND source = $5` : ""}
-          ${input.publishedSince ? `AND published_at >= $6` : ""}
-          ${input.salaryMin ? `AND salary_min >= $7` : ""}
-          ${input.salaryMax ? `AND salary_max <= $8` : ""}
+          ${conditions.join("\n          ")}
       )
       SELECT id, similarity
       FROM scored
@@ -81,14 +112,7 @@ export async function fuzzySearchJobs(
       ORDER BY similarity DESC, published_at DESC NULLS LAST
       LIMIT ${limit} OFFSET ${offset};
       `,
-      input.q,
-      categories,
-      ...(input.prefecture ? [input.prefecture] : []),
-      ...(input.employmentType ? [input.employmentType] : []),
-      ...(input.source ? [input.source] : []),
-      ...(input.publishedSince ? [input.publishedSince] : []),
-      ...(input.salaryMin ? [input.salaryMin] : []),
-      ...(input.salaryMax ? [input.salaryMax] : [])
+      ...params
     )
     return rows
   } catch (e) {

@@ -52,3 +52,40 @@ export async function verifyLiffAccessToken(token: string): Promise<LiffVerifyRe
     return { ok: false, reason: e instanceof Error ? e.message : "unknown" }
   }
 }
+
+const PROFILE_URL = "https://api.line.me/v2/profile"
+
+export interface LiffProfileResult {
+  ok: boolean
+  userId?: string
+  displayName?: string
+  reason?: string
+}
+
+/**
+ * accessToken の実際の持ち主 (userId) を LINE プロフィール API で取得する。
+ * verifyLiffAccessToken はトークンの有効性/Channel ID しか確認しないため、
+ * クライアントが送ってきた lineUserId をそのまま信頼すると、別人の
+ * accessToken 経由で任意の lineUserId になりすませてしまう。
+ * 呼び出し側は、ここで取れた userId をクライアント申告値より優先すること。
+ */
+export async function fetchLiffProfile(token: string): Promise<LiffProfileResult> {
+  if (!token) return { ok: false, reason: "empty_token" }
+  try {
+    const res = await fetch(PROFILE_URL, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+    if (!res.ok) {
+      return { ok: false, reason: `http_${res.status}` }
+    }
+    const json = (await res.json()) as { userId?: string; displayName?: string }
+    if (!json.userId) {
+      return { ok: false, reason: "no_user_id" }
+    }
+    return { ok: true, userId: json.userId, displayName: json.displayName }
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : "unknown" }
+  }
+}
