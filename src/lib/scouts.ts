@@ -39,17 +39,21 @@ export function buildScoutExpiry(sentAt: Date): Date {
  * - 求人が active であること
  * - 求職者が searching または employed_open であること (hired は除く)
  * - 求職者アカウントが active であること
+ * - 求職者がプロフィールを企業に公開していること (profilePublic=false は
+ *   「オフにするとスカウトが届かなくなります」という UI 上の明示的な約束のため、
+ *   気になる/応募経由で userId を知っている場合でもここで必ず拒否する)
  */
 export function canSendScout({
   job,
   user,
 }: {
   job: { status: string } | null | undefined
-  user: { status: string; jobSearchStatus: string } | null | undefined
+  user: { status: string; jobSearchStatus: string; profilePublic: boolean } | null | undefined
 }): boolean {
   if (!job || !user) return false
   if (job.status !== "active") return false
   if (user.status !== "active") return false
+  if (!user.profilePublic) return false
   if (user.jobSearchStatus !== "searching" && user.jobSearchStatus !== "employed_open") {
     return false
   }

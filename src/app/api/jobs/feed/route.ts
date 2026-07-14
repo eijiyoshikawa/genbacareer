@@ -2,10 +2,14 @@
  * GET /api/jobs/feed?cursor=<lastJobId>
  *
  * 縦スワイプフィード (11.5) の追加読み込み用 API。
- * cursor は直前ページの末尾 jobId。それより rank が低い (or 同 rank なら publishedAt が古い) ものを返す。
+ * cursor は直前ページの末尾 jobId。それより順位が低い (displayPriority/rankScore/publishedAt
+ * の複合キーで判定) ものを返す。
  *
- * 簡略化のため、cursor は createdAt 降順で「指定 ID より古い」ものを返す
- * (rankScore のタイブレイクは厳密でなくても UX 上問題ない)。
+ * 一覧の並び順は buildPublicJobOrderBy("recommended") = [displayPriority asc, rankScore desc,
+ * publishedAt desc] の複合キーだが、cursor 判定を publishedAt だけで行うと
+ * displayPriority/rankScore が高いのに publishedAt が古い求人が次ページで重複表示されたり、
+ * 逆に publishedAt が新しいのに rank が低い求人が永久にスキップされたりする。
+ * そのため cursor 側も同じ複合キーで keyset pagination する。
  */
 
 import { type NextRequest } from "next/server"
@@ -29,15 +33,25 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const cursor = searchParams.get("cursor")
 
-  let cursorPublishedAt: Date | null = null
+  let cursorState: {
+    displayPriority: number
+    rankScore: number
+    publishedAt: Date
+  } | null = null
   if (cursor) {
     const last = await prisma.job
       .findUnique({
         where: { id: cursor },
-        select: { publishedAt: true },
+        select: { displayPriority: true, rankScore: true, publishedAt: true },
       })
       .catch(() => null)
-    cursorPublishedAt = last?.publishedAt ?? null
+    if (last?.publishedAt) {
+      cursorState = {
+        displayPriority: last.displayPriority,
+        rankScore: last.rankScore,
+        publishedAt: last.publishedAt,
+      }
+    }
   }
 
   // 写真の無い求人の背景にはマガジン記事のカバー写真を転用する
@@ -45,8 +59,23 @@ export async function GET(request: NextRequest) {
     prisma.job.findMany({
       where: {
         status: "active",
-        ...(cursorPublishedAt
-          ? { publishedAt: { lt: cursorPublishedAt } }
+        // 一覧の並び順 [displayPriority asc, rankScore desc, publishedAt desc] と
+        // 同じ複合キーで「直前ページの末尾より後ろ」を判定する keyset pagination。
+        ...(cursorState
+          ? {
+              OR: [
+                { displayPriority: { gt: cursorState.displayPriority } },
+                {
+                  displayPriority: cursorState.displayPriority,
+                  rankScore: { lt: cursorState.rankScore },
+                },
+                {
+                  displayPriority: cursorState.displayPriority,
+                  rankScore: cursorState.rankScore,
+                  publishedAt: { lt: cursorState.publishedAt },
+                },
+              ],
+            }
           : {}),
       },
       orderBy: buildPublicJobOrderBy("recommended"),

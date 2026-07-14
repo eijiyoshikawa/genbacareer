@@ -112,6 +112,19 @@ async function sumDailyCappedToday(
 }
 
 /**
+ * 対象ユーザーの行を SELECT ... FOR UPDATE でロックする。
+ *
+ * appendLedger は残高を「読んで JS で計算して書き戻す」ため、行ロックを取らないと
+ * 同時リクエスト間で lost update（片方の更新が消える）が起きて二重付与/二重消費が
+ * 発生しうる（例: 抽選 30pt 消費を 2 タブ同時押しで残高が 1 回分しか減らない）。
+ * 日次上限・抽選回数上限などの check-then-act もこのロックで直列化されるため、
+ * 各エクスポート関数のトランザクション内で必ず最初に呼ぶこと。
+ */
+async function lockUserRow(tx: Prisma.TransactionClient, userId: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`
+}
+
+/**
  * 台帳に 1 行追加し、残高キャッシュを更新する。冪等キー重複は無視（既付与）。
  * 必ずトランザクション内で呼ぶこと。戻り値は実際に付与/消費した delta（0=スキップ）。
  */
@@ -163,14 +176,15 @@ async function appendLedger(
  * 初回登録ボーナス。ユーザーにつき 1 回のみ（dedupeKey で保証）。日次上限の対象外。
  */
 export async function awardSignupBonus(userId: string): Promise<number> {
-  return prisma.$transaction((tx) =>
-    appendLedger(tx, {
+  return prisma.$transaction(async (tx) => {
+    await lockUserRow(tx, userId)
+    return appendLedger(tx, {
       userId,
       delta: POINT_RULES.signupBonus,
       reason: "signup",
       dedupeKey: "signup",
-    }),
-  )
+    })
+  })
 }
 
 /**
@@ -182,6 +196,7 @@ export async function awardDailyLoginBonus(
   now = new Date(),
 ): Promise<number> {
   return prisma.$transaction(async (tx) => {
+    await lockUserRow(tx, userId)
     const todays = await sumDailyCappedToday(tx, userId, now)
     const grant = Math.min(POINT_RULES.loginBonus, POINT_RULES.dailyEarnCap - todays)
     if (grant <= 0) return 0
@@ -206,6 +221,7 @@ export async function awardJobViewPoints(
 ): Promise<number> {
   const dedupeKey = `view_job:${jobId}:${jstDateKey(now)}`
   return prisma.$transaction(async (tx) => {
+    await lockUserRow(tx, userId)
     const todays = await sumDailyCappedToday(tx, userId, now)
     const grant = Math.min(POINT_RULES.viewJob, POINT_RULES.dailyEarnCap - todays)
     if (grant <= 0) return 0
@@ -247,6 +263,7 @@ export async function awardCareerInterviewPoints(
     if (!interview) {
       throw new PointError("NOT_FOUND", "面談が見つかりません")
     }
+    await lockUserRow(tx, interview.userId)
 
     const markCompleted = (awarded: boolean) =>
       tx.careerInterview.update({
@@ -316,14 +333,15 @@ export async function adjustPoints(
   delta: number,
   note: string,
 ): Promise<number> {
-  return prisma.$transaction((tx) =>
-    appendLedger(tx, {
+  return prisma.$transaction(async (tx) => {
+    await lockUserRow(tx, userId)
+    return appendLedger(tx, {
       userId,
       delta,
       reason: "admin_adjust",
       refId: note.slice(0, 64),
-    }),
-  )
+    })
+  })
 }
 
 export type LotteryResult = {
@@ -374,6 +392,8 @@ export async function drawLottery(
 ): Promise<LotteryResult> {
   // 1) ポイント消費・当選判定・コード割り当てを 1 トランザクションで原子的に処理
   const res = await prisma.$transaction(async (tx) => {
+    await lockUserRow(tx, userId)
+
     // 当選景品の在庫切れ時は抽選を停止（ポイントは消費しない）
     if (!(await hasWinnableStock(tx))) {
       throw new PointError(

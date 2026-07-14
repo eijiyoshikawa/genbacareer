@@ -370,6 +370,15 @@ async function handleEvent(ev: LineEvent): Promise<void> {
             data: { lineUserId: null },
           })
           .catch(() => {})
+        // User.lineUserId も外す。findLineUserId はここを最優先で見るため、
+        // 外さないままだとブロック後も友だちでない相手へ Push を送り続け
+        // （LINE 側は失敗するだけ）、以後の通知が本人に永久に届かなくなる。
+        await prisma.user
+          .updateMany({
+            where: { lineUserId: userId },
+            data: { lineUserId: null },
+          })
+          .catch(() => {})
       }
       return
     }

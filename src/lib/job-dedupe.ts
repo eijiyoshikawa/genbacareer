@@ -3,7 +3,13 @@
  *
  * dedupeKey の算出方法:
  *   normalize(title) + "|" + companyId(or normalize会社名) + "|" + prefecture
+ *   + "|" + city + "|" + employmentType
  *   を SHA-1 ハッシュ (16 進 40 文字)。
+ *
+ * city / employmentType も含めるのは、同一企業・同一都道府県内でも
+ * 現場（市区町村）や雇用形態が異なれば別々の求人だから。title + 会社 + 都道府県
+ * だけだと「同じ職種名を別の現場・別条件で複数出している」正当な求人まで
+ * 誤って重複扱いされ、mergeDuplicates で closed にされてしまう。
  *
  * 同じ dedupeKey の active な求人が複数あれば、最も新しい publishedAt のものを
  * 代表として残し、他は status=closed + deduped_to に代表 id を入れて
@@ -29,12 +35,18 @@ export function computeDedupeKey(input: {
   companyId?: string | null
   companyName?: string | null
   prefecture: string
+  city?: string | null
+  employmentType?: string | null
 }): string {
   const titleN = normalize(input.title)
   const companyN =
     input.companyId ?? (input.companyName ? normalize(input.companyName) : "?")
   const prefN = normalize(input.prefecture)
-  return createHash("sha1").update(`${titleN}|${companyN}|${prefN}`).digest("hex")
+  const cityN = input.city ? normalize(input.city) : "?"
+  const employmentTypeN = input.employmentType ?? "?"
+  return createHash("sha1")
+    .update(`${titleN}|${companyN}|${prefN}|${cityN}|${employmentTypeN}`)
+    .digest("hex")
 }
 
 /**
@@ -52,6 +64,8 @@ export async function backfillDedupeKeys(limit = 100): Promise<number> {
       title: true,
       companyId: true,
       prefecture: true,
+      city: true,
+      employmentType: true,
       company: { select: { name: true } },
     },
     take: limit,
@@ -64,6 +78,8 @@ export async function backfillDedupeKeys(limit = 100): Promise<number> {
       companyId: r.companyId,
       companyName: r.company?.name ?? null,
       prefecture: r.prefecture,
+      city: r.city,
+      employmentType: r.employmentType,
     })
     await prisma.job
       .update({ where: { id: r.id }, data: { dedupeKey: key } })

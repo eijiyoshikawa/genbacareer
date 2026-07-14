@@ -81,6 +81,19 @@ export async function bindLineUserToAccount(input: {
 }): Promise<void> {
   const { userId, lineUserId, displayName, email } = input
 
+  // 0. lineUserId に DB 一意制約が無いため、他の User が同じ lineUserId を
+  //    保持していたら先に外す（1 LINE アカウント = 1 User の不変条件を保つ）。
+  //    外さないと、物理的に同じ LINE の友だちが 2 つの User に紐づき、
+  //    Push 通知（応募状況など）が別アカウントの持ち主に届いてしまう。
+  await prisma.user
+    .updateMany({
+      where: { lineUserId, id: { not: userId } },
+      data: { lineUserId: null },
+    })
+    .catch((e) =>
+      console.warn(`[line-link] stale binding cleanup failed: ${e instanceof Error ? e.message : e}`)
+    )
+
   // 1. User 本体へ保存（raw: Prisma Client 未再生成の環境でも動くよう updateMany 経由でなく
   //    型付き update を使う。lineUserId は schema に追加済み）
   await prisma.user

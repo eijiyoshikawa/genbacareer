@@ -92,6 +92,7 @@ export default async function ScoutNewPage({ searchParams }: Props) {
         name: true,
         status: true,
         jobSearchStatus: true,
+        profilePublic: true,
         prefecture: true,
         avatarUrl: true,
       },

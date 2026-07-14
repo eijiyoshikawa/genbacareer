@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
       name: true,
       status: true,
       jobSearchStatus: true,
+      profilePublic: true,
       notificationPrefs: true,
     },
   })
@@ -142,7 +143,7 @@ export async function POST(request: NextRequest) {
 
   if (!canSendScout({ job, user })) {
     return NextResponse.json(
-      { error: "送信対象が条件を満たしていません (求人 active / 求職者 active+searching/employed_open)" },
+      { error: "送信対象が条件を満たしていません (求人 active / 求職者 active+searching/employed_open+プロフィール公開)" },
       { status: 400 },
     )
   }

@@ -79,8 +79,10 @@ export async function createNotification(input: {
   if (isInQuietHours(prefs)) return
 
   // 即時配信は今ここで LINE Push。daily/weekly は line-digest cron がまとめて送る。
+  // 送信完了を待たずに関数を抜けるとサーバーレス環境では実行が打ち切られ、
+  // Push が送られないまま失われることがあるため必ず await する。
   if (prefs.frequency === "immediate" && prefs.lineEnabled) {
-    pushUserNotification({
+    const delivered = await pushUserNotification({
       userId: input.userId,
       title: input.title,
       body: input.body,
@@ -92,9 +94,11 @@ export async function createNotification(input: {
       console.warn(
         `[notifications] line push failed: ${e instanceof Error ? e.message : e}`
       )
+      return false
     })
-    // 即時送信済みとしてマーク（後で daily/weekly に切替えても重複送信しない）
-    if (createdId) {
+    // 送信成功時のみ「送信済み」としてマーク。失敗時は null のまま残し、
+    // 実際に届いていない通知を届いた扱いにしない。
+    if (createdId && delivered) {
       await prisma.notification
         .update({
           where: { id: createdId },
