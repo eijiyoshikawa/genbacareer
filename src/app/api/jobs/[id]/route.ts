@@ -20,8 +20,8 @@ export async function GET(
 
   const { id } = await params
 
-  const job = await prisma.job.findUnique({
-    where: { id },
+  const job = await prisma.job.findFirst({
+    where: { id, status: "active" },
     include: {
       company: {
         select: {

@@ -89,6 +89,21 @@ export function isMonthlyPlan(planType: string | null | undefined): boolean {
 }
 
 /**
+ * 契約終了日の入力値を Date に変換する。
+ *
+ * 管理画面の `<input type="date">` は "YYYY-MM-DD" の日付のみを送るため、
+ * 単純に `new Date(value)` すると UTC 0 時 (= JST 9 時) 起点になり、
+ * 「その日の終わりまで有効」という意図より最大 15 時間早く失効扱いになってしまう。
+ * 日付のみの入力は JST のその日の終わり (23:59:59.999+09:00) として扱う。
+ */
+export function planPaidUntilToDate(value: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T23:59:59.999+09:00`)
+  }
+  return new Date(value)
+}
+
+/**
  * 採用ボーナス (¥50,000) の対象プランか (C5)。
  *
  * 成果報酬とキャンペーン枠では、企業から運営への対価が「採用発生時のみ」

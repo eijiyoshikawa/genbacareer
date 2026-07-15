@@ -7,7 +7,7 @@
  * 例:
  *   ADMIN_IP_ALLOWLIST="203.0.113.10,198.51.100.0/24,2001:db8::/32"
  *
- * - IPv4 / IPv6 / CIDR 表記対応 (CIDR は単純なプレフィックスマッチ)
+ * - IPv4 / IPv6 / CIDR 表記対応 (ビット境界で正しく判定)
  * - 開発環境 (NODE_ENV !== "production") では loopback (127.0.0.1, ::1) を常に許可
  * - Vercel 経由の場合 `x-forwarded-for` 先頭がクライアント IP
  */
@@ -67,6 +67,68 @@ function ipv4MatchesCidr(ip: string, cidr: string): boolean {
   return (ipInt & maskBits) === (baseInt & maskBits)
 }
 
+/** IPv6 文字列 (省略記法可) を 128-bit BigInt に変換。失敗時は null。 */
+function ipv6ToBigInt(ip: string): bigint | null {
+  let addr = ip
+  // "::ffff:1.2.3.4" のような IPv4-mapped 表記を展開
+  const v4Match = addr.match(/^(.*:)((?:\d{1,3}\.){3}\d{1,3})$/)
+  if (v4Match) {
+    const v4Int = ipv4ToInt(v4Match[2])
+    if (v4Int === null) return null
+    const hex = v4Int.toString(16).padStart(8, "0")
+    addr = `${v4Match[1]}${hex.slice(0, 4)}:${hex.slice(4)}`
+  }
+
+  if (addr.includes(".")) return null // 未展開の IPv4 混在は不正
+  const parts = addr.split("::")
+  if (parts.length > 2) return null
+
+  const parseHextets = (s: string): number[] | null => {
+    if (s === "") return []
+    const hextets = s.split(":")
+    const out: number[] = []
+    for (const h of hextets) {
+      if (!/^[0-9a-fA-F]{1,4}$/.test(h)) return null
+      out.push(parseInt(h, 16))
+    }
+    return out
+  }
+
+  let hextets: number[]
+  if (parts.length === 2) {
+    const head = parseHextets(parts[0])
+    const tail = parseHextets(parts[1])
+    if (!head || !tail) return null
+    const fill = 8 - head.length - tail.length
+    if (fill < 0) return null
+    hextets = [...head, ...new Array(fill).fill(0), ...tail]
+  } else {
+    const full = parseHextets(addr)
+    if (!full || full.length !== 8) return null
+    hextets = full
+  }
+
+  let n = BigInt(0)
+  for (const h of hextets) n = (n << BigInt(16)) | BigInt(h)
+  return n
+}
+
+/** IPv6 CIDR マッチ (例: "2001:db8::/32")。ビット境界で正しく判定する。 */
+function ipv6MatchesCidr(ip: string, cidr: string): boolean {
+  const [base, maskStr] = cidr.split("/")
+  if (!base || !maskStr) return false
+  const mask = Number(maskStr)
+  if (!Number.isInteger(mask) || mask < 0 || mask > 128) return false
+  const ipInt = ipv6ToBigInt(ip)
+  const baseInt = ipv6ToBigInt(base)
+  if (ipInt === null || baseInt === null) return false
+  if (mask === 0) return true
+  const one = BigInt(1)
+  const maskBits =
+    ((one << BigInt(128)) - one) ^ ((one << BigInt(128 - mask)) - one)
+  return (ipInt & maskBits) === (baseInt & maskBits)
+}
+
 /**
  * クライアント IP が allowlist にマッチするか。
  *
@@ -77,11 +139,9 @@ export function ipMatches(clientIp: string, entry: string): boolean {
   if (entry === clientIp) return true
   if (entry.includes("/")) {
     // CIDR
-    if (entry.includes(".")) return ipv4MatchesCidr(clientIp, entry)
-    // IPv6 CIDR は簡易対応: プレフィックス文字列マッチ
     const [base] = entry.split("/")
-    if (!base) return false
-    return clientIp.toLowerCase().startsWith(base.toLowerCase())
+    if (base && base.includes(":")) return ipv6MatchesCidr(clientIp, entry)
+    return ipv4MatchesCidr(clientIp, entry)
   }
   return false
 }

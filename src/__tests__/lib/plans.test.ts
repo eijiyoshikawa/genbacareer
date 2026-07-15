@@ -12,6 +12,7 @@ import {
   daysUntilPlanExpiry,
   isPlanExpiringSoon,
   canPostJob,
+  planPaidUntilToDate,
 } from "@/lib/plans"
 
 describe("PLAN_TYPES / PLAN_LABELS", () => {
@@ -193,6 +194,25 @@ describe("isPlanExpiringSoon", () => {
   it("false for past dates", () => {
     const past = new Date("2026-05-01T00:00:00Z")
     expect(isPlanExpiringSoon(past, 30, now)).toBe(false)
+  })
+})
+
+describe("planPaidUntilToDate", () => {
+  it("treats a date-only string as end-of-day JST, not UTC midnight", () => {
+    const d = planPaidUntilToDate("2026-08-31")
+    // JST 2026-08-31 23:59:59.999 = UTC 2026-08-31 14:59:59.999
+    expect(d.toISOString()).toBe("2026-08-31T14:59:59.999Z")
+  })
+
+  it("still covers the whole intended day (not expired at 09:00 JST / 00:00 UTC)", () => {
+    const d = planPaidUntilToDate("2026-08-31")
+    const utcMidnight = new Date("2026-08-31T00:00:00Z")
+    expect(d.getTime()).toBeGreaterThan(utcMidnight.getTime())
+  })
+
+  it("passes through a full ISO datetime string unchanged", () => {
+    const d = planPaidUntilToDate("2026-08-31T05:00:00.000Z")
+    expect(d.toISOString()).toBe("2026-08-31T05:00:00.000Z")
   })
 })
 

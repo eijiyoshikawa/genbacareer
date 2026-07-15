@@ -78,6 +78,24 @@ describe("ipMatches", () => {
     expect(ipMatches("2001:db8::1", "2001:db8::/32")).toBe(true)
     expect(ipMatches("2001:dead::1", "2001:db8::/32")).toBe(false)
   })
+
+  it("matches IPv6 CIDR on bit boundaries, not string prefixes", () => {
+    // /48 only keeps the first three hextets; the fourth hextet must not
+    // affect the result, but a differing third hextet must.
+    expect(ipMatches("2001:db8:1:2::1", "2001:db8:1::/48")).toBe(true)
+    expect(ipMatches("2001:db8:2::1", "2001:db8:1::/48")).toBe(false)
+  })
+
+  it("matches expanded and compressed IPv6 forms equivalently", () => {
+    expect(
+      ipMatches("2001:0db8:0000:0000:0000:0000:0000:0001", "2001:db8::/32"),
+    ).toBe(true)
+  })
+
+  it("rejects invalid IPv6 input", () => {
+    expect(ipMatches("not-an-ip", "2001:db8::/32")).toBe(false)
+    expect(ipMatches("2001:db8::1", "not-cidr/32")).toBe(false)
+  })
 })
 
 describe("isAdminAccessAllowed", () => {

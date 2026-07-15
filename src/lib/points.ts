@@ -374,6 +374,11 @@ export async function drawLottery(
 ): Promise<LotteryResult> {
   // 1) ポイント消費・当選判定・コード割り当てを 1 トランザクションで原子的に処理
   const res = await prisma.$transaction(async (tx) => {
+    // 同一ユーザーの同時リクエストが日次上限チェックを競合してすり抜けないよう、
+    // ユーザー単位の advisory lock でこのトランザクションを直列化する
+    // (READ COMMITTED では「件数を読む→書く」の間に別トランザクションが割り込める)。
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(72190, hashtext(${userId}))`
+
     // 当選景品の在庫切れ時は抽選を停止（ポイントは消費しない）
     if (!(await hasWinnableStock(tx))) {
       throw new PointError(
