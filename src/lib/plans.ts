@@ -74,6 +74,23 @@ export function planTier(args: {
   }
 }
 
+/**
+ * 管理画面から受け取った契約終了日 (planPaidUntil) を Date に変換する。
+ *
+ * `<input type="date">` は "YYYY-MM-DD" の日付のみの文字列を送ってくる。
+ * `new Date("2026-06-01")` は ISO 8601 の日付のみ形式として UTC 深夜 0 時
+ * (= JST 9:00) にパースされるため、そのまま保存すると「6/1 まで有効」の
+ * つもりが JST 6/1 朝には expire-plans cron に降格されてしまう。
+ * 日付のみの入力は JST のその日の終わり (23:59:59.999) として扱う。
+ * 時刻付きの ISO 文字列はそのまま渡す (呼び出し側が明示的に指定した値を尊重)。
+ */
+export function parsePaidUntilInput(input: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    return new Date(`${input}T23:59:59.999+09:00`)
+  }
+  return new Date(input)
+}
+
 /** 有償プランか (採用が発生したら課金される / 月額を払っている) */
 export function isPaidPlan(planType: string | null | undefined): boolean {
   return (

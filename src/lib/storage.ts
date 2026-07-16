@@ -61,3 +61,18 @@ export async function deleteFile(path: string): Promise<void> {
     console.error(`[storage] Failed to delete ${path}:`, error)
   }
 }
+
+/**
+ * uploadFile() が返す公開 URL からストレージ内パスを逆算して削除する。
+ * URL 形式: https://<project>.supabase.co/storage/v1/object/public/documents/<path>
+ */
+export async function deleteFileByUrl(url: string): Promise<void> {
+  const marker = `/object/public/${BUCKET_NAME}/`
+  const idx = url.indexOf(marker)
+  if (idx === -1) {
+    console.error(`[storage] Could not extract path from URL: ${url}`)
+    return
+  }
+  const path = url.slice(idx + marker.length)
+  await deleteFile(path)
+}

@@ -8,7 +8,8 @@
  *   - User.name / phone / prefecture / city / birthDate / resumeUrl を null 化
  *   - SavedSearch / JobFavorite / CompanyFollow / Notification を物理削除
  *   - Application は残す（企業側の業務記録のため）が、user.name は匿名表示
- *   - Resume は本人 PII を含むため deletion
+ *   - Resume / UploadedFile (履歴書・CV) は本人 PII を含むため DB レコード + Storage
+ *     実体ファイルの両方を削除
  *
  * クライアントは確認画面で「退会する」を押下した場合のみここを叩く。
  */
@@ -20,6 +21,7 @@ import {
   getClientIp,
   rateLimitResponse,
 } from "@/lib/rate-limit"
+import { deleteFileByUrl } from "@/lib/storage"
 import { z } from "zod"
 
 export const dynamic = "force-dynamic"
@@ -58,6 +60,17 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   }
+
+  // アップロード済みファイル (履歴書 / CV) は Supabase Storage の実体を先に削除する。
+  // User は物理削除ではなく匿名化のため、UploadedFile.user の onDelete: Cascade は
+  // 発火しない。ここで消さないと匿名化後も実ファイルが永久にストレージへ残る。
+  const uploadedFiles = await prisma.uploadedFile.findMany({
+    where: { userId },
+    select: { fileUrl: true },
+  })
+  await Promise.all(
+    uploadedFiles.map((f) => deleteFileByUrl(f.fileUrl).catch(() => null))
+  )
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -101,6 +114,7 @@ export async function POST(request: Request) {
           userId
         ).catch(() => null),
         tx.resume.deleteMany({ where: { userId } }).catch(() => null),
+        tx.uploadedFile.deleteMany({ where: { userId } }).catch(() => null),
       ])
     })
   } catch (e) {

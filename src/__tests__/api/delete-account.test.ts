@@ -69,6 +69,7 @@ describe("削除されるデータ (assertion-only)", () => {
         "Notification",
         "ApplicationMessageTemplate",
         "Resume",
+        "UploadedFile (DB row + Supabase Storage 実体ファイル)",
       ],
       retained: [
         "Application (job application records, 職業安定法 1 年保存)",
@@ -77,6 +78,9 @@ describe("削除されるデータ (assertion-only)", () => {
     // contract is informational
     expect(contract.anonymized.length).toBeGreaterThan(0)
     expect(contract.fullyDeleted).toContain("ApplicationMessageTemplate")
+    expect(contract.fullyDeleted.some((x) => x.startsWith("UploadedFile"))).toBe(
+      true
+    )
     expect(contract.retained).toContain(
       "Application (job application records, 職業安定法 1 年保存)"
     )
