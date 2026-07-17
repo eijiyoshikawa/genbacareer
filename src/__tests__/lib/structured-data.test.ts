@@ -1,5 +1,22 @@
 import { describe, it, expect } from "vitest"
-import { generateJobPostingSchema } from "@/lib/structured-data"
+import { generateJobPostingSchema, toJsonLdScript } from "@/lib/structured-data"
+
+describe("toJsonLdScript", () => {
+  it("escapes </script> so untrusted strings cannot break out of the script tag", () => {
+    const malicious = {
+      title: '</script><script>alert(document.cookie)</script>',
+    }
+    const html = toJsonLdScript(malicious)
+
+    expect(html).not.toContain("</script>")
+    expect(JSON.parse(html.replace(/\\u003c/g, "<"))).toEqual(malicious)
+  })
+
+  it("produces valid JSON for normal data", () => {
+    const data = { "@type": "Thing", name: "テスト" }
+    expect(JSON.parse(toJsonLdScript(data))).toEqual(data)
+  })
+})
 
 describe("generateJobPostingSchema", () => {
   it("generates valid JSON-LD schema with all required fields", () => {

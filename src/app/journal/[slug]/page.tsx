@@ -15,6 +15,7 @@ import { CATEGORIES } from "@/lib/categories"
 import {
   generateArticleSchema,
   generateBreadcrumbSchema,
+  toJsonLdScript,
 } from "@/lib/structured-data"
 import { CATEGORY_LABELS } from "@/lib/article-categories"
 
@@ -217,11 +218,11 @@ export default async function ArticlePage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(articleJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumbJsonLd) }}
       />
 
       {/* Breadcrumb */}
