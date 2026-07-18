@@ -217,21 +217,25 @@ async function upsertHelloworkCompany(
   const cached = cache.get(name)
   if (cached) return cached
 
+  // Company.prefecture は VarChar(10) / city は VarChar(50)。Job 側の同名フィールドとは
+  // 桁数が異なる別カラムなので、Job 用の truncate 呼び出しを流用せずここで個別に切り詰める。
+  // 未対応のまま書き込むと "value too long for column" で upsert が失敗し、
+  // バッチ内の企業・求人が丸ごと取り込まれずスキップされていた。
   const company = await prisma.company.upsert({
     where: { company_source_name_unique: { source: "hellowork", name } },
     create: {
       source: "hellowork",
       name,
-      prefecture: job.prefecture || null,
-      city: job.city,
+      prefecture: truncate(job.prefecture, 10) || null,
+      city: truncate(job.city, 50),
       address: job.address,
       status: "approved",
     },
     update: {
       // 既存レコードの prefecture/city/address は最新ジョブの値で更新
       // （HW 側で住所が変わる可能性があるため）
-      prefecture: job.prefecture || null,
-      city: job.city,
+      prefecture: truncate(job.prefecture, 10) || null,
+      city: truncate(job.city, 50),
       address: job.address,
     },
     select: { id: true },
