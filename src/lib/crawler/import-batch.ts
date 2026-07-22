@@ -279,6 +279,25 @@ function truncate<T extends string | null | undefined>(
  */
 export const BLOCKED_OCCUPATION_PATTERN = new RegExp(
   [
+    // 自動車整備・自動車板金（建築板金は対象内のため「板金」単独は入れない。
+    // タイトルが「板金工」だけの曖昧ケースは inferCategory 側で本文から判別）
+    "自動車板金",
+    "自動車鈑金",
+    "鈑金",
+    // 「板金・塗装」「板金/塗装」等の区切り付き表記も自動車系として捕捉
+    // （建築板金は通常「建築板金」「屋根板金」表記のため巻き込まない）
+    "板金.{0,3}塗装",
+    // 工場の金属加工系（建設対象外）
+    "精密板金",
+    "製缶板金",
+    "粉体塗装",
+    "自動車整備",
+    "車体整備",
+    "車両整備",
+    "カーコーティング",
+    "カー用品",
+    "洗車スタッフ",
+    "自動車検査",
     // 配送・運送 (重機・ダンプの建設ドライバーは対象内のため、ここでは個別職種を指定)
     "配送ドライバ",
     "配送員",
@@ -441,6 +460,15 @@ export function inferCategory(
 
   const text = normalizeWidth(`${title} ${description ?? ""}`).toLowerCase()
 
+  // 「板金」は建築板金（屋根・外壁・雨樋・ダクト = 対象）と自動車板金（対象外）の
+  // 両方があり、タイトルだけでは判別できないケースがある（例: 「板金工」）。
+  // タイトルに板金を含む場合は、本文の自動車系シグナルで対象外と判定する。
+  if (/板金/.test(titleLower)) {
+    const automotive = /自動車|車両|車体|カー|バンパー|ディーラー|車検|鈑金|純正部品|事故車/.test(text)
+    const architectural = /建築板金|屋根|外壁|雨樋|雨とい|ダクト|折板|瓦棒|葺き/.test(text)
+    if (automotive && !architectural) return null
+  }
+
   const patterns: Array<{ category: CategoryValue; pattern: RegExp }> = [
     { category: "civil", pattern: /土木|舗装|道路|河川|橋梁|トンネル|造成/ },
     {
@@ -467,7 +495,7 @@ export function inferCategory(
     { category: "survey", pattern: /測量|設計|cad|積算/ },
     {
       category: "construction",
-      pattern: /建設|建築|躯体|鳶|鉄筋|型枠|大工|足場|基礎/,
+      pattern: /建設|建築|躯体|鳶|鉄筋|型枠|大工|足場|基礎|屋根|建築板金/,
     },
   ]
 

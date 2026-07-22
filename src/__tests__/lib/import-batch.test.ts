@@ -311,5 +311,31 @@ describe("inferCategory", () => {
       expect(inferCategory("ソーイングオペレーター", null)).toBe(null)
       expect(inferCategory("機械オペレーター", null)).toBe(null)
     })
+
+    it("excludes automotive sheet-metal (板金) jobs but keeps architectural 板金", () => {
+      // タイトルで自動車系と分かるものはブロックリストで除外
+      expect(inferCategory("自動車板金・塗装工", null)).toBe(null)
+      expect(inferCategory("自動車鈑金スタッフ", null)).toBe(null)
+      expect(inferCategory("板金塗装（自動車修理）", null)).toBe(null)
+      expect(inferCategory("板金・塗装スタッフ", null)).toBe(null)
+      expect(inferCategory("精密板金加工オペレーター", null)).toBe(null)
+      expect(inferCategory("製缶板金工（工場内）", null)).toBe(null)
+      expect(inferCategory("自動車整備士", null)).toBe(null)
+      expect(inferCategory("車体整備士（大型車）", null)).toBe(null)
+
+      // タイトルが「板金工」だけでも本文が自動車系なら除外
+      expect(
+        inferCategory("板金工", "自動車の事故車修理、バンパー交換、車検対応をお任せします")
+      ).toBe(null)
+
+      // 建築板金（屋根・外壁・雨樋・ダクト）は対象のまま
+      expect(inferCategory("建築板金工（屋根・外壁）", null)).toBe("construction")
+      expect(
+        inferCategory("板金工", "屋根・外壁の板金工事、雨樋の取り付けを行います")
+      ).toBe("construction")
+      expect(
+        inferCategory("板金工（ダクト製作）", "空調ダクトの製作・取付")
+      ).toBe("electrical")
+    })
   })
 })
