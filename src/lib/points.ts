@@ -125,15 +125,27 @@ async function appendLedger(
     refId?: string | null
   },
 ): Promise<number> {
-  const user = await tx.user.findUnique({
-    where: { id: args.userId },
-    select: { pointBalance: true },
-  })
-  if (!user) return 0
-  const newBalance = user.pointBalance + args.delta
-  if (newBalance < 0) {
+  // 残高更新は「読んで JS で計算して絶対値を書き戻す」のではなく、DB 側で
+  // 条件付き原子更新する。同時に複数リクエストが来ても（例: 抽選の連打）
+  // ロストアップデートで残高が不整合になったり残高チェックをすり抜けたり
+  // しないようにするため（gift_codes の FOR UPDATE SKIP LOCKED や
+  // lotteryPrize.stock の decrement と同じ「DB に原子性を担保させる」方針）。
+  const rows = await tx.$queryRaw<Array<{ point_balance: number }>>(Prisma.sql`
+    UPDATE "users" SET "point_balance" = "point_balance" + ${args.delta}
+    WHERE "id" = ${args.userId}::uuid AND "point_balance" + ${args.delta} >= 0
+    RETURNING "point_balance"
+  `)
+  if (rows.length === 0) {
+    // ユーザーが存在しない、または残高不足のいずれか。
+    const exists = await tx.user.findUnique({
+      where: { id: args.userId },
+      select: { id: true },
+    })
+    if (!exists) return 0
     throw new PointError("INSUFFICIENT_BALANCE", "ポイントが不足しています")
   }
+  const newBalance = rows[0].point_balance
+
   try {
     await tx.pointLedger.create({
       data: {
@@ -146,16 +158,17 @@ async function appendLedger(
       },
     })
   } catch (e) {
-    // 冪等キー重複（既に付与済み）は正常系としてスキップ
+    // 冪等キー重複（既に付与済み）は正常系としてスキップ。
+    // 直前の残高更新は取り消して no-op に揃える。
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      await tx.user.update({
+        where: { id: args.userId },
+        data: { pointBalance: { decrement: args.delta } },
+      })
       return 0
     }
     throw e
   }
-  await tx.user.update({
-    where: { id: args.userId },
-    data: { pointBalance: newBalance },
-  })
   return args.delta
 }
 

@@ -211,27 +211,34 @@ async function upsertHelloworkCompany(
   job: HelloworkJobData,
   cache: Map<string, string>
 ): Promise<string | null> {
-  const name = normalizeCompanyName(job.companyName)
+  // Company.name/prefecture/city は Job 側より厳しい上限 (200/10/50) なので、
+  // truncate() は Job 用の値ではなく Company 側の上限で改めてかけ直す。
+  // これを怠ると "value too long for column" で upsert 自体が失敗し、
+  // そのジョブ (と後続の同名企業ぶん) がまるごとインポートされなくなる。
+  const name = truncate(normalizeCompanyName(job.companyName), 200)
   if (!name || name === "不明") return null
 
   const cached = cache.get(name)
   if (cached) return cached
+
+  const prefecture = truncate(job.prefecture || null, 10)
+  const city = truncate(job.city, 50)
 
   const company = await prisma.company.upsert({
     where: { company_source_name_unique: { source: "hellowork", name } },
     create: {
       source: "hellowork",
       name,
-      prefecture: job.prefecture || null,
-      city: job.city,
+      prefecture,
+      city,
       address: job.address,
       status: "approved",
     },
     update: {
       // 既存レコードの prefecture/city/address は最新ジョブの値で更新
       // （HW 側で住所が変わる可能性があるため）
-      prefecture: job.prefecture || null,
-      city: job.city,
+      prefecture,
+      city,
       address: job.address,
     },
     select: { id: true },

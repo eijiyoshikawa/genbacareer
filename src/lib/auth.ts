@@ -7,6 +7,7 @@ import { compare } from "bcryptjs"
 import { prisma } from "./db"
 import { checkRateLimit } from "./rate-limit"
 import { bindLineUserToAccount } from "./line-link"
+import { ensureSchema } from "./ensure-schema"
 
 /**
  * ログイン試行レート制限。
@@ -127,6 +128,11 @@ providers.push(
         assertAuthRateLimit(req, "seeker")
         if (!credentials?.email || !credentials?.password) return null
 
+        // API route のみを経由するためレイアウト側の ensureSchema (fire-and-forget)
+        // が間に合わないことがある。ここでは明示的に await して確実に反映させる
+        // (2 回目以降は inflight memoize により即解決)。
+        await ensureSchema()
+
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
         })
@@ -166,6 +172,9 @@ providers.push(
       async authorize(credentials, req) {
         assertAuthRateLimit(req, "company")
         if (!credentials?.email || !credentials?.password) return null
+
+        // 同上: API route のみのためレイアウト側の self-heal に頼れない
+        await ensureSchema()
 
         const companyUser = await prisma.companyUser.findUnique({
           where: { email: credentials.email as string },

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { hashSync } from "bcryptjs"
 import { prisma } from "@/lib/db"
+import { ensureSchema } from "@/lib/ensure-schema"
 import {
   checkRateLimit,
   getClientIp,
@@ -65,6 +66,10 @@ export async function POST(request: Request) {
     }
 
     const { email, password, answers } = parsed.data
+
+    // このルートは API のみで layout.tsx の fire-and-forget self-heal を経由しない
+    // ため、新規カラム未反映のまま prisma.user.* を叩いて P2022 になることがある。
+    await ensureSchema()
 
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {
