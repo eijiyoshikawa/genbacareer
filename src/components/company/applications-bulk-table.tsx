@@ -85,6 +85,12 @@ export function ApplicationsBulkTable({
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error ?? `HTTP ${res.status}`)
       }
+      const data = await res.json().catch(() => ({}))
+      if (typeof data.skipped === "number" && data.skipped > 0) {
+        setError(
+          `${data.updated} 件を更新しました（${data.skipped} 件は現在のステータスから「${label}」へ変更できないためスキップされました）`
+        )
+      }
       setSelectedIds(new Set())
       router.refresh()
     } catch (e) {

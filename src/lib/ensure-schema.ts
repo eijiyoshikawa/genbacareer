@@ -516,6 +516,46 @@ const STATEMENTS: ReadonlyArray<string> = [
     ON "gift_codes" ("prize_id", "code")`,
  `CREATE INDEX IF NOT EXISTS "idx_gift_codes_prize_status"
     ON "gift_codes" ("prize_id", "status")`,
+ // scout_messages: CHECK 制約 / partial UNIQUE index (12.x)
+ // Prisma schema では表現できないため、本来は prisma/migrations/manual/scout_messages.sql
+ // を手動適用する運用だが、未適用の環境でも重複スカウトを防げるようここでも自己修復する。
+ `DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_status_check'
+    ) THEN
+      ALTER TABLE "scout_messages"
+        ADD CONSTRAINT scout_messages_status_check
+        CHECK (status IN ('sent','read','expired','declined'));
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_body_len_check'
+    ) THEN
+      ALTER TABLE "scout_messages"
+        ADD CONSTRAINT scout_messages_body_len_check
+        CHECK (char_length(body) BETWEEN 20 AND 2000);
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_subject_len_check'
+    ) THEN
+      ALTER TABLE "scout_messages"
+        ADD CONSTRAINT scout_messages_subject_len_check
+        CHECK (char_length(subject) BETWEEN 5 AND 120);
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_expiry_after_sent_check'
+    ) THEN
+      ALTER TABLE "scout_messages"
+        ADD CONSTRAINT scout_messages_expiry_after_sent_check
+        CHECK (expires_at > sent_at);
+    END IF;
+  END $$`,
+ `CREATE UNIQUE INDEX IF NOT EXISTS "scout_messages_active_unique"
+    ON "scout_messages" ("company_id", "job_id", "user_id")
+    WHERE status NOT IN ('expired','declined')`,
 ]
 
 let inflight: Promise<boolean> | null = null
