@@ -257,6 +257,8 @@ const STATEMENTS: ReadonlyArray<string> = [
   END $$`,
  // プロフィール公開の既定値を ON に（スカウト受信の前提。新規登録時に適用）
  `ALTER TABLE "users" ALTER COLUMN "profile_public" SET DEFAULT true`,
+ // admin発行アカウントの平文PW控え（企業一覧での確認用・PW変更でクリア）
+ `ALTER TABLE "company_users" ADD COLUMN IF NOT EXISTS "issued_login_password" VARCHAR(100)`,
  // 求職者の顔写真（プロフィール画像）
  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" VARCHAR(500)`,
  // 認証トークン列（パスワードリセット / メールアドレス確認）。

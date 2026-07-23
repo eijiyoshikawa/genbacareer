@@ -73,8 +73,8 @@ export default function AdminCompanyNewPage() {
       return
     }
 
-    if (issueAccount && !accountEmail.includes("@")) {
-      setError("担当者アカウントのメールアドレスを正しく入力してください")
+    if (issueAccount && accountEmail && !accountEmail.includes("@")) {
+      setError("ログインIDはメールアドレス形式で入力してください（空欄なら自動生成）")
       return
     }
     if (issueAccount && accountPassword && accountPassword.length < 8) {
@@ -92,7 +92,7 @@ export default function AdminCompanyNewPage() {
           ...(issueAccount
             ? {
                 account: {
-                  email: accountEmail,
+                  ...(accountEmail ? { email: accountEmail } : {}),
                   ...(accountPassword ? { password: accountPassword } : {}),
                   mustChangePassword: forceChange,
                 },
@@ -383,17 +383,17 @@ export default function AdminCompanyNewPage() {
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  ログインID（メールアドレス） <span className="text-red-500">*</span>
+                  ログインID（メールアドレス・空欄で自動生成）
                 </label>
                 <input
                   type="email"
                   value={accountEmail}
                   onChange={(e) => setAccountEmail(e.target.value)}
                   className="mt-1 block w-full border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  placeholder="ops+company@let-inc.net"
+                  placeholder="空欄なら co-xxxxxxxx@agency.genbacareer.jp を自動生成"
                 />
                 <p className="mt-1 text-[11px] text-gray-500">
-                  実在の受信ボックスでなくても可（認証メールは送りません）
+                  実在の受信ボックスでなくても可（認証メールは送りません）。発行後は企業一覧からID/PASSを確認できます
                 </p>
               </div>
               <div>

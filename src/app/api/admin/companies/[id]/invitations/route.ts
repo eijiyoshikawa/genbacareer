@@ -151,6 +151,8 @@ export async function POST(
       name: d.name ?? null,
       role: d.role,
       mustChangePassword: true,
+      // 企業一覧からID/PASSを確認できるよう平文を控える（PW変更でクリア）
+      issuedLoginPassword: tempPassword,
     },
   })
 
