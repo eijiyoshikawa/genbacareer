@@ -237,6 +237,24 @@ const STATEMENTS: ReadonlyArray<string> = [
     ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS "terms_accepted_at" TIMESTAMPTZ`,
  `CREATE INDEX IF NOT EXISTS "idx_users_status" ON "users" ("status")`,
+ // 成果報酬レンジ変更 (2026-07: 年収35%制へ移行。旧 498k〜2M → 100k〜5M)。
+ // 旧レンジの制約が残っていれば新レンジで貼り替える（冪等）。
+ `DO $$
+  BEGIN
+    IF EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'jobs_hiring_fee_amount_range'
+        AND pg_get_constraintdef(oid) NOT LIKE '%5000000%'
+    ) THEN
+      ALTER TABLE jobs DROP CONSTRAINT jobs_hiring_fee_amount_range;
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'jobs_hiring_fee_amount_range'
+    ) THEN
+      ALTER TABLE jobs ADD CONSTRAINT jobs_hiring_fee_amount_range
+        CHECK (hiring_fee_amount IS NULL OR (hiring_fee_amount BETWEEN 100000 AND 5000000));
+    END IF;
+  END $$`,
  // プロフィール公開の既定値を ON に（スカウト受信の前提。新規登録時に適用）
  `ALTER TABLE "users" ALTER COLUMN "profile_public" SET DEFAULT true`,
  // 求職者の顔写真（プロフィール画像）

@@ -464,10 +464,10 @@ export default function ForEmployersPage() {
                   成果報酬プラン
                 </h3>
                 <p className="mt-4 text-2xl font-black text-ink-900">
-                  ¥498,000
-                  <span className="text-sm font-bold text-gray-500">〜 / 名</span>
+                  年収35%
+                  <span className="text-sm font-bold text-gray-500"> / 名</span>
                 </p>
-                <p className="mt-1 text-xs text-gray-500">職種により金額変動</p>
+                <p className="mt-1 text-xs text-gray-500">採用者の理論年収 × 35%</p>
                 <ul className="mt-4 space-y-2 text-sm text-gray-700">
                   <li className="flex gap-2">
                     <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-500" />

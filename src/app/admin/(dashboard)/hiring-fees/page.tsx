@@ -3,14 +3,14 @@ import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import Link from "next/link"
 import { HiringFeeEditor } from "./hiring-fee-editor"
-import { HIRING_FEE_AMOUNT } from "@/lib/hiring-fee"
+import { HIRING_FEE_RATE_LABEL } from "@/lib/hiring-fee"
 import { HIRING_FEE_MIN, HIRING_FEE_MAX } from "@/lib/hiring-fee"
 
 /**
  * 求人ごとの成果報酬単価管理ダッシュボード (admin 専用)。
  *
  * - direct 求人 (自社認定企業の掲載) のみ対象 (hellowork は対象外)
- * - NULL = HIRING_FEE_AMOUNT (498,000) フォールバック
+ * - NULL = 求人の給与から理論年収×35%を自動計算
  * - 範囲: 200,000 〜 2,000,000
  */
 
@@ -77,7 +77,7 @@ export default async function HiringFeesAdminPage({
         <h1 className="text-xl font-bold text-gray-900">求人別 成果報酬単価</h1>
         <p className="mt-1 text-sm text-gray-500">
           求人ごとに成果報酬単価を設定できます。未設定の場合は既定値
-          <strong> ¥{HIRING_FEE_AMOUNT.toLocaleString()}</strong> が適用されます。
+          <strong>求人の給与から算出した理論年収 × {HIRING_FEE_RATE_LABEL}</strong> が自動適用されます（給与情報が無い場合は暫定 ¥498,000）。
           設定可能レンジ: ¥{HIRING_FEE_MIN.toLocaleString()} 〜 ¥{HIRING_FEE_MAX.toLocaleString()}。
         </p>
       </header>
