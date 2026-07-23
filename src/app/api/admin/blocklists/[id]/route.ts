@@ -59,6 +59,15 @@ export async function DELETE(
     return Response.json({ error: "権限がありません" }, { status: 403 })
   }
   const { id } = await params
-  await prisma.blocklist.delete({ where: { id } }).catch(() => {})
+  try {
+    await prisma.blocklist.delete({ where: { id } })
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code
+    if (code === "P2025") {
+      return Response.json({ error: "対象が見つかりません" }, { status: 404 })
+    }
+    console.error("[admin/blocklists] delete failed:", error)
+    return Response.json({ error: "削除に失敗しました" }, { status: 500 })
+  }
   return Response.json({ ok: true })
 }

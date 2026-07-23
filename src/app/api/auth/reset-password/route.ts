@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { hash } from "bcryptjs"
 import { prisma } from "@/lib/db"
+import { ensureSchema } from "@/lib/ensure-schema"
 import { hashToken } from "@/lib/tokens"
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 
@@ -37,6 +38,10 @@ export async function POST(request: NextRequest) {
   }
 
   const { token, password } = parsed.data
+
+  // API のみのルートは layout.tsx の fire-and-forget self-heal を経由しないため、
+  // 新規カラム未反映のまま prisma.user.* を叩いて P2022 になることがある。
+  await ensureSchema()
 
   // DB にはハッシュを保存しているので、受け取った平文トークンをハッシュ化して照合
   const user = await prisma.user.findUnique({

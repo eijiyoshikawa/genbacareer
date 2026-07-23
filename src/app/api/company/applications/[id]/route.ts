@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { sendApplicationStatusEmail } from "@/lib/application-notifications"
 import { notifyApplicationStatusChange } from "@/lib/notifications"
+import { parsePrefs } from "@/lib/notification-prefs"
 import { syncApplicationToCalendar } from "@/lib/application-calendar-sync"
 import { VALID_STATUS_TRANSITIONS } from "@/lib/application-status"
 
@@ -80,7 +81,7 @@ export async function PUT(
       status: true,
       statusHistory: true,
       hiredAt: true,
-      user: { select: { email: true, name: true } },
+      user: { select: { email: true, name: true, notificationPrefs: true } },
       job: { select: { title: true } },
       company: { select: { name: true } },
     },
@@ -166,8 +167,9 @@ export async function PUT(
     console.warn(`[notification] failed: ${e instanceof Error ? e.message : e}`)
   })
 
-  // ステータス通知メール（fire-and-forget）
-  if (application.user.email) {
+  // ステータス通知メール（fire-and-forget、opt-out 設定を尊重）
+  const emailPrefs = parsePrefs(application.user.notificationPrefs)
+  if (application.user.email && emailPrefs.emailEnabled) {
     sendApplicationStatusEmail({
       to: application.user.email,
       candidateName: application.user.name ?? null,

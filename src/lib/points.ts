@@ -415,7 +415,16 @@ export async function drawLottery(
     })
 
     // 抽選対象を取得。amazon_gift は「未割当コード枚数」を在庫とみなして判定。
-    const prizes = await tx.lotteryPrize.findMany({ where: { active: true } })
+    // FOR UPDATE で行ロックし、同時抽選で同じ最終在庫 1 個を二重当選させない
+    // （在庫のない amazon_gift は gift_codes 側の FOR UPDATE SKIP LOCKED で別途保護）。
+    const prizes = await tx.$queryRaw<
+      Array<{ id: string; name: string; kind: string; stock: number | null; weight: number }>
+    >(Prisma.sql`
+      SELECT "id", "name", "kind", "stock", "weight" FROM "lottery_prizes"
+      WHERE "active" = true
+      ORDER BY "id"
+      FOR UPDATE
+    `)
     const giftIds = prizes.filter((p) => p.kind === "amazon_gift").map((p) => p.id)
     const counts = giftIds.length
       ? await tx.giftCode.groupBy({
@@ -488,10 +497,12 @@ export async function drawLottery(
           assignedCode = rows[0].code
         }
       } else if (chosen.stock !== null) {
-        await tx.lotteryPrize.update({
-          where: { id: chosen.id },
-          data: { stock: { decrement: 1 } },
-        })
+        // FOR UPDATE で行ロック済みのため通常は stock > 0 が保証されているが、
+        // 念のため負の在庫にならないよう条件付き更新にしておく。
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE "lottery_prizes" SET "stock" = "stock" - 1
+          WHERE "id" = ${chosen.id}::uuid AND "stock" > 0
+        `)
       }
     }
 

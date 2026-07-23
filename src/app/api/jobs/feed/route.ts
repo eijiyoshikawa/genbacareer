@@ -2,13 +2,15 @@
  * GET /api/jobs/feed?cursor=<lastJobId>
  *
  * 縦スワイプフィード (11.5) の追加読み込み用 API。
- * cursor は直前ページの末尾 jobId。それより rank が低い (or 同 rank なら publishedAt が古い) ものを返す。
- *
- * 簡略化のため、cursor は createdAt 降順で「指定 ID より古い」ものを返す
- * (rankScore のタイブレイクは厳密でなくても UX 上問題ない)。
+ * 一覧の並び順 (buildPublicJobOrderBy("recommended") = displayPriority asc,
+ * rankScore desc, publishedAt desc) と同じキーで keyset pagination する。
+ * publishedAt だけを cursor にすると、rankScore が主要な並び替えキーである
+ * ため前ページと同じ求人が再出現したり、逆に一度も表示されない求人が
+ * 発生し得るため、3 キー (+ id タイブレイク) すべてを cursor に含める。
  */
 
 import { type NextRequest } from "next/server"
+import { type Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { buildPublicJobOrderBy } from "@/lib/job-sort"
@@ -29,15 +31,39 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const cursor = searchParams.get("cursor")
 
-  let cursorPublishedAt: Date | null = null
+  let cursorWhere: Prisma.JobWhereInput | null = null
   if (cursor) {
     const last = await prisma.job
       .findUnique({
         where: { id: cursor },
-        select: { publishedAt: true },
+        select: { displayPriority: true, rankScore: true, publishedAt: true, id: true },
       })
       .catch(() => null)
-    cursorPublishedAt = last?.publishedAt ?? null
+    if (last) {
+      const publishedAt = last.publishedAt ?? new Date(0)
+      // orderBy と同じキー (displayPriority asc, rankScore desc, publishedAt desc, id asc)
+      // での「cursor の次から」を表す keyset 条件。
+      cursorWhere = {
+        OR: [
+          { displayPriority: { gt: last.displayPriority } },
+          {
+            displayPriority: last.displayPriority,
+            rankScore: { lt: last.rankScore },
+          },
+          {
+            displayPriority: last.displayPriority,
+            rankScore: last.rankScore,
+            publishedAt: { lt: publishedAt },
+          },
+          {
+            displayPriority: last.displayPriority,
+            rankScore: last.rankScore,
+            publishedAt,
+            id: { gt: last.id },
+          },
+        ],
+      }
+    }
   }
 
   // 写真の無い求人の背景にはマガジン記事のカバー写真を転用する
@@ -45,11 +71,9 @@ export async function GET(request: NextRequest) {
     prisma.job.findMany({
       where: {
         status: "active",
-        ...(cursorPublishedAt
-          ? { publishedAt: { lt: cursorPublishedAt } }
-          : {}),
+        ...(cursorWhere ?? {}),
       },
-      orderBy: buildPublicJobOrderBy("recommended"),
+      orderBy: [...buildPublicJobOrderBy("recommended"), { id: "asc" }],
       take: PAGE_SIZE,
       select: {
         id: true,

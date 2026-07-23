@@ -72,7 +72,7 @@ export function formatSalaryForIndeed(args: {
     switch (type) {
       case "monthly":
         return "月"
-      case "yearly":
+      case "annual":
         return "年"
       case "daily":
         return "日"
