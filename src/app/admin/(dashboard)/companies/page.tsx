@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import Link from "next/link"
+import { CredentialCell } from "./credential-cell"
 import type { Metadata } from "next"
 import { Pagination } from "@/components/pagination"
 
@@ -56,6 +57,13 @@ export default async function AdminCompaniesPage({
         status: true,
         _count: {
           select: { jobs: true },
+        },
+        // admin発行アカウント（平文控えが残っているもののみ）
+        companyUsers: {
+          where: { issuedLoginPassword: { not: null } },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { email: true, issuedLoginPassword: true },
         },
       },
     }),
@@ -150,6 +158,7 @@ export default async function AdminCompaniesPage({
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">業種</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">地域</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">求人数</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">発行ID/PASS</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">登録日</th>
               </tr>
             </thead>
@@ -184,6 +193,16 @@ export default async function AdminCompaniesPage({
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {company._count.jobs}
+                    </td>
+                    <td className="px-4 py-3">
+                      {company.companyUsers[0]?.issuedLoginPassword ? (
+                        <CredentialCell
+                          email={company.companyUsers[0].email}
+                          password={company.companyUsers[0].issuedLoginPassword}
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
                       {company.createdAt.toLocaleDateString("ja-JP")}

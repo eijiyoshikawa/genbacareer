@@ -21,7 +21,8 @@ const companySchema = z.object({
   // ID/PASS を即発行し、そのまま求人登録できる状態にする。
   account: z
     .object({
-      email: z.string().email().max(255),
+      // 省略時は co-xxxxxxxx@agency.genbacareer.jp 形式で自動生成
+      email: z.string().email().max(255).optional(),
       // 省略時は自動生成した仮パスワードを一度だけ返す
       password: z.string().min(8).max(100).optional(),
       name: z.string().max(100).optional(),
@@ -63,17 +64,37 @@ export async function POST(request: NextRequest) {
   const d = parsed.data
   const empty = (v: string | null | undefined) => (v && v.length > 0 ? v : null)
 
-  // アカウント同時発行時は email 重複を先にチェック（会社だけ作られるのを防ぐ）
+  // ログインID: 指定があれば重複チェック、無ければ一意な ID を自動生成する。
+  // 自動生成ドメインは実在不要（認証メールは送らない・ログイン照合のみに使う）。
+  let accountEmail: string | null = null
   if (d.account) {
-    const existing = await prisma.companyUser.findUnique({
-      where: { email: d.account.email },
-      select: { id: true },
-    })
-    if (existing) {
-      return Response.json(
-        { error: "このメールアドレスは既に企業アカウントとして登録されています" },
-        { status: 409 }
-      )
+    if (d.account.email) {
+      const existing = await prisma.companyUser.findUnique({
+        where: { email: d.account.email },
+        select: { id: true },
+      })
+      if (existing) {
+        return Response.json(
+          { error: "このメールアドレスは既に企業アカウントとして登録されています" },
+          { status: 409 }
+        )
+      }
+      accountEmail = d.account.email
+    } else {
+      for (let i = 0; i < 5 && !accountEmail; i++) {
+        const candidate = `co-${Math.random().toString(36).slice(2, 10)}@agency.genbacareer.jp`
+        const dup = await prisma.companyUser.findUnique({
+          where: { email: candidate },
+          select: { id: true },
+        })
+        if (!dup) accountEmail = candidate
+      }
+      if (!accountEmail) {
+        return Response.json(
+          { error: "ログインIDの自動生成に失敗しました。再度お試しください" },
+          { status: 500 }
+        )
+      }
     }
   }
 
@@ -108,16 +129,18 @@ export async function POST(request: NextRequest) {
     const companyUser = await prisma.companyUser.create({
       data: {
         companyId: company.id,
-        email: d.account.email,
+        email: accountEmail!,
         passwordHash,
         name: d.account.name ?? null,
         role: "admin",
         mustChangePassword: d.account.mustChangePassword,
+        // 企業一覧からID/PASSを確認できるよう平文を控える（PW変更でクリア）
+        issuedLoginPassword: plainPassword,
       },
       select: { id: true, email: true },
     })
 
-    // パスワード平文はこのレスポンスでのみ返す（DB には保存しない）
+    // 平文PWは issuedLoginPassword にも控えており、企業一覧からいつでも確認できる
     return Response.json(
       {
         company,

@@ -395,6 +395,9 @@ model CompanyUser {
   // 直接発行 (admin が仮 PW 手渡し) で作成された場合 true。
   // 初回ログイン直後に /company/change-password へ強制リダイレクト。
   mustChangePassword Boolean @default(false) @map("must_change_password")
+  // admin が発行したアカウントの平文パスワード控え（企業一覧での確認用）。
+  // 社内代理掲載アカウント専用。本人がパスワードを変更したら null にクリアされる。
+  issuedLoginPassword String? @map("issued_login_password") @db.VarChar(100)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
