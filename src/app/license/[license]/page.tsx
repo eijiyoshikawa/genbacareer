@@ -14,6 +14,7 @@ import {
   generateBreadcrumbSchema,
   generateCollectionPageSchema,
   generateItemListSchema,
+  toJsonLdScript,
 } from "@/lib/structured-data"
 import { Certificate, BookOpen } from "@phosphor-icons/react/dist/ssr"
 
@@ -116,15 +117,15 @@ export default async function LicenseLpPage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPage) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(collectionPage) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(itemList) }}
       />
 
       <header className="border-b bg-warm-50">
