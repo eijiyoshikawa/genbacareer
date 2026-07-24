@@ -41,32 +41,52 @@ export default async function AdminCompaniesPage({
 
   // _count.applications はテーブルが大きく非常に重いため一覧では取得しない
   // (詳細ページで取得する)。求人数は使い回しのため残す。
+  const companyListSelect = {
+    id: true,
+    name: true,
+    industry: true,
+    prefecture: true,
+    contactEmail: true,
+    createdAt: true,
+    status: true,
+    _count: {
+      select: { jobs: true },
+    },
+  } as const
+
   const [companies, total, pendingCount] = await Promise.all([
-    prisma.company.findMany({
-      where,
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-      skip: (page - 1) * perPage,
-      take: perPage,
-      select: {
-        id: true,
-        name: true,
-        industry: true,
-        prefecture: true,
-        contactEmail: true,
-        createdAt: true,
-        status: true,
-        _count: {
-          select: { jobs: true },
+    prisma.company
+      .findMany({
+        where,
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        skip: (page - 1) * perPage,
+        take: perPage,
+        select: {
+          ...companyListSelect,
+          // admin発行アカウント（平文控えが残っているもののみ）
+          companyUsers: {
+            where: { issuedLoginPassword: { not: null } },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { email: true, issuedLoginPassword: true },
+          },
         },
-        // admin発行アカウント（平文控えが残っているもののみ）
-        companyUsers: {
-          where: { issuedLoginPassword: { not: null } },
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: { email: true, issuedLoginPassword: true },
-        },
-      },
-    }),
+      })
+      // issued_login_password 列が本番 DB に未反映 (ensureSchema 未実行) でも
+      // 企業一覧自体は表示できるよう、控え表示だけ諦めて空配列にフォールバックする。
+      .catch(async () => {
+        const rows = await prisma.company.findMany({
+          where,
+          orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+          skip: (page - 1) * perPage,
+          take: perPage,
+          select: companyListSelect,
+        })
+        return rows.map((c) => ({
+          ...c,
+          companyUsers: [] as { email: string; issuedLoginPassword: string | null }[],
+        }))
+      }),
     prisma.company.count({ where }),
     prisma.company.count({ where: { source: "direct", status: "pending" } }),
   ])
