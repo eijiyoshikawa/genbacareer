@@ -130,6 +130,7 @@ export async function acceptInvitation({
 
   const existing = await prisma.companyUser.findUnique({
     where: { email: inv.email },
+    select: { id: true },
   })
   if (existing) return { ok: false, reason: "email_taken" }
 

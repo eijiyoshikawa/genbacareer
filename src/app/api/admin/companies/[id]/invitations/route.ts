@@ -74,6 +74,7 @@ export async function POST(
   // 同 email の CompanyUser が既に存在する場合は弾く
   const existing = await prisma.companyUser.findUnique({
     where: { email: d.email },
+    select: { id: true },
   })
   if (existing) {
     return Response.json(

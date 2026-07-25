@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og"
 import { prisma } from "@/lib/db"
+import { sanitizeOgText } from "@/lib/og-text"
 
 export const alt = "求人詳細"
 export const size = { width: 1200, height: 630 }
@@ -28,8 +29,8 @@ export default async function OGImage({
     })
     .catch(() => null)
 
-  const title = truncate(job?.title ?? "求人情報", 60)
-  const companyName = truncate(job?.company?.name ?? "", 30)
+  const title = sanitizeOgText(truncate(job?.title ?? "求人情報", 60))
+  const companyName = sanitizeOgText(truncate(job?.company?.name ?? "", 30))
   const location = [job?.prefecture, job?.city].filter(Boolean).join(" ") || ""
   const salary = formatSalary(
     job?.salaryMin ?? null,

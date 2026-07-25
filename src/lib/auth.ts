@@ -178,7 +178,18 @@ providers.push(
 
         const companyUser = await prisma.companyUser.findUnique({
           where: { email: credentials.email as string },
-          include: { company: true },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            passwordHash: true,
+            role: true,
+            companyId: true,
+            mustChangePassword: true,
+            totpEnabled: true,
+            totpSecret: true,
+            totpRecoveryCodes: true,
+          },
         })
 
         if (!companyUser) return null
