@@ -8,6 +8,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { toActorUuid } from "@/lib/actor-id"
 
 export const dynamic = "force-dynamic"
 
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
       keyword: parsed.data.keyword,
       scope: parsed.data.scope,
       note: parsed.data.note ?? null,
-      createdBy: session?.user?.id ?? null,
+      createdBy: toActorUuid(session?.user?.id),
     },
     select: { id: true },
   })
