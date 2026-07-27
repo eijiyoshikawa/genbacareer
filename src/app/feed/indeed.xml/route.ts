@@ -5,117 +5,88 @@
  * 仕様: https://docs.indeed.com/job-feeds
  *
  * - GET /feed/indeed.xml
- * - active な公開求人を 5000 件まで出力 (Indeed の推奨上限以内)
- * - 60 分 ISR でキャッシュ (force-dynamic で build 失敗回避)
+ * - 60 分キャッシュ
  *
- * Indeed への申請手順:
- *   1. https://employers.indeed.com/p/cpc/feed-options で「XML feed」選択
- *   2. URL: https://www.genbacareer.jp/feed/indeed.xml を登録
- *   3. 審査通過後、Indeed が定期クロール
+ * このルートは /jobs.xml (PR #212/#217, docs/indeed-integration.md 記載の
+ * 正式な配信 URL) と同一のフィルタ・レンダリングロジックに委譲する。
+ * 過去に /jobs.xml より先に作られた実装が個別に持っていたが、
+ * source/plan フィルタが無いまま放置されており、HelloWork 由来求人や
+ * 未課金 (campaign_free) 求人まで無条件に配信してしまうバグがあった。
+ * ロジックの二重管理を避けるため lib/indeed-feed.ts の共通実装に統一する。
+ *
+ * Indeed への申請手順は docs/indeed-integration.md 参照
+ * (登録 URL は https://www.genbacareer.jp/jobs.xml)。
  */
 
 import { prisma } from "@/lib/db"
-import { CONSTRUCTION_CATEGORY_VALUES, getCategoryLabel } from "@/lib/categories"
+import { renderIndeedFeed, type IndeedFeedJob } from "@/lib/indeed-feed"
 
 export const dynamic = "force-dynamic"
-export const revalidate = 3600
+export const runtime = "nodejs"
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
-
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;")
-}
-
-function cdata(s: string): string {
-  // CDATA で囲む。`]]>` は分割エスケープ
-  return `<![CDATA[${s.replace(/]]>/g, "]]]]><![CDATA[>")}]]>`
-}
-
-function formatSalary(job: {
-  salaryMin: number | null
-  salaryMax: number | null
-  salaryType: string | null
-}): string {
-  if (!job.salaryMin && !job.salaryMax) return ""
-  const unit =
-    job.salaryType === "hourly"
-      ? "yearly" // Indeed は yearly を推奨だが時給は別途扱う
-      : "yearly"
-  const min = job.salaryMin ?? job.salaryMax ?? 0
-  const max = job.salaryMax ?? job.salaryMin ?? 0
-  // 月給/時給は Indeed 仕様で yearly に換算
-  const yearlyMin = job.salaryType === "hourly" ? min * 8 * 250 : job.salaryType === "monthly" ? min * 12 : min
-  const yearlyMax = job.salaryType === "hourly" ? max * 8 * 250 : job.salaryType === "monthly" ? max * 12 : max
-  return `<salary>${yearlyMin}〜${yearlyMax} JPY/${unit}</salary>`
-}
+const MAX_JOBS = 5_000
 
 export async function GET() {
-  const jobs = await prisma.job.findMany({
-    where: {
-      status: "active",
-      category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
-      // 説明文が空の求人は Indeed の品質要件を満たさないので除外
-      NOT: { description: null },
-    },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      category: true,
-      employmentType: true,
-      salaryMin: true,
-      salaryMax: true,
-      salaryType: true,
-      prefecture: true,
-      city: true,
-      address: true,
-      publishedAt: true,
-      updatedAt: true,
-      company: { select: { name: true } },
-    },
-    orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
-    take: 5000,
-  }).catch(() => [])
+  const now = new Date()
 
-  const items = jobs
-    .map((j) => {
-      const pubDate = (j.publishedAt ?? j.updatedAt).toUTCString()
-      const url = `${SITE_URL}/jobs/${j.id}`
-      const companyName = j.company?.name ?? "ゲンバキャリア"
-      const location = [j.prefecture, j.city, j.address].filter(Boolean).join(" ")
-      return `    <job>
-      <title>${cdata(j.title)}</title>
-      <date>${pubDate}</date>
-      <referencenumber>${j.id}</referencenumber>
-      <url>${escapeXml(url)}</url>
-      <company>${cdata(companyName)}</company>
-      <city>${cdata(j.city ?? "")}</city>
-      <state>${cdata(j.prefecture)}</state>
-      <country>JP</country>
-      <postalcode></postalcode>
-      <description>${cdata(j.description ?? "")}</description>
-      ${formatSalary(j)}
-      <education></education>
-      <jobtype>${cdata(j.employmentType ?? "")}</jobtype>
-      <category>${cdata(getCategoryLabel(j.category))}</category>
-      <experience></experience>
-      <location>${cdata(location)}</location>
-    </job>`
+  const rows = await prisma.job
+    .findMany({
+      where: {
+        status: "active",
+        source: "direct",
+        company: {
+          OR: [
+            { planType: "success_fee" },
+            {
+              planType: { in: ["monthly_12", "monthly_24", "sns_client"] },
+              planPaidUntil: { gt: now },
+            },
+          ],
+        },
+      },
+      orderBy: [{ publishedAt: "desc" }],
+      take: MAX_JOBS,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        prefecture: true,
+        city: true,
+        salaryMin: true,
+        salaryMax: true,
+        salaryType: true,
+        employmentType: true,
+        category: true,
+        publishedAt: true,
+        company: { select: { name: true } },
+      },
     })
-    .join("\n")
+    .catch((err) => {
+      console.error("[feed/indeed.xml] query failed:", err)
+      return []
+    })
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<source>
-  <publisher>ゲンバキャリア</publisher>
-  <publisherurl>${SITE_URL}</publisherurl>
-  <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
-${items}
-</source>`
+  const jobs: IndeedFeedJob[] = rows.map((j) => ({
+    id: j.id,
+    title: j.title,
+    description: j.description,
+    prefecture: j.prefecture,
+    city: j.city,
+    salaryMin: j.salaryMin,
+    salaryMax: j.salaryMax,
+    salaryType: j.salaryType,
+    employmentType: j.employmentType,
+    category: j.category,
+    publishedAt: j.publishedAt,
+    company: j.company,
+  }))
+
+  const xml = renderIndeedFeed({
+    jobs,
+    baseUrl: SITE_URL,
+    generatedAt: now,
+  })
 
   return new Response(xml, {
     headers: {

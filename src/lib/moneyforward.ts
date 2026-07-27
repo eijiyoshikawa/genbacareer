@@ -115,7 +115,16 @@ export type MfBilling = {
  * @param args.partnerId   MF 側の取引先 ID
  * @param args.title       請求書タイトル（例: 「成果報酬請求書」）
  * @param args.itemName    品目名（例: 成果報酬 — 求人タイトル）
- * @param args.amount      金額（税抜・円）
+ * @param args.amount      成果報酬の請求額（例: HIRING_FEE_AMOUNT の 498,000）。
+ *   ⚠️ 要確認: この JSDoc は元々「税抜」と書かれていたが、直下の `excise`
+ *   コメントは「内税」（税込）と矛盾しており、どちらが実際の MF API の挙動か
+ *   コードからは確定できない。docs/business-model-handover.md の戻入計算例
+ *   （請求額 ¥498,000 → 1 ヶ月以内退職で ¥398,400 (80%) 返金）は
+ *   ¥498,000 を「請求額（税込の総額）」として扱っている。
+ *   もし MF 側が unit_price を税抜と解釈し excise で 10% を上乗せしていると、
+ *   実際の請求は ¥547,800 になり上記の前提と食い違う。
+ *   本番運用前に MF テスト取引先で実際に請求書を発行し、PDF 上の合計金額が
+ *   ¥498,000 になっているか必ず確認すること（RELEASE_TODO.md 9番）。
  * @param args.daysUntilDue 支払期日までの日数（デフォルト 30）
  * @param args.metadata    BillingEvent との紐付け用に memo として保存
  */

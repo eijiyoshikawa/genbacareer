@@ -107,6 +107,13 @@ CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pn
 - [ ] OAuth2 Client 設定（B2B 用途、Client Credentials Grant）
 - [ ] `MF_CLIENT_ID` / `MF_CLIENT_SECRET` / `MF_OFFICE_ID` を Vercel に設定
 - [ ] テスト用取引先で billing 作成 → PDF 発行確認
+  - [ ] **要確認 (2026-07-27 バグ確認で発見)**: `src/lib/moneyforward.ts` の `createMfBilling` は
+    `unit_price: amount, excise: "ten_percent"` で送っているが、JSDoc は「税抜」、
+    直下のコードコメントは「内税」と矛盾しており、MF API が `unit_price` を
+    税抜/税込どちらとして扱うかコードからは確定できていない。
+    ¥498,000 のテスト請求書を発行し、PDF 上の合計が ¥498,000 になるか
+    （¥547,800 になっていないか）を必ず確認し、ズレていれば
+    `createHiringInvoice` 側の amount 計算を修正すること。
 - [ ] 環境変数未設定時は admin 手動 invoice 発行運用にフォールバック可能
 
 ### 10. Sentry プロジェクト作成

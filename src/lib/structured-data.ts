@@ -260,9 +260,10 @@ export function generateJobPostingSchema(job: JobInput): Record<string, unknown>
   }
 
   // Base salary
-  // salaryMin が無い場合も Google 推奨: estimatedSalary を提供。
-  // 求人カテゴリの相場 (建設業全体の概算) を埋めて欠落を解消する。
-  if (job.salaryMin != null) {
+  // salaryMin/salaryMax どちらも無い場合のみ Google 推奨の estimatedSalary
+  // (建設業全体の概算) にフォールバックする。HelloWork 由来求人は上限のみ
+  // (salaryMax) しか無いケースがあるため、salaryMin 単独では判定しない。
+  if (job.salaryMin != null || job.salaryMax != null) {
     const unitText =
       SALARY_UNIT_MAP[(job.salaryType ?? "monthly").toLowerCase()] ?? "MONTH"
     schema.baseSalary = {
@@ -270,7 +271,7 @@ export function generateJobPostingSchema(job: JobInput): Record<string, unknown>
       currency: "JPY",
       value: {
         "@type": "QuantitativeValue",
-        minValue: job.salaryMin,
+        ...(job.salaryMin != null && { minValue: job.salaryMin }),
         ...(job.salaryMax != null && { maxValue: job.salaryMax }),
         unitText,
       },

@@ -37,6 +37,26 @@ export async function PATCH(
     return Response.json({ error: "入力エラー" }, { status: 400 })
   }
 
+  const existing = await prisma.hiringBonus.findUnique({
+    where: { id },
+    select: { id: true, status: true },
+  })
+  if (!existing) {
+    return Response.json({ error: "申請が見つかりません" }, { status: 404 })
+  }
+
+  // requested → approved → paid / requested → rejected の遷移のみ許可。
+  // ガード無しだと rejected/paid 済みに対する二重実行 (リトライ等) で
+  // paidAt/paidBy が無条件に上書きされてしまう。
+  const requiredStatus =
+    parsed.data.action === "mark_paid" ? "approved" : "requested"
+  if (existing.status !== requiredStatus) {
+    return Response.json(
+      { error: `現在のステータス (${existing.status}) からは実行できません` },
+      { status: 409 }
+    )
+  }
+
   const data: Record<string, unknown> = {}
   if (parsed.data.action === "approve") {
     data.status = "approved"

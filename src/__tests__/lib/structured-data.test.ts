@@ -140,6 +140,33 @@ describe("generateJobPostingSchema", () => {
     expect(salary.value.maxValue).toBe(2000)
   })
 
+  it("uses real baseSalary (not the generic estimatedSalary fallback) when only salaryMax is set", () => {
+    // HelloWork 由来求人は上限のみ (salaryMax) しか無いケースがある。
+    const schema = generateJobPostingSchema({
+      id: "test-id",
+      title: "型枠大工",
+      description: "型枠工事全般を担当していただきます。",
+      category: "construction",
+      employmentType: "full_time",
+      salaryMin: null,
+      salaryMax: 400000,
+      salaryType: "monthly",
+      prefecture: "東京都",
+      city: null,
+      address: null,
+      publishedAt: null,
+      createdAt: new Date("2026-01-01"),
+      company: null,
+    })
+    expect(schema.estimatedSalary).toBeUndefined()
+    const salary = schema.baseSalary as {
+      value: { unitText: string; minValue?: number; maxValue: number }
+    }
+    expect(salary.value.maxValue).toBe(400000)
+    expect(salary.value.minValue).toBeUndefined()
+    expect(salary.value.unitText).toBe("MONTH")
+  })
+
   it("uses tags as keywords and benefits as jobBenefits", () => {
     const schema = generateJobPostingSchema({
       id: "test-id",

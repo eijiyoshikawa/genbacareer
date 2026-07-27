@@ -191,12 +191,22 @@ providers.push(
             if (!consumed) {
               throw new Error("TOTP_INVALID")
             }
-            await prisma.companyUser
-              .update({
-                where: { id: companyUser.id },
-                data: { totpRecoveryCodes: consumed.remaining },
-              })
-              .catch(() => {})
+            // Compare-and-swap: 読み取り時の配列とまだ一致する場合のみ書き込む。
+            // 単純な update だと、同じリカバリコードで同時に 2 リクエストが
+            // 来た場合に両方とも検証を通過してしまう (DB 上は最終的に
+            // 1 件しか消費されないが、片方は本来「使用済みコード」で
+            // ログインできてしまっていた)。
+            const cas = await prisma.companyUser.updateMany({
+              where: {
+                id: companyUser.id,
+                totpRecoveryCodes: { equals: companyUser.totpRecoveryCodes },
+              },
+              data: { totpRecoveryCodes: consumed.remaining },
+            })
+            if (cas.count === 0) {
+              // 他のリクエストが同時にリカバリコードを消費済み。安全側に倒す。
+              throw new Error("TOTP_INVALID")
+            }
           }
         }
 
@@ -254,8 +264,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (user.email) {
           const existing = await prisma.user.findUnique({
             where: { email: user.email },
-            select: { id: true, emailVerified: true },
+            select: { id: true, emailVerified: true, status: true },
           })
+          // 凍結 / 退会済アカウントは credentials ログインと同様に OAuth 経由も拒否
+          // (旧実装は status を見ておらず、suspended/deleted ユーザーが
+          //  OAuth 経由でログインできてしまっていた)
+          if (existing && (existing.status === "suspended" || existing.status === "deleted")) {
+            return false
+          }
           if (!existing) {
             // OAuth プロバイダ経由のメールは確認済みとみなす（Google/LINE が検証済みのため）
             const created = await prisma.user.create({
