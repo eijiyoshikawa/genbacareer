@@ -79,8 +79,11 @@ export async function createNotification(input: {
   if (isInQuietHours(prefs)) return
 
   // 即時配信は今ここで LINE Push。daily/weekly は line-digest cron がまとめて送る。
+  // linePushedAt は「送信成功」の記録として使う（digest 側の再送判定にも使うため、
+  // 実際には届いていないのに送信済み扱いにして黙って通知を失わないよう、
+  // 成功したときだけマークする）。
   if (prefs.frequency === "immediate" && prefs.lineEnabled) {
-    pushUserNotification({
+    void pushUserNotification({
       userId: input.userId,
       title: input.title,
       body: input.body,
@@ -88,20 +91,22 @@ export async function createNotification(input: {
       linkUrl: input.linkUrl,
       linkLabel: input.linkLabel,
       kind: input.type,
-    }).catch((e) => {
-      console.warn(
-        `[notifications] line push failed: ${e instanceof Error ? e.message : e}`
-      )
     })
-    // 即時送信済みとしてマーク（後で daily/weekly に切替えても重複送信しない）
-    if (createdId) {
-      await prisma.notification
-        .update({
-          where: { id: createdId },
-          data: { linePushedAt: new Date() },
-        })
-        .catch(() => {})
-    }
+      .then((result) => {
+        if (result === "sent" && createdId) {
+          return prisma.notification
+            .update({
+              where: { id: createdId },
+              data: { linePushedAt: new Date() },
+            })
+            .catch(() => {})
+        }
+      })
+      .catch((e) => {
+        console.warn(
+          `[notifications] line push failed: ${e instanceof Error ? e.message : e}`
+        )
+      })
   }
 }
 

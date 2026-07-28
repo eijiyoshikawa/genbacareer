@@ -102,6 +102,8 @@ async function main() {
   console.log("\n========== dry-run stats ==========")
   console.log(`  created (would-be): ${stats.created}`)
   console.log(`  updated (already exists): ${stats.updated}`)
+  console.log(`  skipped (非建設業): ${stats.skipped}`)
+  console.log(`  blocked (Blocklist): ${stats.blocked}`)
   console.log(`  errors: ${stats.errors}`)
   console.log(`  totalProcessed: ${stats.totalProcessed}`)
   console.log(`  durationMs: ${stats.durationMs}`)

@@ -157,7 +157,9 @@ export async function createMfBilling(args: {
             name: args.itemName,
             unit_price: args.amount,
             quantity: 1,
-            // 内税で消費税 10%（業務委託・成果報酬は課税対象）
+            // unit_price は税抜（関数コメント参照）。excise は MF 側でこの
+            // 税抜金額に外税として消費税 10% を加算計算させるための税区分
+            // 指定であり、内税化するものではない（業務委託・成果報酬は課税対象）。
             excise: "ten_percent",
           },
         ],

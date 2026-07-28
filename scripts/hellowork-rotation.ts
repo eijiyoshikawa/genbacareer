@@ -142,7 +142,7 @@ async function runBatch(pagesPerRun: number) {
   })
 
   console.log(
-    `  新規=${stats.created} 更新=${stats.updated} skip=${stats.skipped} エラー=${stats.errors}`
+    `  新規=${stats.created} 更新=${stats.updated} skip=${stats.skipped} blocked=${stats.blocked} エラー=${stats.errors}`
   )
 }
 

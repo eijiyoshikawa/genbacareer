@@ -148,6 +148,7 @@ export async function POST(request: NextRequest) {
         updated: stats.updated,
         closed: stats.closed,
         skipped: stats.skipped,
+        blocked: stats.blocked,
         errors: stats.errors,
         totalProcessed: stats.totalProcessed,
         durationMs: stats.durationMs,
