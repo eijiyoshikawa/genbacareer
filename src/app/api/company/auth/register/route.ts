@@ -11,7 +11,9 @@ import {
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 const companyRegisterSchema = z.object({
-  companyName: z.string().min(1, "会社名は必須です。"),
+  // Company.name (VarChar(200)) と CompanyUser.name (VarChar(100)) の両方に書き込むため、
+  // より厳しい方の上限に合わせる。
+  companyName: z.string().min(1, "会社名は必須です。").max(100, "会社名は100文字以内で入力してください。"),
   industry: z.string().min(1, "業種は必須です。"),
   prefecture: z.enum(PREFECTURES, "有効な都道府県を選択してください。"),
   contactEmail: z.string().email("有効なメールアドレスを入力してください。"),

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { ensureSchema } from "@/lib/ensure-schema"
 import { computeRankScore } from "@/lib/ranking"
 
 /**
@@ -31,6 +32,10 @@ export async function GET(request: Request) {
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
+
+  // jobs.rank_score / companies の SNS・リッチコンテンツ列は cron 専用ルートから
+  // のみ叩かれ、layout.tsx の fire-and-forget self-heal を経由しないため明示的に待つ。
+  await ensureSchema()
 
   const now = new Date()
   const publishedSince = new Date(now.getTime() - WINDOW_MS)

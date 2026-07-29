@@ -10,6 +10,7 @@ import {
 } from "@/lib/rate-limit"
 import { trackEvent } from "@/lib/track"
 import { normalizePhone, isMobilePhone } from "@/lib/registration/phone"
+import { PREFECTURES } from "@/lib/constants"
 
 /**
  * 求職者ウィザード登録 API (POST /api/registration/wizard)。
@@ -25,8 +26,10 @@ const wizardSchema = z.object({
   email: z.string().email("メールアドレスの形式が正しくありません"),
   password: z.string().min(8, "パスワードは 8 文字以上で入力してください"),
   answers: z.object({
-    prefecture: z.string().optional(),
-    city: z.string().optional(),
+    // User.prefecture / city は VarChar(10) / VarChar(50) のため、フリー入力を
+    // 直接受け付けると DB エラーになりうる。他の登録ルートと同じ enum + 上限で揃える。
+    prefecture: z.enum(PREFECTURES, "有効な都道府県を選択してください").optional(),
+    city: z.string().max(50, "市区町村は50文字以内で入力してください").optional(),
     experiencedCategories: z.array(z.string()).optional(),
     experiencedSubcategories: z.array(z.string()).optional(),
     experienceYears: z.string().optional(),
@@ -34,8 +37,8 @@ const wizardSchema = z.object({
     desiredPrefectures: z.array(z.string()).optional(),
     desiredSalaryMin: z.number().optional(),
     desiredTransferTiming: z.string().optional(),
-    nameLast: z.string().min(1, "姓を入力してください"),
-    nameFirst: z.string().min(1, "名を入力してください"),
+    nameLast: z.string().min(1, "姓を入力してください").max(50, "姓は50文字以内で入力してください"),
+    nameFirst: z.string().min(1, "名を入力してください").max(50, "名は50文字以内で入力してください"),
     nameLastKana: z.string().min(1, "セイを入力してください"),
     nameFirstKana: z.string().min(1, "メイを入力してください"),
     // 全角・ハイフン混入を許容しつつサーバ側で正規化 + 070/080/090 のみ受理
@@ -81,7 +84,9 @@ export async function POST(request: Request) {
 
     const passwordHash = hashSync(password, 12)
 
-    const name = `${answers.nameLast} ${answers.nameFirst}`
+    // User.name は VarChar(100)。姓/名それぞれ上限 50 文字でもスペース込みで
+    // わずかに超えうるため念のため切り詰める。
+    const name = `${answers.nameLast} ${answers.nameFirst}`.slice(0, 100)
     const normalizedPhone = normalizePhone(answers.phone)
 
     const user = await prisma.user.create({

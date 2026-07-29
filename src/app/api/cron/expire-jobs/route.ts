@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { ensureSchema } from "@/lib/ensure-schema"
 
 /**
  * 有効期限切れ求人のクローズ + 自動再掲載 (auto_renew) 求人の延長
@@ -20,6 +21,10 @@ export async function GET(request: Request) {
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
+
+  // jobs.expires_at / auto_renew は cron 専用ルートからのみ叩かれ、layout.tsx の
+  // fire-and-forget self-heal を経由しないため明示的に待つ。
+  await ensureSchema()
 
   const now = new Date()
 

@@ -3,6 +3,7 @@ import { z } from "zod"
 import bcrypt from "bcryptjs"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { ensureSchema } from "@/lib/ensure-schema"
 
 const schema = z.object({
   currentPassword: z.string().min(1).max(128),
@@ -59,6 +60,10 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     )
   }
+
+  // issuedLoginPassword クリア書き込みが P2022 で失敗しないよう待つ
+  // (読み側の implicit select は dd203e9 で対処済みだが書き側は残課題だった)。
+  await ensureSchema()
 
   const newHash = await bcrypt.hash(parsed.data.newPassword, 10)
   await prisma.companyUser.update({

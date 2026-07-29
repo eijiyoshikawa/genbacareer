@@ -14,6 +14,7 @@
 
 import { createHash } from "node:crypto"
 import { prisma } from "./db"
+import { ensureSchema } from "./ensure-schema"
 
 /** 正規化: 全角→半角、空白除去、小文字化、記号削除 */
 function normalize(s: string): string {
@@ -42,6 +43,9 @@ export function computeDedupeKey(input: {
  * admin から手動キック想定。
  */
 export async function backfillDedupeKeys(limit = 100): Promise<number> {
+  // jobs.dedupe_key / deduped_to は admin API 専用ルートからのみ叩かれ、
+  // layout.tsx の fire-and-forget self-heal を経由しないことがあるため明示的に待つ。
+  await ensureSchema()
   const rows = await prisma.job.findMany({
     where: {
       status: "active",
@@ -82,6 +86,7 @@ export async function mergeDuplicates(maxGroups = 50): Promise<{
   groupsProcessed: number
   closed: number
 }> {
+  await ensureSchema()
   // dedupeKey ごとに count > 1 のグループを抽出
   const groups = await prisma.$queryRawUnsafe<
     { dedupe_key: string; cnt: bigint }[]

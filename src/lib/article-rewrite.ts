@@ -22,6 +22,7 @@
 
 import Anthropic from "@anthropic-ai/sdk"
 import { prisma } from "@/lib/db"
+import { ensureSchema } from "@/lib/ensure-schema"
 
 // ---------------------------------------------------------------------------
 // 型
@@ -482,6 +483,9 @@ function clamp(s: string | undefined, max: number): string | undefined {
  * キルスイッチ未設定 / dryRun の場合は候補算出までで書き込みしない。
  */
 export async function runArticleRewrite(opts: RunOptions = {}): Promise<RunSummary> {
+  // article_revisions / articles.last_rewritten_at・rewrite_count は cron 専用ルート
+  // からのみ叩かれ、layout.tsx の fire-and-forget self-heal を経由しないため明示的に待つ。
+  await ensureSchema()
   const limit = opts.limit ?? 3
   const windowDays = opts.windowDays ?? 28
   const enabled = isEnabled()

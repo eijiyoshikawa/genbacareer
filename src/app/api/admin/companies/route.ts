@@ -3,6 +3,7 @@ import { z } from "zod"
 import bcrypt from "bcryptjs"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { ensureSchema } from "@/lib/ensure-schema"
 import { generateTemporaryPassword } from "@/lib/company-invitation"
 
 const companySchema = z.object({
@@ -60,6 +61,10 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     )
   }
+
+  // company_users.issued_login_password への書き込みが P2022 で失敗しないよう待つ
+  // (読み側の implicit select は dd203e9 で対処済みだが書き側は残課題だった)。
+  await ensureSchema()
 
   const d = parsed.data
   const empty = (v: string | null | undefined) => (v && v.length > 0 ? v : null)

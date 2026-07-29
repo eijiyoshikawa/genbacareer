@@ -37,6 +37,14 @@ export async function PATCH(
     return Response.json({ error: "入力エラー" }, { status: 400 })
   }
 
+  const review = await prisma.companyReview.findUnique({ where: { id } })
+  if (!review) {
+    return Response.json({ error: "口コミが見つかりません" }, { status: 404 })
+  }
+  if (review.status !== "pending") {
+    return Response.json({ error: "既に対応済みです" }, { status: 409 })
+  }
+
   await prisma.companyReview.update({
     where: { id },
     data: {

@@ -9,6 +9,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { ensureSchema } from "@/lib/ensure-schema"
 import {
   checkRateLimit,
   getClientIp,
@@ -70,6 +71,10 @@ export async function POST(
   }
 
   const session = await auth().catch(() => null)
+
+  // company_reviews は API 専用ルートからのみ書き込まれ、layout.tsx の
+  // fire-and-forget self-heal を経由しないことがあるため明示的に待つ。
+  await ensureSchema()
 
   await prisma.companyReview.create({
     data: {

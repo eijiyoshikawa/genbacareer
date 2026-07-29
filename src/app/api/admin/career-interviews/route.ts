@@ -10,6 +10,7 @@
 
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
+import { ensureSchema } from "@/lib/ensure-schema"
 import { awardCareerInterviewPoints } from "@/lib/points"
 
 export async function POST(request: Request) {
@@ -27,6 +28,10 @@ export async function POST(request: Request) {
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : ""
   if (!email) return Response.json({ error: "メールアドレスを入力してください" }, { status: 400 })
+
+  // career_interviews は admin 専用ルートからのみ叩かれ、layout.tsx の
+  // fire-and-forget self-heal を経由しないため明示的に待つ。
+  await ensureSchema()
 
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true } })
   if (!user) {

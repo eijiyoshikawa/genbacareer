@@ -23,6 +23,7 @@
 import { prisma } from "@/lib/db"
 import { Prisma } from "@prisma/client"
 import { pushMessage, isMessagingConfigured } from "@/lib/line-messaging"
+import { ensureSchema } from "@/lib/ensure-schema"
 
 /** 当選者へ LINE で送るギフトコード案内文。 */
 function buildGiftMessage(prizeName: string, code: string): string {
@@ -176,6 +177,10 @@ async function appendLedger(
  * 初回登録ボーナス。ユーザーにつき 1 回のみ（dedupeKey で保証）。日次上限の対象外。
  */
 export async function awardSignupBonus(userId: string): Promise<number> {
+  // ポイント系テーブル (users.point_balance / point_ledgers 等) は layout.tsx の
+  // fire-and-forget self-heal を経由しない API 専用ルートからも呼ばれるため、
+  // ここで明示的に ensureSchema を待つ (P2022 対策)。
+  await ensureSchema()
   return prisma.$transaction((tx) =>
     appendLedger(tx, {
       userId,
@@ -194,6 +199,7 @@ export async function awardDailyLoginBonus(
   userId: string,
   now = new Date(),
 ): Promise<number> {
+  await ensureSchema()
   return prisma.$transaction(async (tx) => {
     const todays = await sumDailyCappedToday(tx, userId, now)
     const grant = Math.min(POINT_RULES.loginBonus, POINT_RULES.dailyEarnCap - todays)
@@ -218,6 +224,7 @@ export async function awardJobViewPoints(
   now = new Date(),
 ): Promise<number> {
   const dedupeKey = `view_job:${jobId}:${jstDateKey(now)}`
+  await ensureSchema()
   return prisma.$transaction(async (tx) => {
     const todays = await sumDailyCappedToday(tx, userId, now)
     const grant = Math.min(POINT_RULES.viewJob, POINT_RULES.dailyEarnCap - todays)
@@ -253,6 +260,7 @@ export async function awardCareerInterviewPoints(
   interviewId: string,
   now = new Date(),
 ): Promise<InterviewAwardResult> {
+  await ensureSchema()
   return prisma.$transaction(async (tx) => {
     const interview = await tx.careerInterview.findUnique({
       where: { id: interviewId },
@@ -329,6 +337,7 @@ export async function adjustPoints(
   delta: number,
   note: string,
 ): Promise<number> {
+  await ensureSchema()
   return prisma.$transaction((tx) =>
     appendLedger(tx, {
       userId,
@@ -385,6 +394,7 @@ export async function drawLottery(
   userId: string,
   now = new Date(),
 ): Promise<LotteryResult> {
+  await ensureSchema()
   // 1) ポイント消費・当選判定・コード割り当てを 1 トランザクションで原子的に処理
   const res = await prisma.$transaction(async (tx) => {
     // 当選景品の在庫切れ時は抽選を停止（ポイントは消費しない）
@@ -488,10 +498,22 @@ export async function drawLottery(
           assignedCode = rows[0].code
         }
       } else if (chosen.stock !== null) {
-        await tx.lotteryPrize.update({
-          where: { id: chosen.id },
-          data: { stock: { decrement: 1 } },
-        })
+        // gift_codes と同じ理由で、読んで判定した在庫をそのまま decrement すると
+        // 同時抽選（同一景品の残り 1 個を 2 人が同時に引く等）でロストアップデートが起き、
+        // stock がマイナスになった上で在庫数以上の当選者が記録されうる。
+        // WHERE stock > 0 を付けた原子更新にし、更新できなければ品切れとして
+        // トランザクション全体をロールバック（ポイントは消費されず、ユーザーは再抽選できる）。
+        const rows = await tx.$queryRaw<Array<{ stock: number }>>(Prisma.sql`
+          UPDATE "lottery_prizes" SET "stock" = "stock" - 1
+          WHERE "id" = ${chosen.id}::uuid AND "stock" > 0
+          RETURNING "stock"
+        `)
+        if (rows.length === 0) {
+          throw new PointError(
+            "STOCK_RACE",
+            "ちょうど品切れになりました。もう一度抽選をお試しください",
+          )
+        }
       }
     }
 
@@ -550,6 +572,7 @@ export async function drawLottery(
 
 /** マイページ表示用: 残高・履歴・抽選可否などをまとめて取得。 */
 export async function getPointsSummary(userId: string, now = new Date()) {
+  await ensureSchema()
   const [user, history, prizes, drawsToday, winnable] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },

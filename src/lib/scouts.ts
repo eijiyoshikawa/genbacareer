@@ -26,7 +26,12 @@ export const SCOUT_SUBJECT_MAX = 120
  * 企業側はカスタマイズ不可。
  */
 export function buildScoutSubject(companyName: string): string {
-  return `${companyName}からスカウトが届きました！[ゲンバキャリア / スカウト着信通知]`
+  const subject = `${companyName}からスカウトが届きました！[ゲンバキャリア / スカウト着信通知]`
+  // DB CHECK 制約 (scout_messages_subject_len_check) は 120 文字まで。
+  // 企業名が長いと固定書式込みで超過し、スカウト送信自体が DB エラーで失敗するため切り詰める。
+  return subject.length > SCOUT_SUBJECT_MAX
+    ? subject.slice(0, SCOUT_SUBJECT_MAX)
+    : subject
 }
 
 /** sentAt から 30 日後を返す。 */

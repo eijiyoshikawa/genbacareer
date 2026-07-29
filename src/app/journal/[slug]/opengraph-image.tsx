@@ -120,7 +120,7 @@ export default async function OGImage({
             display: "flex",
           }}
         >
-          {article?.authorName ?? "ゲンバキャリア編集部"}
+          {sanitizeOgText(article?.authorName ?? "ゲンバキャリア編集部")}
         </div>
 
         <div

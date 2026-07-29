@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import { Prisma } from "@prisma/client"
+import { ensureSchema } from "@/lib/ensure-schema"
 import { fetchSnapshot, isGbizConfigured } from "@/lib/gbizinfo"
 
 /**
@@ -40,6 +41,10 @@ export async function GET(request: Request) {
       { status: 200 }
     )
   }
+
+  // companies.corporate_number / gbiz_synced_at / gbiz_data は cron 専用ルートから
+  // のみ叩かれ、layout.tsx の fire-and-forget self-heal を経由しないため明示的に待つ。
+  await ensureSchema()
 
   const cutoff = new Date(Date.now() - STALE_MS)
 

@@ -3,6 +3,7 @@ import { z } from "zod"
 import bcrypt from "bcryptjs"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { ensureSchema } from "@/lib/ensure-schema"
 import {
   generateInvitationToken,
   generateTemporaryPassword,
@@ -42,6 +43,10 @@ export async function POST(
   }
 
   const { id: companyId } = await ctx.params
+
+  // company_users.issued_login_password への書き込みが P2022 で失敗しないよう待つ
+  // (読み側の implicit select は dd203e9 で対処済みだが書き側は残課題だった)。
+  await ensureSchema()
 
   const company = await prisma.company.findUnique({
     where: { id: companyId },

@@ -11,6 +11,7 @@
  */
 
 import { prisma } from "@/lib/db"
+import { ensureSchema } from "@/lib/ensure-schema"
 import { createNotification } from "@/lib/notifications"
 import {
   findNewMatchingJobs,
@@ -28,6 +29,10 @@ export async function GET(request: Request) {
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
+
+  // users.status (BAN/退会) は cron 専用ルートからのみ叩かれ、layout.tsx の
+  // fire-and-forget self-heal を経由しないため明示的に待つ。
+  await ensureSchema()
 
   const startedAt = new Date()
   const errors: string[] = []
