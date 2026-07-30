@@ -17,6 +17,7 @@
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isValidUuid } from "@/lib/uuid"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -28,7 +29,9 @@ async function requireAdmin() {
   if (!session?.user) return null
   const u = session.user as SessionUser
   if (u.role !== "admin") return null
-  return { userId: u.id ?? null }
+  // 環境変数ベースの管理者ログイン (id: "admin" 固定) は UUID でないため、
+  // そのまま approvedBy/rejectedBy (@db.Uuid) に渡すと P2023 になる。
+  return { userId: isValidUuid(u.id) ? u.id : null }
 }
 
 const patchSchema = z.discriminatedUnion("action", [

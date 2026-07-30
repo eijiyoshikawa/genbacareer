@@ -7,6 +7,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isValidUuid } from "@/lib/uuid"
 
 export const dynamic = "force-dynamic"
 
@@ -56,15 +57,20 @@ export async function PATCH(
     )
   }
 
+  // 環境変数ベースの管理者ログイン (id: "admin" 固定) は UUID でないため、
+  // そのまま approvedBy/paidBy (@db.Uuid) に渡すと P2023 になる。
+  const rawUserId = session?.user?.id
+  const actorId = isValidUuid(rawUserId) ? rawUserId : null
+
   const data: Record<string, unknown> = {}
   if (parsed.data.action === "approve") {
     data.status = "approved"
     data.approvedAt = new Date()
-    data.approvedBy = session?.user?.id ?? null
+    data.approvedBy = actorId
   } else if (parsed.data.action === "mark_paid") {
     data.status = "paid"
     data.paidAt = new Date()
-    data.paidBy = session?.user?.id ?? null
+    data.paidBy = actorId
   } else {
     data.status = "rejected"
     data.rejectedAt = new Date()
