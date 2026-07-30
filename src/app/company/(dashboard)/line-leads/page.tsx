@@ -5,6 +5,7 @@ import Link from "next/link"
 import { MessageCircle, Phone, Mail, Building2, MapPin } from "lucide-react"
 import { LEAD_STATUSES, LEAD_STATUS_META, isLeadStatus, type LeadStatus } from "@/lib/line-lead-status"
 import { Pagination } from "@/components/pagination"
+import { parsePositiveInt } from "@/lib/pagination"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -27,7 +28,7 @@ export default async function CompanyLineLeadsPage({ searchParams }: Props) {
   if (!companyId) redirect("/login")
 
   const params = await searchParams
-  const page = Math.max(1, Number(params.page ?? "1"))
+  const page = parsePositiveInt(params.page, 1)
   const statusFilter = isLeadStatus(params.status) ? params.status : undefined
 
   const where = {

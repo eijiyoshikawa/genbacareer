@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isValidUuid } from "@/lib/uuid"
 
 const patchSchema = z.object({
   status: z.enum(["resolved", "dismissed"]),
@@ -55,7 +56,9 @@ export async function PATCH(
       status: parsed.data.status,
       resolution: parsed.data.resolution ?? null,
       resolvedAt: new Date(),
-      resolvedBy: session.user.id,
+      // 環境変数ベースの管理者ログイン (id: "admin" 固定) は UUID でないため、
+      // そのまま渡すと @db.Uuid 列で P2023 になる。
+      resolvedBy: isValidUuid(session.user.id) ? session.user.id : null,
     },
   })
 

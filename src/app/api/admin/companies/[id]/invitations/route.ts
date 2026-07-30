@@ -3,6 +3,7 @@ import { z } from "zod"
 import bcrypt from "bcryptjs"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isValidUuid } from "@/lib/uuid"
 import {
   generateInvitationToken,
   generateTemporaryPassword,
@@ -83,7 +84,11 @@ export async function POST(
     )
   }
 
-  const adminUserId = (session.user as { id?: string }).id ?? null
+  const rawAdminUserId = (session.user as { id?: string }).id
+  // 環境変数ベースの管理者ログイン (id: "admin" 固定) は DB 上に UUID 行を
+  // 持たないため、そのまま invitedById (@db.Uuid) に渡すと P2023 で
+  // invitation 作成自体が失敗する。UUID でない場合は null にする。
+  const adminUserId = isValidUuid(rawAdminUserId) ? rawAdminUserId : null
 
   if (d.method === "email") {
     // 既存の未受領招待があれば再利用ではなく取り消して新規発行（運用シンプル化）

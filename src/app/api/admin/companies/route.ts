@@ -100,22 +100,38 @@ export async function POST(request: NextRequest) {
 
   // admin が作成する企業は承認フローを経ずに即掲載可能（approved）にする。
   // 求人投稿 API は status=approved の企業のみ許可しているため必須。
-  const company = await prisma.company.create({
-    data: {
-      name: d.name,
-      industry: empty(d.industry),
-      prefecture: empty(d.prefecture),
-      city: empty(d.city),
-      address: empty(d.address),
-      employeeCount: empty(d.employeeCount),
-      description: empty(d.description),
-      logoUrl: empty(d.logoUrl),
-      websiteUrl: empty(d.websiteUrl),
-      contactEmail: empty(d.contactEmail),
-      status: "approved",
-      approvedAt: new Date(),
-    },
-  })
+  let company
+  try {
+    company = await prisma.company.create({
+      data: {
+        name: d.name,
+        industry: empty(d.industry),
+        prefecture: empty(d.prefecture),
+        city: empty(d.city),
+        address: empty(d.address),
+        employeeCount: empty(d.employeeCount),
+        description: empty(d.description),
+        logoUrl: empty(d.logoUrl),
+        websiteUrl: empty(d.websiteUrl),
+        contactEmail: empty(d.contactEmail),
+        status: "approved",
+        approvedAt: new Date(),
+      },
+    })
+  } catch (e) {
+    if (
+      e &&
+      typeof e === "object" &&
+      "code" in e &&
+      e.code === "P2002"
+    ) {
+      return Response.json(
+        { error: "同名の企業（自社掲載）が既に登録されています" },
+        { status: 409 }
+      )
+    }
+    throw e
+  }
 
   if (!d.account) {
     return Response.json({ company }, { status: 201 })

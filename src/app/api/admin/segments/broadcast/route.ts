@@ -21,6 +21,7 @@ import { prisma } from "@/lib/db"
 import { isMessagingConfigured, pushMessage, type LineMessage } from "@/lib/line-messaging"
 import { buildJobRecommendationFlex } from "@/lib/line-flex-builders"
 import { resolveSegment, type Segment } from "@/lib/segment"
+import { isValidUuid } from "@/lib/uuid"
 import { LEAD_STATUSES } from "@/lib/line-lead-status"
 
 export const dynamic = "force-dynamic"
@@ -131,7 +132,10 @@ export async function POST(request: NextRequest) {
   }
 
   // ログ保存
-  const userId = (session.user as { id?: string } | undefined)?.id ?? null
+  // 環境変数ベースの管理者ログイン (id: "admin" 固定) は UUID でないため、
+  // そのまま渡すと @db.Uuid 列で P2023 になる。
+  const rawUserId = (session.user as { id?: string } | undefined)?.id
+  const userId = isValidUuid(rawUserId) ? rawUserId : null
   await prisma.broadcastLog
     .create({
       data: {

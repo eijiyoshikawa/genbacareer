@@ -3,6 +3,7 @@ import Image from "next/image"
 import type { Metadata } from "next"
 import { prisma } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
+import { parsePositiveInt } from "@/lib/pagination"
 import { Newspaper, Search, ChevronRight } from "lucide-react"
 import { Pagination } from "@/components/pagination"
 
@@ -54,7 +55,7 @@ type Props = {
 
 export default async function JournalPage({ searchParams }: Props) {
   const params = await searchParams
-  const page = Math.max(1, Number(params.page ?? "1"))
+  const page = parsePositiveInt(params.page, 1)
   const categoryFilter = params.category ?? ""
 
   const where = {

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { parsePositiveInt } from "@/lib/pagination"
 import {
   CONSTRUCTION_CATEGORY_VALUES,
   isConstructionCategory,
@@ -36,11 +37,8 @@ export async function GET(request: NextRequest) {
   const employmentType = searchParams.get("employment_type")
   const salaryMin = searchParams.get("salary_min")
   const q = searchParams.get("q")
-  const rawPage = Math.max(1, Number(searchParams.get("page") ?? "1"))
-  const rawLimit = Math.min(
-    50,
-    Math.max(1, Number(searchParams.get("limit") ?? "20")),
-  )
+  const rawPage = parsePositiveInt(searchParams.get("page"), 1)
+  const rawLimit = Math.min(50, parsePositiveInt(searchParams.get("limit"), 20))
   const page = loggedIn ? rawPage : 1
   const limit = loggedIn ? rawLimit : Math.min(rawLimit, GUEST_LIMIT)
   const sort = searchParams.get("sort") ?? "published_at"

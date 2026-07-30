@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { prisma } from "@/lib/db"
+import { parsePositiveInt } from "@/lib/pagination"
 import { Pagination } from "@/components/pagination"
 import { MessageCircle, Search, Download } from "lucide-react"
 import {
@@ -24,7 +25,7 @@ const PER_PAGE = 30
 
 export default async function AdminLineLeadsPage({ searchParams }: Props) {
   const params = await searchParams
-  const page = Math.max(1, Number(params.page ?? "1"))
+  const page = parsePositiveInt(params.page, 1)
   const statusFilter = isLeadStatus(params.status) ? params.status : undefined
   const q = (params.q ?? "").trim()
 

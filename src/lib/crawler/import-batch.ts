@@ -12,7 +12,7 @@
  * @module import-batch
  */
 
-import { Prisma, PrismaClient } from "@prisma/client"
+import type { Prisma } from "@prisma/client"
 import type { CategoryValue } from "@/lib/categories"
 import {
   cleanTitle,
@@ -22,6 +22,7 @@ import {
 import { computeRankScore } from "@/lib/ranking"
 import { computeDisplayPriority } from "@/lib/job-display-priority"
 import { normalizeCompanyName } from "@/lib/company-name"
+import { prisma } from "@/lib/db"
 import type { HelloworkJobData } from "./hellowork"
 
 // ========================================
@@ -54,24 +55,6 @@ export interface ImportStats {
 interface ImportError {
   helloworkId: string
   message: string
-}
-
-// ========================================
-// Prisma クライアント
-// ========================================
-
-/**
- * シングルトン Prisma クライアント。
- * Next.js の Hot Reload でコネクションが増殖するのを防ぐ。
- */
-const globalForPrisma = globalThis as unknown as {
-  importPrisma: PrismaClient | undefined
-}
-
-const prisma = globalForPrisma.importPrisma ?? new PrismaClient()
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.importPrisma = prisma
 }
 
 // ========================================

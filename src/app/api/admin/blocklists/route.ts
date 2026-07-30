@@ -8,6 +8,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isValidUuid } from "@/lib/uuid"
 
 export const dynamic = "force-dynamic"
 
@@ -23,6 +24,7 @@ export async function POST(request: NextRequest) {
   if (role !== "admin") {
     return Response.json({ error: "権限がありません" }, { status: 403 })
   }
+  const rawUserId = (session?.user as { id?: string } | undefined)?.id
 
   let body: unknown
   try {
@@ -55,7 +57,9 @@ export async function POST(request: NextRequest) {
       keyword: parsed.data.keyword,
       scope: parsed.data.scope,
       note: parsed.data.note ?? null,
-      createdBy: session?.user?.id ?? null,
+      // 環境変数ベースの管理者ログイン (id: "admin" 固定) は UUID でないため、
+      // そのまま渡すと @db.Uuid 列で P2023 になる。
+      createdBy: isValidUuid(rawUserId) ? rawUserId : null,
     },
     select: { id: true },
   })
