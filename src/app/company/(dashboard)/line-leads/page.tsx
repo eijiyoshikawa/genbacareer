@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import { parsePage } from "@/lib/pagination"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import Link from "next/link"
@@ -27,7 +28,7 @@ export default async function CompanyLineLeadsPage({ searchParams }: Props) {
   if (!companyId) redirect("/login")
 
   const params = await searchParams
-  const page = Math.max(1, Number(params.page ?? "1"))
+  const page = parsePage(params.page)
   const statusFilter = isLeadStatus(params.status) ? params.status : undefined
 
   const where = {

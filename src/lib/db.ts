@@ -22,12 +22,19 @@ function buildDatabaseUrl(): string | undefined {
   if (!original) return undefined
   let url = original
   // Lambda 単位の connection_limit。
-  // 3 だと admin dashboard の 17 並列クエリ + ensureSchema が同時稼働した時に
-  // P2024 が発生していた。Supabase pgbouncer Transaction mode の上限
-  // (Pro 200) を想定 Lambda 同時数 ~20 で割って 10 が安全側。
+  // 以前 10 に引き上げたところ、本番監視 (Vercel runtime errors) で
+  // /jobs, /jobs/[id], /jobs/[id]/apply, /journal, /jobs/map 等の主要導線で
+  // ECHECKOUTTIMEOUT / P2024 (pool exhausted) が直近 7 日で 179 件発生し、
+  // ユーザー向け 500 エラーになっていることを確認 (2026-07-31 定期バグ検査)。
+  // 同時 Lambda 数が増える一般トラフィックでは「Lambda 数 × limit」が
+  // pgbouncer 側の上限を超えやすいため、Lambda 単位の limit は低く保つ方が
+  // 全体のプール枯渇を防げる。admin dashboard の 17 並列クエリは全て
+  // `.catch()` で 0/空配列にフォールバックする設計になっており、
+  // 低い connection_limit 下で個別クエリが詰まっても画面自体はクラッシュしない
+  // (数値が一時的に 0 表示になるのみ)。そのため一般導線を優先して 3 に戻す。
   if (!/[?&]connection_limit=/.test(url)) {
     const sep = url.includes("?") ? "&" : "?"
-    url = `${url}${sep}connection_limit=10`
+    url = `${url}${sep}connection_limit=3`
   }
   // pool_timeout を 30 秒に伸ばす (デフォルト 10s は Promise.all で並列度高いと足りない)
   if (!/[?&]pool_timeout=/.test(url)) {

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { parsePage } from "@/lib/pagination"
 import Link from "next/link"
 import type { Metadata } from "next"
 import { Pagination } from "@/components/pagination"
@@ -21,7 +22,7 @@ export default async function AdminArticlesPage({
   searchParams: Promise<SP>
 }) {
   const params = await searchParams
-  const page = Math.max(1, Number(params.page) || 1)
+  const page = parsePage(params.page)
   const query = params.q ?? ""
   const statusFilter = params.status ?? ""
   const categoryFilter = params.category ?? ""

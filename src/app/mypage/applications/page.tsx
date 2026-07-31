@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth"
+import { parsePage } from "@/lib/pagination"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import Link from "next/link"
@@ -57,7 +58,7 @@ export default async function ApplicationsPage({ searchParams }: Props) {
   if (!session?.user?.id) redirect("/login")
 
   const params = await searchParams
-  const page = Math.max(1, Number(params.page ?? "1"))
+  const page = parsePage(params.page)
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">

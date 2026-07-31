@@ -580,11 +580,20 @@ const STATEMENTS: ReadonlyArray<string> = [
 
 let inflight: Promise<boolean> | null = null
 
-// 一度だけ実行され、結果を Promise でキャッシュ。成功/失敗いずれも以後 await が即解決する。
+// 一度成功すれば結果を Promise でキャッシュし、以後の await は即解決する。
 // 戻り値: 全 ALTER が成功したかどうか（失敗時は防御クエリへフォールバック判断に使う）。
 //
 // pg_trgm のように権限不足で失敗しうる文があるため、各 SQL は個別 try/catch。
 // 1 つ落ちても残りは適用される。
+//
+// 2026-07-31 定期バグ検査で判明: 接続プール枯渇 (P2024/ECHECKOUTTIMEOUT) 下では
+// ALTER 文自体がタイムアウトで失敗することがあり、以前は失敗時も inflight に
+// キャッシュしていたため、そのコールドスタートの Lambda インスタンスは寿命が
+// 尽きるまで「未反映カラムあり」の状態のまま再試行されなかった
+// (avatar_url 列が実際には存在するのに authorize 経由の SELECT が
+// P2022 で失敗し続ける事象として観測)。失敗時は inflight をクリアし、
+// 次回呼び出しで再試行できるようにする (成功済みの ALTER は IF NOT EXISTS で
+// no-op なので再実行しても安全)。
 //
 // Vercel の build フェーズ (`NEXT_PHASE=phase-production-build`) ではスキップする。
 // build 時の prerender で複数 worker が並列に ensureSchema を呼ぶと、
@@ -615,6 +624,10 @@ export function ensureSchema(): Promise<boolean> {
  e instanceof Error ? e.message : e
  )
  }
+ }
+ if (!allOk) {
+ // 部分失敗はキャッシュしない。次回呼び出しで再試行させる。
+ inflight = null
  }
  return allOk
  })()

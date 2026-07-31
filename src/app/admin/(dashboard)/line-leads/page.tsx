@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { parsePage } from "@/lib/pagination"
 import { prisma } from "@/lib/db"
 import { Pagination } from "@/components/pagination"
 import { MessageCircle, Search, Download } from "lucide-react"
@@ -24,7 +25,7 @@ const PER_PAGE = 30
 
 export default async function AdminLineLeadsPage({ searchParams }: Props) {
   const params = await searchParams
-  const page = Math.max(1, Number(params.page ?? "1"))
+  const page = parsePage(params.page)
   const statusFilter = isLeadStatus(params.status) ? params.status : undefined
   const q = (params.q ?? "").trim()
 

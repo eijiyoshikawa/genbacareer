@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth"
+import { parsePage } from "@/lib/pagination"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { HIRING_FEE_FALLBACK } from "@/lib/hiring-fee"
@@ -27,7 +28,7 @@ export default async function CompanyBillingPage({
   if (!companyId) redirect("/login")
 
   const params = await searchParams
-  const page = Math.max(1, Number(params.page) || 1)
+  const page = parsePage(params.page)
   const perPage = 20
 
   const [events, total, summaryData, companyJobs, company] = await Promise.all([

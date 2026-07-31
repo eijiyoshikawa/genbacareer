@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { parsePage } from "@/lib/pagination"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import Link from "next/link"
@@ -32,7 +33,7 @@ export default async function HiringFeesAdminPage({
 
   const params = await searchParams
   const companyFilter = params.company?.trim() || ""
-  const page = Math.max(1, Number(params.page) || 1)
+  const page = parsePage(params.page)
   const perPage = 50
 
   const where = {

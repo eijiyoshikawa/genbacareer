@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth"
+import { parsePage } from "@/lib/pagination"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import Link from "next/link"
@@ -23,7 +24,7 @@ export default async function CompanyJobsPage({
   if (!companyId) redirect("/login")
 
   const params = await searchParams
-  const page = Math.max(1, Number(params.page) || 1)
+  const page = parsePage(params.page)
   const statusFilter = params.status || "all"
   const perPage = 20
 
