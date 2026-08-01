@@ -20,7 +20,20 @@ import {
   fallbackSalary,
 } from "@/lib/job-enrichment"
 import { computeRankScore } from "@/lib/ranking"
+import { planTier } from "@/lib/plans"
 import type { HelloworkJobData } from "./hellowork"
+
+// ========================================
+// 定数
+// ========================================
+
+/**
+ * closeOrphans 判定の staleness しきい値（日数）。
+ * 全国 dataId ローテーション1周（hourly cron × pages=5）は通常数日で完走する。
+ * それより十分長い余裕を持たせ、取得失敗・API 側の一時的な欠落による
+ * 誤 close を防ぐ。
+ */
+const ORPHAN_STALE_DAYS = 14
 
 // ========================================
 // 型定義
@@ -206,6 +219,11 @@ async function upsertHelloworkCompany(
       city: job.city,
       address: job.address,
       status: "approved",
+      // Company.planTier のスキーマデフォルトは 3（有償企業と同率上位表示）。
+      // HelloWork 取り込みは参照データなので明示的に最下位 (0) に固定する
+      // （src/lib/plans.ts の planTier() と同じ規則。過去に手動 SQL で
+      // 既存行を修正した経緯があるが、以後の新規取り込み分は未対応だった）。
+      planTier: planTier({ planType: null, source: "hellowork" }),
     },
     update: {
       // 既存レコードの prefecture/city/address は最新ジョブの値で更新
@@ -380,7 +398,8 @@ export function inferCategory(
  * @param jobs - パース済みのハローワーク求人データ配列
  * @param options - オプション設定
  * @param options.dryRun - true の場合、DB 変更を行わずに統計のみ返す
- * @param options.closeOrphans - true の場合、今回のバッチに含まれない HW 求人を closed にする（デフォルト: true）
+ * @param options.closeOrphans - true の場合、今回のバッチに含まれずかつ ORPHAN_STALE_DAYS 日以上
+ *   再取得されていない HW 求人を closed にする（デフォルト: true）
  * @returns インポート統計
  *
  * @example
@@ -527,15 +546,30 @@ export async function importHelloworkJobs(
   // -------------------------------------------------------
   // Step 2: 孤立した HW 求人を closed にする
   // ハローワーク側で掲載終了した求人を検知して非公開にする
+  //
+  // 注意: ローテーション取り込みは1回のバッチで dataId 全体のごく一部
+  // (数千件) しか processedIds に積まない。「今回のバッチに含まれない」
+  // だけを条件にすると、全国 36 万件のうち今回取れた分以外を一括 closed
+  // にしてしまう（過去に実際に発生した事故）。
+  // そのため updatedAt が ORPHAN_STALE_DAYS 以上更新されていない
+  // （= 1 ローテーションサイクルを通じて一度も再取得されていない）
+  // 求人のみを対象にする。ローテーション1周は数日かかるため、余裕を持って
+  // 判定する。これにより closeOrphans=true は毎バッチ実行しても安全。
   // -------------------------------------------------------
   if (closeOrphans && !dryRun && processedIds.size > 0) {
     try {
+      const staleCutoff = new Date(
+        startedAt.getTime() - ORPHAN_STALE_DAYS * 24 * 60 * 60 * 1000
+      )
       const result = await prisma.job.updateMany({
         where: {
           source: "hellowork",
           status: "active",
           helloworkId: {
             notIn: Array.from(processedIds),
+          },
+          updatedAt: {
+            lt: staleCutoff,
           },
         },
         data: {

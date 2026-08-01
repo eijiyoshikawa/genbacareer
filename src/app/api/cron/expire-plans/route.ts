@@ -17,15 +17,14 @@
  * 期限なしプラン (success_fee / campaign_free) は対象外。
  */
 
+import { isAuthorizedCronRequest } from "@/lib/cron-auth"
 import { prisma } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCronRequest(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

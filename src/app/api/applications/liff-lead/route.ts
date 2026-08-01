@@ -19,7 +19,7 @@ import { notifyNewLead } from "@/lib/lead-notifications"
 import { findRelatedJobs } from "@/lib/job-matching"
 import { getSessionIdIfExists } from "@/lib/session-id"
 import { extractUtmFromUrl } from "@/lib/tracking"
-import { verifyLiffAccessToken, isLiffServerConfigured } from "@/lib/liff"
+import { verifyLiffAccessToken, getLiffProfile, isLiffServerConfigured } from "@/lib/liff"
 
 export const dynamic = "force-dynamic"
 
@@ -70,6 +70,20 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+
+    // verify はチャネル一致しか確認しないため、accessToken の持ち主本人の
+    // プロフィールを取得し、クライアントが送ってきた lineUserId を信頼せず
+    // 上書きする（他人の lineUserId 詐称でなりすまし push / 虚偽リード作成
+    // されるのを防ぐ）。
+    const profile = await getLiffProfile(parsed.accessToken)
+    if (!profile) {
+      return Response.json(
+        { error: "invalid_liff_token", reason: "profile_fetch_failed" },
+        { status: 401 }
+      )
+    }
+    parsed.lineUserId = profile.userId
+    parsed.lineDisplayName = profile.displayName ?? parsed.lineDisplayName
   }
 
   // 対象求人

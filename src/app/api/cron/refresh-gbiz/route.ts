@@ -1,3 +1,4 @@
+import { isAuthorizedCronRequest } from "@/lib/cron-auth"
 import { prisma } from "@/lib/db"
 import { Prisma } from "@prisma/client"
 import { fetchSnapshot, isGbizConfigured } from "@/lib/gbizinfo"
@@ -12,7 +13,7 @@ import { fetchSnapshot, isGbizConfigured } from "@/lib/gbizinfo"
  *
  * Vercel Cron Jobs 設定例 (vercel.json):
  *   { "path": "/api/cron/refresh-gbiz", "schedule": "0 3 1 * *" }
- *   → 毎月 1 日 03:00 JST に実行
+ *   → 毎月 1 日 12:00 JST に実行 (schedule は UTC 表記)
  *
  * Authorization: Bearer ${CRON_SECRET} で認証。
  */
@@ -28,9 +29,7 @@ async function sleep(ms: number): Promise<void> {
 }
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCronRequest(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

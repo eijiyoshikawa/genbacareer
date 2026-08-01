@@ -8,6 +8,7 @@
  * 失敗時は警告 + 200 を返す（cron が無限にリトライ走らないように）。
  */
 
+import { isAuthorizedCronRequest } from "@/lib/cron-auth"
 import { prisma } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
@@ -20,9 +21,7 @@ const MATERIALIZED_VIEWS = [
 ] as const
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCronRequest(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

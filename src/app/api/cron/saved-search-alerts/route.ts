@@ -10,6 +10,7 @@
  *          上位 5 件取得し通知。
  */
 
+import { isAuthorizedCronRequest } from "@/lib/cron-auth"
 import { prisma } from "@/lib/db"
 import { createNotification } from "@/lib/notifications"
 import {
@@ -23,9 +24,7 @@ export const runtime = "nodejs"
 export const maxDuration = 300
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCronRequest(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

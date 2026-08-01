@@ -1,126 +1,25 @@
 /**
- * 14.1 Indeed XML Feed (求人アグリゲーション連携)。
+ * GET /feed/indeed.xml
  *
- * Indeed Publisher / Job Aggregator が読み取れる形式の XML feed。
- * 仕様: https://docs.indeed.com/job-feeds
+ * 旧 Indeed 専用フィード実装。/jobs.xml (docs/job-feeds.md) に統合される前の
+ * 実装が残っていたもので、フィルタ条件が独自実装のまま古くなっていた:
+ *   - source='direct' 絞り込みがなく HelloWork 取り込み求人まで配信していた
+ *     (HelloWork は国側の別フィードで Indeed に渡るため二重配信になる)
+ *   - 企業プラン (課金/期限) の絞り込みがなく campaign_free (¥0 無期限枠) も
+ *     配信していた (外部配信コストに見合わないため /jobs.xml では除外方針)
  *
- * - GET /feed/indeed.xml
- * - active な公開求人を 5000 件まで出力 (Indeed の推奨上限以内)
- * - 60 分 ISR でキャッシュ (force-dynamic で build 失敗回避)
- *
- * Indeed への申請手順:
- *   1. https://employers.indeed.com/p/cpc/feed-options で「XML feed」選択
- *   2. URL: https://www.genbacareer.jp/feed/indeed.xml を登録
- *   3. 審査通過後、Indeed が定期クロール
+ * ロジックを二重管理せず、常に最新仕様の /jobs.xml へ委譲する。
+ * 既に Indeed 側にこの URL が登録済みでも 308 でフォローされるため
+ * 移行の手間なく安全に統一できる。
  */
 
-import { prisma } from "@/lib/db"
-import { CONSTRUCTION_CATEGORY_VALUES, getCategoryLabel } from "@/lib/categories"
+import { NextResponse, type NextRequest } from "next/server"
 
 export const dynamic = "force-dynamic"
-export const revalidate = 3600
 
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
-
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;")
-}
-
-function cdata(s: string): string {
-  // CDATA で囲む。`]]>` は分割エスケープ
-  return `<![CDATA[${s.replace(/]]>/g, "]]]]><![CDATA[>")}]]>`
-}
-
-function formatSalary(job: {
-  salaryMin: number | null
-  salaryMax: number | null
-  salaryType: string | null
-}): string {
-  if (!job.salaryMin && !job.salaryMax) return ""
-  const unit =
-    job.salaryType === "hourly"
-      ? "yearly" // Indeed は yearly を推奨だが時給は別途扱う
-      : "yearly"
-  const min = job.salaryMin ?? job.salaryMax ?? 0
-  const max = job.salaryMax ?? job.salaryMin ?? 0
-  // 月給/時給は Indeed 仕様で yearly に換算
-  const yearlyMin = job.salaryType === "hourly" ? min * 8 * 250 : job.salaryType === "monthly" ? min * 12 : min
-  const yearlyMax = job.salaryType === "hourly" ? max * 8 * 250 : job.salaryType === "monthly" ? max * 12 : max
-  return `<salary>${yearlyMin}〜${yearlyMax} JPY/${unit}</salary>`
-}
-
-export async function GET() {
-  const jobs = await prisma.job.findMany({
-    where: {
-      status: "active",
-      category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
-      // 説明文が空の求人は Indeed の品質要件を満たさないので除外
-      NOT: { description: null },
-    },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      category: true,
-      employmentType: true,
-      salaryMin: true,
-      salaryMax: true,
-      salaryType: true,
-      prefecture: true,
-      city: true,
-      address: true,
-      publishedAt: true,
-      updatedAt: true,
-      company: { select: { name: true } },
-    },
-    orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
-    take: 5000,
-  }).catch(() => [])
-
-  const items = jobs
-    .map((j) => {
-      const pubDate = (j.publishedAt ?? j.updatedAt).toUTCString()
-      const url = `${SITE_URL}/jobs/${j.id}`
-      const companyName = j.company?.name ?? "ゲンバキャリア"
-      const location = [j.prefecture, j.city, j.address].filter(Boolean).join(" ")
-      return `    <job>
-      <title>${cdata(j.title)}</title>
-      <date>${pubDate}</date>
-      <referencenumber>${j.id}</referencenumber>
-      <url>${escapeXml(url)}</url>
-      <company>${cdata(companyName)}</company>
-      <city>${cdata(j.city ?? "")}</city>
-      <state>${cdata(j.prefecture)}</state>
-      <country>JP</country>
-      <postalcode></postalcode>
-      <description>${cdata(j.description ?? "")}</description>
-      ${formatSalary(j)}
-      <education></education>
-      <jobtype>${cdata(j.employmentType ?? "")}</jobtype>
-      <category>${cdata(getCategoryLabel(j.category))}</category>
-      <experience></experience>
-      <location>${cdata(location)}</location>
-    </job>`
-    })
-    .join("\n")
-
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<source>
-  <publisher>ゲンバキャリア</publisher>
-  <publisherurl>${SITE_URL}</publisherurl>
-  <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
-${items}
-</source>`
-
-  return new Response(xml, {
-    headers: {
-      "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, max-age=3600, s-maxage=3600",
-    },
-  })
+export async function GET(request: NextRequest) {
+  return NextResponse.redirect(
+    new URL("/jobs.xml?source=indeed", request.url),
+    308
+  )
 }

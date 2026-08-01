@@ -109,7 +109,8 @@ curl -X POST "https://www.genbacareer.jp/api/cron/hellowork-import?dataId=M100&p
 curl -X POST "https://www.genbacareer.jp/api/cron/hellowork-import?pages=1" \
   -H "Authorization: Bearer $CRON_SECRET"
 
-# closeOrphans を有効化（fullSweep 用。ローテーション中は使わない）
+# closeOrphans を有効化（14 日以上再取得されていない HW 求人のみ closed にする。
+# staleness ベースなので毎バッチ実行しても安全 — 1 回のバッチに含まれないだけでは closed にならない）
 curl -X POST "https://www.genbacareer.jp/api/cron/hellowork-import?closeOrphans=true" \
   -H "Authorization: Bearer $CRON_SECRET"
 ```

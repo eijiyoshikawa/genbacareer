@@ -1,3 +1,4 @@
+import { isAuthorizedCronRequest } from "@/lib/cron-auth"
 import { prisma } from "@/lib/db"
 
 /**
@@ -14,10 +15,7 @@ import { prisma } from "@/lib/db"
 const AUTO_RENEW_EXTENSION_MS = 30 * 24 * 60 * 60 * 1000
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCronRequest(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

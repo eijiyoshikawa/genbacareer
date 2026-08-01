@@ -32,6 +32,23 @@ const schema = z.object({
   planNotes: z.string().max(500).nullable(),
 })
 
+/**
+ * planPaidUntil の入力を Date に変換する。
+ *
+ * `<input type="date">` からの "YYYY-MM-DD" は `new Date()` に渡すと
+ * UTC 00:00 (= JST 09:00) と解釈されてしまい、本来「契約終了日の JST 終わりまで
+ * 有効」であるべき満了日が最大 15 時間早まってしまう
+ * (expire-plans cron は毎日 14:00 JST 実行のため、同日中に降格される)。
+ * 日付のみの入力は JST 終端 (23:59:59.999) として解釈する。
+ * すでに時刻を含む ISO 文字列はそのまま使う。
+ */
+function parsePlanPaidUntil(value: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T23:59:59.999+09:00`)
+  }
+  return new Date(value)
+}
+
 async function requireAdmin() {
   const session = await auth()
   if (!session?.user) return null
@@ -118,7 +135,7 @@ export async function POST(
     where: { id },
     data: {
       planType,
-      planPaidUntil: planPaidUntil ? new Date(planPaidUntil) : null,
+      planPaidUntil: planPaidUntil ? parsePlanPaidUntil(planPaidUntil) : null,
       planActivatedAt: activatedAt,
       planPrepaidFull,
       planNotes,
