@@ -10,7 +10,7 @@
  * 用途: MoneyForward 自動連携は未導入のため、admin が手動で
  *   - 請求書発行 (pending → invoiced) + MF 側 ID を保存
  *   - 入金確認 (invoiced → paid)
- *   - 失敗マーク (* → failed)
+ *   - 失敗マーク (pending/invoiced → failed。paid 済みは対象外)
  * を打ち込んで運用する。
  */
 
@@ -108,6 +108,12 @@ export async function POST(
       return Response.json({ ok: true })
     }
     case "mark_failed": {
+      if (row.status !== "pending" && row.status !== "invoiced") {
+        return Response.json(
+          { error: `現在のステータス (${row.status}) からは失敗マークできません` },
+          { status: 409 },
+        )
+      }
       await prisma.billingEvent.update({
         where: { id },
         data: { status: "failed" },

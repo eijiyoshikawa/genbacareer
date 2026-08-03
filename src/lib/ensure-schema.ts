@@ -259,6 +259,15 @@ const STATEMENTS: ReadonlyArray<string> = [
  `ALTER TABLE "users" ALTER COLUMN "profile_public" SET DEFAULT true`,
  // admin発行アカウントの平文PW控え（企業一覧での確認用・PW変更でクリア）
  `ALTER TABLE "company_users" ADD COLUMN IF NOT EXISTS "issued_login_password" VARCHAR(100)`,
+ // 企業ログイン TOTP 2FA。auth.ts の company-credentials authorize が
+ // totpSecret/totpEnabled/totpRecoveryCodes を含む select を明示発行しており、
+ // 1 列でも未反映だと select 自体が P2022 で失敗し企業ログイン全体が落ちる
+ // (issued_login_password と同じ障害パターン)。念のため自己修復対象に加える。
+ `ALTER TABLE "company_users"
+    ADD COLUMN IF NOT EXISTS "totp_secret" VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS "totp_enabled" BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS "totp_enabled_at" TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS "totp_recovery_codes" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`,
  // 求職者の顔写真（プロフィール画像）
  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" VARCHAR(500)`,
  // 認証トークン列（パスワードリセット / メールアドレス確認）。
