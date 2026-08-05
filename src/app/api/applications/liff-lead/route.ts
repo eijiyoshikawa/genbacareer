@@ -62,14 +62,19 @@ export async function POST(request: NextRequest) {
   }
 
   // LIFF access token の verify（なりすまし防止）
+  // トークンの持ち主の実 userId を使う。クライアント申告の lineUserId は
+  // 検証済みトークンの userId と一致する場合のみ信頼する（他人の LINE ID を
+  // 詐称して応募データや push 通知を送りつけられるのを防ぐ）。
+  let verifiedLineUserId = parsed.lineUserId
   if (isLiffServerConfigured()) {
     const v = await verifyLiffAccessToken(parsed.accessToken)
-    if (!v.ok) {
+    if (!v.ok || !v.userId) {
       return Response.json(
         { error: "invalid_liff_token", reason: v.reason },
         { status: 401 }
       )
     }
+    verifiedLineUserId = v.userId
   }
 
   // 対象求人
@@ -110,7 +115,7 @@ export async function POST(request: NextRequest) {
         utmMedium: utm.medium,
         utmCampaign: utm.campaign,
         referer: referer?.slice(0, 500) ?? null,
-        lineUserId: parsed.lineUserId,
+        lineUserId: verifiedLineUserId,
         lineDisplayName: parsed.lineDisplayName ?? null,
         status: "line_added",
       },
@@ -150,7 +155,7 @@ export async function POST(request: NextRequest) {
         "",
         "担当より 1 営業日以内にこちらの LINE トークでご連絡いたします。",
       ].join("\n")
-      void pushMessage(parsed.lineUserId, [{ type: "text", text: ack }]).catch(() => {})
+      void pushMessage(verifiedLineUserId, [{ type: "text", text: ack }]).catch(() => {})
     }
   } catch (e) {
     console.error(

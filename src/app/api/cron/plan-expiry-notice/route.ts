@@ -81,6 +81,7 @@ export async function GET(request: Request) {
       ],
     }
 
+    let mailOk = true
     if (c.contactEmail) {
       try {
         await sendEmail({
@@ -90,31 +91,47 @@ export async function GET(request: Request) {
           text: renderEmailText(layout),
         })
       } catch (err) {
+        mailOk = false
         mailFailures += 1
         console.error(`[cron/plan-expiry-notice] mail failed for ${c.id}:`, err)
       }
     }
 
-    // 企業ユーザー全員にサイト内通知
+    // 企業ユーザー全員にサイト内通知（メール失敗時の再試行で重複作成しないようガード）
     if (c.companyUsers.length > 0) {
-      await prisma.notification.createMany({
-        data: c.companyUsers.map((u) => ({
-          userId: u.id,
+      const alreadyNotified = await prisma.notification.findFirst({
+        where: {
+          userId: { in: c.companyUsers.map((u) => u.id) },
           type: "plan_expiry",
-          title: "ご契約プランの期限が近づいています",
-          body: `${planLabel} は ${expiryStr} に期限を迎えます。`,
           linkUrl: "/company/billing",
-        })),
-      }).catch((e) => {
-        console.error(`[cron/plan-expiry-notice] notif failed for ${c.id}:`, e)
+          createdAt: { gte: new Date(now.getTime() - 25 * 60 * 60 * 1000) },
+        },
+        select: { id: true },
       })
+      if (!alreadyNotified) {
+        await prisma.notification.createMany({
+          data: c.companyUsers.map((u) => ({
+            userId: u.id,
+            type: "plan_expiry",
+            title: "ご契約プランの期限が近づいています",
+            body: `${planLabel} は ${expiryStr} に期限を迎えます。`,
+            linkUrl: "/company/billing",
+          })),
+        }).catch((e) => {
+          console.error(`[cron/plan-expiry-notice] notif failed for ${c.id}:`, e)
+        })
+      }
     }
 
-    await prisma.company.update({
-      where: { id: c.id },
-      data: { planExpiryNotifiedAt: now },
-    })
-    notified += 1
+    // メール送信に失敗した場合は planExpiryNotifiedAt を立てず、翌日以降の cron で再試行する
+    // (立ててしまうと今回のサイクル内は二度と通知されないまま満了を迎えてしまうため)
+    if (mailOk) {
+      await prisma.company.update({
+        where: { id: c.id },
+        data: { planExpiryNotifiedAt: now },
+      })
+      notified += 1
+    }
   }
 
   console.log(

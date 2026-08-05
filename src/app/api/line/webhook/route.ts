@@ -26,6 +26,7 @@ import {
 } from "@/lib/line-messaging"
 import { prisma } from "@/lib/db"
 import { generateAiReply, isAiReplyConfigured } from "@/lib/ai-reply"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -92,6 +93,16 @@ async function tryAutoBind(
   )
   const emailCandidates = text.match(EMAIL_REGEX) ?? []
   if (phoneCandidates.length === 0 && emailCandidates.length === 0) return null
+
+  // 他人の電話番号/メールを連投して lead を割り出す総当たり攻撃を抑止する
+  // (電話番号の下 8 桁一致は本人以外でも知り得る情報のため、試行回数を絞って
+  //  総当たりで他人の氏名・応募求人を推測されるリスクを下げる)
+  const rl = checkRateLimit({
+    key: `line-autobind:${userId}`,
+    limit: 5,
+    windowMs: 24 * 60 * 60 * 1000,
+  })
+  if (!rl.allowed) return null
 
   const since = new Date(Date.now() - AUTO_BIND_WINDOW_DAYS * 24 * 60 * 60 * 1000)
 
