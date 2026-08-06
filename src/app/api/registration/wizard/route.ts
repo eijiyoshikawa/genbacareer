@@ -71,7 +71,10 @@ export async function POST(request: Request) {
     // ため、新規カラム未反映のまま prisma.user.* を叩いて P2022 になることがある。
     await ensureSchema()
 
-    const existing = await prisma.user.findUnique({ where: { email } })
+    const existing = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    })
     if (existing) {
       return NextResponse.json(
         { error: "このメールアドレスは既に登録されています。" },

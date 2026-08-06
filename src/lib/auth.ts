@@ -135,6 +135,13 @@ providers.push(
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            passwordHash: true,
+            status: true,
+          },
         })
 
         if (!user || !user.passwordHash) return null
