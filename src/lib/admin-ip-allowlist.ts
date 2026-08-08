@@ -67,21 +67,64 @@ function ipv4MatchesCidr(ip: string, cidr: string): boolean {
   return (ipInt & maskBits) === (baseInt & maskBits)
 }
 
+/** IPv6 文字列を 128-bit 整数 (BigInt) に変換。失敗時は null。"::" 圧縮に対応。 */
+function ipv6ToBigInt(ip: string): bigint | null {
+  const addr = ip.split("%")[0] // zone index (fe80::1%eth0) は無視
+  if (!addr || !addr.includes(":")) return null
+
+  let headParts: string[]
+  let tailParts: string[]
+  const doubleColonCount = (addr.match(/::/g) ?? []).length
+  if (doubleColonCount > 1) return null
+  if (addr.includes("::")) {
+    const [head, tail] = addr.split("::")
+    headParts = head ? head.split(":") : []
+    tailParts = tail ? tail.split(":") : []
+  } else {
+    headParts = addr.split(":")
+    tailParts = []
+  }
+
+  const missing = 8 - headParts.length - tailParts.length
+  if (missing < 0) return null
+  const groups = [...headParts, ...Array(missing).fill("0"), ...tailParts]
+  if (groups.length !== 8) return null
+
+  let result = BigInt(0)
+  for (const g of groups) {
+    if (!/^[0-9a-fA-F]{1,4}$/.test(g)) return null
+    result = (result << BigInt(16)) | BigInt(parseInt(g, 16))
+  }
+  return result
+}
+
+/** IPv6 CIDR マッチ (例: "2001:db8::/32") — ビット単位のプレフィックス比較。 */
+function ipv6MatchesCidr(ip: string, cidr: string): boolean {
+  const [base, maskStr] = cidr.split("/")
+  if (!base || !maskStr) return false
+  const mask = Number(maskStr)
+  if (!Number.isInteger(mask) || mask < 0 || mask > 128) return false
+  const ipBig = ipv6ToBigInt(ip)
+  const baseBig = ipv6ToBigInt(base)
+  if (ipBig === null || baseBig === null) return false
+  if (mask === 0) return true
+  const full = (BigInt(1) << BigInt(128)) - BigInt(1)
+  const maskBits = (full << BigInt(128 - mask)) & full
+  return (ipBig & maskBits) === (baseBig & maskBits)
+}
+
 /**
  * クライアント IP が allowlist にマッチするか。
  *
  * - 単一 IP: 完全一致
- * - CIDR: ipv4MatchesCidr のみサポート (IPv6 CIDR は文字列前方一致で簡易対応)
+ * - CIDR: IPv4 / IPv6 とも実際のビット幅でプレフィックス比較する
  */
 export function ipMatches(clientIp: string, entry: string): boolean {
   if (entry === clientIp) return true
   if (entry.includes("/")) {
     // CIDR
     if (entry.includes(".")) return ipv4MatchesCidr(clientIp, entry)
-    // IPv6 CIDR は簡易対応: プレフィックス文字列マッチ
-    const [base] = entry.split("/")
-    if (!base) return false
-    return clientIp.toLowerCase().startsWith(base.toLowerCase())
+    return ipv6MatchesCidr(clientIp, entry)
   }
   return false
 }

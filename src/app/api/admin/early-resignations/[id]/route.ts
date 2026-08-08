@@ -87,8 +87,11 @@ export async function PATCH(
           { status: 409 },
         )
       }
-      await prisma.earlyResignation.update({
-        where: { id },
+      // findUnique の status チェックと update の間に別リクエストが割り込むと
+      // 二重承認/承認後の却下のような不整合な状態遷移が起こり得るため、
+      // where に status ガードを含めて原子的に更新する。
+      const { count } = await prisma.earlyResignation.updateMany({
+        where: { id, status: "reported" },
         data: {
           status: "approved",
           adminNote: parsed.data.adminNote ?? null,
@@ -96,6 +99,12 @@ export async function PATCH(
           approvedAt: now,
         },
       })
+      if (count === 0) {
+        return Response.json(
+          { error: "他の操作と競合しました。最新の状態を確認してください" },
+          { status: 409 },
+        )
+      }
       return Response.json({ ok: true })
     }
     case "reject": {
@@ -105,8 +114,8 @@ export async function PATCH(
           { status: 409 },
         )
       }
-      await prisma.earlyResignation.update({
-        where: { id },
+      const { count } = await prisma.earlyResignation.updateMany({
+        where: { id, status: "reported" },
         data: {
           status: "rejected",
           adminNote: parsed.data.adminNote,
@@ -114,6 +123,12 @@ export async function PATCH(
           rejectedAt: now,
         },
       })
+      if (count === 0) {
+        return Response.json(
+          { error: "他の操作と競合しました。最新の状態を確認してください" },
+          { status: 409 },
+        )
+      }
       return Response.json({ ok: true })
     }
     case "mark_invoiced": {
@@ -123,14 +138,20 @@ export async function PATCH(
           { status: 409 },
         )
       }
-      await prisma.earlyResignation.update({
-        where: { id },
+      const { count } = await prisma.earlyResignation.updateMany({
+        where: { id, status: "approved" },
         data: {
           status: "invoiced",
           mfCreditNoteId: parsed.data.mfCreditNoteId ?? null,
           invoicedAt: now,
         },
       })
+      if (count === 0) {
+        return Response.json(
+          { error: "他の操作と競合しました。最新の状態を確認してください" },
+          { status: 409 },
+        )
+      }
       return Response.json({ ok: true })
     }
   }

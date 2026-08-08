@@ -42,8 +42,13 @@ export async function getGuestAccessibleJobIds(): Promise<string[]> {
       status: "active",
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
     },
+    // /jobs 一覧のデフォルト（recommended sort, buildOrderBy() の default 節）と
+    // 完全に同じ並び順にする必要がある。ここがズレると、/jobs の上位 15 件に
+    // 表示された求人がこの許可セットに含まれず、ゲストがクリック直後に
+    // ログイン画面へ弾かれる不具合になる。
     orderBy: [
-      { source: "asc" },
+      { company: { planTier: "desc" } },
+      { company: { rotationKey: "asc" } },
       { rankScore: "desc" },
       { publishedAt: "desc" },
     ],

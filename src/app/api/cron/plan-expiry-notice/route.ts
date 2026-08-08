@@ -81,6 +81,7 @@ export async function GET(request: Request) {
       ],
     }
 
+    let mailFailed = false
     if (c.contactEmail) {
       try {
         await sendEmail({
@@ -90,10 +91,17 @@ export async function GET(request: Request) {
           text: renderEmailText(layout),
         })
       } catch (err) {
+        mailFailed = true
         mailFailures += 1
         console.error(`[cron/plan-expiry-notice] mail failed for ${c.id}:`, err)
       }
     }
+
+    // メール送信に失敗した場合は planExpiryNotifiedAt を立てずに次回 cron で
+    // 再送を試みる（ここで notified 済みにマークすると、対象クエリの
+    // `planExpiryNotifiedAt: null` に二度と一致せず、通知が届かないまま
+    // 無言でプラン失効を迎えてしまうため）。
+    if (mailFailed) continue
 
     // 企業ユーザー全員にサイト内通知
     if (c.companyUsers.length > 0) {

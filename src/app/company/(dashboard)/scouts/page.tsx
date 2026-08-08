@@ -36,28 +36,40 @@ export default async function CompanyScoutsPage() {
   if (!companyId) redirect("/login")
   if (role !== "company_admin" && role !== "company_member") redirect("/login")
 
-  const scouts = await prisma.scoutMessage.findMany({
-    where: { companyId },
-    orderBy: { sentAt: "desc" },
-    take: 100,
-    select: {
-      id: true,
-      subject: true,
-      status: true,
-      sentAt: true,
-      readAt: true,
-      expiresAt: true,
-      job: { select: { id: true, title: true } },
-      user: { select: { id: true, name: true } },
-    },
-  })
+  // 一覧表示は直近 100 件に絞るが、サマリーは全件を対象にした別集計にする。
+  // (一覧と同じ take:100 の配列から filter().length すると、100 件を超えた
+  // 会社では古いスカウトがサマリーから静かに消えてしまうため)
+  const [scouts, statusCounts] = await Promise.all([
+    prisma.scoutMessage.findMany({
+      where: { companyId },
+      orderBy: { sentAt: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        subject: true,
+        status: true,
+        sentAt: true,
+        readAt: true,
+        expiresAt: true,
+        job: { select: { id: true, title: true } },
+        user: { select: { id: true, name: true } },
+      },
+    }),
+    prisma.scoutMessage.groupBy({
+      by: ["status"],
+      where: { companyId },
+      _count: { _all: true },
+    }),
+  ])
 
+  const countFor = (status: string) =>
+    statusCounts.find((c) => c.status === status)?._count._all ?? 0
   const stats = {
-    total: scouts.length,
-    sent: scouts.filter((s) => s.status === "sent").length,
-    read: scouts.filter((s) => s.status === "read").length,
-    declined: scouts.filter((s) => s.status === "declined").length,
-    expired: scouts.filter((s) => s.status === "expired").length,
+    total: statusCounts.reduce((sum, c) => sum + c._count._all, 0),
+    sent: countFor("sent"),
+    read: countFor("read"),
+    declined: countFor("declined"),
+    expired: countFor("expired"),
   }
 
   return (

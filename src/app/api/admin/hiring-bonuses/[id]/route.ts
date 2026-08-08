@@ -37,21 +37,62 @@ export async function PATCH(
     return Response.json({ error: "入力エラー" }, { status: 400 })
   }
 
+  const row = await prisma.hiringBonus.findUnique({
+    where: { id },
+    select: { id: true, status: true },
+  })
+  if (!row) {
+    return Response.json({ error: "申請が見つかりません" }, { status: 404 })
+  }
+
+  let fromStatus: string
   const data: Record<string, unknown> = {}
   if (parsed.data.action === "approve") {
+    if (row.status !== "requested") {
+      return Response.json(
+        { error: `現在のステータス (${row.status}) からは承認できません` },
+        { status: 409 }
+      )
+    }
+    fromStatus = "requested"
     data.status = "approved"
     data.approvedAt = new Date()
     data.approvedBy = session?.user?.id ?? null
   } else if (parsed.data.action === "mark_paid") {
+    if (row.status !== "approved") {
+      return Response.json(
+        { error: `現在のステータス (${row.status}) からは支払済にできません` },
+        { status: 409 }
+      )
+    }
+    fromStatus = "approved"
     data.status = "paid"
     data.paidAt = new Date()
     data.paidBy = session?.user?.id ?? null
   } else {
+    if (row.status !== "requested") {
+      return Response.json(
+        { error: `現在のステータス (${row.status}) からは却下できません` },
+        { status: 409 }
+      )
+    }
+    fromStatus = "requested"
     data.status = "rejected"
     data.rejectedAt = new Date()
     data.rejectionReason = parsed.data.rejectionReason ?? null
   }
 
-  await prisma.hiringBonus.update({ where: { id }, data })
+  // findUnique の status チェックと update の間の競合を防ぐため、
+  // where に元ステータスのガードを含めて原子的に更新する。
+  const { count } = await prisma.hiringBonus.updateMany({
+    where: { id, status: fromStatus },
+    data,
+  })
+  if (count === 0) {
+    return Response.json(
+      { error: "他の操作と競合しました。最新の状態を確認してください" },
+      { status: 409 }
+    )
+  }
   return Response.json({ ok: true })
 }

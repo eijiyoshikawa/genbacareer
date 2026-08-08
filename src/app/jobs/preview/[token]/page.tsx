@@ -34,6 +34,8 @@ export default async function JobPreviewPage({
     notFound()
   }
 
-  // 既存の求人詳細ページに転送（status を問わず描画される現行仕様を活用）
-  redirect(`/jobs/${job.id}?preview=1`)
+  // 既存の求人詳細ページに転送（status を問わず描画される現行仕様を活用）。
+  // トークン自体を preview クエリに渡し、詳細ページ側で Job.previewToken と再照合させる
+  // （固定値 "1" だと誰でも ?preview=1 を付与してゲストゲートを回避できてしまうため）。
+  redirect(`/jobs/${job.id}?preview=${token}`)
 }

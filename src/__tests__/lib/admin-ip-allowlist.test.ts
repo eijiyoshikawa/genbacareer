@@ -74,9 +74,25 @@ describe("ipMatches", () => {
     expect(ipMatches("1.2.3.4", "not-cidr/24")).toBe(false)
   })
 
-  it("matches IPv6 prefix loosely", () => {
+  it("matches IPv6 CIDR by actual bit prefix", () => {
     expect(ipMatches("2001:db8::1", "2001:db8::/32")).toBe(true)
     expect(ipMatches("2001:dead::1", "2001:db8::/32")).toBe(false)
+    // 2001:db80::1 は文字列としては "2001:db8" で始まるが、実際のビット単位では
+    // 2001:db8::/32 の範囲外 (2001:0db8 と 2001:db80 は別ブロック)。
+    // 単純な文字列前方一致だと誤って true になっていた回帰テスト。
+    expect(ipMatches("2001:db80::1", "2001:db8::/32")).toBe(false)
+  })
+
+  it("matches IPv6 CIDR with :: compression on either side", () => {
+    expect(ipMatches("fe80::1", "fe80::/10")).toBe(true)
+    expect(ipMatches("fe80:0:0:0:0:0:0:1", "fe80::/10")).toBe(true)
+    expect(ipMatches("::1", "::1/128")).toBe(true)
+    expect(ipMatches("::2", "::1/128")).toBe(false)
+  })
+
+  it("rejects invalid IPv6 input", () => {
+    expect(ipMatches("not-an-ip", "2001:db8::/32")).toBe(false)
+    expect(ipMatches("2001:db8::1", "not-cidr/32")).toBe(false)
   })
 })
 

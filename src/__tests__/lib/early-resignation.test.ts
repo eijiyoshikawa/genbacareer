@@ -65,6 +65,19 @@ describe("calculateMonthsAfterHire", () => {
     const day91 = new Date("2026-04-02T00:00:00Z")
     expect(calculateMonthsAfterHire(hire, day91)).toBe(4)
   })
+
+  it("ignores hiredAt time-of-day when comparing against a date-only resignedAt", () => {
+    // hiredAt はタイムスタンプ (23:59) を持つが、resignedAt は企業側が
+    // YYYY-MM-DD で報告した値 (UTC 0 時としてパースされる)。
+    // 時刻付きのまま差分を取ると 30 日目が 29 日と数分に短縮され、
+    // 本来 50% 帯のはずが 80% 帯に誤判定されてしまっていた回帰テスト。
+    const hire = new Date("2026-01-01T23:59:00Z")
+    const resignedAt = new Date("2026-01-31") // 30 日後 (暦日ベース)
+    expect(calculateMonthsAfterHire(hire, resignedAt)).toBe(1)
+
+    const resignedAtNextTier = new Date("2026-02-01") // 31 日後 (暦日ベース) → 2 ヶ月目帯
+    expect(calculateMonthsAfterHire(hire, resignedAtNextTier)).toBe(2)
+  })
 })
 
 describe("refundRateForMonths", () => {

@@ -30,15 +30,26 @@ export const REFUND_RATE_SCHEDULE: ReadonlyArray<{
   { monthsAfterHire: 3, refundRate: 20 },
 ] as const
 
+/** UTC の暦日 (時刻切り捨て) を ms で返す */
+function toUtcDateOnlyMs(d: Date): number {
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+}
+
 /**
  * 入社日から退職日までの経過月数を算出する。
  * 端数は切り上げ (Math.ceil) で月単位に丸める。最低 1 ヶ月。
+ *
+ * hiredAt / resignedAt は暦日 (時刻切り捨て) で比較する。
+ * hiredAt は Date.now() 由来で時刻情報を持つ一方、resignedAt は
+ * 企業側が YYYY-MM-DD で報告した値 (UTC 0 時としてパースされる) のため、
+ * 時刻付きのまま差分を取ると hiredAt の時刻分だけ経過日数が過小評価され、
+ * 本来より有利な返金率が適用されてしまう。
  */
 export function calculateMonthsAfterHire(
   hiredAt: Date,
   resignedAt: Date,
 ): number {
-  const diffMs = resignedAt.getTime() - hiredAt.getTime()
+  const diffMs = toUtcDateOnlyMs(resignedAt) - toUtcDateOnlyMs(hiredAt)
   if (diffMs <= 0) return 0
   const days = diffMs / DAY_MS
   const months = days / MONTH_DAYS
