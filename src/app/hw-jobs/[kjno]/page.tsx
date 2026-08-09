@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
+import { headers } from "next/headers"
 import {
   Banknote,
   Building2,
@@ -16,6 +17,9 @@ import { safeFetch } from "@/lib/jobs-api/safe-fetch"
 import { formatJpDate, formatSalaryRange } from "@/lib/jobs-api/format"
 import { HwApiUnavailable } from "@/components/hw-jobs/hw-api-unavailable"
 import { HwJobStructuredData } from "@/components/hw-jobs/hw-job-structured-data"
+import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/db"
+import { GUEST_LIMIT, isCrawlerUserAgent } from "@/lib/guest-job-access"
 
 export const revalidate = 600
 
@@ -43,6 +47,25 @@ export default async function HwJobDetailPage({ params }: PageProps) {
   const result = await safeFetch(() => getHwJob(kjno))
 
   if (!result.ok && result.reason === "not-found") notFound()
+
+  // 未登録ゲストは /hw-jobs 一覧のデフォルト表示（source=hellowork, 新着順）
+  // 上位 GUEST_LIMIT 件にしか詳細を開けない（一覧ページと同じ並び順でゲート）。
+  if (result.ok) {
+    const session = await auth().catch(() => null)
+    const ua = (await headers()).get("user-agent")
+    if (!session?.user?.id && !isCrawlerUserAgent(ua)) {
+      const allowedIds = await prisma.job.findMany({
+        where: { source: "hellowork", status: "active" },
+        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+        take: GUEST_LIMIT,
+        select: { helloworkId: true },
+      })
+      const allowed = allowedIds.map((j) => j.helloworkId)
+      if (!allowed.includes(kjno)) {
+        redirect(`/login?callbackUrl=${encodeURIComponent(`/hw-jobs/${kjno}`)}`)
+      }
+    }
+  }
 
   if (!result.ok) {
     return (

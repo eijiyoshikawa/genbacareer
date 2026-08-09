@@ -160,9 +160,10 @@ export default async function JobsPage({ searchParams }: Props) {
   // 検索クエリがあり、デフォルトの「おすすめ順」の場合は pg_trgm で類似度順に並べる
   const useFuzzy = !!params.q && sort === "recommended"
   let fuzzyIds: string[] | null = null
+  let fuzzyTotal = 0
   if (useFuzzy) {
     const { fuzzySearchJobs } = await import("@/lib/job-search")
-    const rows = await fuzzySearchJobs({
+    const result = await fuzzySearchJobs({
       q: params.q!,
       prefecture: params.prefecture,
       city: params.city,
@@ -172,10 +173,12 @@ export default async function JobsPage({ searchParams }: Props) {
       salaryMin: salaryMinYen ?? undefined,
       salaryMax: salaryMaxYen ?? undefined,
       publishedSince: dateWithinThreshold ?? undefined,
-      limit: limit * 5, // 後でページング切り出すため多めに取得
+      limit,
+      offset: (page - 1) * limit,
     })
-    if (rows && rows.length > 0) {
-      fuzzyIds = rows.map((r) => r.id)
+    if (result && result.total > 0) {
+      fuzzyIds = result.ids
+      fuzzyTotal = result.total
     }
   }
 
@@ -216,16 +219,13 @@ export default async function JobsPage({ searchParams }: Props) {
             where: { id: { in: fuzzyIds } },
             select: jobListSelect,
           })
-          // fuzzy で返ってきた id 順を維持
+          // fuzzy で返ってきた id 順（類似度順、offset/limit 適用済み）を維持
           .then((rows) => {
             const order = new Map(fuzzyIds!.map((id, i) => [id, i]))
             return rows.sort(
               (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)
             )
           })
-          .then((rows) =>
-            rows.slice((page - 1) * limit, (page - 1) * limit + limit)
-          )
       : prisma.job.findMany({
           where,
           orderBy,
@@ -233,9 +233,7 @@ export default async function JobsPage({ searchParams }: Props) {
           take: limit,
           select: jobListSelect,
         }),
-    fuzzyIds
-      ? Promise.resolve(fuzzyIds.length)
-      : prisma.job.count({ where }),
+    fuzzyIds ? Promise.resolve(fuzzyTotal) : prisma.job.count({ where }),
   ])
 
   // ログイン中ならお気に入り Set を取得（カードの星表示用）

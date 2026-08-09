@@ -1,11 +1,16 @@
 import { prisma } from "@/lib/db"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Building2, MessageCircle, MapPin } from "lucide-react"
 import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { PUBLIC_LINE_OA_ID, isLineConfigured } from "@/lib/line"
 import { LineApplyClient } from "./line-apply-client"
+import { auth } from "@/lib/auth"
+import {
+  getGuestAccessibleJobIds,
+  isCrawlerUserAgent,
+} from "@/lib/guest-job-access"
 
 type Props = {
   params: Promise<{ id: string }>
@@ -41,6 +46,16 @@ export default async function ApplyPage({ params }: Props) {
 
   // User-Agent からモバイル判定（クライアント側でも再判定するが、初期レンダリングを正しく出すため）
   const ua = (await headers()).get("user-agent") ?? ""
+
+  // 未登録ゲストは「グローバル上位 15 件」の求人にしか応募導線を開けない（詳細ページと同じゲート）。
+  const session = await auth().catch(() => null)
+  if (!session?.user?.id && !isCrawlerUserAgent(ua)) {
+    const allowedIds = await getGuestAccessibleJobIds()
+    if (!allowedIds.includes(job.id)) {
+      redirect(`/login?callbackUrl=${encodeURIComponent(`/jobs/${job.id}/apply`)}`)
+    }
+  }
+
   const isMobileGuess = /iPhone|Android|Mobile/i.test(ua)
   const configured = isLineConfigured()
 

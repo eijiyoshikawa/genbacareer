@@ -53,6 +53,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "認証が必要です" }, { status: 401 })
   }
 
+  // status=approved 以外の企業はスカウト送信不可
+  const company = await prisma.company.findUnique({
+    where: { id: auth.companyId },
+    select: { status: true },
+  })
+  if (!company || company.status !== "approved") {
+    return NextResponse.json(
+      {
+        error:
+          company?.status === "rejected"
+            ? "申し訳ございません。本アカウントではご利用いただくことができません。詳細は info@let-inc.net までお問い合わせください。"
+            : "登録は運営による承認待ちです。承認完了までしばらくお待ちください。",
+      },
+      { status: 403 },
+    )
+  }
+
   let raw: unknown
   try {
     raw = await request.json()

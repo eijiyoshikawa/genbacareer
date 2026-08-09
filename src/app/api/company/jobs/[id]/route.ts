@@ -69,6 +69,23 @@ export async function PUT(
     return Response.json({ error: "企業アカウントでログインしてください" }, { status: 401 })
   }
 
+  // status=approved 以外の企業は求人の編集・再公開不可
+  const company = await prisma.company.findUnique({
+    where: { id: ctx.companyId },
+    select: { status: true },
+  })
+  if (!company || company.status !== "approved") {
+    return Response.json(
+      {
+        error:
+          company?.status === "rejected"
+            ? "申し訳ございません。本アカウントではご利用いただくことができません。詳細は info@let-inc.net までお問い合わせください。"
+            : "登録は運営による承認待ちです。承認完了までしばらくお待ちください。",
+      },
+      { status: 403 }
+    )
+  }
+
   const { id } = await params
 
   const existing = await prisma.job.findUnique({
@@ -151,6 +168,23 @@ export async function DELETE(
   const ctx = await getCompanySession()
   if (!ctx) {
     return Response.json({ error: "企業アカウントでログインしてください" }, { status: 401 })
+  }
+
+  // status=approved 以外の企業は求人の削除不可
+  const company = await prisma.company.findUnique({
+    where: { id: ctx.companyId },
+    select: { status: true },
+  })
+  if (!company || company.status !== "approved") {
+    return Response.json(
+      {
+        error:
+          company?.status === "rejected"
+            ? "申し訳ございません。本アカウントではご利用いただくことができません。詳細は info@let-inc.net までお問い合わせください。"
+            : "登録は運営による承認待ちです。承認完了までしばらくお待ちください。",
+      },
+      { status: 403 }
+    )
   }
 
   const { id } = await params

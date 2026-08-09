@@ -11,11 +11,17 @@
  */
 
 import { prisma } from "@/lib/db"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import type { Metadata } from "next"
 import Image from "next/image"
+import { headers } from "next/headers"
 import { getCategoryLabel } from "@/lib/categories"
 import { PrintTrigger } from "./print-trigger"
+import { auth } from "@/lib/auth"
+import {
+  getGuestAccessibleJobIds,
+  isCrawlerUserAgent,
+} from "@/lib/guest-job-access"
 
 export const dynamic = "force-dynamic"
 
@@ -70,6 +76,16 @@ export default async function JobPrintPage({ params, searchParams }: Props) {
     .catch(() => null)
 
   if (!job) notFound()
+
+  // 未登録ゲストは「グローバル上位 15 件」の求人にしか印刷ページを開けない（詳細ページと同じゲート）。
+  const session = await auth().catch(() => null)
+  const ua = (await headers()).get("user-agent")
+  if (!session?.user?.id && !isCrawlerUserAgent(ua)) {
+    const allowedIds = await getGuestAccessibleJobIds()
+    if (!allowedIds.includes(job.id)) {
+      redirect(`/login?callbackUrl=${encodeURIComponent(`/jobs/${job.id}/print`)}`)
+    }
+  }
 
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryType)
   const generatedAt = new Date().toLocaleString("ja-JP")

@@ -30,16 +30,22 @@ export type FuzzySearchRow = {
   similarity: number
 }
 
+export type FuzzySearchResult = {
+  ids: string[]
+  total: number
+}
+
 /**
- * 求人 ID と類似度スコアを返す（最大 limit 件）。
- * 結果の整形（JobCard 用 include）は呼び出し側で findMany し直すこと。
+ * 求人 ID（類似度順、offset/limit 適用済み）と、しきい値を超える
+ * 全体のマッチ件数を返す。結果の整形（JobCard 用 include）は
+ * 呼び出し側で findMany し直すこと。
  *
- * pg_trgm 拡張が無いと SQL エラーになるので、その場合は空配列を返す
+ * pg_trgm 拡張が無いと SQL エラーになるので、その場合は null を返す
  * （呼び出し側で ILIKE 等にフォールバック判断）。
  */
 export async function fuzzySearchJobs(
   input: FuzzySearchInput
-): Promise<FuzzySearchRow[] | null> {
+): Promise<FuzzySearchResult | null> {
   if (!input.q.trim()) return null
   const limit = Math.min(100, Math.max(1, input.limit ?? 50))
   const offset = Math.max(0, input.offset ?? 0)
@@ -54,10 +60,30 @@ export async function fuzzySearchJobs(
   // - 0.05 以上を閾値（ある程度関連がある）
   // - 同点は publishedAt DESC
   try {
-    const rows = await prisma.$queryRawUnsafe<
-      { id: string; similarity: number }[]
-    >(
-      `
+    const params: unknown[] = [input.q, categories]
+    const filterClauses: string[] = []
+    const pushFilter = (column: string, value: unknown) => {
+      params.push(value)
+      filterClauses.push(`AND ${column} = $${params.length}`)
+    }
+
+    if (input.prefecture) pushFilter("prefecture", input.prefecture)
+    if (input.employmentType) pushFilter("employment_type", input.employmentType)
+    if (input.source) pushFilter("source", input.source)
+    if (input.publishedSince) {
+      params.push(input.publishedSince)
+      filterClauses.push(`AND published_at >= $${params.length}`)
+    }
+    if (input.salaryMin) {
+      params.push(input.salaryMin)
+      filterClauses.push(`AND salary_min >= $${params.length}`)
+    }
+    if (input.salaryMax) {
+      params.push(input.salaryMax)
+      filterClauses.push(`AND salary_max <= $${params.length}`)
+    }
+
+    const scoredCte = `
       WITH scored AS (
         SELECT id,
                GREATEST(
@@ -68,29 +94,35 @@ export async function fuzzySearchJobs(
         FROM jobs
         WHERE status = 'active'
           AND category = ANY($2)
-          ${input.prefecture ? "AND prefecture = $3" : ""}
-          ${input.employmentType ? `AND employment_type = $4` : ""}
-          ${input.source ? `AND source = $5` : ""}
-          ${input.publishedSince ? `AND published_at >= $6` : ""}
-          ${input.salaryMin ? `AND salary_min >= $7` : ""}
-          ${input.salaryMax ? `AND salary_max <= $8` : ""}
+          ${filterClauses.join("\n          ")}
       )
-      SELECT id, similarity
-      FROM scored
-      WHERE similarity > 0.05
-      ORDER BY similarity DESC, published_at DESC NULLS LAST
-      LIMIT ${limit} OFFSET ${offset};
-      `,
-      input.q,
-      categories,
-      ...(input.prefecture ? [input.prefecture] : []),
-      ...(input.employmentType ? [input.employmentType] : []),
-      ...(input.source ? [input.source] : []),
-      ...(input.publishedSince ? [input.publishedSince] : []),
-      ...(input.salaryMin ? [input.salaryMin] : []),
-      ...(input.salaryMax ? [input.salaryMax] : [])
-    )
-    return rows
+    `
+
+    const [rows, countRows] = await Promise.all([
+      prisma.$queryRawUnsafe<{ id: string; similarity: number }[]>(
+        `${scoredCte}
+        SELECT id, similarity
+        FROM scored
+        WHERE similarity > 0.05
+        ORDER BY similarity DESC, published_at DESC NULLS LAST
+        LIMIT ${limit} OFFSET ${offset};
+        `,
+        ...params
+      ),
+      prisma.$queryRawUnsafe<{ count: bigint }[]>(
+        `${scoredCte}
+        SELECT COUNT(*)::bigint AS count
+        FROM scored
+        WHERE similarity > 0.05;
+        `,
+        ...params
+      ),
+    ])
+
+    return {
+      ids: rows.map((r) => r.id),
+      total: Number(countRows[0]?.count ?? 0),
+    }
   } catch (e) {
     console.warn(
       `[job-search] pg_trgm fuzzy search failed (falling back): ${e instanceof Error ? e.message : e}`

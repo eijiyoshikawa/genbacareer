@@ -74,9 +74,22 @@ describe("ipMatches", () => {
     expect(ipMatches("1.2.3.4", "not-cidr/24")).toBe(false)
   })
 
-  it("matches IPv6 prefix loosely", () => {
+  it("matches IPv6 CIDR by bit-level prefix", () => {
     expect(ipMatches("2001:db8::1", "2001:db8::/32")).toBe(true)
     expect(ipMatches("2001:dead::1", "2001:db8::/32")).toBe(false)
+  })
+
+  it("matches IPv6 /128 CIDR as exact host only", () => {
+    expect(ipMatches("2001:db8::1", "2001:db8::1/128")).toBe(true)
+    expect(ipMatches("2001:db8::100", "2001:db8::1/128")).toBe(false)
+    expect(ipMatches("2001:db8::1ff", "2001:db8::1/128")).toBe(false)
+    expect(ipMatches("2001:db8::1:2:3:4", "2001:db8::1/128")).toBe(false)
+  })
+
+  it("matches IPv6 /64 CIDR only within the same network", () => {
+    expect(ipMatches("2001:db8::1", "2001:db8::/64")).toBe(true)
+    expect(ipMatches("2001:db8:0:0:ffff::1", "2001:db8::/64")).toBe(true)
+    expect(ipMatches("2001:db8:0:1::1", "2001:db8::/64")).toBe(false)
   })
 })
 
