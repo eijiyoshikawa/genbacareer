@@ -142,10 +142,19 @@ export async function POST(request: NextRequest) {
       status: true,
       jobSearchStatus: true,
       notificationPrefs: true,
+      blockedCompanyIds: true,
     },
   })
   if (!user) {
     return NextResponse.json({ error: "求職者が見つかりません" }, { status: 404 })
+  }
+
+  // 求職者がこの企業をブロックしている場合は送信不可
+  if (user.blockedCompanyIds.includes(auth.companyId)) {
+    return NextResponse.json(
+      { error: "この求職者にはスカウトを送信できません" },
+      { status: 403 },
+    )
   }
 
   if (!canSendScout({ job, user })) {

@@ -18,6 +18,23 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "企業情報が見つかりません" }, { status: 403 })
   }
 
+  // status=approved 以外の企業は候補者検索不可
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { status: true },
+  })
+  if (!company || company.status !== "approved") {
+    return Response.json(
+      {
+        error:
+          company?.status === "rejected"
+            ? "申し訳ございません。本アカウントではご利用いただくことができません。詳細は info@let-inc.net までお問い合わせください。"
+            : "登録は運営による承認待ちです。承認完了までしばらくお待ちください。",
+      },
+      { status: 403 }
+    )
+  }
+
   const { searchParams } = request.nextUrl
   const prefecture = searchParams.get("prefecture")
   const category = searchParams.get("category")
@@ -26,6 +43,8 @@ export async function GET(request: NextRequest) {
 
   const where = {
     profilePublic: true,
+    // 求職者がこの企業をブロックしている場合は検索結果から除外
+    NOT: { blockedCompanyIds: { has: companyId } },
     ...(prefecture ? { prefecture } : {}),
     ...(category ? { desiredCategories: { has: category } } : {}),
   }

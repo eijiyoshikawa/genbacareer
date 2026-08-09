@@ -58,9 +58,12 @@ export async function PATCH(
           suspendedReason: null,
         }
 
-  await prisma.user.update({ where: { id }, data: updates }).catch((e) => {
+  try {
+    await prisma.user.update({ where: { id }, data: updates })
+  } catch (e) {
     console.error("[admin/users/PATCH] failed:", e)
-  })
+    return Response.json({ error: "ユーザーが見つかりません" }, { status: 404 })
+  }
 
   // 監査ログ
   await prisma.auditLog

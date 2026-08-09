@@ -65,7 +65,7 @@ export async function POST(
     prisma.lineLead
       .findUnique({
         where: { id },
-        select: { id: true, lineUserId: true, name: true },
+        select: { id: true, lineUserId: true, name: true, optedOut: true },
       })
       .catch(() => null),
     prisma.job
@@ -87,6 +87,12 @@ export async function POST(
   ])
 
   if (!lead) return Response.json({ error: "lead_not_found" }, { status: 404 })
+  if (lead.optedOut) {
+    return Response.json(
+      { error: "opted_out", message: "この lead は配信停止済みのため送信できません。" },
+      { status: 403 }
+    )
+  }
   if (!lead.lineUserId) {
     return Response.json(
       {
