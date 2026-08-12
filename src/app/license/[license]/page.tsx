@@ -14,17 +14,20 @@ import {
   generateCollectionPageSchema,
   generateItemListSchema,
 } from "@/lib/structured-data"
+import { auth } from "@/lib/auth"
+import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import {
+  GuestTrialBanner,
+} from "@/components/jobs/guest-signup-cta"
 import { Certificate, BookOpen } from "@phosphor-icons/react/dist/ssr"
 
-// ビルド時の SSG prerender は走らせない (description / requirements の
-// contains 検索が重く 60s タイムアウトする実績あり)。
-// 初回リクエスト時に生成 → ISR 6h でキャッシュする運用に切替。
-export const revalidate = 21600
+// auth() で cookie を読むため、自動的に dynamic レンダリングになる。
+// (他の longtail LP と同じく GUEST_LIMIT ゲートのため ISR は使わない)
+export const dynamic = "force-dynamic"
 export const dynamicParams = true
 
 export function generateStaticParams() {
-  // 空配列を返してビルド時 prerender を回避
-  // dynamicParams = true なので、未生成 slug への初回 GET で SSR + ISR キャッシュされる
+  // 空配列を返してビルド時 prerender を回避 (dynamicParams = true なので個別 slug は SSR で処理)
   return []
 }
 
@@ -54,6 +57,12 @@ export default async function LicenseLpPage({ params }: Props) {
   const lp = getLicenseLpBySlug(license)
   if (!lp) notFound()
 
+  // 求職者ログイン時のみ全件閲覧可。未ログインは GUEST_LIMIT (15) 件で打ち切り。
+  const session = await auth().catch(() => null)
+  const loggedIn = !!session?.user?.id
+  const fullLimit = 30
+  const limit = loggedIn ? fullLimit : GUEST_LIMIT
+
   // タイトル / tags に資格名が含まれる求人を抽出。
   // requirements / description の contains は LIKE %term% で巨大テーブルに対して
   // 60s タイムアウトする実績があるため、tags (GIN index 高速) と title のみに絞る。
@@ -62,31 +71,36 @@ export default async function LicenseLpPage({ params }: Props) {
     { title: { contains: term, mode: "insensitive" } },
   ])
 
-  const jobs = await prisma.job
-    .findMany({
-      where: {
-        status: "active",
-        category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
-        OR,
-      },
-      orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
-      take: 30,
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        employmentType: true,
-        salaryMin: true,
-        salaryMax: true,
-        salaryType: true,
-        prefecture: true,
-        city: true,
-        source: true,
-        tags: true,
-        company: { select: { name: true, logoUrl: true, gbizData: true } },
-      },
-    })
-    .catch(() => [])
+  const where: Prisma.JobWhereInput = {
+    status: "active",
+    category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
+    OR,
+  }
+
+  const [jobs, total] = await Promise.all([
+    prisma.job
+      .findMany({
+        where,
+        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        take: limit,
+        select: {
+          id: true,
+          title: true,
+          category: true,
+          employmentType: true,
+          salaryMin: true,
+          salaryMax: true,
+          salaryType: true,
+          prefecture: true,
+          city: true,
+          source: true,
+          tags: true,
+          company: { select: { name: true, logoUrl: true, gbizData: true } },
+        },
+      })
+      .catch(() => []),
+    prisma.job.count({ where }).catch(() => 0),
+  ])
 
   const breadcrumb = generateBreadcrumbSchema([
     { name: "トップ", url: "/" },
@@ -145,7 +159,12 @@ export default async function LicenseLpPage({ params }: Props) {
             {lp.description}
           </p>
           <p className="mt-3 text-xs text-gray-500">
-            {jobs.length} 件の求人が見つかりました
+            {total} 件の求人が見つかりました
+            {!loggedIn && total > GUEST_LIMIT && (
+              <span className="ml-1">
+                （上位 {GUEST_LIMIT} 件のみお試し表示）
+              </span>
+            )}
           </p>
         </div>
       </header>
@@ -169,6 +188,11 @@ export default async function LicenseLpPage({ params }: Props) {
         <h2 className="text-base sm:text-lg font-bold text-gray-900 section-bar">
           {lp.label} を活かせる求人
         </h2>
+        {!loggedIn && total > GUEST_LIMIT && (
+          <div className="mt-4">
+            <GuestTrialBanner limit={GUEST_LIMIT} total={total} />
+          </div>
+        )}
         {jobs.length === 0 ? (
           <p className="mt-4 text-sm text-gray-500">
             該当する求人が見つかりませんでした。下の他の資格もご覧ください。

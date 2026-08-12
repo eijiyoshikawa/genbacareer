@@ -24,6 +24,22 @@ import { PLAN_TYPES, planTier } from "@/lib/plans"
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
+/**
+ * 契約終了日を JST の「その日いっぱい」として解釈した Date に変換する。
+ *
+ * 管理画面の <input type="date"> は "YYYY-MM-DD" のみを送るため、そのまま
+ * new Date() すると UTC 00:00 (= JST 09:00) になり、本来カバーすべき当日の
+ * 残り約15時間分、isPlanActive() が早期に false になってしまう。
+ * 日本はDSTがないため JST は常に UTC+9 固定。
+ */
+function toEndOfDayJst(dateStr: string): Date {
+  // 既に time 部分を含む ISO datetime ならそのまま尊重する
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return new Date(`${dateStr}T23:59:59.999+09:00`)
+  }
+  return new Date(dateStr)
+}
+
 const schema = z.object({
   planType: z.enum(PLAN_TYPES),
   planPaidUntil: z.iso.datetime().nullable().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable()),
@@ -118,7 +134,7 @@ export async function POST(
     where: { id },
     data: {
       planType,
-      planPaidUntil: planPaidUntil ? new Date(planPaidUntil) : null,
+      planPaidUntil: planPaidUntil ? toEndOfDayJst(planPaidUntil) : null,
       planActivatedAt: activatedAt,
       planPrepaidFull,
       planNotes,

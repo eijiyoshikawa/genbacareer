@@ -60,6 +60,10 @@ export async function POST(request: NextRequest) {
       logoUrl: empty(d.logoUrl),
       websiteUrl: empty(d.websiteUrl),
       contactEmail: empty(d.contactEmail),
+      // rotationKey のデフォルト値 0 のままだと、同日登録の複数社が
+      // 次回 rotate-companies cron (日次) までタイの最上位で並んでしまう。
+      // /api/cron/rotate-companies と同じ 0..999_999 の範囲で初期化する。
+      rotationKey: Math.floor(Math.random() * 1_000_000),
     },
   })
 

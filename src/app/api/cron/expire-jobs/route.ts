@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -32,6 +32,9 @@ export async function GET(request: Request) {
         expiresAt: { lte: now },
       },
       select: { id: true, expiresAt: true },
+      // 期限切れ件数が 500 件を超えるバックログ時も、最も古く期限切れの
+      // 求人から確実に処理し、特定の求人が延長されないまま滞留しないようにする。
+      orderBy: { expiresAt: "asc" },
       take: 500,
     })
     .catch(() => [])
