@@ -59,6 +59,53 @@ export async function createHiringInvoice(applicationId: string) {
   }
 }
 
+/**
+ * status = "failed" の BillingEvent を再試行する。
+ *
+ * createHiringInvoice は新規 BillingEvent を作るが、applicationId には
+ * @@unique 制約があるため失敗済みイベントに対して再実行すると unique 制約違反になる。
+ * 再試行は既存の BillingEvent 行を再利用して MoneyForward 送信だけをやり直す。
+ */
+export async function retryFailedHiringInvoice(billingEventId: string) {
+  const billingEvent = await prisma.billingEvent.findUnique({
+    where: { id: billingEventId },
+    include: {
+      company: true,
+      application: {
+        include: {
+          job: { select: { title: true } },
+          user: { select: { name: true } },
+        },
+      },
+    },
+  })
+
+  if (!billingEvent || !billingEvent.company || !billingEvent.application) {
+    throw new Error(`BillingEvent ${billingEventId} not found or missing relations`)
+  }
+  if (billingEvent.status !== "failed") {
+    throw new Error(
+      `BillingEvent ${billingEventId} は failed ではありません (現在: ${billingEvent.status})`
+    )
+  }
+
+  try {
+    return await invoiceViaMoneyForward({
+      billingEventId: billingEvent.id,
+      company: billingEvent.company,
+      jobTitle: billingEvent.application.job?.title ?? "求人",
+      userName: billingEvent.application.user?.name ?? "求職者",
+      amount: billingEvent.amount,
+    })
+  } catch (error) {
+    await prisma.billingEvent.update({
+      where: { id: billingEvent.id },
+      data: { status: "failed" },
+    })
+    throw error
+  }
+}
+
 type InvoiceArgs = {
   billingEventId: string
   company: {

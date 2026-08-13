@@ -20,6 +20,10 @@ import { fetchSnapshot, isGbizConfigured } from "@/lib/gbizinfo"
 const STALE_MS = 28 * 24 * 60 * 60 * 1000
 const RATE_INTERVAL_MS = 250
 const MAX_PER_RUN = 200
+// maxDuration (60s) に対し、200 件 × 250ms のスリープだけで 50s を使い切ってしまい
+// API 呼び出しのレイテンシ分だけで確実にタイムアウトするため、経過時間を見て
+// 余裕がなくなったら残りは来月に持ち越す（強制終了ではなく正常レスポンスで打ち切る）。
+const TIME_BUDGET_MS = 45 * 1000
 
 export const maxDuration = 60 // Vercel function 最長 60s
 
@@ -54,11 +58,17 @@ export async function GET(request: Request) {
     take: MAX_PER_RUN,
   })
 
+  const startedAt = Date.now()
   let updated = 0
   let failed = 0
+  let timedOut = false
   const failedIds: string[] = []
 
   for (const c of targets) {
+    if (Date.now() - startedAt > TIME_BUDGET_MS) {
+      timedOut = true
+      break
+    }
     if (!c.corporateNumber) continue
     try {
       const snapshot = await fetchSnapshot(c.corporateNumber)
@@ -85,10 +95,11 @@ export async function GET(request: Request) {
   }
 
   return Response.json({
-    processed: targets.length,
+    processed: updated + failed,
     updated,
     failed,
     failedIds: failedIds.slice(0, 20),
+    timedOut,
     nextRunCutoff: cutoff.toISOString(),
   })
 }

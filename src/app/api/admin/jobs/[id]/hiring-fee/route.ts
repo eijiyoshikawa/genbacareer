@@ -6,7 +6,7 @@
  *
  * Body:
  *   { hiringFeeAmount: number | null }
- *   - 200,000 〜 2,000,000 の整数、または null（NULL でフォールバックさせる）
+ *   - 498,000 〜 2,000,000 の整数、または null（NULL でフォールバックさせる）
  */
 
 import { prisma } from "@/lib/db"

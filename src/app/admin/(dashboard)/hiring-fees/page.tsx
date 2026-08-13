@@ -11,7 +11,7 @@ import { HIRING_FEE_MIN, HIRING_FEE_MAX } from "@/lib/hiring-fee"
  *
  * - direct 求人 (自社認定企業の掲載) のみ対象 (hellowork は対象外)
  * - NULL = HIRING_FEE_AMOUNT (498,000) フォールバック
- * - 範囲: 200,000 〜 2,000,000
+ * - 範囲: 498,000 〜 2,000,000
  */
 
 export const metadata = {

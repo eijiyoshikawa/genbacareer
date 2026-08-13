@@ -13,6 +13,11 @@ import { prisma } from "@/lib/db"
 
 const AUTO_RENEW_EXTENSION_MS = 30 * 24 * 60 * 60 * 1000
 
+// デフォルトの Vercel Function タイムアウト (10-15s) だと、自動再掲載の
+// 逐次 update ループが終わる前に打ち切られ、後段の closed 化が実行されない
+// リスクがあるため明示的に延長する。
+export const maxDuration = 60
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
@@ -23,7 +28,17 @@ export async function GET(request: Request) {
 
   const now = new Date()
 
-  // 1) 自動再掲載: expiresAt を +30 日延長
+  // 1) auto_renew でないものは closed に（単一 updateMany で高速・タイムアウト耐性あり）
+  const closed = await prisma.job.updateMany({
+    where: {
+      status: "active",
+      autoRenew: false,
+      expiresAt: { lte: now },
+    },
+    data: { status: "closed" },
+  })
+
+  // 2) 自動再掲載: expiresAt を +30 日延長
   const renewTarget = await prisma.job
     .findMany({
       where: {
@@ -51,16 +66,6 @@ export async function GET(request: Request) {
       })
       .catch(() => null)
   }
-
-  // 2) auto_renew でないものは closed に
-  const closed = await prisma.job.updateMany({
-    where: {
-      status: "active",
-      autoRenew: false,
-      expiresAt: { lte: now },
-    },
-    data: { status: "closed" },
-  })
 
   console.info(
     `[cron/expire-jobs] renewed=${renewed}, closed=${closed.count}`

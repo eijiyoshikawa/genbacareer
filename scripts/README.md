@@ -109,8 +109,9 @@ curl -X POST "https://www.genbacareer.jp/api/cron/hellowork-import?dataId=M100&p
 curl -X POST "https://www.genbacareer.jp/api/cron/hellowork-import?pages=1" \
   -H "Authorization: Bearer $CRON_SECRET"
 
-# closeOrphans を有効化（fullSweep 用。ローテーション中は使わない）
-curl -X POST "https://www.genbacareer.jp/api/cron/hellowork-import?closeOrphans=true" \
+# closeOrphans を有効化（このエンドポイントは部分取り込みのみなので、
+# fullSweep=true も同時に付けないと closeOrphans は無視される。ローテーション中は使わない）
+curl -X POST "https://www.genbacareer.jp/api/cron/hellowork-import?closeOrphans=true&fullSweep=true" \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 

@@ -124,7 +124,43 @@ export function formatSearchLabel(input: SavedSearchInput): string {
 }
 
 /**
+ * 通知バッチの結果。matches は実際に通知本文へ載せる分（新着順に整列）。
+ *
+ * 取りこぼし防止のため、DB からは publishedAt 昇順（未通知の最古のものから）で
+ * limit+1 件フェッチし、古い方から limit 件を「今回処理した分」として確定させる。
+ * これにより新しい求人が次々来ても未通知の古い求人がいつまでも上位 N 件から
+ * 押し出されて通知されない、ということが起きない（毎回必ず前進する）。
+ * nextCursor は「今回処理した中で一番新しいもの」の publishedAt+1ms を返す —
+ * 未処理の求人は定義上その時刻以降なので、取りこぼさずに次回へ進められる。
+ */
+export type AlertBatch<T> = {
+  matches: T[]
+  hasMore: boolean
+  nextCursor: (startedAt: Date) => Date
+}
+
+/**
+ * @param fetchedAsc publishedAt 昇順（古い→新しい）でフェッチした limit+1 件
+ */
+export function toAlertBatch<T extends { publishedAt: Date | null }>(
+  fetchedAsc: T[],
+  limit: number
+): AlertBatch<T> {
+  const hasMore = fetchedAsc.length > limit
+  const processedAsc = fetchedAsc.slice(0, limit)
+  const newestProcessed = processedAsc[processedAsc.length - 1]?.publishedAt ?? null
+  return {
+    // 通知本文には新着順（新しいものが先）で見せる
+    matches: [...processedAsc].reverse(),
+    hasMore,
+    nextCursor: (startedAt: Date) =>
+      newestProcessed ? new Date(newestProcessed.getTime() + 1) : startedAt,
+  }
+}
+
+/**
  * 1 件の SavedSearch について、最後の通知時刻以降に公開された新着求人を取得。
+ * 取りこぼし防止のため publishedAt 昇順で limit+1 件フェッチする（toAlertBatch 参照）。
  */
 export async function findNewMatchingJobs(
   search: {
@@ -142,7 +178,7 @@ export async function findNewMatchingJobs(
   },
   limit = 5
 ): Promise<
-  Array<{
+  AlertBatch<{
     id: string
     title: string
     prefecture: string
@@ -152,12 +188,45 @@ export async function findNewMatchingJobs(
   const since = search.lastNotifiedAt ?? search.createdAt
   const where = buildJobWhere(search, since)
 
-  return prisma.job
+  const fetched = await prisma.job
     .findMany({
       where,
-      orderBy: { publishedAt: "desc" },
-      take: limit,
+      orderBy: { publishedAt: "asc" },
+      take: limit + 1,
       select: { id: true, title: true, prefecture: true, publishedAt: true },
     })
     .catch(() => [])
+
+  return toAlertBatch(fetched, limit)
+}
+
+/**
+ * CompanyFollow 向け: 指定企業の最後の通知時刻以降に公開された新着求人を取得。
+ * findNewMatchingJobs と同じ hasMore / nextCursor ロジックを共有する。
+ */
+export async function findNewCompanyJobs(
+  companyId: string,
+  since: Date,
+  limit = 5
+): Promise<
+  AlertBatch<{
+    id: string
+    title: string
+    publishedAt: Date | null
+  }>
+> {
+  const fetched = await prisma.job
+    .findMany({
+      where: {
+        companyId,
+        status: "active",
+        publishedAt: { gte: since },
+      },
+      orderBy: { publishedAt: "asc" },
+      take: limit + 1,
+      select: { id: true, title: true, publishedAt: true },
+    })
+    .catch(() => [])
+
+  return toAlertBatch(fetched, limit)
 }

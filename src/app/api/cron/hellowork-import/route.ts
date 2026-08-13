@@ -17,6 +17,12 @@
  *   pages         : 連続取得するページ数（default: 2）
  *   closeOrphans  : 今回バッチに含まれない HW 求人を closed にするか（default: false。
  *                   ローテーション中は常に false にすべき。週次 fullSweep でのみ true 推奨）
+ *   fullSweep     : closeOrphans=true を実際に有効化するための確認フラグ。
+ *                   このエンドポイントは常に「1 dataId の数ページ」という部分取り込みしか
+ *                   行わないため、closeOrphans=true だけを付けると他の dataId の正常な
+ *                   求人まで大量 closed になる事故が過去に発生した
+ *                   （docs/HELLOWORK_API_HANDOVER.md 8章「closed: 990」参照）。
+ *                   closeOrphans と fullSweep の両方が true のときのみ実際に有効化する。
  */
 
 import {
@@ -48,7 +54,12 @@ export async function GET(request: Request) {
   const dataIdParam = url.searchParams.get("dataId")
   const pageParam = url.searchParams.get("page")
   const pagesParam = url.searchParams.get("pages")
-  const closeOrphans = url.searchParams.get("closeOrphans") === "true"
+  // このエンドポイントは部分取り込みしか行わないため、closeOrphans は
+  // fullSweep も同時に true のときだけ有効化する（誤爆で全国求人を大量 closed
+  // にする事故を防ぐガード）。
+  const closeOrphans =
+    url.searchParams.get("closeOrphans") === "true" &&
+    url.searchParams.get("fullSweep") === "true"
 
   const pagesPerRun = clampInt(pagesParam, DEFAULT_PAGES_PER_RUN, 1, 5)
 

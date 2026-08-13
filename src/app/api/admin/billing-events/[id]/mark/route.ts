@@ -6,17 +6,20 @@
  *     { action: "mark_invoiced", mfBillingId?: string, invoiceUrl?: string }
  *     { action: "mark_paid" }
  *     { action: "mark_failed", reason?: string }
+ *     { action: "retry" }
  *
  * 用途: MoneyForward 自動連携は未導入のため、admin が手動で
- *   - 請求書発行 (pending → invoiced) + MF 側 ID を保存
+ *   - 請求書発行 (pending/failed → invoiced) + MF 側 ID を保存
  *   - 入金確認 (invoiced → paid)
  *   - 失敗マーク (* → failed)
+ *   - MoneyForward への再送信 (failed → invoiced、失敗すれば failed のまま)
  * を打ち込んで運用する。
  */
 
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { retryFailedHiringInvoice } from "@/lib/billing"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -42,6 +45,9 @@ const patchSchema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("mark_failed"),
+  }),
+  z.object({
+    action: z.literal("retry"),
   }),
 ])
 
@@ -78,7 +84,8 @@ export async function POST(
 
   switch (parsed.data.action) {
     case "mark_invoiced": {
-      if (row.status !== "pending") {
+      // pending: 通常フロー。failed: MF 側で手動発行できた場合の手動リカバリ。
+      if (row.status !== "pending" && row.status !== "failed") {
         return Response.json(
           { error: `現在のステータス (${row.status}) からは請求書発行マークできません` },
           { status: 409 },
@@ -93,6 +100,25 @@ export async function POST(
         },
       })
       return Response.json({ ok: true })
+    }
+    case "retry": {
+      if (row.status !== "failed") {
+        return Response.json(
+          { error: `現在のステータス (${row.status}) からは再試行できません` },
+          { status: 409 },
+        )
+      }
+      try {
+        await retryFailedHiringInvoice(id)
+        return Response.json({ ok: true })
+      } catch (error) {
+        return Response.json(
+          {
+            error: `再試行に失敗しました: ${error instanceof Error ? error.message : "unknown error"}`,
+          },
+          { status: 502 },
+        )
+      }
     }
     case "mark_paid": {
       if (row.status !== "invoiced") {

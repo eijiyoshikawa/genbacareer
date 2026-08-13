@@ -17,6 +17,7 @@ export function StickyActionBar({
   salaryLabel,
   initialInterested,
   loggedIn,
+  closed = false,
 }: {
   jobId: string
   title: string
@@ -24,6 +25,7 @@ export function StickyActionBar({
   salaryLabel?: string | null
   initialInterested: boolean
   loggedIn: boolean
+  closed?: boolean
 }) {
   return (
     <div className="fixed bottom-0 inset-x-0 z-30 border-t-2 border-primary-500 bg-white shadow-[0_-6px_16px_rgba(0,0,0,0.06)]">
@@ -50,22 +52,33 @@ export function StickyActionBar({
         )}
 
         {/* 気になる (12.3 ライト応募) */}
-        <div className="hidden sm:inline-flex">
-          <InterestButton
-            jobId={jobId}
-            initialInterested={initialInterested}
-            loggedIn={loggedIn}
-            variant="button"
-          />
-        </div>
+        {!closed && (
+          <div className="hidden sm:inline-flex">
+            <InterestButton
+              jobId={jobId}
+              initialInterested={initialInterested}
+              loggedIn={loggedIn}
+              variant="button"
+            />
+          </div>
+        )}
 
-        <Link
-          href={`/jobs/${jobId}/apply`}
-          className="press shrink-0 inline-flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 px-5 py-3 text-sm sm:text-base font-bold text-white shadow-sm transition"
-        >
-          <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5" />
-          話を聞きたい
-        </Link>
+        {closed ? (
+          <Link
+            href="/jobs"
+            className="press shrink-0 inline-flex items-center justify-center gap-2 bg-gray-400 px-5 py-3 text-sm sm:text-base font-bold text-white shadow-sm transition"
+          >
+            募集終了・他の求人を探す
+          </Link>
+        ) : (
+          <Link
+            href={`/jobs/${jobId}/apply`}
+            className="press shrink-0 inline-flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 px-5 py-3 text-sm sm:text-base font-bold text-white shadow-sm transition"
+          >
+            <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5" />
+            話を聞きたい
+          </Link>
+        )}
       </div>
     </div>
   )

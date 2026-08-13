@@ -171,6 +171,10 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
 
   if (!job) notFound()
 
+  // 掲載終了求人でも URL は生かしておく（外部リンク切れ/SEO への悪影響を避けるため）が、
+  // 応募 CTA は無効化し「募集終了」を明示する。expire-jobs cron が status を更新する。
+  const isClosed = job.status !== "active"
+
   // 未登録ゲストは「グローバル上位 15 件（recommended sort / フィルタ無し）」の詳細のみ閲覧可。
   // 検索エンジン等のクローラは Google for Jobs SEO 維持のため除外する。
   const session = await auth().catch(() => null)
@@ -378,6 +382,20 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
               PREVIEW
             </span>
             このページは社内チェック用のプレビュー URL からアクセスされています。検索エンジンや一般公開には掲載されません（求人ステータス: {job.status}）。
+          </div>
+        </div>
+      )}
+
+      {!isPreview && isClosed && (
+        <div className="bg-gray-200 border-b border-gray-300">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-2.5 flex flex-wrap items-center gap-2 text-sm font-bold text-gray-700">
+            <span className="inline-flex items-center px-2 py-0.5 bg-gray-500 text-white text-xs">
+              募集終了
+            </span>
+            この求人の募集は終了しました。
+            <Link href="/jobs" className="underline hover:text-primary-600">
+              他の求人を探す
+            </Link>
           </div>
         </div>
       )}
@@ -990,6 +1008,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
         }
         initialInterested={isInterested}
         loggedIn={!!loggedInUserId}
+        closed={isClosed}
       />
     </div>
   )

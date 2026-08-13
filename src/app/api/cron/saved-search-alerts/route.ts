@@ -13,6 +13,7 @@
 import { prisma } from "@/lib/db"
 import { createNotification } from "@/lib/notifications"
 import {
+  findNewCompanyJobs,
   findNewMatchingJobs,
   formatSearchLabel,
   toSearchQueryString,
@@ -45,11 +46,12 @@ export async function GET(request: Request) {
   for (const s of searches) {
     searchProcessed++
     try {
-      const matches = await findNewMatchingJobs(s, 5)
+      const { matches, hasMore, nextCursor } = await findNewMatchingJobs(s, 5)
+      const cursor = nextCursor(startedAt)
       if (matches.length === 0) {
         await prisma.savedSearch.update({
           where: { id: s.id },
-          data: { lastNotifiedAt: startedAt },
+          data: { lastNotifiedAt: cursor },
         })
         continue
       }
@@ -60,7 +62,7 @@ export async function GET(request: Request) {
       await createNotification({
         userId: s.userId,
         type: "system",
-        title: `🆕 「${s.name}」に新着求人 ${matches.length} 件`,
+        title: `🆕 「${s.name}」に新着求人 ${matches.length}${hasMore ? "+" : ""} 件`,
         body: `条件: ${formatSearchLabel(s)}`,
         items: matches.map((m) => m.title),
         linkUrl: link,
@@ -70,7 +72,7 @@ export async function GET(request: Request) {
 
       await prisma.savedSearch.update({
         where: { id: s.id },
-        data: { lastNotifiedAt: startedAt },
+        data: { lastNotifiedAt: cursor },
       })
       searchNotified++
     } catch (e) {
@@ -109,38 +111,35 @@ export async function GET(request: Request) {
       }
 
       const since = f.lastNotifiedAt ?? f.createdAt
-      const matches = await prisma.job
-        .findMany({
-          where: {
-            companyId: f.companyId,
-            status: "active",
-            publishedAt: { gte: since },
-          },
-          orderBy: { publishedAt: "desc" },
-          take: 5,
-          select: { id: true, title: true },
-        })
-        .catch(() => [])
+      const { matches, hasMore, nextCursor } = await findNewCompanyJobs(
+        f.companyId,
+        since,
+        5
+      )
+      const cursor = nextCursor(startedAt)
 
       if (matches.length === 0) {
         await prisma.companyFollow.update({
           where: {
             userId_companyId: { userId: f.userId, companyId: f.companyId },
           },
-          data: { lastNotifiedAt: startedAt },
+          data: { lastNotifiedAt: cursor },
         })
         continue
       }
 
       const sample = matches.slice(0, 3)
       const titleBody = sample.map((m) => `・${m.title}`).join("\n")
+      const extraCount = Math.max(matches.length - sample.length, 0)
       const moreText =
-        matches.length > 3 ? `\n... 他 ${matches.length - 3} 件` : ""
+        extraCount > 0 || hasMore
+          ? `\n... 他 ${extraCount}${hasMore ? "+" : ""} 件`
+          : ""
 
       await createNotification({
         userId: f.userId,
         type: "system",
-        title: `🆕 ${f.company.name} の新着求人 ${matches.length} 件`,
+        title: `🆕 ${f.company.name} の新着求人 ${matches.length}${hasMore ? "+" : ""} 件`,
         body: `フォロー中の企業に新しい求人が公開されました。\n\n${titleBody}${moreText}`,
         linkUrl: `/companies/${f.companyId}`,
         refId: f.companyId,
@@ -150,7 +149,7 @@ export async function GET(request: Request) {
         where: {
           userId_companyId: { userId: f.userId, companyId: f.companyId },
         },
-        data: { lastNotifiedAt: startedAt },
+        data: { lastNotifiedAt: cursor },
       })
       followNotified++
     } catch (e) {

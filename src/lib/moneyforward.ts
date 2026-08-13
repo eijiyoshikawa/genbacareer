@@ -155,9 +155,12 @@ export async function createMfBilling(args: {
         items: [
           {
             name: args.itemName,
+            // TODO(要検証): 上の JSDoc は amount を「税抜」と説明しているが、この
+            // excise: "ten_percent" が unit_price に対し外税加算なのか、
+            // 既に税込という意味なのかを実際の MF 請求書 PDF で必ず確認すること。
+            // 解釈を誤ると全成果報酬請求が ±10% (¥49,800 / 件) ずれる。
             unit_price: args.amount,
             quantity: 1,
-            // 内税で消費税 10%（業務委託・成果報酬は課税対象）
             excise: "ten_percent",
           },
         ],

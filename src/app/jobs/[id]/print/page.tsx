@@ -11,10 +11,16 @@
  */
 
 import { prisma } from "@/lib/db"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
+import { headers } from "next/headers"
 import type { Metadata } from "next"
 import Image from "next/image"
 import { getCategoryLabel } from "@/lib/categories"
+import { auth } from "@/lib/auth"
+import {
+  getGuestAccessibleJobIds,
+  isCrawlerUserAgent,
+} from "@/lib/guest-job-access"
 import { PrintTrigger } from "./print-trigger"
 
 export const dynamic = "force-dynamic"
@@ -70,6 +76,20 @@ export default async function JobPrintPage({ params, searchParams }: Props) {
     .catch(() => null)
 
   if (!job) notFound()
+
+  // /jobs/[id] と同じゲスト閲覧ガード。未ログインはゲスト公開上限 (GUEST_LIMIT) 件の
+  // 求人のみ PDF 化できる（そうしないと印刷ルート経由で全件を無制限に閲覧できてしまう）。
+  const session = await auth().catch(() => null)
+  if (!session?.user?.id) {
+    const hdrs = await headers()
+    const ua = hdrs.get("user-agent")
+    if (!isCrawlerUserAgent(ua)) {
+      const allowedIds = await getGuestAccessibleJobIds()
+      if (!allowedIds.includes(id)) {
+        redirect(`/login?callbackUrl=${encodeURIComponent(`/jobs/${id}/print`)}`)
+      }
+    }
+  }
 
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryType)
   const generatedAt = new Date().toLocaleString("ja-JP")
