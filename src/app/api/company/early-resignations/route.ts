@@ -31,6 +31,7 @@ import { prisma } from "@/lib/db"
 import {
   computeRefundParams,
   isEligibleForRefund,
+  parseResignedAt,
 } from "@/lib/early-resignation"
 
 export const dynamic = "force-dynamic"
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
   }
 
   const { applicationId, resignedAt: resignedAtStr, companyNote } = parsed.data
-  const resignedAt = new Date(resignedAtStr)
+  const resignedAt = parseResignedAt(resignedAtStr)
 
   const app = await prisma.application.findUnique({
     where: { id: applicationId },

@@ -35,6 +35,12 @@ export function isCrawlerUserAgent(ua: string | null | undefined): boolean {
  *
  * 高度に絞り込んだ検索結果からのクリックは未登録ゲートに引っかかるが、
  * これは仕様（無料体験は上位 15 件まで）として明示的に許容している。
+ *
+ * C8 上位表示 + 公平ローテーション導入 (buildOrderBy in src/app/jobs/page.tsx) 後は
+ * company.planTier desc → company.rotationKey asc → rankScore desc → publishedAt desc
+ * が実際の "recommended" 並び順。ここがずれると /jobs の実際の上位 15 件と
+ * このゲート判定の対象集合が食い違い、正当なゲストアクセスがログインへ弾かれる
+ * (または逆に、本来は上位に出ない求人が閲覧できてしまう)。
  */
 export async function getGuestAccessibleJobIds(): Promise<string[]> {
   const rows = await prisma.job.findMany({
@@ -43,7 +49,8 @@ export async function getGuestAccessibleJobIds(): Promise<string[]> {
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
     },
     orderBy: [
-      { source: "asc" },
+      { company: { planTier: "desc" } },
+      { company: { rotationKey: "asc" } },
       { rankScore: "desc" },
       { publishedAt: "desc" },
     ],

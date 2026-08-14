@@ -12,6 +12,7 @@ import {
   daysUntilPlanExpiry,
   isPlanExpiringSoon,
   canPostJob,
+  parsePlanPaidUntil,
 } from "@/lib/plans"
 
 describe("PLAN_TYPES / PLAN_LABELS", () => {
@@ -230,5 +231,29 @@ describe("canPostJob", () => {
         now,
       }),
     ).toBe(false)
+  })
+})
+
+// admin 画面の <input type="date"> は "YYYY-MM-DD" を送る。
+// new Date("YYYY-MM-DD") は UTC 0 時としてパースされるため、JST では
+// その日の 9:00 (14:00 JST 実行の expire-plans cron からは当日中) に
+// 契約終了扱いになってしまっていた。「その日いっぱい」有効になることを確認する。
+describe("parsePlanPaidUntil", () => {
+  it("treats a date-only string as end-of-day JST, not UTC midnight", () => {
+    const result = parsePlanPaidUntil("2026-09-14")
+    // 2026-09-14 23:59:59.999 JST == 2026-09-14 14:59:59.999 UTC
+    expect(result.toISOString()).toBe("2026-09-14T14:59:59.999Z")
+  })
+
+  it("still covers the full day when checked from the expire-plans cron run time", () => {
+    const result = parsePlanPaidUntil("2026-09-14")
+    // expire-plans cron runs at 05:00 UTC (14:00 JST) on the expiry day
+    const cronRunTime = new Date("2026-09-14T05:00:00.000Z")
+    expect(result.getTime()).toBeGreaterThan(cronRunTime.getTime())
+  })
+
+  it("passes full ISO datetime strings through unchanged", () => {
+    const iso = "2026-09-14T12:34:56.000Z"
+    expect(parsePlanPaidUntil(iso).toISOString()).toBe(iso)
   })
 })

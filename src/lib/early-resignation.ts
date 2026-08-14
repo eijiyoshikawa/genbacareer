@@ -20,6 +20,22 @@
 const MONTH_DAYS = 30
 const DAY_MS = 24 * 60 * 60 * 1000
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * 企業が報告する退職日は `<input type="date">` から "YYYY-MM-DD" 形式で届く。
+ * `new Date("YYYY-MM-DD")` は UTC 0 時としてパースされ、JST では実質 9:00 に
+ * ずれてしまう。一方 hiredAt は採用確定操作時の実時刻 (任意の時刻) で保存される
+ * ため、両者を素朴に日数差分すると月境界付近で返金率が 1 段階ずれうる。
+ * 日付のみの入力は JST 0 時として解釈することでこのずれを解消する。
+ */
+export function parseResignedAt(value: string): Date {
+  if (DATE_ONLY_RE.test(value)) {
+    return new Date(`${value}T00:00:00.000+09:00`)
+  }
+  return new Date(value)
+}
+
 /** 返金率の段階定義 (months_after_hire → refund_rate %) */
 export const REFUND_RATE_SCHEDULE: ReadonlyArray<{
   monthsAfterHire: number

@@ -5,6 +5,7 @@ import {
   calculateRefundAmount,
   isEligibleForRefund,
   computeRefundParams,
+  parseResignedAt,
   REFUND_RATE_SCHEDULE,
 } from "@/lib/early-resignation"
 
@@ -184,5 +185,36 @@ describe("computeRefundParams (integration)", () => {
     expect(r.eligible).toBe(false)
     expect(r.refundRate).toBe(0)
     expect(r.refundAmount).toBe(0)
+  })
+})
+
+// 企業の「退職報告」フォームは <input type="date"> で "YYYY-MM-DD" を送る。
+// new Date("YYYY-MM-DD") は UTC 0 時 (= JST 9:00) としてパースされてしまい、
+// hiredAt (採用確定操作の実時刻) との日数差分が実態より最大 9 時間長くなって
+// 月境界をまたぎ、返金率が 1 段階不利にずれることがあった。
+describe("parseResignedAt", () => {
+  it("treats a date-only string as JST midnight, not UTC midnight", () => {
+    const result = parseResignedAt("2026-02-15")
+    // 2026-02-15 00:00 JST == 2026-02-14 15:00 UTC
+    expect(result.toISOString()).toBe("2026-02-14T15:00:00.000Z")
+  })
+
+  it("keeps a 90-day boundary case refund-eligible that UTC-midnight parsing would incorrectly disqualify", () => {
+    // 採用確定操作が 2026-01-02 04:00 JST に発生し (hiredAt = 2026-01-01T19:00:00Z)、
+    // 企業が退職日として "2026-04-02" を報告したケース。
+    // 正しい (JST 0 時基準の) 経過日数は 89 日 20 時間 = 3 ヶ月 → 20% 返金対象。
+    // 旧実装 (UTC 0 時でパース) だと 90 日 5 時間 = 4 ヶ月と判定され、
+    // 対象外 (返金 0%) に誤って弾かれていた。
+    const hiredAt = new Date("2026-01-01T19:00:00Z")
+    const resignedAt = parseResignedAt("2026-04-02")
+    const months = calculateMonthsAfterHire(hiredAt, resignedAt)
+    expect(months).toBe(3)
+    expect(refundRateForMonths(months)).toBe(20)
+    expect(isEligibleForRefund(months)).toBe(true)
+  })
+
+  it("passes full ISO datetime strings through unchanged", () => {
+    const iso = "2026-02-15T03:04:05.000Z"
+    expect(parseResignedAt(iso).toISOString()).toBe(iso)
   })
 })

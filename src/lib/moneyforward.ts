@@ -119,6 +119,16 @@ export type MfBilling = {
  * @param args.daysUntilDue 支払期日までの日数（デフォルト 30）
  * @param args.metadata    BillingEvent との紐付け用に memo として保存
  */
+/**
+ * JST の暦日 (YYYY-MM-DD) を返す。
+ * `Date#toISOString().slice(0, 10)` は UTC 暦日を返すため、日本時間の
+ * 0:00〜8:59 に実行すると請求書の日付が 1 日前にずれてしまう。
+ */
+export function toJstDateString(d: Date): string {
+  const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+  return jst.toISOString().slice(0, 10)
+}
+
 export async function createMfBilling(args: {
   partnerId: string
   title: string
@@ -149,8 +159,8 @@ export async function createMfBilling(args: {
         office_id: officeId,
         partner_id: args.partnerId,
         title: args.title,
-        billing_date: billingDate.toISOString().slice(0, 10),
-        due_date: dueDate.toISOString().slice(0, 10),
+        billing_date: toJstDateString(billingDate),
+        due_date: toJstDateString(dueDate),
         memo,
         items: [
           {

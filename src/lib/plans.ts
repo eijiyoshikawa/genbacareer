@@ -40,6 +40,23 @@ export function isPlanType(s: string): s is PlanType {
   return (PLAN_TYPES as readonly string[]).includes(s)
 }
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * `planPaidUntil` の入力パース。管理画面の `<input type="date">` からは
+ * "YYYY-MM-DD" 形式で届く。`new Date("YYYY-MM-DD")` は UTC 0 時としてパース
+ * されるため、JST ではその日の 9:00 時点で既に契約終了扱いになってしまう
+ * (expire-plans cron は 14:00 JST 実行のため、当日中に降格されてしまう)。
+ * 契約終了日「その日いっぱい」を有効にするため、日付のみの入力は
+ * JST の 23:59:59.999 として解釈する。
+ */
+export function parsePlanPaidUntil(value: string): Date {
+  if (DATE_ONLY_RE.test(value)) {
+    return new Date(`${value}T23:59:59.999+09:00`)
+  }
+  return new Date(value)
+}
+
 /**
  * 求人一覧の上位表示優先度 (Company.planTier として永続化される値)。
  *
