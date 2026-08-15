@@ -24,7 +24,11 @@ const jobSchema = z.object({
   tags: z.array(z.string()).optional(),
   videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
   status: z.enum(["draft", "active", "closed"]).optional(),
-})
+}).refine(
+  (data) =>
+    data.salaryMin == null || data.salaryMax == null || data.salaryMin <= data.salaryMax,
+  { message: "給与下限は上限以下である必要があります", path: ["salaryMin"] }
+)
 
 async function getCompanySession() {
   const session = await auth()

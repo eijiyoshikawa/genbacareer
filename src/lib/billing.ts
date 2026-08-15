@@ -8,6 +8,12 @@ import { resolveHiringFee } from "./hiring-fee"
  * 全企業共通: マネーフォワード クラウド請求書 (銀行振込) で発行する。
  * （景品表示法・過大広告対応の方針見直しに伴い Stripe カード決済は廃止）
  *
+ * 成果報酬 (採用 1 件ごとの課金) が発生するのは `success_fee` プランのみ。
+ * 月額プラン (monthly_12 / monthly_24) は月額サブスクリプションで別途課金済み、
+ * campaign_free / sns_client は採用時課金の対象外 (docs/business-model-handover.md
+ * 1-1 参照)。ここで弾かないと対象外プランの企業にも ¥498,000〜 の請求書が
+ * 誤って発行されてしまう。
+ *
  * 共通フロー:
  *   1. BillingEvent を pending で作成
  *   2. MoneyForward で取引先を取得 or 作成
@@ -26,6 +32,10 @@ export async function createHiringInvoice(applicationId: string) {
 
   if (!application || !application.company) {
     throw new Error(`Application ${applicationId} not found or has no company`)
+  }
+
+  if (application.company.planType !== "success_fee") {
+    return null
   }
 
   // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ定数フォールバック

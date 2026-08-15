@@ -68,20 +68,97 @@ function ipv4MatchesCidr(ip: string, cidr: string): boolean {
 }
 
 /**
+ * IPv6 文字列を 128-bit の BigInt に変換。失敗時は null。
+ * "::" 圧縮表記、および IPv4-mapped 表記の末尾 (例: "::ffff:127.0.0.1") に対応。
+ */
+function ipv6ToBigInt(ip: string): bigint | null {
+  const zoneIdx = ip.indexOf("%")
+  const addr = zoneIdx >= 0 ? ip.slice(0, zoneIdx) : ip
+  if (!addr) return null
+
+  const doubleColonCount = (addr.match(/::/g) ?? []).length
+  if (doubleColonCount > 1) return null
+
+  let head = addr
+  let tail = ""
+  let hasDoubleColon = false
+  if (addr.includes("::")) {
+    hasDoubleColon = true
+    const idx = addr.indexOf("::")
+    head = addr.slice(0, idx)
+    tail = addr.slice(idx + 2)
+  }
+
+  const headParts = head.length > 0 ? head.split(":") : []
+  const tailParts = tail.length > 0 ? tail.split(":") : []
+
+  // IPv4-mapped 末尾 (例: "127.0.0.1") を 2 つの 16-bit グループに変換
+  const expandIPv4Tail = (parts: string[]): string[] | null => {
+    const last = parts[parts.length - 1]
+    if (!last || !last.includes(".")) return parts
+    const v4 = ipv4ToInt(last)
+    if (v4 === null) return null
+    const hi = (v4 >>> 16) & 0xffff
+    const lo = v4 & 0xffff
+    return [...parts.slice(0, -1), hi.toString(16), lo.toString(16)]
+  }
+
+  const expandedHead = expandIPv4Tail(headParts)
+  const expandedTail = expandIPv4Tail(tailParts)
+  if (expandedHead === null || expandedTail === null) return null
+
+  const totalGroups = expandedHead.length + expandedTail.length
+  if (hasDoubleColon) {
+    if (totalGroups > 8) return null
+  } else if (totalGroups !== 8) {
+    return null
+  }
+  const fillCount = 8 - totalGroups
+  const allParts = [
+    ...expandedHead,
+    ...Array(fillCount).fill("0"),
+    ...expandedTail,
+  ]
+  if (allParts.length !== 8) return null
+
+  let result = BigInt(0)
+  for (const part of allParts) {
+    if (!/^[0-9a-fA-F]{1,4}$/.test(part)) return null
+    result = (result << BigInt(16)) | BigInt(parseInt(part, 16))
+  }
+  return result
+}
+
+const IPV6_MAX = (BigInt(1) << BigInt(128)) - BigInt(1)
+
+/** IPv6 CIDR マッチ (例: "2001:db8::/32")。プレフィックスビット長で正しく比較する。 */
+function ipv6MatchesCidr(ip: string, cidr: string): boolean {
+  const [base, maskStr] = cidr.split("/")
+  if (!base || !maskStr) return false
+  const mask = Number(maskStr)
+  if (!Number.isInteger(mask) || mask < 0 || mask > 128) return false
+  const ipInt = ipv6ToBigInt(ip)
+  const baseInt = ipv6ToBigInt(base)
+  if (ipInt === null || baseInt === null) return false
+  if (mask === 0) return true
+  const maskBits = (IPV6_MAX << BigInt(128 - mask)) & IPV6_MAX
+  return (ipInt & maskBits) === (baseInt & maskBits)
+}
+
+/**
  * クライアント IP が allowlist にマッチするか。
  *
  * - 単一 IP: 完全一致
- * - CIDR: ipv4MatchesCidr のみサポート (IPv6 CIDR は文字列前方一致で簡易対応)
+ * - CIDR: IPv4 / IPv6 ともにプレフィックスビット長で比較する
  */
 export function ipMatches(clientIp: string, entry: string): boolean {
   if (entry === clientIp) return true
   if (entry.includes("/")) {
     // CIDR
-    if (entry.includes(".")) return ipv4MatchesCidr(clientIp, entry)
-    // IPv6 CIDR は簡易対応: プレフィックス文字列マッチ
-    const [base] = entry.split("/")
-    if (!base) return false
-    return clientIp.toLowerCase().startsWith(base.toLowerCase())
+    if (entry.includes(".") && !entry.includes(":")) {
+      return ipv4MatchesCidr(clientIp, entry)
+    }
+    return ipv6MatchesCidr(clientIp, entry)
   }
   return false
 }

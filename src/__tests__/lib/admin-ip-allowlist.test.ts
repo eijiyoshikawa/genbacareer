@@ -74,9 +74,29 @@ describe("ipMatches", () => {
     expect(ipMatches("1.2.3.4", "not-cidr/24")).toBe(false)
   })
 
-  it("matches IPv6 prefix loosely", () => {
+  it("matches IPv6 CIDR by prefix bit length, not string prefix", () => {
     expect(ipMatches("2001:db8::1", "2001:db8::/32")).toBe(true)
     expect(ipMatches("2001:dead::1", "2001:db8::/32")).toBe(false)
+    // 同じ /48 内は許可
+    expect(ipMatches("2001:db8:1::1", "2001:db8:1::/48")).toBe(true)
+    // 文字列としては前方一致するが実際は別の /48 なので拒否されるべき
+    expect(ipMatches("2001:db8:100::1", "2001:db8:1::/48")).toBe(false)
+    // /128 は完全一致のみ
+    expect(ipMatches("::1", "::1/128")).toBe(true)
+    expect(ipMatches("::100", "::1/128")).toBe(false)
+    expect(ipMatches("::10", "::1/128")).toBe(false)
+    expect(ipMatches("::1a2b", "::1/128")).toBe(false)
+  })
+
+  it("matches exact IPv6", () => {
+    expect(ipMatches("::1", "::1")).toBe(true)
+    expect(ipMatches("::2", "::1")).toBe(false)
+  })
+
+  it("rejects invalid IPv6 CIDR input", () => {
+    expect(ipMatches("::1", "not-an-ipv6/64")).toBe(false)
+    expect(ipMatches("not-an-ipv6", "::/64")).toBe(false)
+    expect(ipMatches("::1", "::/200")).toBe(false)
   })
 })
 

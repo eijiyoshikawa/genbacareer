@@ -26,7 +26,11 @@ const updateJobSchema = z.object({
    * 409 を返す（強制上書きを防ぐ）。
    */
   expectedUpdatedAt: z.string().datetime().optional(),
-})
+}).refine(
+  (data) =>
+    data.salaryMin == null || data.salaryMax == null || data.salaryMin <= data.salaryMax,
+  { message: "給与下限は上限以下である必要があります", path: ["salaryMin"] }
+)
 
 async function getCompanySession() {
   const session = await auth()

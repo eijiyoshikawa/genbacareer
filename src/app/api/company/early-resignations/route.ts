@@ -98,11 +98,20 @@ export async function POST(request: Request) {
       hiredAt: true,
       billingEvent: { select: { amount: true } },
       earlyResignation: { select: { id: true } },
+      company: { select: { planType: true } },
     },
   })
 
   if (!app || app.companyId !== me.companyId) {
     return Response.json({ error: "応募が見つかりません" }, { status: 404 })
+  }
+  // 戻入規定は成果報酬プランのみ対象 (docs/business-model-handover.md 1-2)。
+  // 月額 / キャンペーン / SNS 枠は採用時課金が無いため戻入も無い。
+  if (app.company?.planType !== "success_fee") {
+    return Response.json(
+      { error: "戻入は成果報酬プランのみが対象です" },
+      { status: 400 },
+    )
   }
   if (app.status !== "hired") {
     return Response.json(
