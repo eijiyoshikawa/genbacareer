@@ -62,7 +62,7 @@ export async function GET(request: Request) {
   const refundCount = refunds._count ?? 0
   const refundAmount = refunds._sum.refundAmount ?? 0
 
-  const totalTasks = pendingCount + refundCount
+  const totalTasks = pendingCount + invoicedCount + refundCount
 
   if (totalTasks === 0) {
     console.log("[cron/billing-todo-digest] no tasks, skipping email")

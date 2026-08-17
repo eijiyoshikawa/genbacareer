@@ -61,6 +61,19 @@ export async function GET() {
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
       // 説明文が空の求人は Indeed の品質要件を満たさないので除外
       NOT: { description: null },
+      // /jobs.xml と同じ配信対象ポリシー: HelloWork 取り込みは別ルートで契約済のため除外し、
+      // 有償プランかつアクティブな企業の求人のみ Indeed 等の外部配信に出す
+      // (campaign_free は ¥0 枠のため外部配信コスト的に対象外)。
+      source: "direct",
+      company: {
+        OR: [
+          { planType: "success_fee" },
+          {
+            planType: { in: ["monthly_12", "monthly_24", "sns_client"] },
+            planPaidUntil: { gt: new Date() },
+          },
+        ],
+      },
     },
     select: {
       id: true,
