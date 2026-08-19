@@ -237,6 +237,30 @@ const STATEMENTS: ReadonlyArray<string> = [
     ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS "terms_accepted_at" TIMESTAMPTZ`,
  `CREATE INDEX IF NOT EXISTS "idx_users_status" ON "users" ("status")`,
+ // Supabase Security Advisor 対応 (rls_disabled_in_public):
+ // public スキーマの RLS 未設定テーブルに RLS を有効化する（ポリシーは作らない
+ // = PostgREST の anon/authenticated から全行アクセス不可、Prisma(所有者接続)は無影響）。
+ // 未設定のテーブルだけを対象にするため、全て設定済みなら完全な no-op。
+ `DO $$
+  DECLARE r RECORD;
+  BEGIN
+    FOR r IN
+      SELECT c.relname FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT c.relrowsecurity
+    LOOP
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', r.relname);
+    END LOOP;
+  END $$`,
+ // マテリアライズドビューは RLS 不可のため anon/authenticated の SELECT を剥奪
+ `DO $$
+  DECLARE r RECORD;
+  BEGIN
+    FOR r IN SELECT matviewname FROM pg_matviews WHERE schemaname = 'public'
+    LOOP
+      EXECUTE format('REVOKE ALL ON public.%I FROM anon, authenticated', r.matviewname);
+    END LOOP;
+  END $$`,
  // 成果報酬レンジ変更 (2026-07: 年収35%制へ移行。旧 498k〜2M → 100k〜5M)。
  // 旧レンジの制約が残っていれば新レンジで貼り替える（冪等）。
  `DO $$
