@@ -3,7 +3,8 @@
  *
  * LIFF（LINE 内 webview）から送られてくる lead 送信。
  * 通常の /api/applications/line-lead との差分:
- *  - lineUserId / lineDisplayName を LIFF SDK 経由で取得済の値を信頼
+ *  - lineUserId は accessToken から LINE 本体に問い合わせて確定させる
+ *    （ボディの申告値は信頼しない）
  *  - LIFF accessToken を verify して、なりすましを防止
  *  - status を即 "line_added" にする（LINE 友だち追加が前提のため）
  *  - 続いて LINE 公式アカウントから「ご応募ありがとうございます」push を送る
@@ -19,7 +20,11 @@ import { notifyNewLead } from "@/lib/lead-notifications"
 import { findRelatedJobs } from "@/lib/job-matching"
 import { getSessionIdIfExists } from "@/lib/session-id"
 import { extractUtmFromUrl } from "@/lib/tracking"
-import { verifyLiffAccessToken, isLiffServerConfigured } from "@/lib/liff"
+import {
+  verifyLiffAccessToken,
+  isLiffServerConfigured,
+  fetchLiffUserId,
+} from "@/lib/liff"
 
 export const dynamic = "force-dynamic"
 
@@ -61,7 +66,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // LIFF access token の verify（なりすまし防止）
+  // LIFF access token の verify（チャネル一致の確認。設定済みの場合のみ）
   if (isLiffServerConfigured()) {
     const v = await verifyLiffAccessToken(parsed.accessToken)
     if (!v.ok) {
@@ -70,6 +75,18 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+  }
+
+  // lineUserId は必ず accessToken の持ち主を LINE 本体に確認して決める。
+  // ボディの lineUserId は他人の ID を入れられるため採用しない。
+  // 取得に失敗した場合は応募自体は通し、LINE 紐付けだけ諦める
+  // （未認証の ID を保存するくらいなら未紐付けの方が安全で、
+  //   応募ファネルも壊さない）。
+  const verifiedLineUserId = await fetchLiffUserId(parsed.accessToken)
+  if (!verifiedLineUserId) {
+    console.warn(
+      "[liff-lead] could not resolve LINE userId from access token; saving lead without LINE binding"
+    )
   }
 
   // 対象求人
@@ -110,9 +127,9 @@ export async function POST(request: NextRequest) {
         utmMedium: utm.medium,
         utmCampaign: utm.campaign,
         referer: referer?.slice(0, 500) ?? null,
-        lineUserId: parsed.lineUserId,
+        lineUserId: verifiedLineUserId,
         lineDisplayName: parsed.lineDisplayName ?? null,
-        status: "line_added",
+        status: verifiedLineUserId ? "line_added" : "pending",
       },
       select: { id: true },
     })
@@ -135,7 +152,7 @@ export async function POST(request: NextRequest) {
     })
 
     // 受付確認 Push（LINE Messaging API 設定済みの場合）
-    if (isMessagingConfigured()) {
+    if (isMessagingConfigured() && verifiedLineUserId) {
       const ack = [
         `${parsed.name} さん、ご応募ありがとうございます🎉`,
         "",
@@ -150,7 +167,9 @@ export async function POST(request: NextRequest) {
         "",
         "担当より 1 営業日以内にこちらの LINE トークでご連絡いたします。",
       ].join("\n")
-      void pushMessage(parsed.lineUserId, [{ type: "text", text: ack }]).catch(() => {})
+      void pushMessage(verifiedLineUserId, [{ type: "text", text: ack }]).catch(
+        () => {}
+      )
     }
   } catch (e) {
     console.error(

@@ -24,6 +24,35 @@ export interface LiffVerifyResult {
   reason?: string
 }
 
+const PROFILE_URL = "https://api.line.me/v2/profile"
+
+/**
+ * accessToken の持ち主の LINE userId を LINE 本体から取得する。
+ *
+ * /oauth2/v2.1/verify が返すのは client_id / expires_in / scope だけで userId は
+ * 含まれない。そのためリクエストボディの lineUserId をそのまま信じると、
+ * 同一チャネルの正規トークンさえあれば他人の LINE ID を騙れてしまう
+ * （他人名義の lead 作成 + 本人が送っていない応募 Push の送信）。
+ * userId は必ずこの関数の戻り値を正とし、クライアント申告値は使わない。
+ *
+ * 失敗時は null。呼び出し側は「LINE 紐付けなしで保存」に倒すこと
+ * （応募自体を落とすと本流のファネルが壊れるため）。
+ */
+export async function fetchLiffUserId(token: string): Promise<string | null> {
+  if (!token) return null
+  try {
+    const res = await fetch(PROFILE_URL, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+    if (!res.ok) return null
+    const json = (await res.json()) as { userId?: unknown }
+    return typeof json.userId === "string" && json.userId ? json.userId : null
+  } catch {
+    return null
+  }
+}
+
 export async function verifyLiffAccessToken(token: string): Promise<LiffVerifyResult> {
   if (!token) return { ok: false, reason: "empty_token" }
   try {
