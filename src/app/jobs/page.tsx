@@ -217,9 +217,12 @@ export default async function JobsPage({ searchParams }: Props) {
   const useFuzzy =
     !!params.q && sort === "recommended" && conditionList.length === 0
   let fuzzyIds: string[] | null = null
+  let fuzzyTotal: number | null = null
   if (useFuzzy) {
-    const { fuzzySearchJobs } = await import("@/lib/job-search")
-    const rows = await fuzzySearchJobs({
+    const { fuzzySearchJobs, countFuzzySearchJobs } = await import(
+      "@/lib/job-search"
+    )
+    const fuzzyInput = {
       q: params.q!,
       prefecture: params.prefecture,
       city: params.city,
@@ -235,10 +238,25 @@ export default async function JobsPage({ searchParams }: Props) {
           : snsFilter === "without"
             ? false
             : undefined,
-      limit: limit * 5, // 後でページング切り出すため多めに取得
-    })
+      // ブロック設定は fuzzy 経路にも渡す。渡さないとキーワード検索した
+      // 途端にブロック中の企業 / NG ワードの求人が復活する。
+      excludeCompanyIds: blockedCompanyIds,
+      excludeKeywords: blockedKeywords,
+    }
+    // 以前は limit*5 件だけ取ってメモリ上で slice していたため、
+    // キーワード検索は最大 100 件しか辿れず「100 件」と誤表示していた。
+    // DB 側で offset を効かせ、総件数は別途数える。
+    const [rows, count] = await Promise.all([
+      fuzzySearchJobs({
+        ...fuzzyInput,
+        limit,
+        offset: (page - 1) * limit,
+      }),
+      countFuzzySearchJobs(fuzzyInput),
+    ])
     if (rows && rows.length > 0) {
       fuzzyIds = rows.map((r) => r.id)
+      fuzzyTotal = count
     }
   }
 
@@ -288,9 +306,6 @@ export default async function JobsPage({ searchParams }: Props) {
               (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)
             )
           })
-          .then((rows) =>
-            rows.slice((page - 1) * limit, (page - 1) * limit + limit)
-          )
       : prisma.job.findMany({
           where,
           orderBy,
@@ -299,7 +314,7 @@ export default async function JobsPage({ searchParams }: Props) {
           select: jobListSelect,
         }),
     fuzzyIds
-      ? Promise.resolve(fuzzyIds.length)
+      ? Promise.resolve(fuzzyTotal ?? fuzzyIds.length)
       : prisma.job.count({ where }),
   ])
 
