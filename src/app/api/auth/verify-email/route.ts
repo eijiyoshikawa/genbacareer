@@ -90,6 +90,8 @@ export async function POST(request: NextRequest) {
       verificationToken: null,
       verificationTokenExpiry: null,
     },
+    // 更新後に全カラムを SELECT して返さない（無関係なカラム欠落で巻き込まれないよう）
+    select: { id: true },
   })
 
   return Response.json({

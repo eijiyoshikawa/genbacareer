@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
       resetToken: null,
       resetTokenExpiry: null,
     },
+    // 更新後に全カラムを SELECT して返さない（無関係なカラム欠落で巻き込まれないよう）
+    select: { id: true },
   })
 
   return Response.json({ message: "パスワードが正常にリセットされました。" })

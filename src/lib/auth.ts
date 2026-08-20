@@ -133,8 +133,18 @@ providers.push(
         // (2 回目以降は inflight memoize により即解決)。
         await ensureSchema()
 
+        // select を明示する。省略すると全カラムを取得するため、本番 DB に
+        // 未反映のカラムが 1 つでもあると P2022 でログイン全体が落ちる
+        // (2026-08: users.avatar_url 未反映で求職者ログインが停止した)。
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            passwordHash: true,
+            status: true,
+          },
         })
 
         if (!user || !user.passwordHash) return null
