@@ -29,8 +29,9 @@ export default async function OGImage({
         .catch(() => null)
     : null
 
-  const name = sanitizeOgText(truncate(company?.name ?? "企業情報", 40))
-  const tagline = sanitizeOgText(truncate(company?.tagline ?? "", 80))
+  // sanitize が先。truncate を先にすると、後で落ちる装飾記号に文字数を使ってしまう。
+  const name = truncate(sanitizeOgText(company?.name ?? ""), 40) || "企業情報"
+  const tagline = truncate(sanitizeOgText(company?.tagline ?? ""), 80)
   const meta = [company?.industry, company?.prefecture]
     .filter(Boolean)
     .join(" ・ ")

@@ -37,8 +37,10 @@ export default async function OGImage({
     })
     .catch(() => null)
 
-  const title = sanitizeOgText(truncate(article?.title ?? "ゲンバキャリア マガジン", 60))
-  const excerpt = sanitizeOgText(truncate(article?.excerpt ?? "", 100))
+  // sanitize が先。truncate を先にすると、後で落ちる装飾記号に文字数を使ってしまう。
+  const title =
+    truncate(sanitizeOgText(article?.title ?? ""), 60) || "ゲンバキャリア マガジン"
+  const excerpt = truncate(sanitizeOgText(article?.excerpt ?? ""), 100)
   const categoryLabel = article?.category
     ? CATEGORY_LABELS[article.category] ?? article.category
     : "マガジン"

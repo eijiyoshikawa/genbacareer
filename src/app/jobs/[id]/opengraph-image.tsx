@@ -29,8 +29,9 @@ export default async function OGImage({
     })
     .catch(() => null)
 
-  const title = sanitizeOgText(truncate(job?.title ?? "求人情報", 60))
-  const companyName = sanitizeOgText(truncate(job?.company?.name ?? "", 30))
+  // sanitize が先。truncate を先にすると、後で落ちる装飾記号に文字数を使ってしまう。
+  const title = truncate(sanitizeOgText(job?.title ?? ""), 60) || "求人情報"
+  const companyName = truncate(sanitizeOgText(job?.company?.name ?? ""), 30)
   const location = [job?.prefecture, job?.city].filter(Boolean).join(" ") || ""
   const salary = formatSalary(
     job?.salaryMin ?? null,
