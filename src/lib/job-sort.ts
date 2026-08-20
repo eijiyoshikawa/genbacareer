@@ -32,6 +32,20 @@ export type PublicJobSort =
 
 const DISPLAY_PRIORITY_ASC = { displayPriority: "asc" as const }
 
+// salaryMin / publishedAt はいずれも nullable。Postgres の DESC は既定で
+// NULLS FIRST のため、明示しないと「給与が高い順」の先頭が給与非公開の求人に、
+// 「新着順」の先頭が公開日なしの求人になる。降順では常に NULL を末尾に送る。
+// (ASC は既定で NULLS LAST なので昇順は指定不要だが、意図を明示するため揃える)
+const SALARY_MIN_DESC = {
+  salaryMin: { sort: "desc", nulls: "last" },
+} as const
+const SALARY_MIN_ASC = {
+  salaryMin: { sort: "asc", nulls: "last" },
+} as const
+const PUBLISHED_AT_DESC = {
+  publishedAt: { sort: "desc", nulls: "last" },
+} as const
+
 export function buildPublicJobOrderBy(
   sort: PublicJobSort,
   options: { includeCompanyTier?: boolean } = {}
@@ -41,13 +55,13 @@ export function buildPublicJobOrderBy(
   const tail: Prisma.JobOrderByWithRelationInput[] = (() => {
     switch (sort) {
       case "salary_high":
-        return [{ salaryMin: "desc" }, { publishedAt: "desc" }]
+        return [SALARY_MIN_DESC, PUBLISHED_AT_DESC]
       case "salary_low":
-        return [{ salaryMin: "asc" }, { publishedAt: "desc" }]
+        return [SALARY_MIN_ASC, PUBLISHED_AT_DESC]
       case "popular":
-        return [{ viewCount: "desc" }, { publishedAt: "desc" }]
+        return [{ viewCount: "desc" }, PUBLISHED_AT_DESC]
       case "newest":
-        return [{ publishedAt: "desc" }]
+        return [PUBLISHED_AT_DESC]
       case "recommended":
       default:
         if (includeCompanyTier) {
@@ -57,10 +71,10 @@ export function buildPublicJobOrderBy(
             { company: { planTier: "desc" } },
             { company: { rotationKey: "asc" } },
             { rankScore: "desc" },
-            { publishedAt: "desc" },
+            PUBLISHED_AT_DESC,
           ]
         }
-        return [{ rankScore: "desc" }, { publishedAt: "desc" }]
+        return [{ rankScore: "desc" }, PUBLISHED_AT_DESC]
     }
   })()
 

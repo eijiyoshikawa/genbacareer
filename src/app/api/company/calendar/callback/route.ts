@@ -31,9 +31,14 @@ function verifyState(state: string): { ok: boolean; companyId?: string } {
   if (parts.length !== 4) return { ok: false }
   const [companyId, nonce, ts, sig] = parts
   const expected = signState(`${companyId}.${nonce}.${ts}`)
+  // timingSafeEqual はバイト長一致が前提。文字数で比較すると、マルチバイトの
+  // sig (64 文字 = 192 バイト) が長さチェックを通過して RangeError を投げ、
+  // verifyState は try の外なので 500 になる。バッファ長で比較する。
+  const expectedBuf = Buffer.from(expected)
+  const sigBuf = Buffer.from(sig)
   if (
-    expected.length !== sig.length ||
-    !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))
+    expectedBuf.length !== sigBuf.length ||
+    !crypto.timingSafeEqual(expectedBuf, sigBuf)
   ) {
     return { ok: false }
   }

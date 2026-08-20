@@ -18,7 +18,19 @@ export async function createHiringInvoice(applicationId: string) {
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
     include: {
-      company: true,
+      // InvoiceArgs が必要とする 4 列だけを引く。`company: true` だと companies の
+      // 全カラムを SELECT するため、未反映のカラムが 1 つでもあると P2022 で
+      // ここが落ちる。この時点ではまだ BillingEvent を作っていないうえ、
+      // 呼び出し側は例外をログに落とすだけ・status='hired' は終端状態なので、
+      // 成果報酬の記録が復旧不能なまま失われる。
+      company: {
+        select: {
+          id: true,
+          name: true,
+          contactEmail: true,
+          mfPartnerId: true,
+        },
+      },
       job: {
         select: {
           title: true,

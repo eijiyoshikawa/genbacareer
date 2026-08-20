@@ -83,10 +83,12 @@ export default async function CompanyBillingPage({
 
   const totalPaid =
     summaryData.find((s) => s.status === "paid")?._sum.amount ?? 0
+  // 未払い = 請求前(pending) + 請求済み未入金(invoiced)。
+  // 括弧必須: `a ?? 0 + b` は `+` が優先され `a ?? (0 + b)` と解釈されるため、
+  // pending がある限り invoiced が丸ごと欠落する。
   const totalPending =
-    summaryData.find((s) => s.status === "pending")?._sum.amount ??
-    0 +
-      (summaryData.find((s) => s.status === "invoiced")?._sum.amount ?? 0)
+    (summaryData.find((s) => s.status === "pending")?._sum.amount ?? 0) +
+    (summaryData.find((s) => s.status === "invoiced")?._sum.amount ?? 0)
   const totalHired = summaryData.reduce((sum, s) => sum + s._count, 0)
 
   const planLabel = company

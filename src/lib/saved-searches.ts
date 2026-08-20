@@ -10,6 +10,7 @@ import {
   CONSTRUCTION_CATEGORY_VALUES,
   isConstructionCategory,
 } from "@/lib/categories"
+import { buildExcludeKeywordFilter } from "@/lib/job-where"
 
 export type SavedSearchInput = {
   q?: string | null
@@ -30,23 +31,7 @@ export function buildJobWhere(input: SavedSearchInput, since?: Date) {
       : { category: { in: [...CONSTRUCTION_CATEGORY_VALUES] } }
 
   // 除外キーワード: title / description のどちらにも含まれていない（AND NOT）
-  const excludeFilters = (input.excludeKeywords ?? []).filter(Boolean).map(
-    (kw) => ({
-      AND: [
-        { title: { not: { contains: kw, mode: "insensitive" as const } } },
-        {
-          OR: [
-            { description: null },
-            {
-              description: {
-                not: { contains: kw, mode: "insensitive" as const },
-              },
-            },
-          ],
-        },
-      ],
-    })
-  )
+  const excludeFilters = buildExcludeKeywordFilter(input.excludeKeywords ?? [])
 
   return {
     status: "active" as const,

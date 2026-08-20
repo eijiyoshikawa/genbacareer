@@ -19,6 +19,7 @@ import type { Metadata } from "next"
 import { ScoutForm } from "./scout-form"
 import { buildScoutSubject, canSendScout } from "@/lib/scouts"
 import { isScoutEnabled, SCOUT_SEEKER_THRESHOLD } from "@/lib/feature-flags"
+import { isValidUuid } from "@/lib/uuid"
 
 export const dynamic = "force-dynamic"
 
@@ -61,7 +62,9 @@ export default async function ScoutNewPage({ searchParams }: Props) {
   const userId = params.userId
   const jobId = params.jobId
 
-  if (!userId || !jobId) {
+  // どちらも @db.Uuid の列。UUID 以外を Prisma に渡すと P2023 で 500 になるため、
+  // 未指定と同じ「見つかりません」系の画面に寄せる。
+  if (!isValidUuid(userId) || !isValidUuid(jobId)) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:px-8">
         <p className="text-sm text-red-600">

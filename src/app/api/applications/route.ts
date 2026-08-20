@@ -10,6 +10,7 @@
 import { type NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { parseLimitParam } from "@/lib/pagination"
 
 export const dynamic = "force-dynamic"
 
@@ -36,13 +37,23 @@ export async function GET(request: NextRequest) {
   }
 
   const url = new URL(request.url)
-  const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") ?? "20")))
+  const limit = parseLimitParam(url.searchParams.get("limit"), 20, 50)
 
   const applications = await prisma.application.findMany({
     where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
     take: limit,
-    include: {
+    // include ではなく select。include だと Application の全スカラーが返り、
+    // 「求職者には公開しない」internalNotes や statusHistory まで漏れる。
+    select: {
+      id: true,
+      jobId: true,
+      status: true,
+      message: true,
+      interviewAt: true,
+      interviewVenue: true,
+      interviewUrl: true,
+      createdAt: true,
       job: {
         select: {
           id: true,

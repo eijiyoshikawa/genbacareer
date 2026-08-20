@@ -140,6 +140,12 @@ export async function PATCH(request: NextRequest) {
       commuteAllowance: true,
       companyFeatures: true,
       businessContent: true,
+      // 下 3 つを落とすと computeRankScore が新着ボーナスと人気ボーナスを 0 と
+      // 見なし、プロフィール保存のたびに自社求人の掲載順位が下がる。
+      // cron/recompute-rank-scores と同じ入力を渡すこと。
+      publishedAt: true,
+      expiresAt: true,
+      viewCount: true,
     },
   })
 
@@ -150,6 +156,7 @@ export async function PATCH(request: NextRequest) {
         data: {
           rankScore: computeRankScore(job, updated),
         },
+        select: { id: true },
       })
     )
   )

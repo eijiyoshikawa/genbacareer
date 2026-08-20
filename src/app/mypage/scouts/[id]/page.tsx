@@ -12,6 +12,7 @@ import Link from "next/link"
 import { ArrowLeft, Building2, MapPin, Briefcase, Clock } from "lucide-react"
 import type { Metadata } from "next"
 import { DeclineScoutButton } from "./decline-button"
+import { isValidUuid } from "@/lib/uuid"
 
 export const dynamic = "force-dynamic"
 
@@ -29,6 +30,8 @@ export default async function ScoutDetailPage({ params }: Props) {
   if (!session?.user) redirect("/login")
   const userId = (session.user as { id?: string }).id
   if (!userId) redirect("/login")
+  // ScoutMessage.id は @db.Uuid。UUID 以外は Prisma が P2023 を投げて 500 になる。
+  if (!isValidUuid(id)) notFound()
 
   const scout = await prisma.scoutMessage.findUnique({
     where: { id },

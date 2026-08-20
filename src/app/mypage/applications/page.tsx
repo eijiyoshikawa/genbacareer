@@ -12,6 +12,7 @@ import { StopPropagationWrapper } from "@/components/mypage/stop-propagation-wra
 import { Skeleton } from "@/components/ui/skeleton"
 import { isPlanEligibleForBonus } from "@/lib/plans"
 import type { Metadata } from "next"
+import { parsePageParam } from "@/lib/pagination"
 
 export const metadata: Metadata = {
   title: "応募一覧",
@@ -57,7 +58,7 @@ export default async function ApplicationsPage({ searchParams }: Props) {
   if (!session?.user?.id) redirect("/login")
 
   const params = await searchParams
-  const page = Math.max(1, Number(params.page ?? "1"))
+  const page = parsePageParam(params.page)
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">

@@ -27,6 +27,8 @@ import {
   GuestTrialBanner,
 } from "@/components/jobs/guest-signup-cta"
 import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import { buildExcludeKeywordFilter } from "@/lib/job-where"
+import { parsePageParam } from "@/lib/pagination"
 import { logSearch } from "@/lib/search-log"
 import { trackEvent } from "@/lib/track"
 import type { Metadata } from "next"
@@ -139,7 +141,7 @@ export default async function JobsPage({ searchParams }: Props) {
 
   // 未登録ユーザーには「お試し検索」として上位 GUEST_LIMIT 件のみ。
   // ページネーションも無効化し、`page` パラメータは無視する。
-  const rawPage = Math.max(1, Number(params.page ?? "1"))
+  const rawPage = parsePageParam(params.page)
   const page = loggedIn ? rawPage : 1
   const limit = loggedIn ? 20 : GUEST_LIMIT
 
@@ -204,10 +206,7 @@ export default async function JobsPage({ searchParams }: Props) {
     }),
     // 17.3 NG キーワード除外: title/description のいずれにも含まれない
     ...(blockedKeywords.length > 0 && {
-      AND: blockedKeywords.map((kw) => ({
-        title: { not: { contains: kw, mode: "insensitive" as const } },
-        description: { not: { contains: kw, mode: "insensitive" as const } },
-      })),
+      AND: buildExcludeKeywordFilter(blockedKeywords),
     }),
   }
 
@@ -338,8 +337,9 @@ export default async function JobsPage({ searchParams }: Props) {
       query: params.q ?? null,
       prefecture: params.prefecture ?? null,
       category: params.category ?? null,
-      employmentType: params.employmentType ?? null,
-      salaryMin: params.salaryMin ?? null,
+      // クエリのキーは snake_case。camelCase で読むと常に null が記録される。
+      employmentType: params.employment_type ?? null,
+      salaryMin: params.salary_min ?? null,
       resultCount: total,
     },
   })

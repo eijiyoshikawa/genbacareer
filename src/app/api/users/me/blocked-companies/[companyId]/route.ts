@@ -48,6 +48,8 @@ export async function POST(
   await prisma.user.update({
     where: { id: session.user.id },
     data: { blockedCompanyIds: [...user.blockedCompanyIds, companyId] },
+    // 更新後に全カラムを SELECT して返さない（無関係なカラム欠落で巻き込まれないよう）
+    select: { id: true },
   })
   return Response.json({ ok: true })
 }
@@ -73,6 +75,8 @@ export async function DELETE(
     data: {
       blockedCompanyIds: user.blockedCompanyIds.filter((id) => id !== companyId),
     },
+    // 更新後に全カラムを SELECT して返さない（無関係なカラム欠落で巻き込まれないよう）
+    select: { id: true },
   })
   return Response.json({ ok: true })
 }

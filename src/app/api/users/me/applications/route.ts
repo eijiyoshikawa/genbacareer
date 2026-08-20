@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { parsePageParam, parseLimitParam } from "@/lib/pagination"
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -17,8 +18,8 @@ export async function GET(request: NextRequest) {
   }
 
   const searchParams = request.nextUrl.searchParams
-  const page = Math.max(1, Number(searchParams.get("page") ?? "1"))
-  const limit = Math.min(50, Math.max(1, Number(searchParams.get("limit") ?? "20")))
+  const page = parsePageParam(searchParams.get("page"))
+  const limit = parseLimitParam(searchParams.get("limit"), 20, 50)
 
   const where = { userId: session.user.id }
 
@@ -28,7 +29,20 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * limit,
       take: limit,
-      include: {
+      // include ではなく select。include だと Application の全スカラーが返り、
+      // 「求職者には公開しない」internalNotes や statusHistory まで漏れる。
+      select: {
+        id: true,
+        jobId: true,
+        status: true,
+        message: true,
+        interviewSlots: true,
+        interviewAt: true,
+        interviewVenue: true,
+        interviewUrl: true,
+        hiredAt: true,
+        createdAt: true,
+        updatedAt: true,
         job: {
           select: {
             id: true,

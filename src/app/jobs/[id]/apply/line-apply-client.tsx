@@ -352,9 +352,21 @@ function formatSalary(
   type: string | null
 ): string {
   if (!min) return "応相談"
-  const unit = type === "hourly" ? "時給" : type === "annual" ? "年収" : "月給"
+  // 日給を落とすと 日給15,000円 が「月給 2万円」と表示される（単位も桁も誤り）。
+  // 求人詳細ページの formatSalary と同じ区分にそろえる。
+  const unit =
+    type === "hourly"
+      ? "時給"
+      : type === "annual"
+        ? "年収"
+        : type === "daily"
+          ? "日給"
+          : "月給"
+  const useManYen = type !== "hourly" && type !== "daily"
   const fmt = (n: number) =>
-    n >= 10000 ? `${(n / 10000).toFixed(0)}万` : `${n.toLocaleString()}`
+    useManYen && n >= 10000
+      ? `${(n / 10000).toFixed(0)}万`
+      : `${n.toLocaleString()}`
   if (min && max) return `${unit} ${fmt(min)}〜${fmt(max)}円`
   return `${unit} ${fmt(min)}円〜`
 }

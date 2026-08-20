@@ -6,6 +6,7 @@ import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { PUBLIC_LINE_OA_ID, isLineConfigured } from "@/lib/line"
 import { LineApplyClient } from "./line-apply-client"
+import { isValidUuid } from "@/lib/uuid"
 
 type Props = {
   params: Promise<{ id: string }>
@@ -13,6 +14,9 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
+  // Job.id は @db.Uuid。UUID 以外を渡すと Prisma が P2023 を投げて 500 になる
+  // (クローラや古いリンクが叩く)。詳細ページと同じく事前に弾く。
+  if (!isValidUuid(id)) return { title: "求人が見つかりません" }
   const job = await prisma.job.findUnique({
     where: { id },
     select: { title: true },
@@ -23,6 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ApplyPage({ params }: Props) {
   const { id } = await params
+  if (!isValidUuid(id)) notFound()
   const job = await prisma.job.findUnique({
     where: { id },
     select: {
