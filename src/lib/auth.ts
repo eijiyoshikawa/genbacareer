@@ -133,8 +133,19 @@ providers.push(
         // (2 回目以降は inflight memoize により即解決)。
         await ensureSchema()
 
+        // select なしだと User の全カラムを暗黙に取得するため、ensureSchema の
+        // ALTER が(コネクションプール枯渇等で)未反映の環境ではオプショナル列の
+        // 欠落だけでログイン全体が P2022 で落ちる。ログインに実際使う列だけを
+        // 明示 select して依存範囲を最小化する(company-credentials も同様の方式)。
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            passwordHash: true,
+            status: true,
+          },
         })
 
         if (!user || !user.passwordHash) return null
