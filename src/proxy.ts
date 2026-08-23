@@ -84,7 +84,7 @@ function generateSessionId(): string {
 // 含めない（VERCEL_ENV !== "production" の場合は noindex のみ）。
 const CANONICAL_HOSTS = new Set(["genbacareer.jp", "www.genbacareer.jp"])
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const host = (request.headers.get("host") ?? "").toLowerCase()
 

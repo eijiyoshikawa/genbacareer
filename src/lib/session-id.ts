@@ -2,7 +2,7 @@
  * 匿名ユーザー追跡用の session ID Cookie 読み取り。
  *
  * Cookie 名: `gc_sid` (genbacareer session id)
- * 発行は middleware.ts が担当。Server Component / Route Handler では
+ * 発行は proxy.ts が担当。Server Component / Route Handler では
  * 読み取りのみ行う（Server Component から Cookie をセットできないため）。
  */
 
