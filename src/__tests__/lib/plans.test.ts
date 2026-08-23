@@ -3,6 +3,7 @@ import {
   PLAN_TYPES,
   PLAN_LABELS,
   isPlanType,
+  parsePlanPaidUntilInput,
   planTier,
   isPaidPlan,
   isMonthlyPlan,
@@ -40,6 +41,30 @@ describe("isPlanType", () => {
     expect(isPlanType("monthly_36")).toBe(false)
     expect(isPlanType("")).toBe(false)
     expect(isPlanType("free")).toBe(false)
+  })
+})
+
+describe("parsePlanPaidUntilInput", () => {
+  it("treats a date-only string as end-of-day JST, not UTC midnight", () => {
+    const result = parsePlanPaidUntilInput("2026-09-23")
+    // JST 23:59:59.999 on the 23rd == UTC 14:59:59.999 on the 23rd.
+    expect(result.toISOString()).toBe("2026-09-23T14:59:59.999Z")
+    // The naive `new Date("2026-09-23")` (UTC midnight) would already be
+    // in the past relative to this value for most of the day in JST.
+    expect(result.getTime()).toBeGreaterThan(
+      new Date("2026-09-23T00:00:00.000Z").getTime(),
+    )
+  })
+
+  it("still active at 20:00 JST on the paid-until date", () => {
+    const paidUntil = parsePlanPaidUntilInput("2026-09-23")
+    const evening20JstOn23rd = new Date("2026-09-23T11:00:00.000Z") // 20:00 JST
+    expect(paidUntil.getTime()).toBeGreaterThan(evening20JstOn23rd.getTime())
+  })
+
+  it("passes through full ISO datetime strings unchanged", () => {
+    const iso = "2026-09-23T00:00:00.000Z"
+    expect(parsePlanPaidUntilInput(iso).toISOString()).toBe(iso)
   })
 })
 

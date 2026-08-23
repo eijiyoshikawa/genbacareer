@@ -41,6 +41,25 @@ export function isPlanType(s: string): s is PlanType {
 }
 
 /**
+ * 管理画面の `<input type="date">` (タイムゾーンなし "YYYY-MM-DD") を
+ * planPaidUntil として保存する Date に変換する。
+ *
+ * `new Date("YYYY-MM-DD")` は UTC 0 時として解釈される (= JST 9 時) ため、
+ * そのまま保存すると「契約終了日」当日の朝には既に isPlanActive() が false
+ * になり、expire-plans cron (14:00 JST) にも巻き込まれて、入力した日の
+ * 大半を残してプランが失効してしまう。日付のみの入力は「その日の終わり
+ * (JST 23:59:59.999)」までを契約期間とみなして変換する。
+ *
+ * 時刻付き ISO 文字列 (オフセット込み) はそのまま Date に委ねる。
+ */
+export function parsePlanPaidUntilInput(value: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T23:59:59.999+09:00`)
+  }
+  return new Date(value)
+}
+
+/**
  * 求人一覧の上位表示優先度 (Company.planTier として永続化される値)。
  *
  *   3: paid 平等枠 (① success_fee / ② monthly_12 / ③ monthly_24)
