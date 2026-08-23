@@ -123,6 +123,20 @@ export function canSendScoutByPlan(
 }
 
 /**
+ * 採用確定時に「成果報酬」として都度請求書を発行すべきプランか (C2-C8)。
+ *
+ * ① success_fee のみが採用 1 件ごとの成果報酬 (¥498,000〜) 対象。
+ * ② monthly_12 / ③ monthly_24 は月額を一括前払い済みのため採用時課金は無し、
+ * campaign_free は ¥0 無期限、sns_client はサクバズ料金に含まれるため
+ * いずれも都度請求の対象外。
+ */
+export function isPerHireBillingPlan(
+  planType: string | null | undefined,
+): boolean {
+  return planType === "success_fee"
+}
+
+/**
  * プランがアクティブか (期限切れしていないか)。
  *
  * success_fee / campaign_free は期限なし → 常にアクティブ。

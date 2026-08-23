@@ -8,6 +8,7 @@ import {
   isMonthlyPlan,
   isPlanEligibleForBonus,
   canSendScoutByPlan,
+  isPerHireBillingPlan,
   isPlanActive,
   daysUntilPlanExpiry,
   isPlanExpiringSoon,
@@ -100,6 +101,21 @@ describe("isPlanEligibleForBonus (C5)", () => {
     expect(isPlanEligibleForBonus("success_fee")).toBe(false)
     expect(isPlanEligibleForBonus("campaign_free")).toBe(false)
     expect(isPlanEligibleForBonus(null)).toBe(false)
+  })
+})
+
+describe("isPerHireBillingPlan", () => {
+  it("allows only success_fee", () => {
+    expect(isPerHireBillingPlan("success_fee")).toBe(true)
+  })
+
+  it("rejects prepaid monthly plans, campaign, and sns_client", () => {
+    expect(isPerHireBillingPlan("monthly_12")).toBe(false)
+    expect(isPerHireBillingPlan("monthly_24")).toBe(false)
+    expect(isPerHireBillingPlan("campaign_free")).toBe(false)
+    expect(isPerHireBillingPlan("sns_client")).toBe(false)
+    expect(isPerHireBillingPlan(null)).toBe(false)
+    expect(isPerHireBillingPlan(undefined)).toBe(false)
   })
 })
 

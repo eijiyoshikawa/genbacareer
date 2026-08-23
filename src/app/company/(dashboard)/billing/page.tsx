@@ -6,6 +6,7 @@ import { resolveHiringFee } from "@/lib/hiring-fee"
 import {
   PLAN_LABELS,
   isPlanActive,
+  isPerHireBillingPlan,
   daysUntilPlanExpiry,
   type PlanType,
 } from "@/lib/plans"
@@ -188,9 +189,11 @@ export default async function CompanyBillingPage({
       {events.length === 0 ? (
         <div className="mt-8 border bg-white p-8 text-center shadow-sm">
           <p className="text-gray-500">課金履歴はまだありません。</p>
-          <p className="mt-1 text-sm text-gray-400">
-            応募者のステータスを「採用」に変更すると、成果報酬が自動的に発生します。
-          </p>
+          {isPerHireBillingPlan(company?.planType) && (
+            <p className="mt-1 text-sm text-gray-400">
+              応募者のステータスを「採用」に変更すると、成果報酬が自動的に発生します。
+            </p>
+          )}
         </div>
       ) : (
         <div className="mt-6 overflow-hidden border bg-white shadow-sm">

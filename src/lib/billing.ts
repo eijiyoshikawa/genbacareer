@@ -1,11 +1,16 @@
 import { prisma } from "./db"
 import { createMfPartner, createMfBilling } from "./moneyforward"
 import { resolveHiringFee } from "./hiring-fee"
+import { isPerHireBillingPlan } from "./plans"
 
 /**
  * 採用確定時に成果報酬の請求書を作成する。
  *
- * 全企業共通: マネーフォワード クラウド請求書 (銀行振込) で発行する。
+ * 対象は ① success_fee プランの企業のみ (isPerHireBillingPlan)。
+ * ②③ 月額プランは一括前払い済み、キャンペーン枠は ¥0、SNS 枠はサクバズ料金に
+ * 含まれるため、いずれも採用のたびに成果報酬を請求してはならない。
+ *
+ * マネーフォワード クラウド請求書 (銀行振込) で発行する。
  * （景品表示法・過大広告対応の方針見直しに伴い Stripe カード決済は廃止）
  *
  * 共通フロー:
@@ -26,6 +31,10 @@ export async function createHiringInvoice(applicationId: string) {
 
   if (!application || !application.company) {
     throw new Error(`Application ${applicationId} not found or has no company`)
+  }
+
+  if (!isPerHireBillingPlan(application.company.planType)) {
+    return null
   }
 
   // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ定数フォールバック
