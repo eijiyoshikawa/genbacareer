@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest"
-import { inferCategory } from "@/lib/crawler/import-batch"
+import {
+  inferCategory,
+  shouldSkipCloseOrphansForSafety,
+} from "@/lib/crawler/import-batch"
 
 describe("inferCategory", () => {
   it("classifies civil engineering keywords", () => {
@@ -141,5 +144,35 @@ describe("inferCategory", () => {
       expect(inferCategory("クレーンオペレーター", null)).toBe("driver")
       expect(inferCategory("重機オペレーター", null)).toBe("driver")
     })
+  })
+})
+
+describe("shouldSkipCloseOrphansForSafety", () => {
+  // ローテーション取り込み (毎回 2〜5 ページ ≒ 2000〜5000 件) に対して
+  // 誤って closeOrphans=true が渡された場合、既存のアクティブな HW 求人
+  // 数十万件のほぼ全件を closed にしてしまう。これを防ぐ安全装置。
+
+  it("skips when a tiny rotation batch would orphan almost everything", () => {
+    // 全国 36 万件のうち、今回はたった 2000 件しか処理していない
+    expect(shouldSkipCloseOrphansForSafety(358000, 2000)).toBe(true)
+  })
+
+  it("does NOT skip a genuine full sweep (candidates comparable to processed)", () => {
+    // 360000 件処理し、実際にハローワーク側で消えたのはごく僅か
+    expect(shouldSkipCloseOrphansForSafety(120, 360000)).toBe(false)
+  })
+
+  it("does NOT skip when candidate count is below the absolute floor", () => {
+    // 小規模な通常の削除 (閾値以下) は素通しする
+    expect(shouldSkipCloseOrphansForSafety(400, 10)).toBe(false)
+  })
+
+  it("does NOT skip when candidates are not disproportionate to processed", () => {
+    // 候補が処理件数の 3 倍以下なら通常の運用範囲とみなす
+    expect(shouldSkipCloseOrphansForSafety(1500, 600)).toBe(false)
+  })
+
+  it("skips right at the boundary above both thresholds", () => {
+    expect(shouldSkipCloseOrphansForSafety(1501, 500)).toBe(true)
   })
 })

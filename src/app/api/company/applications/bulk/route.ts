@@ -3,14 +3,18 @@
  *
  * 自社 (companyId 一致) の応募者を一括でステータス変更する。
  * Body: { ids: string[], status: string }
- * 応答: { ok: true, updated: number }
+ * 応答: { ok: true, updated: number, failed: { id: string, error: string }[] }
  *
  * セキュリティ: 自社が紐づく Application のみ更新対象。他社の ID が紛れても
- * updateMany の where: companyId フィルタで自動除外される。
+ * applyApplicationStatusChange 内の companyId チェックで自動除外される。
+ *
+ * 単体更新 (/api/company/applications/[id]) と同じ
+ * applyApplicationStatusChange を使うことで、状態遷移バリデーション・
+ * hiredAt 打刻・採用確定時の請求作成・通知/メール送信を一括更新でも
+ * 必ず経由させる。
  */
-
-import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
+import { applyApplicationStatusChange } from "@/lib/application-status"
 import { z } from "zod"
 
 const ALLOWED_STATUSES = [
@@ -32,10 +36,15 @@ export async function POST(request: Request) {
   if (!session?.user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
+  const role = (session.user as { role?: string }).role
+  if (role !== "company_admin" && role !== "company_member") {
+    return Response.json({ error: "Forbidden" }, { status: 403 })
+  }
   const companyId = (session.user as { companyId?: string }).companyId
   if (!companyId) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
   }
+  const actorUserId = (session.user as { id?: string }).id ?? "unknown"
 
   let body: unknown
   try {
@@ -52,13 +61,22 @@ export async function POST(request: Request) {
   }
   const { ids, status } = parsed.data
 
-  const result = await prisma.application.updateMany({
-    where: {
-      id: { in: ids },
-      companyId,
-    },
-    data: { status },
-  })
+  const failed: { id: string; error: string }[] = []
+  let updated = 0
 
-  return Response.json({ ok: true, updated: result.count })
+  for (const id of ids) {
+    const result = await applyApplicationStatusChange({
+      applicationId: id,
+      companyId,
+      newStatus: status,
+      actorUserId,
+    })
+    if (result.ok) {
+      updated += 1
+    } else {
+      failed.push({ id, error: result.error })
+    }
+  }
+
+  return Response.json({ ok: true, updated, failed })
 }

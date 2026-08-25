@@ -36,6 +36,7 @@ interface ImportResult {
     created: number
     updated: number
     closed: number
+    closeOrphansSkippedSafety?: number
     skipped?: number
     errors: number
     totalProcessed: number
@@ -262,6 +263,17 @@ export default function AdminCrawlerPage() {
                     </dd>
                   </div>
                 </dl>
+                {!!result.stats.closeOrphansSkippedSafety &&
+                  result.stats.closeOrphansSkippedSafety > 0 && (
+                    <p className="mt-3 border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                      ⚠ closeOrphans は安全装置により見送られました。孤立候補
+                      {" "}
+                      {result.stats.closeOrphansSkippedSafety} 件が、今回処理した
+                      件数に対して極端に多かったためです（誤って大部分の求人を
+                      closed にしてしまうのを防止）。本当に全件 close したい場合は、
+                      より広範囲のバッチで再実行してください。
+                    </p>
+                  )}
               </div>
             ) : (
               <p className="text-sm text-red-600">{result.error}</p>

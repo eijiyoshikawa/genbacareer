@@ -9,6 +9,7 @@
  */
 
 import { prisma } from "@/lib/db"
+import { isAuthorizedCronRequest } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -20,9 +21,7 @@ const MATERIALIZED_VIEWS = [
 ] as const
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCronRequest(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

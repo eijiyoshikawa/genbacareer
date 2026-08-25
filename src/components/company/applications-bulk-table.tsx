@@ -79,9 +79,15 @@ export function ApplicationsBulkTable({
           status: bulkStatus,
         }),
       })
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
         throw new Error(data.error ?? `HTTP ${res.status}`)
+      }
+      const failed = Array.isArray(data.failed) ? data.failed : []
+      if (failed.length > 0) {
+        setError(
+          `${data.updated ?? 0} 件を変更しました。${failed.length} 件は変更できませんでした（ステータス遷移が不正、または対象外です）。`
+        )
       }
       setSelectedIds(new Set())
       router.refresh()

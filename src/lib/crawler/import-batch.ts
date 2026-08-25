@@ -34,6 +34,13 @@ export interface ImportStats {
   updated: number
   /** closed に変更された件数（HW 側で削除済み） */
   closed: number
+  /**
+   * closeOrphans の安全装置が作動し、実行を見送った孤立候補件数。
+   * 0 より大きい場合、今回のバッチが想定より極端に小さく
+   * (例: ローテーション中の数ページ分だけ)、それを「孤立」の基準にすると
+   * 大部分の既存求人を誤って closed にしてしまうと判断したことを意味する。
+   */
+  closeOrphansSkippedSafety: number
   /** 建設業カテゴリにマッチせずスキップした件数 */
   skipped: number
   /** エラーが発生した件数 */
@@ -367,6 +374,32 @@ export function inferCategory(
 // ========================================
 
 /**
+ * closeOrphans の安全装置の閾値。
+ * 孤立候補件数がこの絶対件数を超え、かつ今回処理した件数の SAFETY_RATIO 倍を
+ * 超える場合、closeOrphans の実行を見送る（誤って大部分の求人を閉じるのを防止）。
+ */
+const CLOSE_ORPHANS_SAFETY_ABS_FLOOR = 500
+const CLOSE_ORPHANS_SAFETY_RATIO = 3
+
+/**
+ * closeOrphans の実行を安全装置により見送るべきかどうかを判定する。
+ *
+ * ローテーション取り込み (1 回 = 全体のごく一部のページ) に対して誤って
+ * closeOrphans=true が渡されると、「孤立」の基準が今回のバッチだけになり、
+ * 既存のアクティブな HW 求人のほぼ全件を closed にしてしまう。
+ * 孤立候補が今回処理した件数に対して不釣り合いに多い場合は実行を見送る。
+ */
+export function shouldSkipCloseOrphansForSafety(
+  orphanCandidateCount: number,
+  processedCount: number
+): boolean {
+  return (
+    orphanCandidateCount > CLOSE_ORPHANS_SAFETY_ABS_FLOOR &&
+    orphanCandidateCount > processedCount * CLOSE_ORPHANS_SAFETY_RATIO
+  )
+}
+
+/**
  * ハローワーク求人データをデータベースに一括インポートする。
  *
  * 処理フロー:
@@ -374,8 +407,8 @@ export function inferCategory(
  * 2. DB 上の hellowork 求人のうち、今回のバッチに含まれないものを closed にする
  * 3. 統計を集計して返す
  *
- * トランザクション内で実行されるため、途中で失敗した場合はロールバックされる
- * （個別エラーは記録して続行する）。
+ * 個別の求人ごとに upsert するため、トランザクションではない
+ * （1 件の失敗が全体をロールバックすることはない。エラーは記録して続行する）。
  *
  * @param jobs - パース済みのハローワーク求人データ配列
  * @param options - オプション設定
@@ -403,6 +436,7 @@ export async function importHelloworkJobs(
   let created = 0
   let updated = 0
   let closed = 0
+  let closeOrphansSkippedSafety = 0
   let skipped = 0
   let errors = 0
   const importErrors: ImportError[] = []
@@ -530,24 +564,47 @@ export async function importHelloworkJobs(
   // -------------------------------------------------------
   if (closeOrphans && !dryRun && processedIds.size > 0) {
     try {
-      const result = await prisma.job.updateMany({
-        where: {
-          source: "hellowork",
-          status: "active",
-          helloworkId: {
-            notIn: Array.from(processedIds),
-          },
+      const orphanWhere = {
+        source: "hellowork" as const,
+        status: "active" as const,
+        helloworkId: {
+          notIn: Array.from(processedIds),
         },
-        data: {
-          status: "closed",
-        },
-      })
-      closed = result.count
+      }
 
-      if (closed > 0) {
-        console.info(
-          `[import-batch] ${closed} 件のハローワーク求人を closed に変更しました`
+      // 安全装置: ローテーション中の一部ページだけを取り込んだバッチ
+      // (processedIds が数千件程度) に対して誤って closeOrphans=true が
+      // 渡されると、「孤立」の基準が今回のバッチだけになり、既存の
+      // アクティブな HW 求人のほぼ全件 (数十万件) を closed にしてしまう。
+      // 候補件数が今回処理した件数に対して極端に大きい場合は実行を見送り、
+      // 呼び出し元が異常に気づけるよう件数を報告する。
+      const orphanCandidateCount = await prisma.job.count({
+        where: orphanWhere,
+      })
+      if (
+        shouldSkipCloseOrphansForSafety(orphanCandidateCount, processedIds.size)
+      ) {
+        closeOrphansSkippedSafety = orphanCandidateCount
+        console.error(
+          `[import-batch] closeOrphans を見送りました: 孤立候補 ${orphanCandidateCount} 件 ` +
+            `(今回処理 ${processedIds.size} 件の ${CLOSE_ORPHANS_SAFETY_RATIO} 倍超, ` +
+            `閾値 ${CLOSE_ORPHANS_SAFETY_ABS_FLOOR} 件超)。` +
+            `本当に週次 full sweep として実行する場合は、より広範囲のバッチで再実行してください。`
         )
+      } else {
+        const result = await prisma.job.updateMany({
+          where: orphanWhere,
+          data: {
+            status: "closed",
+          },
+        })
+        closed = result.count
+
+        if (closed > 0) {
+          console.info(
+            `[import-batch] ${closed} 件のハローワーク求人を closed に変更しました`
+          )
+        }
       }
     } catch (error) {
       const message =
@@ -568,6 +625,7 @@ export async function importHelloworkJobs(
     created,
     updated,
     closed,
+    closeOrphansSkippedSafety,
     skipped,
     errors,
     totalProcessed: jobs.length,
