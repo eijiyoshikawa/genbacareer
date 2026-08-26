@@ -180,6 +180,9 @@ async function postForm(
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
+    // ハローワーク API が応答しない場合に全体の maxDuration を使い切って
+    // ハングしないよう、リクエスト単位でタイムアウトする。
+    signal: AbortSignal.timeout(30_000),
   })
 
   if (!res.ok) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { generateJobPostingSchema } from "@/lib/structured-data"
+import { generateJobPostingSchema, safeJsonLdString } from "@/lib/structured-data"
 
 describe("generateJobPostingSchema", () => {
   it("generates valid JSON-LD schema with all required fields", () => {
@@ -218,5 +218,39 @@ describe("generateJobPostingSchema", () => {
     })
     const identifier = schema.identifier as { value: string }
     expect(identifier.value).toBe("HW-12345")
+  })
+})
+
+describe("safeJsonLdString", () => {
+  it("escapes </script> so a malicious title cannot break out of the JSON-LD script tag", () => {
+    const schema = generateJobPostingSchema({
+      id: "test-id",
+      title: '施工管理</script><script>alert(1)</script>',
+      description: "建設現場の施工管理業務を行う正社員ポジションです。",
+      category: "management",
+      employmentType: null,
+      salaryMin: null,
+      salaryMax: null,
+      salaryType: null,
+      prefecture: "東京都",
+      city: null,
+      address: null,
+      publishedAt: null,
+      createdAt: new Date("2026-01-01"),
+      company: null,
+    })
+
+    const serialized = safeJsonLdString(schema)
+    expect(serialized).not.toContain("</script>")
+    expect(serialized).toContain("\\u003c/script>")
+    // データとしては壊れていない（デコードすれば元の文字列に戻る）
+    expect(JSON.parse(serialized).title).toBe(
+      '施工管理</script><script>alert(1)</script>',
+    )
+  })
+
+  it("behaves like JSON.stringify for input with no angle brackets", () => {
+    const data = { a: 1, b: "hello" }
+    expect(safeJsonLdString(data)).toBe(JSON.stringify(data))
   })
 })

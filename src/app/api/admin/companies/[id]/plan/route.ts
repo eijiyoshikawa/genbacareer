@@ -32,6 +32,22 @@ const schema = z.object({
   planNotes: z.string().max(500).nullable(),
 })
 
+/**
+ * 契約終了日をパースする。
+ *
+ * `<input type="date">` から送られる "YYYY-MM-DD" 形式は `new Date()` に渡すと
+ * UTC 深夜 0 時として解釈され、JST では当日 9:00 に前倒しで期限切れになってしまう
+ * (expire-plans cron / isPlanActive は planPaidUntil > now で判定するため)。
+ * 「その日いっぱいは有効」という管理者の意図通りに JST 23:59:59 として扱う。
+ */
+function parsePlanPaidUntil(value: string | null): Date | null {
+  if (!value) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T23:59:59+09:00`)
+  }
+  return new Date(value)
+}
+
 async function requireAdmin() {
   const session = await auth()
   if (!session?.user) return null
@@ -118,7 +134,7 @@ export async function POST(
     where: { id },
     data: {
       planType,
-      planPaidUntil: planPaidUntil ? new Date(planPaidUntil) : null,
+      planPaidUntil: parsePlanPaidUntil(planPaidUntil),
       planActivatedAt: activatedAt,
       planPrepaidFull,
       planNotes,

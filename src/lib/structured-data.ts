@@ -1,5 +1,17 @@
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
+/**
+ * JSON-LD を <script> に dangerouslySetInnerHTML で埋め込む際の安全なシリアライズ。
+ *
+ * JSON.stringify は "<" をエスケープしないため、企業名・求人タイトル等の
+ * ユーザー入力に "</script><script>...</script>" のような文字列が含まれると
+ * <script type="application/ld+json"> タグが早期終了し、任意スクリプトが
+ * 実行される (stored XSS)。"<" を < にエスケープして無害化する。
+ */
+export function safeJsonLdString(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, "\\u003c")
+}
+
 /** サイト全体の Organization 構造化データ。root layout で 1 回だけ埋め込む。 */
 export function generateOrganizationSchema(): Record<string, unknown> {
   return {

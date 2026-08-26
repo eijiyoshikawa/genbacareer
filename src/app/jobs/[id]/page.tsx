@@ -38,6 +38,7 @@ import {
   generateBreadcrumbSchema,
   generateVideoObjectSchema,
 } from "@/lib/structured-data"
+import { safeJsonLdString } from "@/lib/structured-data"
 import { getCategoryLabel } from "@/lib/categories"
 import { groupTags } from "@/lib/job-enrichment"
 import { JobDescription } from "@/components/jobs/job-description"
@@ -343,11 +344,11 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       <JobViewBeacon jobId={job.id} enabled={!isPreview} />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLdString(jsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLdString(breadcrumb) }}
       />
       {/* VideoObject: 動画つき求人で「動画あり」リッチリザルトを狙う */}
       {job.videoUrls.length > 0 &&
@@ -356,7 +357,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
             key={videoUrl}
             type="application/ld+json"
             dangerouslySetInnerHTML={{
-              __html: JSON.stringify(
+              __html: safeJsonLdString(
                 generateVideoObjectSchema({
                   jobId: job.id,
                   jobTitle: job.title,

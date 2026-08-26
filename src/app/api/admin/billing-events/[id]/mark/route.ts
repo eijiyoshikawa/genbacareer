@@ -84,14 +84,23 @@ export async function POST(
           { status: 409 },
         )
       }
-      await prisma.billingEvent.update({
-        where: { id },
+      // where に status: "pending" を含めて条件付き更新にする。読み取り後の
+      // 更新までの間に別リクエストが先に状態遷移させていた場合 (TOCTOU) は
+      // count === 0 になるので検知して 409 を返す。
+      const { count } = await prisma.billingEvent.updateMany({
+        where: { id, status: "pending" },
         data: {
           status: "invoiced",
           mfBillingId: parsed.data.mfBillingId ?? null,
           invoiceUrl: parsed.data.invoiceUrl ?? null,
         },
       })
+      if (count === 0) {
+        return Response.json(
+          { error: "他の操作によりステータスが変更されました。再読み込みしてください" },
+          { status: 409 },
+        )
+      }
       return Response.json({ ok: true })
     }
     case "mark_paid": {
@@ -101,10 +110,16 @@ export async function POST(
           { status: 409 },
         )
       }
-      await prisma.billingEvent.update({
-        where: { id },
+      const { count } = await prisma.billingEvent.updateMany({
+        where: { id, status: "invoiced" },
         data: { status: "paid" },
       })
+      if (count === 0) {
+        return Response.json(
+          { error: "他の操作によりステータスが変更されました。再読み込みしてください" },
+          { status: 409 },
+        )
+      }
       return Response.json({ ok: true })
     }
     case "mark_failed": {

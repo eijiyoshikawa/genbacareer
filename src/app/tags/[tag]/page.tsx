@@ -10,6 +10,7 @@ import {
   generateCollectionPageSchema,
   generateItemListSchema,
 } from "@/lib/structured-data"
+import { safeJsonLdString } from "@/lib/structured-data"
 
 export const revalidate = 21600 // 6 hours
 
@@ -88,15 +89,15 @@ export default async function TagPage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLdString(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPage) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLdString(collectionPage) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLdString(itemList) }}
       />
 
       <header className="border-b bg-warm-50">
