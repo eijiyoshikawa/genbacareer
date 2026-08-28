@@ -8,8 +8,11 @@
 
 import { prisma } from "@/lib/db"
 import Link from "next/link"
+import { headers } from "next/headers"
 import { ArrowLeft, X, MapPin, Money, Buildings } from "@phosphor-icons/react/dist/ssr"
 import { getCategoryLabel } from "@/lib/categories"
+import { auth } from "@/lib/auth"
+import { getGuestAccessibleJobIds, isCrawlerUserAgent } from "@/lib/guest-job-access"
 import type { Metadata } from "next"
 
 export const dynamic = "force-dynamic"
@@ -51,9 +54,21 @@ export default async function CompareJobsPage({ searchParams }: Props) {
     )
   }
 
+  // 未登録ゲストは /jobs/[id] と同様「グローバル上位 15 件」しか詳細を見れない。
+  // このページは複数 id を横断表示するため、ここで絞らないと未登録ゲートを回避できてしまう。
+  let allowedIds = ids
+  const session = await auth().catch(() => null)
+  if (!session?.user?.id) {
+    const hdrs = await headers()
+    if (!isCrawlerUserAgent(hdrs.get("user-agent"))) {
+      const guestIds = new Set(await getGuestAccessibleJobIds())
+      allowedIds = ids.filter((id) => guestIds.has(id))
+    }
+  }
+
   const jobs = await prisma.job
     .findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: allowedIds } },
       include: { company: { select: { name: true, logoUrl: true } } },
     })
     .catch(() => [])

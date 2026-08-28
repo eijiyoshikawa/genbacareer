@@ -3,6 +3,7 @@ import { z } from "zod"
 import bcrypt from "bcryptjs"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit"
 
 const schema = z.object({
   currentPassword: z.string().min(1).max(128),
@@ -22,6 +23,16 @@ export async function POST(request: NextRequest) {
   if (!userId) {
     return Response.json({ error: "セッション不正" }, { status: 401 })
   }
+
+  // レート制限: 現在のパスワード照合はブルートフォース対象になり得るため
+  // (セッション奪取後の総当たりでアカウント乗っ取りに繋がる)、
+  // 同一ユーザーにつき 15 分間に 10 回まで。
+  const rl = checkRateLimit({
+    key: `change-password:${userId}`,
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  })
+  if (!rl.allowed) return rateLimitResponse(rl)
 
   let body: unknown
   try {

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { isCronAuthorized } from "@/lib/cron-auth"
 
 const ARTICLE_BODY = `<p>建設業界は2026年現在、国内総生産（GDP）の約5%を占める基幹産業です。国土交通省の統計によると、建設投資額は約70兆円規模で推移しており、インフラ老朽化対策や都市再開発の需要が継続しています。</p>
 
@@ -42,9 +43,7 @@ const ARTICLE_BODY = `<p>建設業界は2026年現在、国内総生産（GDP）
 <p>建設業界は市場規模が安定しており、人手不足による求人需要が旺盛な状態が続いています。ICT化の進展により働き方も変わりつつあり、未経験者にも門戸が開かれた業界です。建設業界への転職を考えている方は、まず求人情報を確認してみることをおすすめします。</p>`
 
 export async function POST(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isCronAuthorized(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

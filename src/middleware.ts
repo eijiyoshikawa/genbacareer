@@ -175,9 +175,12 @@ export function middleware(request: NextRequest) {
   const isCompanyRoute = companyRoutes.some((r) => pathname.startsWith(r))
   const isAdminRoute =
     adminRoutes.some((r) => pathname.startsWith(r)) && pathname !== "/admin/login"
-  const isAdminAnyRoute = adminRoutes.some((r) => pathname.startsWith(r))
+  // /api/admin/* も対象に含める。管理画面 UI (/admin/*) だけ制限しても
+  // 裏側の API を直接叩かれると allowlist が無意味になるため。
+  const isAdminAnyRoute =
+    adminRoutes.some((r) => pathname.startsWith(r)) || pathname.startsWith("/api/admin")
 
-  // /admin/* への IP allowlist 制御。ADMIN_IP_ALLOWLIST 未設定なら無制限。
+  // /admin/* と /api/admin/* への IP allowlist 制御。ADMIN_IP_ALLOWLIST 未設定なら無制限。
   // 設定済みなら /admin/login 含めて全 /admin パスに適用 (ブルートフォース防御も兼ねる)。
   if (isAdminAnyRoute) {
     const allowlist = parseAllowlist(process.env.ADMIN_IP_ALLOWLIST)
