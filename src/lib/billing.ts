@@ -5,6 +5,12 @@ import { resolveHiringFee } from "./hiring-fee"
 /**
  * 採用確定時に成果報酬の請求書を作成する。
  *
+ * 成果報酬 (success_fee) プランのみが対象。月額プラン (monthly_12/24) は
+ * 12/24 ヶ月一括前払いで完結しており採用都度の課金は発生しない。
+ * campaign_free / sns_client も採用都度課金なし
+ * (docs/business-model-handover.md 1-1. プラン全体像 参照)。
+ * 対象外プランで呼ばれた場合は何もせず null を返す (BillingEvent も作らない)。
+ *
  * 全企業共通: マネーフォワード クラウド請求書 (銀行振込) で発行する。
  * （景品表示法・過大広告対応の方針見直しに伴い Stripe カード決済は廃止）
  *
@@ -26,6 +32,13 @@ export async function createHiringInvoice(applicationId: string) {
 
   if (!application || !application.company) {
     throw new Error(`Application ${applicationId} not found or has no company`)
+  }
+
+  if (application.company.planType !== "success_fee") {
+    console.info(
+      `[billing] Skipped hiring invoice for application ${applicationId}: planType=${application.company.planType} is not billed per hire`
+    )
+    return null
   }
 
   // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ定数フォールバック
