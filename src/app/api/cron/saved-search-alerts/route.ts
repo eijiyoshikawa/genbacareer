@@ -15,8 +15,11 @@ import { createNotification } from "@/lib/notifications"
 import {
   findNewMatchingJobs,
   formatSearchLabel,
+  nextNotifiedWatermark,
   toSearchQueryString,
 } from "@/lib/saved-searches"
+
+const MATCH_LIMIT = 5
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -45,11 +48,12 @@ export async function GET(request: Request) {
   for (const s of searches) {
     searchProcessed++
     try {
-      const matches = await findNewMatchingJobs(s, 5)
+      const matches = await findNewMatchingJobs(s, MATCH_LIMIT)
+      const watermark = nextNotifiedWatermark(matches, MATCH_LIMIT, startedAt)
       if (matches.length === 0) {
         await prisma.savedSearch.update({
           where: { id: s.id },
-          data: { lastNotifiedAt: startedAt },
+          data: { lastNotifiedAt: watermark },
         })
         continue
       }
@@ -70,7 +74,7 @@ export async function GET(request: Request) {
 
       await prisma.savedSearch.update({
         where: { id: s.id },
-        data: { lastNotifiedAt: startedAt },
+        data: { lastNotifiedAt: watermark },
       })
       searchNotified++
     } catch (e) {
@@ -116,18 +120,19 @@ export async function GET(request: Request) {
             status: "active",
             publishedAt: { gte: since },
           },
-          orderBy: { publishedAt: "desc" },
+          orderBy: { publishedAt: "asc" },
           take: 5,
-          select: { id: true, title: true },
+          select: { id: true, title: true, publishedAt: true },
         })
         .catch(() => [])
+      const watermark = nextNotifiedWatermark(matches, 5, startedAt)
 
       if (matches.length === 0) {
         await prisma.companyFollow.update({
           where: {
             userId_companyId: { userId: f.userId, companyId: f.companyId },
           },
-          data: { lastNotifiedAt: startedAt },
+          data: { lastNotifiedAt: watermark },
         })
         continue
       }
@@ -150,7 +155,7 @@ export async function GET(request: Request) {
         where: {
           userId_companyId: { userId: f.userId, companyId: f.companyId },
         },
-        data: { lastNotifiedAt: startedAt },
+        data: { lastNotifiedAt: watermark },
       })
       followNotified++
     } catch (e) {

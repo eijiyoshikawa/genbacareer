@@ -124,7 +124,31 @@ export function formatSearchLabel(input: SavedSearchInput): string {
 }
 
 /**
+ * cron/saved-search-alerts が次回実行で使う lastNotifiedAt を計算する。
+ *
+ * 取得件数が limit ちょうど（= since 以降にまだ未取得の求人が残っている
+ * 可能性がある）場合、startedAt まで一気に進めてしまうと取りこぼした分を
+ * 二度と拾えなくなる（次回の since がそれらより後になるため）。
+ * その場合は「今回処理できた最後の 1 件の publishedAt + 1ms」までしか
+ * 進めず、残りは次回 cron で継続処理する。
+ * 取得件数が limit 未満なら since 以降の対象を全件処理できているので
+ * startedAt まで進めてよい。
+ */
+export function nextNotifiedWatermark(
+  matches: { publishedAt: Date | null }[],
+  limit: number,
+  startedAt: Date
+): Date {
+  if (matches.length < limit) return startedAt
+  const last = matches[matches.length - 1]?.publishedAt
+  if (!last) return startedAt
+  return new Date(last.getTime() + 1)
+}
+
+/**
  * 1 件の SavedSearch について、最後の通知時刻以降に公開された新着求人を取得。
+ * 古い順（未処理の中で最も古いもの優先）に取得することで、1 回の cron で
+ * 拾いきれなかった分も次回以降で確実に処理できるようにする。
  */
 export async function findNewMatchingJobs(
   search: {
@@ -155,7 +179,7 @@ export async function findNewMatchingJobs(
   return prisma.job
     .findMany({
       where,
-      orderBy: { publishedAt: "desc" },
+      orderBy: { publishedAt: "asc" },
       take: limit,
       select: { id: true, title: true, prefecture: true, publishedAt: true },
     })
