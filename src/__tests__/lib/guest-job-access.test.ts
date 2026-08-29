@@ -1,5 +1,11 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { isCrawlerUserAgent, GUEST_LIMIT } from "@/lib/guest-job-access"
+
+const findManyMock = vi.fn().mockResolvedValue([])
+
+vi.mock("@/lib/db", () => ({
+  prisma: { job: { findMany: (...args: unknown[]) => findManyMock(...args) } },
+}))
 
 describe("isCrawlerUserAgent", () => {
   it("returns true for major search engine bots", () => {
@@ -54,5 +60,23 @@ describe("isCrawlerUserAgent", () => {
 describe("GUEST_LIMIT", () => {
   it("is 15 (お試し検索 仕様)", () => {
     expect(GUEST_LIMIT).toBe(15)
+  })
+})
+
+describe("getGuestAccessibleJobIds", () => {
+  it("sorts by the same priority as /jobs 一覧の recommended (default) order, so the gate never blocks a job shown at the top of the guest's own listing", async () => {
+    const { getGuestAccessibleJobIds } = await import("@/lib/guest-job-access")
+    await getGuestAccessibleJobIds()
+
+    expect(findManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [
+          { company: { planTier: "desc" } },
+          { company: { rotationKey: "asc" } },
+          { rankScore: "desc" },
+          { publishedAt: "desc" },
+        ],
+      })
+    )
   })
 })

@@ -35,6 +35,10 @@ export function isCrawlerUserAgent(ua: string | null | undefined): boolean {
  *
  * 高度に絞り込んだ検索結果からのクリックは未登録ゲートに引っかかるが、
  * これは仕様（無料体験は上位 15 件まで）として明示的に許容している。
+ *
+ * この並び順は src/app/jobs/page.tsx の buildOrderBy("recommended") と
+ * 必ず一致させること。ずれると /jobs 一覧の先頭に表示された求人（特に
+ * planTier の高い有料掲載企業）がゲートで弾かれてしまう。
  */
 export async function getGuestAccessibleJobIds(): Promise<string[]> {
   const rows = await prisma.job.findMany({
@@ -43,7 +47,8 @@ export async function getGuestAccessibleJobIds(): Promise<string[]> {
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
     },
     orderBy: [
-      { source: "asc" },
+      { company: { planTier: "desc" } },
+      { company: { rotationKey: "asc" } },
       { rankScore: "desc" },
       { publishedAt: "desc" },
     ],
