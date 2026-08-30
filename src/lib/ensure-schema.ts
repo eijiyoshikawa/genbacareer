@@ -604,7 +604,19 @@ const STATEMENTS: ReadonlyArray<string> = [
 
 let inflight: Promise<boolean> | null = null
 
-// 一度だけ実行され、結果を Promise でキャッシュ。成功/失敗いずれも以後 await が即解決する。
+// DB 接続そのものが確立できなかった場合のエラー(プールタイムアウト等)。
+// これらは「文が恒久的に失敗した」のではなく「今回は DB に触れなかった」だけなので、
+// inflight にキャッシュせず次回呼び出しで再試行する。pg_trgm 権限不足のような
+// 恒久的な失敗は引き続きキャッシュし、無駄なリトライで DB 負荷を増やさない。
+const CONNECTION_ERROR_PATTERN =
+  /P1001|P2024|ECHECKOUTTIMEOUT|Can't reach database server|Timed out fetching a new connection/i
+
+function isConnectionError(e: unknown): boolean {
+  const message = e instanceof Error ? e.message : String(e)
+  return CONNECTION_ERROR_PATTERN.test(message)
+}
+
+// 一度だけ実行され、結果を Promise でキャッシュする（DB 接続断による失敗を除く）。
 // 戻り値: 全 ALTER が成功したかどうか（失敗時は防御クエリへフォールバック判断に使う）。
 //
 // pg_trgm のように権限不足で失敗しうる文があるため、各 SQL は個別 try/catch。
@@ -629,17 +641,22 @@ export function ensureSchema(): Promise<boolean> {
  if (!inflight) {
  inflight = (async () => {
  let allOk = true
+ let hadConnectionError = false
  for (const sql of STATEMENTS) {
  try {
  await prisma.$executeRawUnsafe(sql)
  } catch (e) {
  allOk = false
+ if (isConnectionError(e)) hadConnectionError = true
  console.warn(
  "[ensureSchema] statement skipped:",
  e instanceof Error ? e.message : e
  )
  }
  }
+ // 接続断で 1 文でも失敗した場合は、次回の呼び出しで最初から再試行できるよう
+ // このウォーム状態のインスタンスに結果をキャッシュしない。
+ if (hadConnectionError) inflight = null
  return allOk
  })()
  }
