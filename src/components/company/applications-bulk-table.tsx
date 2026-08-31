@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ApplicationStatusSelect } from "@/components/company/application-status-select"
 
+// "採用" は含めない: 採用確定は請求書発行・hiredAt 打刻が必要なため、
+// 応募者詳細ページの個別ステータス変更からのみ行う (/api/company/applications/[id])。
 const STATUS_OPTIONS = [
   { value: "applied", label: "応募済み" },
   { value: "reviewing", label: "選考中" },
   { value: "interview", label: "面接" },
   { value: "offered", label: "内定" },
-  { value: "hired", label: "採用" },
   { value: "rejected", label: "不採用" },
 ] as const
 

@@ -15,6 +15,7 @@ import { type NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { isLeadStatus } from "@/lib/line-lead-status"
+import { csvEscape } from "@/lib/csv"
 
 export const dynamic = "force-dynamic"
 
@@ -24,16 +25,6 @@ async function requireAdmin() {
   const role = (session.user as { role?: string }).role
   if (role !== "admin") return null
   return session
-}
-
-// CSV フィールド エスケープ: ダブルクォート / カンマ / 改行を含む値を "" で囲み内部の " は "" に変換
-function csvEscape(value: string | number | null | undefined): string {
-  if (value === null || value === undefined) return ""
-  const s = String(value)
-  if (/[",\r\n]/.test(s)) {
-    return `"${s.replace(/"/g, '""')}"`
-  }
-  return s
 }
 
 const HEADERS = [

@@ -14,6 +14,7 @@
 import { type NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { csvEscape } from "@/lib/csv"
 
 export const dynamic = "force-dynamic"
 
@@ -25,15 +26,6 @@ const VALID_STATUSES = [
   "hired",
   "rejected",
 ] as const
-
-function csvEscape(value: string | number | null | undefined): string {
-  if (value === null || value === undefined) return ""
-  const s = String(value)
-  if (/[",\r\n]/.test(s)) {
-    return `"${s.replace(/"/g, '""')}"`
-  }
-  return s
-}
 
 const STATUS_LABEL: Record<string, string> = {
   applied: "応募済み",

@@ -13,17 +13,9 @@ import {
   computeTimeSeries,
   isRangeKey,
 } from "@/lib/company-funnel"
+import { csvEscape } from "@/lib/csv"
 
 export const dynamic = "force-dynamic"
-
-function csvEscape(value: string | number | null | undefined): string {
-  if (value === null || value === undefined) return ""
-  const s = String(value)
-  if (/[",\r\n]/.test(s)) {
-    return `"${s.replace(/"/g, '""')}"`
-  }
-  return s
-}
 
 export async function GET(request: NextRequest) {
   const session = await auth()

@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     const optional = {
       GBIZ_API_TOKEN: isGbizConfigured(),
       CRON_SECRET: !!process.env.CRON_SECRET,
-      RESEND_API_KEY: !!process.env.RESEND_API_KEY,
+      SMTP: !!(process.env.SMTP_USER && process.env.SMTP_PASS),
       SENTRY_DSN: !!process.env.SENTRY_DSN,
       GA_ID: !!process.env.NEXT_PUBLIC_GA_ID,
       GSC_VERIFICATION: !!process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,

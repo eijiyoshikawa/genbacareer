@@ -7,6 +7,9 @@
  *
  * セキュリティ: 自社が紐づく Application のみ更新対象。他社の ID が紛れても
  * updateMany の where: companyId フィルタで自動除外される。
+ *
+ * "hired" は対象外: 採用確定には hiredAt 打刻・請求書発行 (createHiringInvoice)・
+ * ステータス遷移検証が必要なため、個別更新 (PUT /api/company/applications/[id]) 経由でのみ許可する。
  */
 
 import { prisma } from "@/lib/db"
@@ -18,7 +21,6 @@ const ALLOWED_STATUSES = [
   "reviewing",
   "interview",
   "offered",
-  "hired",
   "rejected",
 ] as const
 
