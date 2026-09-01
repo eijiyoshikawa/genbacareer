@@ -37,6 +37,7 @@ import {
   generateJobPostingSchema,
   generateBreadcrumbSchema,
   generateVideoObjectSchema,
+  safeJsonLd,
 } from "@/lib/structured-data"
 import { getCategoryLabel } from "@/lib/categories"
 import { groupTags } from "@/lib/job-enrichment"
@@ -86,7 +87,6 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   // Prisma に渡す前に弾いて 404 を返す。
   if (!isValidUuid(id)) notFound()
   const sp = (await searchParams) ?? {}
-  const isPreview = sp.preview === "1"
   // 閲覧記録はクライアント beacon (<JobViewBeacon />) 経由で行う。
   // SSR 中に DB 書き込みを行わないことで、TTFB と将来の ISR 化を可能にする。
 
@@ -112,6 +112,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       tags: true,
       videoUrls: true,
       status: true,
+      previewToken: true,
       source: true,
       helloworkId: true,
       publishedAt: true,
@@ -171,9 +172,28 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
 
   if (!job) notFound()
 
+  const session = await auth().catch(() => null)
+  const sessionUser = session?.user as
+    | { id?: string; role?: string; companyId?: string }
+    | undefined
+
+  // プレビューは Job.previewToken と一致する場合のみ有効。
+  // (旧実装は ?preview=1 の有無だけで判定しており、誰でも任意の求人 URL に
+  //  ?preview=1 を付けるだけでゲストゲート/非公開求人の閲覧制限を回避できた)
+  const isPreview =
+    !!job.previewToken && sp.previewToken === job.previewToken
+  // admin と、その求人を掲載した企業自身は status を問わず閲覧可能
+  // (社内チェック / 応募者一覧・請求管理からの参照リンクを壊さないため)。
+  // isPreview とは別扱い: 通常アクセスなので閲覧数トラッキングやバナー表示は変えない。
+  const isOwnerOrAdmin =
+    sessionUser?.role === "admin" ||
+    (!!sessionUser?.companyId && sessionUser.companyId === job.company?.id)
+
+  // status が active 以外 (draft/closed) は上記以外では 404。
+  if (job.status !== "active" && !isPreview && !isOwnerOrAdmin) notFound()
+
   // 未登録ゲストは「グローバル上位 15 件（recommended sort / フィルタ無し）」の詳細のみ閲覧可。
   // 検索エンジン等のクローラは Google for Jobs SEO 維持のため除外する。
-  const session = await auth().catch(() => null)
   if (!session?.user?.id && !isPreview) {
     const hdrs = await headers()
     const ua = hdrs.get("user-agent")
@@ -343,11 +363,11 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       <JobViewBeacon jobId={job.id} enabled={!isPreview} />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumb) }}
       />
       {/* VideoObject: 動画つき求人で「動画あり」リッチリザルトを狙う */}
       {job.videoUrls.length > 0 &&
@@ -356,7 +376,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
             key={videoUrl}
             type="application/ld+json"
             dangerouslySetInnerHTML={{
-              __html: JSON.stringify(
+              __html: safeJsonLd(
                 generateVideoObjectSchema({
                   jobId: job.id,
                   jobTitle: job.title,

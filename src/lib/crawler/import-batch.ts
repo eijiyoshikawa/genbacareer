@@ -20,6 +20,7 @@ import {
   fallbackSalary,
 } from "@/lib/job-enrichment"
 import { computeRankScore } from "@/lib/ranking"
+import { planTier } from "@/lib/plans"
 import type { HelloworkJobData } from "./hellowork"
 
 // ========================================
@@ -206,6 +207,10 @@ async function upsertHelloworkCompany(
       city: job.city,
       address: job.address,
       status: "approved",
+      // planTier は planType の denormalized cache (prisma/schema.prisma 参照)。
+      // 未指定だとスキーマの既定値 (success_fee 相当の 3) になり、参照データの
+      // HelloWork 企業が有償企業より上位表示されてしまうため明示的に設定する。
+      planTier: planTier({ planType: null, source: "hellowork" }),
     },
     update: {
       // 既存レコードの prefecture/city/address は最新ジョブの値で更新

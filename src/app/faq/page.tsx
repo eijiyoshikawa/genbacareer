@@ -1,6 +1,7 @@
 import Link from "next/link"
 import type { Metadata } from "next"
 import { HelpCircle, MessageCircle, Search } from "lucide-react"
+import { safeJsonLd } from "@/lib/structured-data"
 
 export const metadata: Metadata = {
   title: "よくある質問 | ゲンバキャリア",
@@ -126,7 +127,7 @@ export default function FaqPage() {
     <div>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(schema) }}
       />
 
       {/* Hero */}

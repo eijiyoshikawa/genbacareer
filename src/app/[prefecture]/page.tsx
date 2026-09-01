@@ -12,6 +12,7 @@ import {
   GuestSignupCta,
   GuestTrialBanner,
 } from "@/components/jobs/guest-signup-cta"
+import { safeJsonLd } from "@/lib/structured-data"
 
 // auth() で cookie を読むため、自動的に dynamic レンダリングになる。
 // ISR 設定は無効になるので削除し、明示的に force-dynamic を宣言する。
@@ -145,7 +146,7 @@ export default async function PrefecturePage({ params }: Props) {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumb) }}
       />
 
       <nav className="mb-4 text-sm text-gray-500">

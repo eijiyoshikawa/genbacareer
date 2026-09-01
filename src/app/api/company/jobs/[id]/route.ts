@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { canPostJob } from "@/lib/plans"
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -95,6 +96,31 @@ export async function PUT(
   }
 
   const { expectedUpdatedAt, ...data } = parsed.data
+
+  // 求人を active に (再) 公開する場合のみプラン期限 / 企業承認状態を確認する。
+  // 下書き保存や closed への変更はプラン切れでも引き続き可能。
+  if (data.status === "active") {
+    const company = await prisma.company.findUnique({
+      where: { id: ctx.companyId },
+      select: { status: true, planType: true, planPaidUntil: true },
+    })
+    if (
+      !company ||
+      !canPostJob({
+        status: company.status,
+        planType: company.planType,
+        planPaidUntil: company.planPaidUntil,
+      })
+    ) {
+      return Response.json(
+        {
+          error:
+            "掲載プランの期限が切れているため、求人を公開できません。プランの更新については運営にお問い合わせください。",
+        },
+        { status: 403 }
+      )
+    }
+  }
 
   // 楽観ロック: クライアントが取得した時点から変わっていなければ更新を許可
   if (expectedUpdatedAt) {

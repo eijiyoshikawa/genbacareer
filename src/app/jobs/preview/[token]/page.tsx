@@ -3,7 +3,8 @@
  *
  * 下書き状態の求人を社内チェック用に共有するためのエントリーポイント。
  * トークンを Job.previewToken と照合し、一致すれば /jobs/<id> へリダイレクト。
- * （/jobs/<id> 自身は status を問わずレンダリングする既存挙動を維持）
+ * /jobs/<id> 側でも同じトークンを ?previewToken= から再検証してから
+ * status を問わず描画する（トークンを渡さない直接アクセスでは非 active 求人は 404）。
  *
  * トークン不一致や未設定の場合は 404。
  */
@@ -34,6 +35,6 @@ export default async function JobPreviewPage({
     notFound()
   }
 
-  // 既存の求人詳細ページに転送（status を問わず描画される現行仕様を活用）
-  redirect(`/jobs/${job.id}?preview=1`)
+  // 求人詳細ページへ転送。トークンをそのまま引き継ぎ、遷移先で再検証させる。
+  redirect(`/jobs/${job.id}?previewToken=${encodeURIComponent(token)}`)
 }

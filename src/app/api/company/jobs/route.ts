@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { CATEGORIES } from "@/lib/categories"
 import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
+import { canPostJob } from "@/lib/plans"
 
 const VALID_CATEGORIES = CATEGORIES.map((c) => c.value)
 
@@ -97,6 +98,32 @@ export async function POST(request: NextRequest) {
       { error: `無効なカテゴリです。有効な値: ${VALID_CATEGORIES.join(", ")}` },
       { status: 400 }
     )
+  }
+
+  // 求人を active (公開) で作成する場合のみプラン期限を確認する。
+  // 月額 / SNS プランが planPaidUntil 超過済みだと公開不可 (canPostJob 参照)。
+  // 下書き保存 (draft) はプラン切れでも引き続き可能。
+  if (data.status === "active") {
+    const company = await prisma.company.findUnique({
+      where: { id: ctx.companyId },
+      select: { status: true, planType: true, planPaidUntil: true },
+    })
+    if (
+      !company ||
+      !canPostJob({
+        status: company.status,
+        planType: company.planType,
+        planPaidUntil: company.planPaidUntil,
+      })
+    ) {
+      return Response.json(
+        {
+          error:
+            "掲載プランの期限が切れているため、求人を公開できません。プランの更新については運営にお問い合わせください。",
+        },
+        { status: 403 }
+      )
+    }
   }
 
   const job = await prisma.job.create({

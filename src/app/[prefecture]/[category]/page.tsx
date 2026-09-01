@@ -15,6 +15,7 @@ import {
   GuestSignupCta,
   GuestTrialBanner,
 } from "@/components/jobs/guest-signup-cta"
+import { safeJsonLd } from "@/lib/structured-data"
 
 // /[prefecture]/[category] の category は建設業のみ受け付ける（"other" は除外）。
 const CONSTRUCTION_CATEGORY_SET: ReadonlySet<string> = new Set(
@@ -152,7 +153,7 @@ export default async function PrefectureCategoryPage({ params }: Props) {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumb) }}
       />
 
       <nav className="mb-4 text-sm text-gray-500">

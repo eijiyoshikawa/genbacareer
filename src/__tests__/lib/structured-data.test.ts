@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { generateJobPostingSchema } from "@/lib/structured-data"
+import { generateJobPostingSchema, safeJsonLd } from "@/lib/structured-data"
 
 describe("generateJobPostingSchema", () => {
   it("generates valid JSON-LD schema with all required fields", () => {
@@ -218,5 +218,21 @@ describe("generateJobPostingSchema", () => {
     })
     const identifier = schema.identifier as { value: string }
     expect(identifier.value).toBe("HW-12345")
+  })
+})
+
+describe("safeJsonLd", () => {
+  it("escapes </script> so a script-tag breakout is impossible", () => {
+    const malicious = {
+      title: '</script><script>alert(document.cookie)</script>',
+    }
+    const html = safeJsonLd(malicious)
+    expect(html).not.toContain("</script>")
+    expect(html).toContain("\\u003c/script>")
+  })
+
+  it("round-trips back to the original value via JSON.parse", () => {
+    const data = { a: "<b>", nested: { c: "</script>" } }
+    expect(JSON.parse(safeJsonLd(data))).toEqual(data)
   })
 })
