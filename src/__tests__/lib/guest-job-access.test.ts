@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest"
-import { isCrawlerUserAgent, GUEST_LIMIT } from "@/lib/guest-job-access"
+import {
+  isCrawlerUserAgent,
+  GUEST_LIMIT,
+  RECOMMENDED_ORDER_BY,
+} from "@/lib/guest-job-access"
 
 describe("isCrawlerUserAgent", () => {
   it("returns true for major search engine bots", () => {
@@ -54,5 +58,20 @@ describe("isCrawlerUserAgent", () => {
 describe("GUEST_LIMIT", () => {
   it("is 15 (お試し検索 仕様)", () => {
     expect(GUEST_LIMIT).toBe(15)
+  })
+})
+
+describe("RECOMMENDED_ORDER_BY", () => {
+  // /jobs 一覧の "recommended" (デフォルト) ソートと、ゲスト詳細ゲートの
+  // 対象求人セットが乖離すると、一覧の上位に出た求人を開いた瞬間に
+  // ログインを要求される、という利用者から見て理不尽な挙動になる。
+  // この並び順は両方の場所から同一の配列を参照させることで保証する。
+  it("orders by planTier desc, rotationKey asc, rankScore desc, publishedAt desc", () => {
+    expect(RECOMMENDED_ORDER_BY).toEqual([
+      { company: { planTier: "desc" } },
+      { company: { rotationKey: "asc" } },
+      { rankScore: "desc" },
+      { publishedAt: "desc" },
+    ])
   })
 })

@@ -53,6 +53,23 @@ export async function fuzzySearchJobs(
   // - title と description それぞれの類似度の最大値を採用
   // - 0.05 以上を閾値（ある程度関連がある）
   // - 同点は publishedAt DESC
+  //
+  // プレースホルダ番号は values 配列と同じ順序で動的に採番する。
+  // (固定番号 $3, $4... と値配列の位置がフィルタの有無でズレる
+  //  バグが過去にあったため、番号と値を必ずペアで push すること)
+  const values: unknown[] = [input.q, categories]
+  const conditions: string[] = []
+  const pushCondition = (sql: string, value: unknown) => {
+    values.push(value)
+    conditions.push(`${sql} $${values.length}`)
+  }
+  if (input.prefecture) pushCondition("AND prefecture =", input.prefecture)
+  if (input.employmentType) pushCondition("AND employment_type =", input.employmentType)
+  if (input.source) pushCondition("AND source =", input.source)
+  if (input.publishedSince) pushCondition("AND published_at >=", input.publishedSince)
+  if (input.salaryMin) pushCondition("AND salary_min >=", input.salaryMin)
+  if (input.salaryMax) pushCondition("AND salary_max <=", input.salaryMax)
+
   try {
     const rows = await prisma.$queryRawUnsafe<
       { id: string; similarity: number }[]
@@ -68,12 +85,7 @@ export async function fuzzySearchJobs(
         FROM jobs
         WHERE status = 'active'
           AND category = ANY($2)
-          ${input.prefecture ? "AND prefecture = $3" : ""}
-          ${input.employmentType ? `AND employment_type = $4` : ""}
-          ${input.source ? `AND source = $5` : ""}
-          ${input.publishedSince ? `AND published_at >= $6` : ""}
-          ${input.salaryMin ? `AND salary_min >= $7` : ""}
-          ${input.salaryMax ? `AND salary_max <= $8` : ""}
+          ${conditions.join("\n          ")}
       )
       SELECT id, similarity
       FROM scored
@@ -81,14 +93,7 @@ export async function fuzzySearchJobs(
       ORDER BY similarity DESC, published_at DESC NULLS LAST
       LIMIT ${limit} OFFSET ${offset};
       `,
-      input.q,
-      categories,
-      ...(input.prefecture ? [input.prefecture] : []),
-      ...(input.employmentType ? [input.employmentType] : []),
-      ...(input.source ? [input.source] : []),
-      ...(input.publishedSince ? [input.publishedSince] : []),
-      ...(input.salaryMin ? [input.salaryMin] : []),
-      ...(input.salaryMax ? [input.salaryMax] : [])
+      ...values
     )
     return rows
   } catch (e) {

@@ -81,6 +81,10 @@ export async function GET(request: Request) {
       ],
     }
 
+    // メール送信に失敗した場合は planExpiryNotifiedAt をセットせず、
+    // 翌日以降の cron 実行で再送を試みる（"重複送信防止" は成功時のみの話で、
+    // 失敗した企業を黙って対象から外して二度と通知しない、は意図ではない）。
+    let mailFailed = false
     if (c.contactEmail) {
       try {
         await sendEmail({
@@ -91,6 +95,7 @@ export async function GET(request: Request) {
         })
       } catch (err) {
         mailFailures += 1
+        mailFailed = true
         console.error(`[cron/plan-expiry-notice] mail failed for ${c.id}:`, err)
       }
     }
@@ -108,6 +113,10 @@ export async function GET(request: Request) {
       }).catch((e) => {
         console.error(`[cron/plan-expiry-notice] notif failed for ${c.id}:`, e)
       })
+    }
+
+    if (mailFailed) {
+      continue
     }
 
     await prisma.company.update({

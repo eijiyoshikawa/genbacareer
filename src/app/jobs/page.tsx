@@ -19,7 +19,7 @@ import {
   GuestSignupCta,
   GuestTrialBanner,
 } from "@/components/jobs/guest-signup-cta"
-import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import { GUEST_LIMIT, RECOMMENDED_ORDER_BY } from "@/lib/guest-job-access"
 import { logSearch } from "@/lib/search-log"
 import { trackEvent } from "@/lib/track"
 import type { Metadata } from "next"
@@ -585,18 +585,11 @@ function buildOrderBy(sort: string) {
       return { publishedAt: "desc" as const }
     case "recommended":
     default:
-      // C8 上位表示 + 公平ローテーション:
-      //   1. company.planTier desc — プラン優先度 (3=paid / 2=SNS / 1=キャンペーン / 0=HW)
-      //   2. company.rotationKey asc — 日次でランダム化 (paid 平等枠の機会均等)
-      //   3. rankScore desc — 同 rotationKey 内では既存のコンテンツ品質順
-      //   4. publishedAt desc — タイブレーク
+      // C8 上位表示 + 公平ローテーション。並び順の定義は
+      // guest-job-access.ts の RECOMMENDED_ORDER_BY と共有
+      // (ゲストの詳細閲覧ゲートと一覧の並び順を一致させるため)。
       // rotationKey は /api/cron/rotate-companies が毎日 03:30 UTC に更新する。
-      return [
-        { company: { planTier: "desc" as const } },
-        { company: { rotationKey: "asc" as const } },
-        { rankScore: "desc" as const },
-        { publishedAt: "desc" as const },
-      ]
+      return RECOMMENDED_ORDER_BY
   }
 }
 

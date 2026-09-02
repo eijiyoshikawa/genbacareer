@@ -37,12 +37,37 @@ export async function PATCH(
     return Response.json({ error: "入力エラー" }, { status: 400 })
   }
 
+  const bonus = await prisma.hiringBonus.findUnique({
+    where: { id },
+    select: { status: true },
+  })
+  if (!bonus) {
+    return Response.json({ error: "ボーナス申請が見つかりません" }, { status: 404 })
+  }
+
+  // admin UI (actions.tsx) は現在のステータスに対応するボタンしか出さないが、
+  // 別タブでの二重操作やリクエストの直接叩きで status を巻き戻せないよう、
+  // ここでも遷移元ステータスを検証する (early-resignations と同じパターン)。
+  const action = parsed.data.action
+  if ((action === "approve" || action === "reject") && bonus.status !== "requested") {
+    return Response.json(
+      { error: `現在のステータス (${bonus.status}) からは${action === "approve" ? "承認" : "却下"}できません` },
+      { status: 409 },
+    )
+  }
+  if (action === "mark_paid" && bonus.status !== "approved") {
+    return Response.json(
+      { error: `現在のステータス (${bonus.status}) からは支払済にできません` },
+      { status: 409 },
+    )
+  }
+
   const data: Record<string, unknown> = {}
-  if (parsed.data.action === "approve") {
+  if (action === "approve") {
     data.status = "approved"
     data.approvedAt = new Date()
     data.approvedBy = session?.user?.id ?? null
-  } else if (parsed.data.action === "mark_paid") {
+  } else if (action === "mark_paid") {
     data.status = "paid"
     data.paidAt = new Date()
     data.paidBy = session?.user?.id ?? null
