@@ -5,7 +5,6 @@ import { Footer } from "@/components/layout/footer";
 import { NavigationProgress } from "@/components/navigation-progress";
 import { GoogleAnalytics, DeferredVercelTelemetry } from "@/components/analytics";
 import { CookieConsentBanner } from "@/components/cookie-consent";
-import { PreReleaseNotice } from "@/components/prerelease-notice";
 import {
   generateOrganizationSchema,
   generateWebSiteSchema,
@@ -178,7 +177,6 @@ export default async function RootLayout({
           本文へスキップ
         </a>
         <NavigationProgress />
-        <PreReleaseNotice />
         <Header />
         <main id="main-content" className="flex-1">{children}</main>
         <Footer />
