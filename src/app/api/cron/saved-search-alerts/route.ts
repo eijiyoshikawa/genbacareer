@@ -17,15 +17,14 @@ import {
   formatSearchLabel,
   toSearchQueryString,
 } from "@/lib/saved-searches"
+import { isValidCronRequest } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 export const maxDuration = 300
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isValidCronRequest(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

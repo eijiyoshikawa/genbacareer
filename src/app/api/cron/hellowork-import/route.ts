@@ -30,6 +30,7 @@ import {
   recordBatchResult,
 } from "@/lib/crawler/rotation-planner"
 import { prisma } from "@/lib/db"
+import { isValidCronRequest } from "@/lib/cron-auth"
 
 // 1 ページ ≒ 113 秒。pages=5 を許容するため 600 秒に拡張（Vercel Pro の serverless 上限内）。
 export const maxDuration = 600
@@ -38,9 +39,7 @@ export const dynamic = "force-dynamic"
 const DEFAULT_PAGES_PER_RUN = 2
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isValidCronRequest(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

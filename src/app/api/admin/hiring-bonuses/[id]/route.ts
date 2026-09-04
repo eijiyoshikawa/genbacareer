@@ -37,16 +37,42 @@ export async function PATCH(
     return Response.json({ error: "入力エラー" }, { status: 400 })
   }
 
+  const row = await prisma.hiringBonus.findUnique({
+    where: { id },
+    select: { id: true, status: true },
+  })
+  if (!row) {
+    return Response.json({ error: "申請が見つかりません" }, { status: 404 })
+  }
+
   const data: Record<string, unknown> = {}
   if (parsed.data.action === "approve") {
+    if (row.status !== "requested") {
+      return Response.json(
+        { error: `現在のステータス (${row.status}) からは承認できません` },
+        { status: 409 }
+      )
+    }
     data.status = "approved"
     data.approvedAt = new Date()
     data.approvedBy = session?.user?.id ?? null
   } else if (parsed.data.action === "mark_paid") {
+    if (row.status !== "approved") {
+      return Response.json(
+        { error: "承認済の申請のみ支払済にできます" },
+        { status: 409 }
+      )
+    }
     data.status = "paid"
     data.paidAt = new Date()
     data.paidBy = session?.user?.id ?? null
   } else {
+    if (row.status !== "requested") {
+      return Response.json(
+        { error: `現在のステータス (${row.status}) からは却下できません` },
+        { status: 409 }
+      )
+    }
     data.status = "rejected"
     data.rejectedAt = new Date()
     data.rejectionReason = parsed.data.rejectionReason ?? null

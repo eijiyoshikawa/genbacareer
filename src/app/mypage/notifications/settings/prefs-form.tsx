@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   type NotificationPrefs,
-  type NotificationFrequency,
   FREQUENCY_LABELS,
 } from "@/lib/notification-prefs"
 
@@ -87,30 +86,25 @@ export function NotificationPrefsForm({ initial }: { initial: NotificationPrefs 
         <h2 className="text-sm font-bold text-gray-900">
           配信頻度
         </h2>
-        <div className="space-y-2">
-          {(Object.keys(FREQUENCY_LABELS) as NotificationFrequency[]).map((f) => (
-            <label key={f} className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="radio"
-                name="frequency"
-                value={f}
-                checked={prefs.frequency === f}
-                onChange={() => update("frequency", f)}
-                className="mt-1 h-4 w-4 border-gray-300 text-primary-600"
-              />
-              <div>
-                <p className="text-sm font-medium text-gray-900">
-                  {FREQUENCY_LABELS[f]}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {f === "immediate" && "新着があり次第すぐに配信"}
-                  {f === "daily" && "1 日 1 回まとめて配信 (朝 9 時頃)"}
-                  {f === "weekly" && "週 1 回まとめて配信 (月曜朝)"}
-                </p>
-              </div>
-            </label>
-          ))}
-        </div>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="radio"
+            name="frequency"
+            value="immediate"
+            checked
+            readOnly
+            className="mt-1 h-4 w-4 border-gray-300 text-primary-600"
+          />
+          <div>
+            <p className="text-sm font-medium text-gray-900">
+              {FREQUENCY_LABELS.immediate}
+            </p>
+            <p className="text-xs text-gray-500">新着があり次第すぐに配信</p>
+          </div>
+        </label>
+        <p className="text-xs text-gray-500">
+          まとめ配信（1 日 1 回 / 週 1 回）は現在準備中のため、当面は即時配信のみとなります。
+        </p>
       </section>
 
       {/* 静音時間帯 */}

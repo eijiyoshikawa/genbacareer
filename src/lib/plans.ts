@@ -143,6 +143,20 @@ export function isPlanActive(args: {
   return false
 }
 
+/**
+ * "YYYY-MM-DD" 形式の日付文字列を、その日の JST 23:59:59.999 に対応する Date に変換する。
+ *
+ * 管理画面の `<input type="date">` は日付のみを送ってくる。これを素朴に
+ * `new Date("2026-09-30")` すると UTC 0 時 (= JST 9 時) と解釈されるため、
+ * 「契約終了日」の当日 JST 9 時〜24 時の間に意図せずプランが失効してしまう
+ * (isPlanActive は planPaidUntil を過ぎた瞬間に false を返すため)。
+ * 管理者が入力する「終了日」は当日いっぱい有効という意図なので、
+ * 常に JST の日末（23:59:59.999）へ正規化する。
+ */
+export function endOfDayJst(dateOnly: string): Date {
+  return new Date(`${dateOnly}T23:59:59.999+09:00`)
+}
+
 /** プランの満了日まで残り日数 (期限なしプランは null) */
 export function daysUntilPlanExpiry(
   paidUntil: Date | null | undefined,

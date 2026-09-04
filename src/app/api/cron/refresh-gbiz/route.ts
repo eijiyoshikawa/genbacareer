@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db"
 import { Prisma } from "@prisma/client"
 import { fetchSnapshot, isGbizConfigured } from "@/lib/gbizinfo"
+import { isValidCronRequest } from "@/lib/cron-auth"
 
 /**
  * GbizINFO データ月次自動更新 Cron。
@@ -28,9 +29,7 @@ async function sleep(ms: number): Promise<void> {
 }
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isValidCronRequest(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

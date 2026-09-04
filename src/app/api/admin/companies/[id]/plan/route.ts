@@ -19,7 +19,14 @@
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { PLAN_TYPES, planTier } from "@/lib/plans"
+import { PLAN_TYPES, planTier, endOfDayJst } from "@/lib/plans"
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/** "YYYY-MM-DD" は JST 日末へ、フル ISO datetime はそのまま Date に変換する。 */
+function toPaidUntilDate(value: string): Date {
+  return DATE_ONLY_RE.test(value) ? endOfDayJst(value) : new Date(value)
+}
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -118,7 +125,7 @@ export async function POST(
     where: { id },
     data: {
       planType,
-      planPaidUntil: planPaidUntil ? new Date(planPaidUntil) : null,
+      planPaidUntil: planPaidUntil ? toPaidUntilDate(planPaidUntil) : null,
       planActivatedAt: activatedAt,
       planPrepaidFull,
       planNotes,

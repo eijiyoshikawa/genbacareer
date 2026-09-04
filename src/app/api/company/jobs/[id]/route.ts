@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isPlanActive } from "@/lib/plans"
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -95,6 +96,35 @@ export async function PUT(
   }
 
   const { expectedUpdatedAt, ...data } = parsed.data
+
+  // 求人を active にする (新規公開 / 再公開) には企業承認済 + 掲載プラン有効が必要。
+  // 既に active な求人をそのまま編集する場合 (data.status 未指定) はここでは弾かない。
+  if (data.status === "active" && existing.status !== "active") {
+    const company = await prisma.company.findUnique({
+      where: { id: ctx.companyId },
+      select: { status: true, planType: true, planPaidUntil: true },
+    })
+    if (!company || company.status !== "approved") {
+      return Response.json(
+        { error: "登録は運営による承認待ちです。承認完了までしばらくお待ちください。" },
+        { status: 403 }
+      )
+    }
+    if (
+      !isPlanActive({
+        planType: company.planType,
+        planPaidUntil: company.planPaidUntil,
+      })
+    ) {
+      return Response.json(
+        {
+          error:
+            "掲載プランの有効期限が切れているため、求人を公開できません。プランをご確認ください。",
+        },
+        { status: 403 }
+      )
+    }
+  }
 
   // 楽観ロック: クライアントが取得した時点から変わっていなければ更新を許可
   if (expectedUpdatedAt) {

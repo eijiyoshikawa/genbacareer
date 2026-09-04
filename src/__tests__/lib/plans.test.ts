@@ -12,6 +12,7 @@ import {
   daysUntilPlanExpiry,
   isPlanExpiringSoon,
   canPostJob,
+  endOfDayJst,
 } from "@/lib/plans"
 
 describe("PLAN_TYPES / PLAN_LABELS", () => {
@@ -228,6 +229,35 @@ describe("canPostJob", () => {
         planType: "monthly_12",
         planPaidUntil: new Date("2026-05-01"),
         now,
+      }),
+    ).toBe(false)
+  })
+})
+
+describe("endOfDayJst", () => {
+  it("converts a date-only string to 23:59:59.999 JST (= 14:59:59.999 UTC)", () => {
+    const result = endOfDayJst("2026-09-30")
+    expect(result.toISOString()).toBe("2026-09-30T14:59:59.999Z")
+  })
+
+  it("keeps a plan active through the entire JST day it expires on", () => {
+    const paidUntil = endOfDayJst("2026-09-30")
+    // 23:00 JST on the expiry day itself must still be active.
+    const lateOnExpiryDay = new Date("2026-09-30T14:00:00Z")
+    expect(
+      isPlanActive({
+        planType: "monthly_12",
+        planPaidUntil: paidUntil,
+        now: lateOnExpiryDay,
+      }),
+    ).toBe(true)
+    // 00:01 JST the next day must be expired.
+    const nextDay = new Date("2026-09-30T15:01:00Z")
+    expect(
+      isPlanActive({
+        planType: "monthly_12",
+        planPaidUntil: paidUntil,
+        now: nextDay,
       }),
     ).toBe(false)
   })
