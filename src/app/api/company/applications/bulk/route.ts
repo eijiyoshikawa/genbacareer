@@ -3,15 +3,22 @@
  *
  * 自社 (companyId 一致) の応募者を一括でステータス変更する。
  * Body: { ids: string[], status: string }
- * 応答: { ok: true, updated: number }
+ * 応答: { ok: true, updated: number, skipped: number }
  *
  * セキュリティ: 自社が紐づく Application のみ更新対象。他社の ID が紛れても
- * updateMany の where: companyId フィルタで自動除外される。
+ * applyApplicationStatusTransition 内の companyId チェックで自動除外される。
+ *
+ * 単体更新 (PUT /api/company/applications/[id]) と同じ
+ * applyApplicationStatusTransition を1件ずつ呼び出す。以前は素の
+ * updateMany で status カラムだけを書き換えていたため、一括で「採用」に
+ * 変更しても遷移ルール検証・hiredAt 打刻・自動請求 (createHiringInvoice)・
+ * statusHistory 記録・求職者通知がすべて素通りしていた
+ * (=一括操作だけ請求が発生しない抜け道になっていた)。
  */
 
-import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
+import { applyApplicationStatusTransition } from "@/lib/application-status-transition"
 
 const ALLOWED_STATUSES = [
   "applied",
@@ -51,14 +58,23 @@ export async function POST(request: Request) {
     )
   }
   const { ids, status } = parsed.data
+  const userId = (session.user as { id?: string }).id ?? "unknown"
 
-  const result = await prisma.application.updateMany({
-    where: {
-      id: { in: ids },
+  let updated = 0
+  let skipped = 0
+  for (const applicationId of ids) {
+    const result = await applyApplicationStatusTransition({
+      applicationId,
       companyId,
-    },
-    data: { status },
-  })
+      userId,
+      newStatus: status,
+    })
+    if (result.ok) {
+      updated += 1
+    } else {
+      skipped += 1
+    }
+  }
 
-  return Response.json({ ok: true, updated: result.count })
+  return Response.json({ ok: true, updated, skipped })
 }

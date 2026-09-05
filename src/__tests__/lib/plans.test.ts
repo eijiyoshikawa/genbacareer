@@ -12,6 +12,7 @@ import {
   daysUntilPlanExpiry,
   isPlanExpiringSoon,
   canPostJob,
+  parsePlanPaidUntilInput,
 } from "@/lib/plans"
 
 describe("PLAN_TYPES / PLAN_LABELS", () => {
@@ -230,5 +231,30 @@ describe("canPostJob", () => {
         now,
       }),
     ).toBe(false)
+  })
+})
+
+describe("parsePlanPaidUntilInput", () => {
+  it("treats a date-only string as end-of-day JST, not UTC midnight", () => {
+    const parsed = parsePlanPaidUntilInput("2026-09-05")
+    // JST 23:59:59 on 2026-09-05 = UTC 14:59:59 on 2026-09-05.
+    expect(parsed.toISOString()).toBe("2026-09-05T14:59:59.000Z")
+
+    // A plan should still be considered active for the whole intended day
+    // in JST, not just until 09:00 JST (= UTC midnight) as a naive
+    // `new Date("2026-09-05")` parse would produce.
+    const justBeforeMidnightJst = new Date("2026-09-05T14:00:00.000Z") // 23:00 JST
+    expect(
+      isPlanActive({
+        planType: "monthly_12",
+        planPaidUntil: parsed,
+        now: justBeforeMidnightJst,
+      }),
+    ).toBe(true)
+  })
+
+  it("parses a full ISO datetime string as-is", () => {
+    const parsed = parsePlanPaidUntilInput("2026-09-05T03:00:00.000Z")
+    expect(parsed.toISOString()).toBe("2026-09-05T03:00:00.000Z")
   })
 })

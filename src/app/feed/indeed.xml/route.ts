@@ -55,12 +55,29 @@ function formatSalary(job: {
 }
 
 export async function GET() {
+  const now = new Date()
   const jobs = await prisma.job.findMany({
     where: {
       status: "active",
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
       // 説明文が空の求人は Indeed の品質要件を満たさないので除外
       NOT: { description: null },
+      // /jobs.xml (現行の Indeed 配信ルート) と同じ配信対象ルールに合わせる。
+      // このルートは docs/job-feeds.md には未掲載の旧ルートだが、Indeed 側の
+      // 登録が /jobs.xml へ切り替わっていない場合に備えて残置されているため、
+      // フィルタだけでも揃えておかないと campaign_free (¥0 枠) や HelloWork
+      // 取り込み求人 (Indeed とは別契約で既に配信済み) まで無料で二重配信して
+      // しまう。
+      source: "direct",
+      company: {
+        OR: [
+          { planType: "success_fee" },
+          {
+            planType: { in: ["monthly_12", "monthly_24", "sns_client"] },
+            planPaidUntil: { gt: now },
+          },
+        ],
+      },
     },
     select: {
       id: true,

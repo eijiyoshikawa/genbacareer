@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
+import { jsonLdString } from "@/lib/json-ld"
 import {
   CONSTRUCTION_CATEGORY_VALUES,
   isConstructionCategory,
@@ -152,7 +153,7 @@ export default async function PrefectureCategoryPage({ params }: Props) {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(breadcrumb) }}
       />
 
       <nav className="mb-4 text-sm text-gray-500">

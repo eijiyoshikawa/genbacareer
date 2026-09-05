@@ -138,6 +138,29 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // 2.5 重複スカウト防止 (アプリ層ガード)。
+  // 本来の一意性は DB 側の partial unique index
+  // (scout_messages_active_unique, prisma/migrations/manual/scout_messages.sql)
+  // で保証しているが、これは `prisma db push` では作成されない手動 SQL のため、
+  // 適用し忘れた環境 (新規環境 / db push のみ実行等) では DB 制約が無く
+  // P2002 が発生せず何度でも同じ求職者に送信できてしまう。アプリ層でも
+  // 同じ条件 (status が expired/declined 以外) を確認しておく。
+  const existingActiveScout = await prisma.scoutMessage.findFirst({
+    where: {
+      companyId: auth.companyId,
+      jobId,
+      userId,
+      status: { notIn: ["expired", "declined"] },
+    },
+    select: { id: true },
+  })
+  if (existingActiveScout) {
+    return NextResponse.json(
+      { error: "この求職者には既にアクティブなスカウトが送信済みです" },
+      { status: 409 },
+    )
+  }
+
   // 3. スカウト本体を作成
   const sentAt = new Date()
   const expiresAt = buildScoutExpiry(sentAt)

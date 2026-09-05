@@ -8,8 +8,11 @@
 
 import { prisma } from "@/lib/db"
 import Link from "next/link"
+import { headers } from "next/headers"
 import { ArrowLeft, X, MapPin, Money, Buildings } from "@phosphor-icons/react/dist/ssr"
 import { getCategoryLabel } from "@/lib/categories"
+import { auth } from "@/lib/auth"
+import { getGuestAccessibleJobIds, isCrawlerUserAgent } from "@/lib/guest-job-access"
 import type { Metadata } from "next"
 
 export const dynamic = "force-dynamic"
@@ -51,12 +54,24 @@ export default async function CompareJobsPage({ searchParams }: Props) {
     )
   }
 
-  const jobs = await prisma.job
+  let jobs = await prisma.job
     .findMany({
       where: { id: { in: ids } },
       include: { company: { select: { name: true, logoUrl: true } } },
     })
     .catch(() => [])
+
+  // /jobs/[id] と同じ未登録ゲスト向けゲート。無ければ ?ids= に任意の求人 ID を
+  // 並べるだけでゲスト上限 (GUEST_LIMIT) を回避して全求人の詳細を見られてしまう。
+  const session = await auth().catch(() => null)
+  if (!session?.user?.id) {
+    const hdrs = await headers()
+    if (!isCrawlerUserAgent(hdrs.get("user-agent"))) {
+      const allowedIds = new Set(await getGuestAccessibleJobIds())
+      jobs = jobs.filter((job) => allowedIds.has(job.id))
+    }
+  }
+
   // 入力 ids の並び順を維持
   const order = new Map(ids.map((id, i) => [id, i]))
   jobs.sort((a, b) => (order.get(a.id) ?? 999) - (order.get(b.id) ?? 999))

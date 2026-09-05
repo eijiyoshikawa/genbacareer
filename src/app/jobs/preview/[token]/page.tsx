@@ -34,6 +34,8 @@ export default async function JobPreviewPage({
     notFound()
   }
 
-  // 既存の求人詳細ページに転送（status を問わず描画される現行仕様を活用）
-  redirect(`/jobs/${job.id}?preview=1`)
+  // 既存の求人詳細ページに転送（status を問わず描画される現行仕様を活用）。
+  // トークン自体を引き継ぎ、[id]/page.tsx 側で Job.previewToken と再照合する
+  // ("?preview=1" のような固定値だけだと誰でも付与できてしまいゲストゲートを回避できる)。
+  redirect(`/jobs/${job.id}?previewToken=${encodeURIComponent(token)}`)
 }

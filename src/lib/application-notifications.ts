@@ -47,7 +47,9 @@ export async function sendApplicationStatusEmail(args: {
   if (!template) return
 
   const subject = template.subject(args.jobTitle)
-  const greeting = args.candidateName ? `${args.candidateName} 様` : "ご応募者様"
+  const greeting = args.candidateName
+    ? `${escapeHtml(args.candidateName)} 様`
+    : "ご応募者様"
 
   const noteBlock = args.note
     ? `<p style="margin:0 0 16px;padding:12px;background:#fff7ed;border-left:3px solid #f97316;color:#333;font-size:13px;">${escapeHtml(args.note)}</p>`

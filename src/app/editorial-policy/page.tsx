@@ -1,5 +1,6 @@
 import Link from "next/link"
 import type { Metadata } from "next"
+import { jsonLdString } from "@/lib/json-ld"
 import {
   CheckCircle,
   ShieldCheck,
@@ -26,7 +27,7 @@ export default function EditorialPolicyPage() {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(breadcrumb) }}
       />
 
       <header className="border-b bg-warm-50">

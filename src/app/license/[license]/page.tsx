@@ -4,6 +4,7 @@ import type { Metadata } from "next"
 import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
 import { Prisma } from "@prisma/client"
+import { jsonLdString } from "@/lib/json-ld"
 import {
   LICENSE_LPS,
   getLicenseLpBySlug,
@@ -14,6 +15,7 @@ import {
   generateCollectionPageSchema,
   generateItemListSchema,
 } from "@/lib/structured-data"
+import { GUEST_LIMIT } from "@/lib/guest-job-access"
 import { Certificate, BookOpen } from "@phosphor-icons/react/dist/ssr"
 
 // ビルド時の SSG prerender は走らせない (description / requirements の
@@ -70,7 +72,11 @@ export default async function LicenseLpPage({ params }: Props) {
         OR,
       },
       orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
-      take: 30,
+      // このページは DB 負荷対策で ISR (6h キャッシュ) 運用のため auth() は使えない
+      // (cookie 読み取りで強制的に force-dynamic 化され、他ページ修正時に解消した
+      // SSG タイムアウトが再発する)。ログイン有無で件数を変えられない代わりに、
+      // 他の一覧ページの未登録ゲスト上限 (GUEST_LIMIT) に統一する。
+      take: GUEST_LIMIT,
       select: {
         id: true,
         title: true,
@@ -114,15 +120,15 @@ export default async function LicenseLpPage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPage) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(collectionPage) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(itemList) }}
       />
 
       <header className="border-b bg-warm-50">

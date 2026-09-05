@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
 import { AUTHORS, getAuthorBySlug } from "@/lib/authors"
 import { CATEGORY_LABELS } from "@/lib/article-categories"
+import { jsonLdString } from "@/lib/json-ld"
 import {
   generatePersonSchema,
   generateBreadcrumbSchema,
@@ -104,16 +105,16 @@ export default async function AuthorPage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(personJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(breadcrumb) }}
       />
       {itemList && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdString(itemList) }}
         />
       )}
 

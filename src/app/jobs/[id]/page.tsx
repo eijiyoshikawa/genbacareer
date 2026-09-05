@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { headers } from "next/headers"
 import Link from "next/link"
 import { auth } from "@/lib/auth"
+import { jsonLdString } from "@/lib/json-ld"
 import {
   getGuestAccessibleJobIds,
   isCrawlerUserAgent,
@@ -86,7 +87,6 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   // Prisma に渡す前に弾いて 404 を返す。
   if (!isValidUuid(id)) notFound()
   const sp = (await searchParams) ?? {}
-  const isPreview = sp.preview === "1"
   // 閲覧記録はクライアント beacon (<JobViewBeacon />) 経由で行う。
   // SSR 中に DB 書き込みを行わないことで、TTFB と将来の ISR 化を可能にする。
 
@@ -142,6 +142,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       companyFeatures: true,
       businessContent: true,
       companyUrl: true,
+      previewToken: true,
       company: {
         select: {
           id: true,
@@ -170,6 +171,11 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   })
 
   if (!job) notFound()
+
+  // "?preview=1" のような固定フラグだけを見ると誰でも付与できてゲストゲートを
+  // 回避されてしまうため、実際に Job.previewToken と一致する場合のみプレビュー扱いにする。
+  const isPreview =
+    !!job.previewToken && sp.previewToken === job.previewToken
 
   // 未登録ゲストは「グローバル上位 15 件（recommended sort / フィルタ無し）」の詳細のみ閲覧可。
   // 検索エンジン等のクローラは Google for Jobs SEO 維持のため除外する。
@@ -343,11 +349,11 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       <JobViewBeacon jobId={job.id} enabled={!isPreview} />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(jsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(breadcrumb) }}
       />
       {/* VideoObject: 動画つき求人で「動画あり」リッチリザルトを狙う */}
       {job.videoUrls.length > 0 &&
@@ -356,7 +362,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
             key={videoUrl}
             type="application/ld+json"
             dangerouslySetInnerHTML={{
-              __html: JSON.stringify(
+              __html: jsonLdString(
                 generateVideoObjectSchema({
                   jobId: job.id,
                   jobTitle: job.title,

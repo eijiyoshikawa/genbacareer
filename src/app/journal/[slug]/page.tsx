@@ -11,6 +11,7 @@ import { trackEvent } from "@/lib/track"
 import { ShareButtons } from "@/components/journal/share-buttons"
 import { JobCard } from "@/components/jobs/job-card"
 import { CATEGORIES } from "@/lib/categories"
+import { jsonLdString } from "@/lib/json-ld"
 import {
   generateArticleSchema,
   generateBreadcrumbSchema,
@@ -216,11 +217,11 @@ export default async function ArticlePage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(articleJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(breadcrumbJsonLd) }}
       />
 
       {/* Breadcrumb */}

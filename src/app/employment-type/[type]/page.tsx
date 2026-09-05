@@ -3,6 +3,7 @@ import Link from "next/link"
 import type { Metadata } from "next"
 import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
+import { jsonLdString } from "@/lib/json-ld"
 import {
   EMPLOYMENT_LPS,
   getEmploymentLpBySlug,
@@ -117,15 +118,15 @@ export default async function EmploymentTypeLpPage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPage) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(collectionPage) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(itemList) }}
       />
 
       <header className="border-b bg-warm-50">

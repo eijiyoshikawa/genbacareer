@@ -36,6 +36,20 @@ export const PLAN_SHORT_LABELS: Record<PlanType, string> = {
 }
 
 /** 入力文字列が PlanType として有効かを判定 */
+/**
+ * admin 画面から送られる planPaidUntil 入力 (date-only "YYYY-MM-DD" または
+ * ISO datetime 文字列) を Date に変換する。
+ *
+ * date-only 文字列は `new Date("YYYY-MM-DD")` だと UTC 00:00 (= JST 09:00) と
+ * 解釈され、管理者が意図した「その日の終わりまで有効」より最大 15 時間早く
+ * isPlanActive() が false を返してしまう。そのため date-only の場合は
+ * JST 23:59:59 (UTC 表記では前日 14:59:59) として扱う。
+ */
+export function parsePlanPaidUntilInput(input: string): Date {
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(input)
+  return dateOnly ? new Date(`${input}T23:59:59+09:00`) : new Date(input)
+}
+
 export function isPlanType(s: string): s is PlanType {
   return (PLAN_TYPES as readonly string[]).includes(s)
 }

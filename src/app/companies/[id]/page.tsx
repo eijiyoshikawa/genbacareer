@@ -13,6 +13,7 @@ import { CompanyBlockButton } from "@/components/companies/block-button"
 import { CompanyReviewForm } from "@/components/companies/review-form"
 import { isValidUuid } from "@/lib/uuid"
 import { trackEvent } from "@/lib/track"
+import { jsonLdString } from "@/lib/json-ld"
 import {
   MapPin,
   Buildings,
@@ -284,11 +285,11 @@ export default async function CompanyDetailPage({ params }: Props) {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(orgSchema) }}
       />
 
       <nav className="mb-4 text-sm text-gray-500">
