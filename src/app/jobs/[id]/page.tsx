@@ -1,3 +1,4 @@
+import { cache } from "react"
 import { prisma } from "@/lib/db"
 import { notFound, redirect, permanentRedirect } from "next/navigation"
 import { headers } from "next/headers"
@@ -54,61 +55,12 @@ type Props = {
   searchParams?: Promise<Record<string, string | undefined>>
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params
-  if (!isValidUuid(id)) return { title: "求人が見つかりません" }
-  const job = await prisma.job.findUnique({
-    where: { id },
-    select: {
-      title: true,
-      prefecture: true,
-      category: true,
-      status: true,
-      dedupedTo: true,
-    },
-  })
-  if (!job) return { title: "求人が見つかりません" }
-
-  // 重複求人: canonical を正規ページに向ける（ページ本体で 301 リダイレクトもする）
-  if (job.dedupedTo) {
-    return {
-      title: job.title,
-      alternates: { canonical: `/jobs/${job.dedupedTo}` },
-      robots: { index: false, follow: true },
-    }
-  }
-
-  // 終了求人: インデックス対象から外す（既存ブックマーク用に表示はする）
-  if (job.status === "closed") {
-    return {
-      title: `${job.title}（募集終了）`,
-      description: `${job.prefecture}の${job.title}の求人は現在募集を終了しています。`,
-      alternates: { canonical: `/jobs/${id}` },
-      robots: { index: false, follow: true },
-    }
-  }
-
-  return {
-    title: job.title,
-    description: `${job.prefecture}の${job.title}の求人詳細。ゲンバキャリアで建設業界の最新求人をチェック。`,
-    alternates: { canonical: `/jobs/${id}` },
-  }
-}
-
-export default async function JobDetailPage({ params, searchParams }: Props) {
-  const { id } = await params
-  // 不正な UUID（メールアドレス等を ID 部分に放り込んだスクレイパー対策）。
-  // Prisma に渡す前に弾いて 404 を返す。
-  if (!isValidUuid(id)) notFound()
-  const sp = (await searchParams) ?? {}
-  const isPreview = sp.preview === "1"
-  // 閲覧記録はクライアント beacon (<JobViewBeacon />) 経由で行う。
-  // SSR 中に DB 書き込みを行わないことで、TTFB と将来の ISR 化を可能にする。
-
-  // 詳細ページで実際に使うカラムだけを select する。
-  // rawData (Hellowork 由来の Json 丸ごと格納) や dedupeKey 等は不要なので含めない。
-  // viewCount は別途 increment で update するだけなので select 不要。
-  const job = await prisma.job.findUnique({
+// generateMetadata と Page 本体は別々に呼ばれるが、同一リクエスト内では
+// React cache() で同じ Promise を再利用させ、DB 往復を 1 回に減らす
+// (2 クエリのままだと Supabase pgbouncer の接続プールを不要に圧迫し、
+//  P2024 接続プールタイムアウトの主因になっていた)。
+const getJobDetail = cache((id: string) =>
+  prisma.job.findUnique({
     where: { id },
     select: {
       id: true,
@@ -187,6 +139,52 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       },
     },
   })
+)
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params
+  if (!isValidUuid(id)) return { title: "求人が見つかりません" }
+  const job = await getJobDetail(id)
+  if (!job) return { title: "求人が見つかりません" }
+
+  // 重複求人: canonical を正規ページに向ける（ページ本体で 301 リダイレクトもする）
+  if (job.dedupedTo) {
+    return {
+      title: job.title,
+      alternates: { canonical: `/jobs/${job.dedupedTo}` },
+      robots: { index: false, follow: true },
+    }
+  }
+
+  // 終了求人: インデックス対象から外す（既存ブックマーク用に表示はする）
+  if (job.status === "closed") {
+    return {
+      title: `${job.title}（募集終了）`,
+      description: `${job.prefecture}の${job.title}の求人は現在募集を終了しています。`,
+      alternates: { canonical: `/jobs/${id}` },
+      robots: { index: false, follow: true },
+    }
+  }
+
+  return {
+    title: job.title,
+    description: `${job.prefecture}の${job.title}の求人詳細。ゲンバキャリアで建設業界の最新求人をチェック。`,
+    alternates: { canonical: `/jobs/${id}` },
+  }
+}
+
+export default async function JobDetailPage({ params, searchParams }: Props) {
+  const { id } = await params
+  // 不正な UUID（メールアドレス等を ID 部分に放り込んだスクレイパー対策）。
+  // Prisma に渡す前に弾いて 404 を返す。
+  if (!isValidUuid(id)) notFound()
+  const sp = (await searchParams) ?? {}
+  const isPreview = sp.preview === "1"
+  // 閲覧記録はクライアント beacon (<JobViewBeacon />) 経由で行う。
+  // SSR 中に DB 書き込みを行わないことで、TTFB と将来の ISR 化を可能にする。
+
+  // generateMetadata と同じ cache() 済みフェッチを再利用（DB 往復を 1 回に統一）。
+  const job = await getJobDetail(id)
 
   if (!job) notFound()
 
