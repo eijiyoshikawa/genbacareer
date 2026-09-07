@@ -35,6 +35,22 @@ export function buildScoutExpiry(sentAt: Date): Date {
 }
 
 /**
+ * スカウトが期限切れかどうかをリアルタイムに判定する。
+ *
+ * status の "expired" への反映は日次 cron (expire-scouts) 任せのため、
+ * expiresAt を過ぎてから cron が走るまで（最大 24h 弱）は status が
+ * sent/read のまま残る。cron を待たず expiresAt を直接見て判定することで、
+ * その間も期限切れとして正しく扱えるようにする。
+ */
+export function isScoutExpired(scout: {
+  status: string
+  expiresAt: Date
+}): boolean {
+  if (scout.status === "expired" || scout.status === "declined") return false
+  return scout.expiresAt.getTime() <= Date.now()
+}
+
+/**
  * スカウト送信可否の判定。
  * - 求人が active であること
  * - 求職者が searching または employed_open であること (hired は除く)

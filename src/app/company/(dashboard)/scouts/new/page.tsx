@@ -80,6 +80,8 @@ export default async function ScoutNewPage({ searchParams }: Props) {
         userId,
         companyId,
         status: { in: ["sent", "read"] },
+        // expiresAt 経過済みなら cron 未反映でも「アクティブ」扱いしない
+        expiresAt: { gt: new Date() },
       },
       select: { id: true, sentAt: true },
     }),

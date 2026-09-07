@@ -12,6 +12,7 @@ import Link from "next/link"
 import { ArrowLeft, Building2, MapPin, Briefcase, Clock } from "lucide-react"
 import type { Metadata } from "next"
 import { DeclineScoutButton } from "./decline-button"
+import { isScoutExpired } from "@/lib/scouts"
 
 export const dynamic = "force-dynamic"
 
@@ -63,8 +64,17 @@ export default async function ScoutDetailPage({ params }: Props) {
 
   if (!scout || scout.userId !== userId) notFound()
 
-  // 未読 → 既読を自動更新 (期限切れ / 辞退済みは変更しない)
-  if (scout.status === "sent") {
+  // expiresAt を過ぎているのに cron (日次) 未反映なら、ここで確定させる。
+  // cron 任せだと最大 24h 弱 status が sent/read のまま残り、期限切れ後も
+  // 応募 / 辞退操作ができてしまうため。
+  if (isScoutExpired(scout)) {
+    await prisma.scoutMessage.update({
+      where: { id: scout.id },
+      data: { status: "expired" },
+    })
+    scout.status = "expired"
+  } else if (scout.status === "sent") {
+    // 未読 → 既読を自動更新 (期限切れ / 辞退済みは変更しない)
     await prisma.scoutMessage.update({
       where: { id: scout.id },
       data: { status: "read", readAt: new Date() },

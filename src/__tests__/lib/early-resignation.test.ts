@@ -65,6 +65,34 @@ describe("calculateMonthsAfterHire", () => {
     const day91 = new Date("2026-04-02T00:00:00Z")
     expect(calculateMonthsAfterHire(hire, day91)).toBe(4)
   })
+
+  // 31 日ある月をまたぐ「暦月 1 ヶ月ぴったり」のケース。
+  // 固定 30 日換算だと 31 日 = ceil(31/30) = 2 ヶ月と誤判定してしまうバグがあった。
+  it("returns 1 for exactly 1 calendar month spanning a 31-day month (Jan)", () => {
+    const hire = new Date("2026-01-01T00:00:00Z")
+    const oneCalendarMonthLater = new Date("2026-02-01T00:00:00Z") // 31 日後
+    expect(calculateMonthsAfterHire(hire, oneCalendarMonthLater)).toBe(1)
+  })
+
+  it("returns 2 for exactly 2 calendar months spanning Aug+Sep (61 days)", () => {
+    const hire = new Date("2026-08-01T00:00:00Z")
+    const twoCalendarMonthsLater = new Date("2026-10-01T00:00:00Z") // 61 日後
+    expect(calculateMonthsAfterHire(hire, twoCalendarMonthsLater)).toBe(2)
+  })
+
+  it("returns 3 (not 4) for exactly 3 calendar months spanning Jun/Jul/Aug (92 days)", () => {
+    const hire = new Date("2026-06-01T00:00:00Z")
+    const threeCalendarMonthsLater = new Date("2026-09-01T00:00:00Z") // 92 日後
+    expect(calculateMonthsAfterHire(hire, threeCalendarMonthsLater)).toBe(3)
+  })
+
+  it("clamps month-end hire dates (Jan 31 + 1 month = Feb 28 in a non-leap year)", () => {
+    const hire = new Date("2026-01-31T00:00:00Z")
+    const feb28 = new Date("2026-02-28T00:00:00Z")
+    const mar01 = new Date("2026-03-01T00:00:00Z")
+    expect(calculateMonthsAfterHire(hire, feb28)).toBe(1)
+    expect(calculateMonthsAfterHire(hire, mar01)).toBe(2)
+  })
 })
 
 describe("refundRateForMonths", () => {

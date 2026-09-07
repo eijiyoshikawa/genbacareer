@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db"
+import { auth } from "@/lib/auth"
+import { getGuestAccessibleJobIds, isCrawlerUserAgent } from "@/lib/guest-job-access"
 import {
   checkRateLimit,
   getClientIp,
@@ -19,6 +21,20 @@ export async function GET(
   if (!rl.allowed) return rateLimitResponse(rl)
 
   const { id } = await params
+
+  // 未登録ゲストは /jobs/[id] ページと同じ「グローバル上位 GUEST_LIMIT 件」のみ閲覧可。
+  // ここでガードしないと /jobs/[id] の遷移ゲートを経由せず直接 API を叩いて
+  // 全求人の詳細を取得できてしまう。
+  const session = await auth().catch(() => null)
+  if (!session?.user?.id) {
+    const ua = request.headers.get("user-agent")
+    if (!isCrawlerUserAgent(ua)) {
+      const allowedIds = await getGuestAccessibleJobIds()
+      if (!allowedIds.includes(id)) {
+        return Response.json({ error: "ログインが必要です" }, { status: 401 })
+      }
+    }
+  }
 
   const job = await prisma.job.findUnique({
     where: { id },

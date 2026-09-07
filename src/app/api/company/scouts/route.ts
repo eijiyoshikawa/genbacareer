@@ -139,6 +139,20 @@ export async function POST(request: NextRequest) {
   }
 
   // 3. スカウト本体を作成
+  // expiresAt を過ぎているのに日次 cron (expire-scouts) 未反映の旧レコードが
+  // 残っていると、partial unique index (status NOT IN expired/declined) に
+  // 阻まれて再送が不可能になってしまう。作成前にここで確定させておく。
+  await prisma.scoutMessage.updateMany({
+    where: {
+      companyId: auth.companyId,
+      jobId,
+      userId,
+      status: { in: ["sent", "read"] },
+      expiresAt: { lte: new Date() },
+    },
+    data: { status: "expired" },
+  })
+
   const sentAt = new Date()
   const expiresAt = buildScoutExpiry(sentAt)
   const subject = buildScoutSubject(job.company?.name ?? "企業")

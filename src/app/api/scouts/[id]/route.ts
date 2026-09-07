@@ -16,6 +16,7 @@ import type { NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isScoutExpired } from "@/lib/scouts"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -65,6 +66,16 @@ export async function GET(
     return NextResponse.json({ error: "スカウトが見つかりません" }, { status: 404 })
   }
 
+  // expiresAt を過ぎているのに cron 未反映なら、ここで正として扱う
+  // (DB 上の status もついでに expired へ確定させる)
+  if (isScoutExpired(scout)) {
+    await prisma.scoutMessage.update({
+      where: { id: scout.id },
+      data: { status: "expired" },
+    })
+    return NextResponse.json({ scout: { ...scout, status: "expired" } })
+  }
+
   // 未読 → 既読 (期限切れ / 辞退済みは status 変更しない)
   if (scout.status === "sent") {
     await prisma.scoutMessage.update({
@@ -109,14 +120,20 @@ export async function PATCH(
 
   const scout = await prisma.scoutMessage.findUnique({
     where: { id },
-    select: { id: true, userId: true, status: true },
+    select: { id: true, userId: true, status: true, expiresAt: true },
   })
 
   if (!scout || scout.userId !== me.userId) {
     return NextResponse.json({ error: "スカウトが見つかりません" }, { status: 404 })
   }
 
-  if (scout.status === "expired" || scout.status === "declined") {
+  if (scout.status === "expired" || scout.status === "declined" || isScoutExpired(scout)) {
+    if (isScoutExpired(scout)) {
+      await prisma.scoutMessage.update({
+        where: { id: scout.id },
+        data: { status: "expired" },
+      })
+    }
     return NextResponse.json(
       { error: "このスカウトは既に終了しています" },
       { status: 409 },
