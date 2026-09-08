@@ -62,10 +62,11 @@ export function HomeSidebar({
             </Link>
           </div>
           <ul className="space-y-2">
-            {featuredJobs.slice(0, 7).map((j) => {
+            {featuredJobs.slice(0, 7).map((j, idx) => {
               const thumb = j.imageUrls?.[0] ?? pickDefaultJobImage(j.id)
               return (
-                <li key={j.id}>
+                // スマホ(メイン下に積まれる表示)は3件まで。lg以上のサイドバーでは7件
+                <li key={j.id} className={idx >= 3 ? "hidden lg:block" : undefined}>
                   <Link
                     href={`/jobs/${j.id}`}
                     className="press card-flat block overflow-hidden"
@@ -115,6 +116,13 @@ export function HomeSidebar({
               )
             })}
           </ul>
+          {/* スマホは3件までに絞るため「もっと見る」導線を出す（lgのサイドバーでは非表示） */}
+          <Link
+            href="/jobs"
+            className="press mt-3 flex w-full items-center justify-center gap-1 border border-primary-300 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 hover:bg-primary-100 lg:hidden"
+          >
+            もっと見る →
+          </Link>
         </section>
       )}
 
