@@ -48,6 +48,11 @@ export interface RateLimitResult {
  */
 export function checkRateLimit(opts: RateLimitOptions): RateLimitResult {
   const now = Date.now()
+
+  // 呼び出しのたびに全件走査すると重いので、確率的に間引いて掃除する。
+  // 長期間 warm なインスタンスでも buckets が際限なく増え続けないようにするため。
+  if (Math.random() < 0.001) pruneExpiredBuckets()
+
   const existing = buckets.get(opts.key)
 
   if (!existing || existing.resetAt <= now) {

@@ -9,6 +9,7 @@
 
 import { useRef, useState } from "react"
 import { Gift, Loader2 } from "lucide-react"
+import { HIRING_BONUS_AMOUNT } from "@/lib/hiring-bonus"
 
 interface Props {
   applicationId: string
@@ -131,7 +132,9 @@ export function HiringBonusRequestButton({
           ) : (
             <>
               <div className="bg-rose-50 p-3 text-sm text-rose-700">
-                <p className="font-bold">お祝い金 ¥30,000</p>
+                <p className="font-bold">
+                  お祝い金 ¥{HIRING_BONUS_AMOUNT.toLocaleString()}
+                </p>
                 <p className="text-xs mt-1">
                   採用決定 (status=hired) された応募 1 件につき 1 回申請可能です。
                   運営の確認 (実際に入社済みかなど) を経て支払われます。

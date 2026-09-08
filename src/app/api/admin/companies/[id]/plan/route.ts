@@ -20,6 +20,7 @@ import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { PLAN_TYPES, planTier } from "@/lib/plans"
+import { parseExpiryDateInput } from "@/lib/date-range"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -118,7 +119,7 @@ export async function POST(
     where: { id },
     data: {
       planType,
-      planPaidUntil: planPaidUntil ? new Date(planPaidUntil) : null,
+      planPaidUntil: planPaidUntil ? parseExpiryDateInput(planPaidUntil) : null,
       planActivatedAt: activatedAt,
       planPrepaidFull,
       planNotes,

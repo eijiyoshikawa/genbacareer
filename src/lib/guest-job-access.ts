@@ -52,3 +52,18 @@ export async function getGuestAccessibleJobIds(): Promise<string[]> {
   })
   return rows.map((r) => r.id)
 }
+
+/**
+ * 未登録ゲストが指定 job の詳細を閲覧できるかを判定する。
+ * ログイン済みユーザーは呼び出し側で別途判定すること（ここでは判定しない）。
+ * /jobs/[id] 以外のエントリポイント（API・印刷ページ・応募ページ等）でも
+ * 同一のゲート条件を再利用するための共通ヘルパー。
+ */
+export async function isJobGuestAccessible(
+  jobId: string,
+  userAgent: string | null | undefined
+): Promise<boolean> {
+  if (isCrawlerUserAgent(userAgent)) return true
+  const allowedIds = await getGuestAccessibleJobIds()
+  return allowedIds.includes(jobId)
+}

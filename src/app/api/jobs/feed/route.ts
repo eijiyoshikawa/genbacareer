@@ -11,6 +11,11 @@
 import { type NextRequest } from "next/server"
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
+import {
+  checkRateLimit,
+  getClientIp,
+  rateLimitResponse,
+} from "@/lib/rate-limit"
 
 const PAGE_SIZE = 10
 
@@ -23,6 +28,14 @@ export async function GET(request: NextRequest) {
       { status: 401 },
     )
   }
+
+  // 他の /api/jobs* 系エンドポイントと同様、無限スクロール連打対策で rate-limit する。
+  const rl = checkRateLimit({
+    key: `jobs-feed:${session.user.id}:${getClientIp(request)}`,
+    limit: 90,
+    windowMs: 60 * 1000,
+  })
+  if (!rl.allowed) return rateLimitResponse(rl)
 
   const { searchParams } = request.nextUrl
   const cursor = searchParams.get("cursor")

@@ -9,14 +9,13 @@
  *   PageSpeed や初回訪問のユーザーが必ずホット lambda の応答を受けられるようにする。
  */
 
+import { isCronAuthorized, cronUnauthorizedResponse } from "@/lib/cron-auth"
+
 const TARGETS = ["/", "/jobs", "/journal"] as const
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
+  if (!isCronAuthorized(request)) {
+    return cronUnauthorizedResponse()
   }
 
   // NEXT_PUBLIC_BASE_URL は canonical 用に apex (genbacareer.jp) を指している
