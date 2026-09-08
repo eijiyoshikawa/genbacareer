@@ -286,6 +286,44 @@ function truncate<T extends string | null | undefined>(
  */
 export const BLOCKED_OCCUPATION_PATTERN = new RegExp(
   [
+    // 保険・金融・不動産の営業職（説明文に「建設業のお客様向け」等があると
+    // キーワード判定をすり抜けるため、職種名レベルで遮断する）
+    "保険営業",
+    "生命保険",
+    "損害保険",
+    "生保レディ",
+    "生保営業",
+    "損保営業",
+    "保険外交",
+    "保険募集",
+    "保険代理",
+    "保険アドバイザ",
+    "共済.{0,6}(営業|推進|普及)",
+    "ライフプランナ",
+    "ファイナンシャルプランナ",
+    "証券営業",
+    "銀行員",
+    "信用金庫",
+    "ローン営業",
+    "クレジットカード",
+    "不動産営業",
+    "不動産売買",
+    "不動産仲介",
+    "賃貸仲介",
+    "投資用マンション",
+    // 非建設の運送業（建設資材・重機系ドライバーは inferCategory 側の
+    // 文脈判定で対象内として残る）
+    "引越",
+    "引っ越し",
+    "宅配便",
+    "チャーター便",
+    "フードデリバリ",
+    "バイク便",
+    "新聞配達",
+    "郵便配達",
+    "陸送",
+    "カーキャリア",
+    "霊柩",
     // 自動車整備・自動車板金（建築板金は対象内のため「板金」単独は入れない。
     // タイトルが「板金工」だけの曖昧ケースは inferCategory 側で本文から判別）
     "自動車板金",
@@ -456,11 +494,30 @@ function normalizeWidth(s: string): string {
   )
 }
 
+/**
+ * ハローワークが求人に付与する職業分類名 (occupationCategoryName / sngbrui_n) による
+ * 非建設職種の遮断。タイトル・説明文のキーワードと違い、HW 側が「この求人の職種」
+ * として分類した属性なので、説明文に建設ワードが含まれていても誤って通過しない。
+ * ※「運転」系分類はダンプ・重機回送等の建設ドライバーを含むためここでは遮断せず、
+ *   inferCategory 内の建設文脈判定に委ねる。
+ */
+export const BLOCKED_CLASSIFICATION_PATTERN =
+  /保険|金融|証券|銀行|飲食|調理|接客|給仕|介護|福祉|看護|医療|薬剤|歯科|保育|教育|教員|美容|理容|警備|清掃|理美容/
+
 export function inferCategory(
   title: string,
-  description: string | null | undefined
+  description: string | null | undefined,
+  occupationCategoryName?: string | null
 ): CategoryValue | null {
   const titleLower = normalizeWidth(title).toLowerCase()
+
+  // HW の職業分類名で非建設職種を先に遮断（説明文キーワードより信頼できる属性）
+  if (
+    occupationCategoryName &&
+    BLOCKED_CLASSIFICATION_PATTERN.test(occupationCategoryName)
+  ) {
+    return null
+  }
 
   // 非対象職種を先に除外（タイトルで判定）
   if (BLOCKED_OCCUPATION_PATTERN.test(titleLower)) return null
@@ -474,6 +531,25 @@ export function inferCategory(
     const automotive = /自動車|車両|車体|カー|バンパー|ディーラー|車検|鈑金|純正部品|事故車/.test(text)
     const architectural = /建築板金|屋根|外壁|雨樋|雨とい|ダクト|折板|瓦棒|葺き/.test(text)
     if (automotive && !architectural) return null
+  }
+
+  // 営業職: タイトルが営業で、タイトル自体に建設系ワードが無いものは対象外。
+  // （保険・人材・広告営業などは説明文に「建設業界のお客様」等が入りがちで、
+  //   本文キーワード判定だと誤って通過するため、タイトルで判定する）
+  if (/営業/.test(titleLower)) {
+    const constructionSales =
+      /建設|建築|土木|工事|住宅|リフォーム|外壁|屋根|重機|建機|資材/.test(titleLower)
+    if (!constructionSales) return null
+  }
+
+  // ドライバー・運転手: 一般貨物（食品・雑貨・宅配等）は対象外。
+  // 建設車両・建設現場の文脈がある場合のみ「ドライバー・重機」として取り込む。
+  if (/ドライバー|運転手|トラック/.test(titleLower)) {
+    const constructionDriver =
+      /重機|建設機械|建機|クレーン|ダンプ|ショベル|ユンボ|ミキサー|生コン|ユニック|回送|セルフローダ|土砂|砕石|残土|アスファルト|高所作業車|杭|建設|建築|土木|現場|資材|鉄骨|足場|型枠|解体|産廃|工事/.test(
+        text
+      )
+    return constructionDriver ? "driver" : null
   }
 
   const patterns: Array<{ category: CategoryValue; pattern: RegExp }> = [
@@ -493,7 +569,7 @@ export function inferCategory(
       // 「オペレーター」単独は電話/PC/製造オペレーター等に誤マッチするため除外し、
       // 建設機械（重機/建設機械/クレーン/ダンプ/建機/ショベル/ユンボ）に限定する。
       category: "driver",
-      pattern: /ドライバー|運転手|重機|建設機械|建機|クレーン|ダンプ|ショベル|ユンボ/,
+      pattern: /重機|建設機械|建機|クレーン|ダンプ|ショベル|ユンボ|ミキサー車|生コン|ユニック|セルフローダ|高所作業車/,
     },
     {
       category: "management",
@@ -576,7 +652,11 @@ export async function importHelloworkJobs(
   for (const job of jobs) {
     try {
       // 建設業 9 カテゴリのいずれにも該当しないジョブは取り込まない
-      const category = inferCategory(job.title, job.description)
+      const category = inferCategory(
+        job.title,
+        job.description,
+        job.occupationCategoryName
+      )
       if (category === null) {
         skipped++
         continue

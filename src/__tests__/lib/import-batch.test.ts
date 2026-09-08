@@ -337,5 +337,42 @@ describe("inferCategory", () => {
         inferCategory("板金工（ダクト製作）", "空調ダクトの製作・取付")
       ).toBe("electrical")
     })
+
+    it("excludes insurance/finance sales even when description mentions construction", () => {
+      // タイトルで遮断
+      expect(inferCategory("保険営業（法人担当）", "建設業のお客様への保険提案")).toBe(null)
+      expect(inferCategory("生命保険ライフパートナー", "建築会社を担当", null)).toBe(null)
+      expect(inferCategory("損害保険の募集人", "工事保険の案内", null)).toBe(null)
+      expect(inferCategory("不動産営業", "新築住宅の販売", null)).toBe(null)
+      // HWの職業分類名で遮断（タイトルが曖昧でも通さない）
+      expect(
+        inferCategory("総合職（未経験歓迎）", "建設業界向けの提案営業です", "保険営業の職業")
+      ).toBe(null)
+      expect(
+        inferCategory("スタッフ募集", "現場での介助をお任せ", "介護サービスの職業")
+      ).toBe(null)
+    })
+
+    it("blocks generic sales titles without construction words in the title", () => {
+      expect(inferCategory("法人営業", "建設資材メーカーへのルート営業")).toBe(null)
+      expect(inferCategory("人材コーディネーター兼営業", "建設現場への人材提案")).toBe(null)
+      // タイトルに建設系ワードがある営業は対象のまま
+      expect(inferCategory("リフォーム営業", "内装リフォームの提案")).toBe("interior")
+      expect(inferCategory("住宅営業", "注文住宅（建築請負）の営業")).toBe("construction")
+    })
+
+    it("excludes general freight drivers but keeps construction drivers", () => {
+      // 一般貨物（建設文脈なし）は除外
+      expect(inferCategory("4tトラックドライバー", "食品を店舗へ配送します")).toBe(null)
+      expect(inferCategory("大型トラック運転手（長距離）", "雑貨の幹線輸送")).toBe(null)
+      // 建設車両・建設文脈があれば対象
+      expect(inferCategory("ダンプ運転手", null)).toBe("driver")
+      expect(inferCategory("トラックドライバー", "建設資材を現場へ配送")).toBe("driver")
+      expect(inferCategory("ミキサー車運転手", "生コンの運搬")).toBe("driver")
+      expect(inferCategory("重機回送ドライバー", "建機の回送業務")).toBe("driver")
+      // タイトルブロック（明確な非建設運送）
+      expect(inferCategory("引越スタッフ・ドライバー", "建物内での搬入あり")).toBe(null)
+      expect(inferCategory("郵便配達員", null)).toBe(null)
+    })
   })
 })
