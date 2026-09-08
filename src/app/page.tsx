@@ -745,7 +745,8 @@ export default async function HomePage() {
                 <Link
                   key={job.id}
                   href={`/jobs/${job.id}`}
-                  className="press group relative accent-l card p-4 pl-5"
+                  // スマホ(1カラム)は上位4位まで表示。sm以上は従来どおり6件
+                  className={`press group relative accent-l card p-4 pl-5 ${i >= 4 ? "hidden sm:block" : ""}`}
                 >
                   <span className="absolute top-2 right-2 inline-flex h-6 w-6 items-center justify-center bg-primary-600 text-xs font-extrabold text-white">
                     {i + 1}
@@ -869,11 +870,12 @@ export default async function HomePage() {
             </Link>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {interviewArticles.map((a) => (
+            {interviewArticles.map((a, idx) => (
               <Link
                 key={a.slug}
                 href={`/journal/${a.slug}`}
-                className="press card group block overflow-hidden"
+                // スマホ(2カラム)は4件=2行まで表示。sm以上は従来どおり全件
+                className={`press card group overflow-hidden ${idx >= 4 ? "hidden sm:block" : "block"}`}
               >
                 <div className="relative aspect-[4/3] w-full overflow-hidden bg-gray-100">
                   {a.imageUrl ? (
