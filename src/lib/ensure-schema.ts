@@ -4,6 +4,37 @@ import { prisma } from "./db"
 // 起動時に冪等な ALTER TABLE / CREATE INDEX を発行する。
 // 通常運用では `prisma db push` 後すべて適用済みなので、
 // IF NOT EXISTS によりほぼ no-op で完了する。
+// セキュリティ上必須の自己修復 DDL。ENSURE_SCHEMA=false (TTFB最適化で
+// スキーマ修復を止める運用) でも、これだけは必ず実行される。
+// 背景: ENSURE_SCHEMA=false のままだと RLS 有効化が一度も走らず、
+// Supabase Security Advisor の CRITICAL (rls_disabled_in_public) が
+// 放置され続けた実績があるため、環境変数に依存させない。
+const SECURITY_STATEMENTS: ReadonlyArray<string> = [
+ // public スキーマの RLS 未設定テーブルに RLS を有効化（ポリシーは作らない
+ // = PostgREST の anon/authenticated から全行アクセス不可、Prisma(所有者接続)は無影響）。
+ // 未設定のテーブルだけを対象にするため、全て設定済みなら完全な no-op。
+ `DO $$
+  DECLARE r RECORD;
+  BEGIN
+    FOR r IN
+      SELECT c.relname FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT c.relrowsecurity
+    LOOP
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', r.relname);
+    END LOOP;
+  END $$`,
+ // マテリアライズドビューは RLS 不可のため anon/authenticated の SELECT を剥奪
+ `DO $$
+  DECLARE r RECORD;
+  BEGIN
+    FOR r IN SELECT matviewname FROM pg_matviews WHERE schemaname = 'public'
+    LOOP
+      EXECUTE format('REVOKE ALL ON public.%I FROM anon, authenticated', r.matviewname);
+    END LOOP;
+  END $$`,
+]
+
 const STATEMENTS: ReadonlyArray<string> = [
  // User 求職ステータス (2.6): searching / employed_open / hired
  `ALTER TABLE "users"
@@ -237,30 +268,6 @@ const STATEMENTS: ReadonlyArray<string> = [
     ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS "terms_accepted_at" TIMESTAMPTZ`,
  `CREATE INDEX IF NOT EXISTS "idx_users_status" ON "users" ("status")`,
- // Supabase Security Advisor 対応 (rls_disabled_in_public):
- // public スキーマの RLS 未設定テーブルに RLS を有効化する（ポリシーは作らない
- // = PostgREST の anon/authenticated から全行アクセス不可、Prisma(所有者接続)は無影響）。
- // 未設定のテーブルだけを対象にするため、全て設定済みなら完全な no-op。
- `DO $$
-  DECLARE r RECORD;
-  BEGIN
-    FOR r IN
-      SELECT c.relname FROM pg_class c
-      JOIN pg_namespace n ON n.oid = c.relnamespace
-      WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT c.relrowsecurity
-    LOOP
-      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', r.relname);
-    END LOOP;
-  END $$`,
- // マテリアライズドビューは RLS 不可のため anon/authenticated の SELECT を剥奪
- `DO $$
-  DECLARE r RECORD;
-  BEGIN
-    FOR r IN SELECT matviewname FROM pg_matviews WHERE schemaname = 'public'
-    LOOP
-      EXECUTE format('REVOKE ALL ON public.%I FROM anon, authenticated', r.matviewname);
-    END LOOP;
-  END $$`,
  // 成果報酬レンジ変更 (2026-07: 年収35%制へ移行。旧 498k〜2M → 100k〜5M)。
  // 旧レンジの制約が残っていれば新レンジで貼り替える（冪等）。
  `DO $$
@@ -603,6 +610,7 @@ const STATEMENTS: ReadonlyArray<string> = [
 ]
 
 let inflight: Promise<boolean> | null = null
+let securityInflight: Promise<boolean> | null = null
 
 // 一度だけ実行され、結果を Promise でキャッシュ。成功/失敗いずれも以後 await が即解決する。
 // 戻り値: 全 ALTER が成功したかどうか（失敗時は防御クエリへフォールバック判断に使う）。
@@ -622,26 +630,38 @@ export function ensureSchema(): Promise<boolean> {
  if (process.env.NEXT_PHASE === "phase-production-build") {
    return Promise.resolve(true)
  }
- // 本番安定後は env で完全スキップ可能 (TTFB 改善)
+ // 本番安定後は env でスキーマ修復をスキップ可能 (TTFB 改善)。
+ // ただしセキュリティDDL (RLS 有効化) だけは env に関係なく必ず実行する。
  if (process.env.ENSURE_SCHEMA === "false") {
-   return Promise.resolve(true)
+   if (!securityInflight) {
+     securityInflight = runStatements(SECURITY_STATEMENTS)
+   }
+   return securityInflight
  }
  if (!inflight) {
- inflight = (async () => {
- let allOk = true
- for (const sql of STATEMENTS) {
- try {
- await prisma.$executeRawUnsafe(sql)
- } catch (e) {
- allOk = false
- console.warn(
- "[ensureSchema] statement skipped:",
- e instanceof Error ? e.message : e
- )
- }
- }
- return allOk
- })()
+   inflight = (async () => {
+     const secOk = await runStatements(SECURITY_STATEMENTS)
+     const restOk = await runStatements(STATEMENTS)
+     return secOk && restOk
+   })()
  }
  return inflight
+}
+
+async function runStatements(
+  statements: ReadonlyArray<string>
+): Promise<boolean> {
+  let allOk = true
+  for (const sql of statements) {
+    try {
+      await prisma.$executeRawUnsafe(sql)
+    } catch (e) {
+      allOk = false
+      console.warn(
+        "[ensureSchema] statement skipped:",
+        e instanceof Error ? e.message : e
+      )
+    }
+  }
+  return allOk
 }
