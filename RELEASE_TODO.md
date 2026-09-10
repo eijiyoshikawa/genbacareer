@@ -5,6 +5,25 @@
 
 ---
 
+## 🆕 早期退職の戻入申請が請求失敗 (BillingEvent.status='failed') でも承認できてしまう (2026-09-10 追加、要判断)
+
+`src/app/api/company/early-resignations/route.ts` の `originalFeeAmount` は
+`app.billingEvent?.amount ?? 0` を参照しており、`amount > 0` かどうかのみ
+チェックしていて `BillingEvent.status`（pending/invoiced/paid/failed）を
+見ていない。そのため、成果報酬の請求自体が失敗している
+（`status='failed'`、実際には企業に請求できていない）応募に対しても、
+戻入（返金）申請が成立し admin が承認・MoneyForward への返金伝票発行まで
+進められてしまう可能性がある。
+
+実際の請求ステータスとの整合性チェックを追加すべきか（例: `paid`/`invoiced`
+以外は戻入申請を拒否する）は、運用上 `failed` な請求がどう扱われている
+か次第のため、コード側で独自に判断せず要確認としてここに残す。
+
+- [ ] `BillingEvent.status` が `failed`/`pending` の応募に対する戻入申請を
+      拒否すべきか、admin 運用フローの実態を確認して方針を決める
+
+---
+
 ## 🆕 面接候補日時 (interviewSlots) の求職者側確認フローが未実装 (2026-09-10 追加、製品判断待ち)
 
 コードレビューで判明: `Application.interviewSlots`（企業が提示する複数の面接候補日時）を

@@ -27,54 +27,59 @@ export async function GET(request: Request) {
   // 1) 自動再掲載: expiresAt を +30 日延長
   // rankScore も併せて再計算する（publishedAt を「今」に更新するので、
   // 新着ボーナスを反映し、延長前の期限切れ間近ペナルティを引きずらないため）。
-  const renewTarget = await prisma.job
-    .findMany({
-      where: {
-        status: "active",
-        autoRenew: true,
-        expiresAt: { lte: now },
-      },
-      select: {
-        id: true,
-        expiresAt: true,
-        description: true,
-        requirements: true,
-        salaryMin: true,
-        salaryMax: true,
-        employmentType: true,
-        workHours: true,
-        holidays: true,
-        insurance: true,
-        bonus: true,
-        commuteAllowance: true,
-        companyFeatures: true,
-        businessContent: true,
-        viewCount: true,
-        company: {
-          select: {
-            tagline: true,
-            pitchHighlights: true,
-            idealCandidate: true,
-            employeeVoice: true,
-            photos: true,
-            instagramUrl: true,
-            tiktokUrl: true,
-            facebookUrl: true,
-            xUrl: true,
-            youtubeUrl: true,
-            lastContentUpdatedAt: true,
-          },
+  // findMany が失敗した場合はここで例外を投げさせ、200 で「0 件延長」を
+  // 返してしまわないようにする（以前は .catch(() => []) で握り潰しており、
+  // DB 障害時も cron が正常終了したように見えてしまっていた）。
+  const renewTarget = await prisma.job.findMany({
+    where: {
+      status: "active",
+      autoRenew: true,
+      expiresAt: { lte: now },
+    },
+    select: {
+      id: true,
+      expiresAt: true,
+      description: true,
+      requirements: true,
+      salaryMin: true,
+      salaryMax: true,
+      employmentType: true,
+      workHours: true,
+      holidays: true,
+      insurance: true,
+      bonus: true,
+      commuteAllowance: true,
+      companyFeatures: true,
+      businessContent: true,
+      viewCount: true,
+      company: {
+        select: {
+          tagline: true,
+          pitchHighlights: true,
+          idealCandidate: true,
+          employeeVoice: true,
+          photos: true,
+          instagramUrl: true,
+          tiktokUrl: true,
+          facebookUrl: true,
+          xUrl: true,
+          youtubeUrl: true,
+          lastContentUpdatedAt: true,
         },
       },
-      take: 500,
-    })
-    .catch(() => [])
+    },
+    take: 500,
+  })
 
   let renewed = 0
   for (const j of renewTarget) {
-    const newExpiry = new Date(
-      (j.expiresAt?.getTime() ?? now.getTime()) + AUTO_RENEW_EXTENSION_MS
-    )
+    // 延長は「今」起点で +30 日にする（旧 expiresAt 起点で加算すると、
+    // cron の実行漏れ・デプロイ凍結等で数日〜数週間遅延した場合に
+    // 延長後もなお expiresAt が過去のままになり、次回の cron でも
+    // 「期限切れ」判定され続けてしまう。rankScore もその古い expiresAt を
+    // 元に計算されるため、実際より期限切れ間近であるかのように過小評価
+    // されるバグがあった）。
+    const newExpiry = new Date(now.getTime() + AUTO_RENEW_EXTENSION_MS)
     const rankScore = computeRankScore(
       { ...j, publishedAt: now, expiresAt: newExpiry },
       j.company,

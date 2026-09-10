@@ -60,6 +60,28 @@ export async function POST(request: NextRequest) {
   const session = await auth()
   const reporterId = session?.user?.id ?? null
 
+  // ログインユーザーが同じ対象に何件も通報を積み上げられないようにする
+  // （IP ベースのレート制限は別インスタンス/IP ローテーションで回避され得るため、
+  // 本人特定できる場合はアカウント単位でも二重通報を防ぐ）。
+  // 解決/却下済みの通報がある場合は別件として再通報を許可する。
+  if (reporterId) {
+    const existingOpen = await prisma.report.findFirst({
+      where: {
+        reporterId,
+        targetType: parsed.data.targetType,
+        targetId: parsed.data.targetId,
+        status: "open",
+      },
+      select: { id: true },
+    })
+    if (existingOpen) {
+      return Response.json(
+        { ok: true, alreadyReported: true },
+        { status: 200 }
+      )
+    }
+  }
+
   await prisma.report.create({
     data: {
       targetType: parsed.data.targetType,

@@ -117,16 +117,21 @@ export async function fetchBasic(
   }
 }
 
-/** 建設業許可等の認定情報を取得 */
+/**
+ * 建設業許可等の認定情報を取得。
+ * 戻り値が null は「取得失敗」を意味し、空配列（本当に 0 件）とは区別する
+ * （呼び出し側 fetchSnapshot が、失敗時に直前の取得結果を保持するために使う）。
+ */
 export async function fetchCertifications(
   corporateNumber: string
-): Promise<GbizCertification[]> {
+): Promise<GbizCertification[] | null> {
   if (!isValidCorporateNumber(corporateNumber)) return []
   type Response = {
     "hojin-infos": Array<{ certification?: Array<Record<string, unknown>> }>
   }
   const data = await get<Response>(`/${corporateNumber}/certification`)
-  const list = data?.["hojin-infos"]?.[0]?.certification ?? []
+  if (data === null) return null
+  const list = data["hojin-infos"]?.[0]?.certification ?? []
   return list.map((c) => ({
     name: c.name as string | undefined,
     date: c.date as string | undefined,
@@ -136,16 +141,20 @@ export async function fetchCertifications(
   }))
 }
 
-/** 表彰歴を取得 */
+/**
+ * 表彰歴を取得。
+ * 戻り値が null は「取得失敗」を意味し、空配列（本当に 0 件）とは区別する。
+ */
 export async function fetchCommendations(
   corporateNumber: string
-): Promise<GbizCommendation[]> {
+): Promise<GbizCommendation[] | null> {
   if (!isValidCorporateNumber(corporateNumber)) return []
   type Response = {
     "hojin-infos": Array<{ commendation?: Array<Record<string, unknown>> }>
   }
   const data = await get<Response>(`/${corporateNumber}/commendation`)
-  const list = data?.["hojin-infos"]?.[0]?.commendation ?? []
+  if (data === null) return null
+  const list = data["hojin-infos"]?.[0]?.commendation ?? []
   return list.map((c) => ({
     title: c.title as string | undefined,
     date: c.date as string | undefined,
@@ -153,9 +162,20 @@ export async function fetchCommendations(
   }))
 }
 
-/** 基本情報 + 認定 + 表彰をまとめて取得（Company.gbizData にキャッシュする想定） */
+/**
+ * 基本情報 + 認定 + 表彰をまとめて取得（Company.gbizData にキャッシュする想定）。
+ *
+ * `previous` に直前の snapshot（DB に保存済みの Company.gbizData）を渡すと、
+ * certification / commendation エンドポイントが一時的に失敗した場合
+ * （レート制限・5xx・ネットワーク断など）に、その項目だけ前回の値を
+ * 維持する。以前はこれを渡しておらず、basic だけ取得に成功すれば
+ * certifications/commendations は無条件に空配列で上書きされていたため、
+ * 建設業許可情報が一時的な API 障害だけで（次回の再取得サイクルまで
+ * 丸ごと）消えてしまうことがあった。
+ */
 export async function fetchSnapshot(
-  corporateNumber: string
+  corporateNumber: string,
+  previous?: GbizSnapshot | null
 ): Promise<GbizSnapshot | null> {
   if (!isGbizConfigured()) return null
   if (!isValidCorporateNumber(corporateNumber)) return null
@@ -167,8 +187,8 @@ export async function fetchSnapshot(
   if (!basic) return null
   return {
     basic,
-    certifications,
-    commendations,
+    certifications: certifications ?? previous?.certifications ?? [],
+    commendations: commendations ?? previous?.commendations ?? [],
     fetchedAt: new Date().toISOString(),
   }
 }

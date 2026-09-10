@@ -65,6 +65,29 @@ describe("calculateMonthsAfterHire", () => {
     const day91 = new Date("2026-04-02T00:00:00Z")
     expect(calculateMonthsAfterHire(hire, day91)).toBe(4)
   })
+
+  it("returns 1 for exactly one calendar month across a 31-day month (regression: day/30 approximation used to over-count)", () => {
+    // 2026-01-01 → 2026-02-01 は暦上ちょうど 1 ヶ月だが 31 日ある
+    // (旧実装は ceil(31/30)=2 に切り上がってしまい 50% になるバグがあった)
+    const hire = new Date("2026-01-01T00:00:00Z")
+    const oneMonthLater = new Date("2026-02-01T00:00:00Z")
+    expect(calculateMonthsAfterHire(hire, oneMonthLater)).toBe(1)
+  })
+
+  it("returns 3 (not 4) for exactly 3 calendar months across a leap-year February (regression)", () => {
+    // 2028 年は閏年。2028-01-01 → 2028-04-01 は暦上ちょうど 3 ヶ月だが
+    // 91 日ある (31+29+31)。旧実装は ceil(91/30)=4 に切り上がり、本来
+    // 20% 受け取れるはずの返金が 0% になってしまうバグがあった。
+    const hire = new Date("2028-01-01T00:00:00Z")
+    const threeCalendarMonthsLater = new Date("2028-04-01T00:00:00Z")
+    expect(calculateMonthsAfterHire(hire, threeCalendarMonthsLater)).toBe(3)
+  })
+
+  it("ignores time-of-day when comparing dates (hiredAt has a timestamp, resignedAt is often date-only)", () => {
+    const hiredLateInDay = new Date("2026-01-01T23:59:00Z")
+    const resignedMidnight = new Date("2026-02-01T00:00:00Z")
+    expect(calculateMonthsAfterHire(hiredLateInDay, resignedMidnight)).toBe(1)
+  })
 })
 
 describe("refundRateForMonths", () => {

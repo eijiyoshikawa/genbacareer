@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db"
 import { Prisma } from "@prisma/client"
-import { fetchSnapshot, isGbizConfigured } from "@/lib/gbizinfo"
+import { fetchSnapshot, isGbizConfigured, type GbizSnapshot } from "@/lib/gbizinfo"
 
 /**
  * GbizINFO データ月次自動更新 Cron。
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
       corporateNumber: { not: null },
       OR: [{ gbizSyncedAt: null }, { gbizSyncedAt: { lt: cutoff } }],
     },
-    select: { id: true, corporateNumber: true },
+    select: { id: true, corporateNumber: true, gbizData: true },
     orderBy: { gbizSyncedAt: { sort: "asc", nulls: "first" } },
     take: MAX_PER_RUN,
   })
@@ -61,7 +61,8 @@ export async function GET(request: Request) {
   for (const c of targets) {
     if (!c.corporateNumber) continue
     try {
-      const snapshot = await fetchSnapshot(c.corporateNumber)
+      const previous = (c.gbizData as unknown as GbizSnapshot | null) ?? null
+      const snapshot = await fetchSnapshot(c.corporateNumber, previous)
       if (snapshot) {
         await prisma.company.update({
           where: { id: c.id },

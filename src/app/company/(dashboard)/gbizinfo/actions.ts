@@ -8,6 +8,7 @@ import {
   fetchSnapshot,
   isGbizConfigured,
   isValidCorporateNumber,
+  type GbizSnapshot,
 } from "@/lib/gbizinfo"
 import { z } from "zod"
 
@@ -123,7 +124,7 @@ export async function refreshGbizData(): Promise<GbizActionResult> {
 
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { corporateNumber: true },
+    select: { corporateNumber: true, gbizData: true },
   })
   if (!company?.corporateNumber) {
     return { ok: false, error: "法人番号が未登録です。先に保存してください" }
@@ -133,7 +134,11 @@ export async function refreshGbizData(): Promise<GbizActionResult> {
     return { ok: false, error: "GbizINFO API が未設定です" }
   }
 
-  const snapshot = await fetchSnapshot(company.corporateNumber)
+  // 認定/表彰エンドポイントが一時的に失敗しても、直前の取得結果を保持できる
+  // よう既存データを渡す（basic だけ成功した場合に建設業許可情報等が
+  // 空配列で上書きされてしまうのを防ぐ）。
+  const previous = (company.gbizData as unknown as GbizSnapshot | null) ?? null
+  const snapshot = await fetchSnapshot(company.corporateNumber, previous)
   if (!snapshot) {
     return {
       ok: false,

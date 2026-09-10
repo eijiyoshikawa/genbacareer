@@ -7,18 +7,37 @@
  *   入社 3 ヶ月以内 (2 < n <= 3): 20%
  *   入社 4 ヶ月以降 (3 < n):       0% (対象外)
  *
- * 「ヶ月以内」の判定は入社日から退職日までの経過日数を 30 日で割り、
- * 切り上げ (ceil) で月数を出す。例:
- *   入社 2026-01-01 → 退職 2026-01-15 = 14 日 = 0.46 ヶ月 → 切り上げで 1 → 80%
- *   入社 2026-01-01 → 退職 2026-01-31 = 30 日 = 1.0 ヶ月 → 1 → 80%
- *   入社 2026-01-01 → 退職 2026-02-15 = 45 日 = 1.5 ヶ月 → 切り上げで 2 → 50%
- *   入社 2026-01-01 → 退職 2026-04-01 = 90 日 = 3.0 ヶ月 → 3 → 20%
- *   入社 2026-01-01 → 退職 2026-04-02 = 91 日 → 切り上げで 4 → 0%
+ * 「ヶ月以内」の判定はカレンダー月単位で行う（暦上の「入社日 + N ヶ月」の
+ * 応当日以前に退職したら N ヶ月以内、とみなす）。例:
+ *   入社 2026-01-01 → 退職 2026-01-15 → 1 ヶ月以内 (+1ヶ月=2026-02-01 以前) → 80%
+ *   入社 2026-01-01 → 退職 2026-02-01 → 1 ヶ月以内 (ちょうど応当日) → 80%
+ *   入社 2026-01-01 → 退職 2026-02-15 → 2 ヶ月以内 (+2ヶ月=2026-03-01 以前) → 50%
+ *   入社 2026-01-01 → 退職 2026-04-01 → 3 ヶ月以内 (ちょうど応当日) → 20%
+ *   入社 2026-01-01 → 退職 2026-04-02 → 3 ヶ月超 → 0%
+ *
+ * 以前は「経過日数 ÷ 30 を切り上げ」という概算式を使っており、31 日ある月
+ * (1・3・5・7・8・10・12月) や閏年の 2 月を挟むと、暦上はちょうど N ヶ月の
+ * 退職でも日数ベースでは N+1 ヶ月分に切り上がってしまい、本来受け取れる
+ * はずの返金率が 1 段階下がる（20% → 0% 等）バグがあった。時刻部分の
+ * 揺れ（hiredAt は打刻時刻付き、resignedAt は日付のみのことが多い）が
+ * 境界判定をさらに不安定にしないよう、日付部分だけを比較する。
  */
 
-/** 1 ヶ月 = 30 日として概算 (月末ズレを許容する運用上の単純化) */
-const MONTH_DAYS = 30
-const DAY_MS = 24 * 60 * 60 * 1000
+/**
+ * UTC の年月日部分だけを取り出した Date（時刻は 00:00:00 UTC）。
+ * hiredAt (打刻時刻付き) と resignedAt (日付のみのことが多い) の時刻差が
+ * 月境界の判定をぶれさせないようにする。
+ */
+function toUtcDateOnly(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+}
+
+/** 指定日にカレンダー月を n ヶ月加算した日付を返す（UTC 基準）。 */
+function addUtcMonths(d: Date, n: number): Date {
+  const result = new Date(d)
+  result.setUTCMonth(result.getUTCMonth() + n)
+  return result
+}
 
 /** 返金率の段階定義 (months_after_hire → refund_rate %) */
 export const REFUND_RATE_SCHEDULE: ReadonlyArray<{
@@ -30,19 +49,27 @@ export const REFUND_RATE_SCHEDULE: ReadonlyArray<{
   { monthsAfterHire: 3, refundRate: 20 },
 ] as const
 
+/** 返金対象期間 (4 ヶ月目以降は対象外) を判定する上限の探索幅 */
+const MAX_MONTHS_CHECKED = REFUND_RATE_SCHEDULE.length + 1
+
 /**
- * 入社日から退職日までの経過月数を算出する。
- * 端数は切り上げ (Math.ceil) で月単位に丸める。最低 1 ヶ月。
+ * 入社日から退職日までの経過月数（カレンダー月ベース）を算出する。
+ * 「入社日 + N ヶ月」の応当日以前に退職していれば N ヶ月以内とみなす。
  */
 export function calculateMonthsAfterHire(
   hiredAt: Date,
   resignedAt: Date,
 ): number {
-  const diffMs = resignedAt.getTime() - hiredAt.getTime()
-  if (diffMs <= 0) return 0
-  const days = diffMs / DAY_MS
-  const months = days / MONTH_DAYS
-  return Math.max(1, Math.ceil(months))
+  const hired = toUtcDateOnly(hiredAt)
+  const resigned = toUtcDateOnly(resignedAt)
+  if (resigned.getTime() <= hired.getTime()) return 0
+
+  for (let n = 1; n <= MAX_MONTHS_CHECKED; n++) {
+    if (resigned.getTime() <= addUtcMonths(hired, n).getTime()) {
+      return n
+    }
+  }
+  return MAX_MONTHS_CHECKED + 1
 }
 
 /**

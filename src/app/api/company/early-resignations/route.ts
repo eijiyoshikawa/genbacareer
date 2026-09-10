@@ -12,11 +12,15 @@
  *   - 該当 Application が自社のものか
  *   - status='hired' か
  *   - hiredAt が設定されているか
- *   - 既存の EarlyResignation が無いか (1 採用につき 1 件)
+ *   - 既存の EarlyResignation が「reported/approved/invoiced」(処理中 or 完了)
+ *     で無いか。「rejected」(却下済) の場合は再申請として扱い、同じ行を
+ *     'reported' に戻して上書きする（applicationId は @unique のため
+ *     新規行は作れない。以前は却下されると status を問わず永久にブロック
+ *     しており、誤記等で却下された企業が二度と再申請できないバグがあった）
  *   - 退職日が入社日より後か
  *
  * 副作用:
- *   - EarlyResignation を作成 (status='reported')
+ *   - EarlyResignation を作成、または却下済み行を 'reported' で上書き
  *   - 自動で返金額計算 (1m:80% / 2m:50% / 3m:20% / 4m+:0%)
  *   - 4 ヶ月以降の場合は 400 で拒否 (eligible=false)
  *   - admin に通知 (Notification は将来対応、今は admin がダッシュボードで確認)
@@ -97,7 +101,7 @@ export async function POST(request: Request) {
       status: true,
       hiredAt: true,
       billingEvent: { select: { amount: true } },
-      earlyResignation: { select: { id: true } },
+      earlyResignation: { select: { id: true, status: true } },
     },
   })
 
@@ -122,7 +126,9 @@ export async function POST(request: Request) {
       { status: 400 },
     )
   }
-  if (app.earlyResignation) {
+  // 却下済み (rejected) は再申請可能。処理中/完了 (reported/approved/invoiced)
+  // のみブロックする。
+  if (app.earlyResignation && app.earlyResignation.status !== "rejected") {
     return Response.json(
       { error: "この採用についてはすでに戻入申請が登録されています" },
       { status: 409 },
@@ -157,29 +163,47 @@ export async function POST(request: Request) {
     )
   }
 
-  const created = await prisma.earlyResignation.create({
-    data: {
-      applicationId: app.id,
-      companyId: me.companyId,
-      jobId: app.jobId,
-      userId: app.userId,
-      hiredAt: app.hiredAt,
-      resignedAt,
-      monthsAfterHire,
-      refundRate,
-      refundAmount,
-      originalFeeAmount,
-      status: "reported",
-      companyNote: companyNote ?? null,
-      reportedBy: me.userId,
-    },
-    select: {
-      id: true,
-      refundRate: true,
-      refundAmount: true,
-      monthsAfterHire: true,
-    },
-  })
+  const data = {
+    companyId: me.companyId,
+    jobId: app.jobId,
+    userId: app.userId,
+    hiredAt: app.hiredAt,
+    resignedAt,
+    monthsAfterHire,
+    refundRate,
+    refundAmount,
+    originalFeeAmount,
+    status: "reported",
+    companyNote: companyNote ?? null,
+    reportedBy: me.userId,
+  }
+
+  const created = app.earlyResignation
+    ? // 却下済みの再申請: 同じ行を 'reported' に戻し、却下時の記録はクリアする
+      await prisma.earlyResignation.update({
+        where: { id: app.earlyResignation.id },
+        data: {
+          ...data,
+          adminNote: null,
+          rejectedBy: null,
+          rejectedAt: null,
+        },
+        select: {
+          id: true,
+          refundRate: true,
+          refundAmount: true,
+          monthsAfterHire: true,
+        },
+      })
+    : await prisma.earlyResignation.create({
+        data: { ...data, applicationId: app.id },
+        select: {
+          id: true,
+          refundRate: true,
+          refundAmount: true,
+          monthsAfterHire: true,
+        },
+      })
 
   return Response.json({ ok: true, ...created }, { status: 201 })
 }
