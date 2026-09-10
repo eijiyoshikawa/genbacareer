@@ -4,6 +4,8 @@ import {
   getClientIp,
   rateLimitResponse,
 } from "@/lib/rate-limit"
+import { auth } from "@/lib/auth"
+import { isGuestBlockedFromJob } from "@/lib/guest-job-access"
 import { type NextRequest } from "next/server"
 
 export async function GET(
@@ -42,6 +44,22 @@ export async function GET(
 
   if (!job) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
+
+  // 未登録ゲストは「グローバル上位 15 件」以外の詳細を API 経由でも取得できない
+  // ようにする（/jobs/[id] ページと同じ基準。ここが漏れるとスクレイピングで
+  // 登録ゲートを完全に迂回できてしまう）。
+  const session = await auth().catch(() => null)
+  const blocked = await isGuestBlockedFromJob({
+    hasSession: !!session?.user?.id,
+    userAgent: request.headers.get("user-agent"),
+    jobId: id,
+  })
+  if (blocked) {
+    return Response.json(
+      { error: "この求人の詳細を見るには会員登録・ログインが必要です" },
+      { status: 403 }
+    )
   }
 
   // 閲覧数をインクリメント（非同期、レスポンスをブロックしない）

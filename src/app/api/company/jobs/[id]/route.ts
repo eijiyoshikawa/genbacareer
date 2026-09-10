@@ -2,6 +2,8 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
+import { isPlanActive } from "@/lib/plans"
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -64,9 +66,12 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const ctx = await getCompanySession()
-  if (!ctx) {
-    return Response.json({ error: "企業アカウントでログインしてください" }, { status: 401 })
+  // 求人の編集・公開（draft→active）は status=approved の企業のみ許可
+  // （POST と同じ基準。ここが緩いと却下・停止済みの企業が既存求人を
+  // 編集し続けたり再公開したりできてしまう）。
+  const ctx = await requireCompanyAuth({ requireApproved: true })
+  if (isCompanyAuthError(ctx)) {
+    return Response.json({ error: ctx.error }, { status: ctx.status })
   }
 
   const { id } = await params
@@ -95,6 +100,25 @@ export async function PUT(
   }
 
   const { expectedUpdatedAt, ...data } = parsed.data
+
+  // 公開（active への変更）にはプランが有効である必要がある（月額プラン等の
+  // 期限切れは不可）。既に active な求人の本文編集など、status を active の
+  // まま送らないケースは対象外（それらは PUT の requireApproved で担保）。
+  if (data.status === "active") {
+    const company = await prisma.company.findUnique({
+      where: { id: ctx.companyId },
+      select: { planType: true, planPaidUntil: true },
+    })
+    if (!company || !isPlanActive(company)) {
+      return Response.json(
+        {
+          error:
+            "掲載プランの有効期限が切れているため公開できません。プランの更新については運営までお問い合わせください。",
+        },
+        { status: 403 }
+      )
+    }
+  }
 
   // 楽観ロック: クライアントが取得した時点から変わっていなければ更新を許可
   if (expectedUpdatedAt) {

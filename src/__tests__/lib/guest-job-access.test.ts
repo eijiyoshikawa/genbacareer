@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest"
-import { isCrawlerUserAgent, GUEST_LIMIT } from "@/lib/guest-job-access"
+import {
+  isCrawlerUserAgent,
+  isGuestBlockedFromJob,
+  GUEST_LIMIT,
+} from "@/lib/guest-job-access"
 
 describe("isCrawlerUserAgent", () => {
   it("returns true for major search engine bots", () => {
@@ -54,5 +58,40 @@ describe("isCrawlerUserAgent", () => {
 describe("GUEST_LIMIT", () => {
   it("is 15 (お試し検索 仕様)", () => {
     expect(GUEST_LIMIT).toBe(15)
+  })
+})
+
+describe("isGuestBlockedFromJob", () => {
+  // 共通ヘルパー化の目的は、/jobs/[id] ページ・API・印刷ページの 3 面すべてで
+  // 同じ基準（ログイン済み or クローラ or プレビューなら常に許可）を保証すること。
+  // DB に依存する「上位 15 件に含まれるか」の分岐は結合テストで担保する。
+
+  it("never blocks a logged-in user (short-circuits before DB lookup)", async () => {
+    const blocked = await isGuestBlockedFromJob({
+      hasSession: true,
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      jobId: "any-job-id-not-in-top-15",
+    })
+    expect(blocked).toBe(false)
+  })
+
+  it("never blocks preview mode (admin/company preview links)", async () => {
+    const blocked = await isGuestBlockedFromJob({
+      hasSession: false,
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      jobId: "any-job-id-not-in-top-15",
+      isPreview: true,
+    })
+    expect(blocked).toBe(false)
+  })
+
+  it("never blocks known crawler UAs (Google for Jobs SEO)", async () => {
+    const blocked = await isGuestBlockedFromJob({
+      hasSession: false,
+      userAgent:
+        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      jobId: "any-job-id-not-in-top-15",
+    })
+    expect(blocked).toBe(false)
   })
 })

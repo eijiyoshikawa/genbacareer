@@ -52,3 +52,22 @@ export async function getGuestAccessibleJobIds(): Promise<string[]> {
   })
   return rows.map((r) => r.id)
 }
+
+/**
+ * 未登録ゲストが指定の求人詳細を閲覧できないか（ゲートすべきか）を判定する。
+ *
+ * 求人詳細を返すすべての面（ページ / API / 印刷用ページ）で同じ基準を
+ * 使うための共通ヘルパー。ここを直さずに個別実装すると、片方だけ
+ * ゲートを忘れて「未登録ゲスト上位 15 件まで」の制限がバイパスされる。
+ */
+export async function isGuestBlockedFromJob(args: {
+  hasSession: boolean
+  userAgent: string | null | undefined
+  jobId: string
+  isPreview?: boolean
+}): Promise<boolean> {
+  if (args.hasSession || args.isPreview) return false
+  if (isCrawlerUserAgent(args.userAgent)) return false
+  const allowedIds = await getGuestAccessibleJobIds()
+  return !allowedIds.includes(args.jobId)
+}

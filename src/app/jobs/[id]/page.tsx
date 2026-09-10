@@ -3,10 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { headers } from "next/headers"
 import Link from "next/link"
 import { auth } from "@/lib/auth"
-import {
-  getGuestAccessibleJobIds,
-  isCrawlerUserAgent,
-} from "@/lib/guest-job-access"
+import { isGuestBlockedFromJob } from "@/lib/guest-job-access"
 import { JobViewBeacon } from "@/components/jobs/job-view-beacon"
 import {
   MapPin,
@@ -174,15 +171,17 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   // 未登録ゲストは「グローバル上位 15 件（recommended sort / フィルタ無し）」の詳細のみ閲覧可。
   // 検索エンジン等のクローラは Google for Jobs SEO 維持のため除外する。
   const session = await auth().catch(() => null)
-  if (!session?.user?.id && !isPreview) {
-    const hdrs = await headers()
-    const ua = hdrs.get("user-agent")
-    if (!isCrawlerUserAgent(ua)) {
-      const allowedIds = await getGuestAccessibleJobIds()
-      if (!allowedIds.includes(id)) {
-        redirect(`/login?callbackUrl=${encodeURIComponent(`/jobs/${id}`)}`)
-      }
-    }
+  const hdrs = await headers()
+  const ua = hdrs.get("user-agent")
+  if (
+    await isGuestBlockedFromJob({
+      hasSession: !!session?.user?.id,
+      userAgent: ua,
+      jobId: id,
+      isPreview,
+    })
+  ) {
+    redirect(`/login?callbackUrl=${encodeURIComponent(`/jobs/${id}`)}`)
   }
 
   // プレビューモードではトラッキングを行わない（社内チェックを実件数に混ぜないため）

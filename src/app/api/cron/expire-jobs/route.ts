@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { computeRankScore } from "@/lib/ranking"
 
 /**
  * 有効期限切れ求人のクローズ + 自動再掲載 (auto_renew) 求人の延長
@@ -24,6 +25,8 @@ export async function GET(request: Request) {
   const now = new Date()
 
   // 1) 自動再掲載: expiresAt を +30 日延長
+  // rankScore も併せて再計算する（publishedAt を「今」に更新するので、
+  // 新着ボーナスを反映し、延長前の期限切れ間近ペナルティを引きずらないため）。
   const renewTarget = await prisma.job
     .findMany({
       where: {
@@ -31,7 +34,38 @@ export async function GET(request: Request) {
         autoRenew: true,
         expiresAt: { lte: now },
       },
-      select: { id: true, expiresAt: true },
+      select: {
+        id: true,
+        expiresAt: true,
+        description: true,
+        requirements: true,
+        salaryMin: true,
+        salaryMax: true,
+        employmentType: true,
+        workHours: true,
+        holidays: true,
+        insurance: true,
+        bonus: true,
+        commuteAllowance: true,
+        companyFeatures: true,
+        businessContent: true,
+        viewCount: true,
+        company: {
+          select: {
+            tagline: true,
+            pitchHighlights: true,
+            idealCandidate: true,
+            employeeVoice: true,
+            photos: true,
+            instagramUrl: true,
+            tiktokUrl: true,
+            facebookUrl: true,
+            xUrl: true,
+            youtubeUrl: true,
+            lastContentUpdatedAt: true,
+          },
+        },
+      },
       take: 500,
     })
     .catch(() => [])
@@ -41,10 +75,15 @@ export async function GET(request: Request) {
     const newExpiry = new Date(
       (j.expiresAt?.getTime() ?? now.getTime()) + AUTO_RENEW_EXTENSION_MS
     )
+    const rankScore = computeRankScore(
+      { ...j, publishedAt: now, expiresAt: newExpiry },
+      j.company,
+      now
+    )
     await prisma.job
       .update({
         where: { id: j.id },
-        data: { expiresAt: newExpiry, publishedAt: now },
+        data: { expiresAt: newExpiry, publishedAt: now, rankScore },
       })
       .then(() => {
         renewed++

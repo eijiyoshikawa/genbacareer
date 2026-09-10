@@ -134,6 +134,9 @@ export async function PATCH(request: NextRequest) {
       commuteAllowance: true,
       companyFeatures: true,
       businessContent: true,
+      publishedAt: true,
+      expiresAt: true,
+      viewCount: true,
     },
   })
 

@@ -11,10 +11,13 @@
  */
 
 import { prisma } from "@/lib/db"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
+import { headers } from "next/headers"
 import type { Metadata } from "next"
 import Image from "next/image"
 import { getCategoryLabel } from "@/lib/categories"
+import { auth } from "@/lib/auth"
+import { isGuestBlockedFromJob } from "@/lib/guest-job-access"
 import { PrintTrigger } from "./print-trigger"
 
 export const dynamic = "force-dynamic"
@@ -70,6 +73,19 @@ export default async function JobPrintPage({ params, searchParams }: Props) {
     .catch(() => null)
 
   if (!job) notFound()
+
+  // /jobs/[id] と同じ基準で未登録ゲストをゲートする（印刷ページ経由での
+  // 詳細取得を許すと登録ゲートが完全に迂回されてしまう）。
+  const session = await auth().catch(() => null)
+  const hdrs = await headers()
+  const blocked = await isGuestBlockedFromJob({
+    hasSession: !!session?.user?.id,
+    userAgent: hdrs.get("user-agent"),
+    jobId: id,
+  })
+  if (blocked) {
+    redirect(`/login?callbackUrl=${encodeURIComponent(`/jobs/${id}/print`)}`)
+  }
 
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryType)
   const generatedAt = new Date().toLocaleString("ja-JP")

@@ -90,7 +90,8 @@ if (process.env.NODE_ENV !== "production") {
 function toJobRecord(
   job: HelloworkJobData,
   category: CategoryValue,
-  companyId: string | null
+  companyId: string | null,
+  existingPublishedAt: Date | null = null
 ) {
   const title = cleanTitle(job.title, job.prefecture)
   const tags = extractTags(job.title, job.description, job.requirements)
@@ -104,6 +105,11 @@ function toJobRecord(
   // 求人レコード自体の充実度（給与情報の有無、各種詳細欄、雇用形態 等）と
   // 時間軸シグナル（新着 / 期限切れ間近）を評価して低品質求人を下位に押し下げる。
   // 企業プロフィール保存時に再計算される。新着/期限の鮮度は日次 cron で再計算推奨。
+  //
+  // 既存レコードの再取込み（毎時 cron）では実際の publishedAt（既存値）を
+  // 鮮度計算の基準にする。ここを毎回 new Date() にすると、実際の
+  // publishedAt カラムは更新しない（update 側で意図的に除外）にも関わらず
+  // rankScore だけ「新着 +15」が毎時付き続け、古い求人が恒久的に新着扱いになる。
   const rankScore = computeRankScore(
     {
       description: job.description,
@@ -118,7 +124,7 @@ function toJobRecord(
       commuteAllowance: job.commuteAllowance,
       companyFeatures: job.companyFeatures,
       businessContent: job.businessContent,
-      publishedAt: new Date(),
+      publishedAt: existingPublishedAt ?? new Date(),
       expiresAt: job.validUntil,
     },
     null
@@ -448,7 +454,16 @@ export async function importHelloworkJobs(
       }
 
       const companyId = await upsertHelloworkCompany(job, companyCache)
-      const data = toJobRecord(job, category, companyId)
+      const existingJob = await prisma.job.findUnique({
+        where: { helloworkId: job.helloworkId },
+        select: { publishedAt: true },
+      })
+      const data = toJobRecord(
+        job,
+        category,
+        companyId,
+        existingJob?.publishedAt ?? null
+      )
 
       const result = await prisma.job.upsert({
         where: { helloworkId: job.helloworkId },

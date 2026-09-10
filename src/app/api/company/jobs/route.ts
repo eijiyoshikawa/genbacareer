@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { CATEGORIES } from "@/lib/categories"
 import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
+import { isPlanActive } from "@/lib/plans"
 
 const VALID_CATEGORIES = CATEGORIES.map((c) => c.value)
 
@@ -97,6 +98,24 @@ export async function POST(request: NextRequest) {
       { error: `無効なカテゴリです。有効な値: ${VALID_CATEGORIES.join(", ")}` },
       { status: 400 }
     )
+  }
+
+  // 公開（active）にはプランが有効である必要がある（月額プラン等の期限切れは不可）。
+  // draft 保存はプラン状態に関わらず可能。
+  if (data.status === "active") {
+    const company = await prisma.company.findUnique({
+      where: { id: ctx.companyId },
+      select: { planType: true, planPaidUntil: true },
+    })
+    if (!company || !isPlanActive(company)) {
+      return Response.json(
+        {
+          error:
+            "掲載プランの有効期限が切れているため公開できません。プランの更新については運営までお問い合わせください。",
+        },
+        { status: 403 }
+      )
+    }
   }
 
   const job = await prisma.job.create({
