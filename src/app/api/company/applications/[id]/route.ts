@@ -2,18 +2,8 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { sendApplicationStatusEmail } from "@/lib/application-notifications"
-import { notifyApplicationStatusChange } from "@/lib/notifications"
 import { syncApplicationToCalendar } from "@/lib/application-calendar-sync"
-import { parsePrefs } from "@/lib/notification-prefs"
-
-const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
-  applied: ["reviewing", "rejected"],
-  reviewing: ["interview", "rejected"],
-  interview: ["offered", "rejected"],
-  offered: ["hired", "rejected"],
-  // hired と rejected は終端ステータス
-}
+import { changeApplicationStatus } from "@/lib/application-status"
 
 // 既存互換: { status } 単体更新
 const updateStatusSchema = z.object({
@@ -44,14 +34,6 @@ const updateNotesSchema = z.object({
     .optional(),
 })
 
-type StatusHistoryEntry = {
-  from: string
-  to: string
-  at: string
-  by: string
-  note?: string
-}
-
 async function getCompanyCtx() {
   const session = await auth()
   if (!session?.user) {
@@ -80,24 +62,6 @@ export async function PUT(
 
   const { id } = await params
 
-  const application = await prisma.application.findUnique({
-    where: { id },
-    select: {
-      companyId: true,
-      userId: true,
-      status: true,
-      statusHistory: true,
-      hiredAt: true,
-      user: { select: { email: true, name: true, notificationPrefs: true } },
-      job: { select: { title: true } },
-      company: { select: { name: true } },
-    },
-  })
-
-  if (!application || application.companyId !== ctx.companyId) {
-    return Response.json({ error: "応募が見つかりません" }, { status: 404 })
-  }
-
   let body: unknown
   try {
     body = await request.json()
@@ -113,77 +77,20 @@ export async function PUT(
     )
   }
 
-  const newStatus = parsed.data.status
-  const currentStatus = application.status
-
-  const allowed = VALID_STATUS_TRANSITIONS[currentStatus]
-  if (!allowed || !allowed.includes(newStatus)) {
-    return Response.json(
-      { error: `「${currentStatus}」から「${newStatus}」への変更はできません` },
-      { status: 400 }
-    )
-  }
-
-  const history = Array.isArray(application.statusHistory)
-    ? (application.statusHistory as unknown as StatusHistoryEntry[])
-    : []
-  const entry: StatusHistoryEntry = {
-    from: currentStatus,
-    to: newStatus,
-    at: new Date().toISOString(),
+  const result = await changeApplicationStatus({
+    id,
+    companyId: ctx.companyId,
+    newStatus: parsed.data.status,
     by: ctx.userId,
-    ...(parsed.data.note ? { note: parsed.data.note } : {}),
-  }
-
-  const updated = await prisma.application.update({
-    where: { id },
-    data: {
-      status: newStatus,
-      statusHistory: [...history, entry],
-      // 採用確定時に hiredAt を打刻 (C3 戻入処理の経過月数計算の基準)
-      ...(newStatus === "hired" && !application.hiredAt
-        ? { hiredAt: new Date() }
-        : {}),
-    },
+    note: parsed.data.note,
   })
 
-  // 採用確定時の自動請求（重複防止・failed 時の再試行判定は createHiringInvoice 内で行う）
-  if (newStatus === "hired") {
-    try {
-      const { createHiringInvoice } = await import("@/lib/billing")
-      await createHiringInvoice(id)
-    } catch (error) {
-      console.error(`[billing] Failed to create invoice for application ${id}:`, error)
-    }
+  if (!result.ok) {
+    const status = result.error === "応募が見つかりません" ? 404 : 400
+    return Response.json({ error: result.error }, { status })
   }
 
-  // マイページ inbox 通知（fire-and-forget）
-  notifyApplicationStatusChange({
-    userId: application.userId,
-    applicationId: id,
-    newStatus,
-    jobTitle: application.job.title,
-  }).catch((e) => {
-    console.warn(`[notification] failed: ${e instanceof Error ? e.message : e}`)
-  })
-
-  // ステータス通知メール（fire-and-forget）。
-  // 通知設定でメール受信を OFF にしているユーザーには送らない
-  // （マイページの inbox 通知は上の notifyApplicationStatusChange で別途記録済み）。
-  const emailEnabled = parsePrefs(application.user.notificationPrefs).emailEnabled
-  if (application.user.email && emailEnabled) {
-    sendApplicationStatusEmail({
-      to: application.user.email,
-      candidateName: application.user.name ?? null,
-      companyName: application.company?.name ?? "—",
-      jobTitle: application.job.title,
-      newStatus,
-      note: parsed.data.note,
-    }).catch((e) => {
-      console.warn(`[application-notify] failed: ${e instanceof Error ? e.message : e}`)
-    })
-  }
-
+  const updated = await prisma.application.findUnique({ where: { id } })
   return Response.json({ application: updated })
 }
 
@@ -200,7 +107,7 @@ export async function PATCH(
 
   const application = await prisma.application.findUnique({
     where: { id },
-    select: { companyId: true },
+    select: { companyId: true, status: true },
   })
   if (!application || application.companyId !== ctx.companyId) {
     return Response.json({ error: "応募が見つかりません" }, { status: 404 })
@@ -221,6 +128,25 @@ export async function PATCH(
     )
   }
   const data = parsed.data
+
+  // hired / rejected は終端ステータス。ここに面接情報の変更を許すと、
+  // 結果が確定した応募に対して Google Calendar へ迷子のイベントが
+  // 作成され続けてしまう（syncApplicationToCalendar は status を見ない）。
+  // internalNotes（社内メモ）は結果確定後も残したいケースがあるため対象外。
+  const touchesInterviewFields =
+    data.interviewAt !== undefined ||
+    data.interviewVenue !== undefined ||
+    data.interviewUrl !== undefined ||
+    data.interviewSlots !== undefined
+  if (
+    touchesInterviewFields &&
+    (application.status === "hired" || application.status === "rejected")
+  ) {
+    return Response.json(
+      { error: "選考が確定した応募の面接情報は変更できません" },
+      { status: 409 }
+    )
+  }
 
   const updated = await prisma.application.update({
     where: { id },

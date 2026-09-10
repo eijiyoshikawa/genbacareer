@@ -3,15 +3,22 @@
  *
  * 自社 (companyId 一致) の応募者を一括でステータス変更する。
  * Body: { ids: string[], status: string }
- * 応答: { ok: true, updated: number }
+ * 応答: { ok: true, updated: number, skipped: { id: string, error: string }[] }
  *
- * セキュリティ: 自社が紐づく Application のみ更新対象。他社の ID が紛れても
- * updateMany の where: companyId フィルタで自動除外される。
+ * セキュリティ: 自社が紐づく Application のみ更新対象（changeApplicationStatus
+ * が id ごとに companyId を検証する）。
+ *
+ * 以前は prisma.application.updateMany で status 列だけを直接書き換えており、
+ * 単一更新 (PUT /[id]) が課している状態遷移バリデーション・statusHistory
+ * 監査ログ・hiredAt 打刻・成果報酬請求 (createHiringInvoice) を全てバイパス
+ * していた。一括で「採用」にしても請求書が一切発行されない、という
+ * サイレントな売上損失バグだったため、単一更新と同じ
+ * changeApplicationStatus() を id ごとに呼ぶ形に修正。
  */
 
-import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
+import { changeApplicationStatus } from "@/lib/application-status"
 
 const ALLOWED_STATUSES = [
   "applied",
@@ -36,6 +43,7 @@ export async function POST(request: Request) {
   if (!companyId) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
   }
+  const by = (session.user as { id?: string }).id ?? "unknown"
 
   let body: unknown
   try {
@@ -52,13 +60,16 @@ export async function POST(request: Request) {
   }
   const { ids, status } = parsed.data
 
-  const result = await prisma.application.updateMany({
-    where: {
-      id: { in: ids },
-      companyId,
-    },
-    data: { status },
-  })
+  const results = await Promise.all(
+    ids.map((id) =>
+      changeApplicationStatus({ id, companyId, newStatus: status, by })
+    )
+  )
 
-  return Response.json({ ok: true, updated: result.count })
+  const updated = results.filter((r) => r.ok).length
+  const skipped = results
+    .filter((r): r is { ok: false; id: string; error: string } => !r.ok)
+    .map((r) => ({ id: r.id, error: r.error }))
+
+  return Response.json({ ok: true, updated, skipped })
 }

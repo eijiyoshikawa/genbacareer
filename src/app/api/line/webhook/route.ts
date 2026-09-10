@@ -26,6 +26,7 @@ import {
 } from "@/lib/line-messaging"
 import { prisma } from "@/lib/db"
 import { generateAiReply, isAiReplyConfigured } from "@/lib/ai-reply"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -79,28 +80,53 @@ const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
  * 入力テキストから電話番号 or メールを抽出し、直近 N 日以内の未 bind lead と
  * マッチさせて lineUserId を結合する。
  *
- * 戻り値: bind した lead の name（あれば挨拶に使う）or null
+ * セキュリティ上の注意: 電話番号 / メールはそれ自体を知っているだけで
+ * 「本人である証明」にはならない（他人の連絡先を知っている第三者が
+ * なりすませてしまう）。そのため:
+ *   - DB 側の絞り込みは（フォーマット揺れ吸収のため）末尾一致で行うが、
+ *     実際に bind する前にメッセージ側の数字列とストア側の数字列が
+ *     完全一致することを必ず確認する（末尾 8 桁だけの一致では
+ *     市外局番プレフィックス 3 種 (090/080/070) を総当たりされ得るため）。
+ *   - 同一 LINE ユーザーからの試行回数をレート制限し、電話番号 / メールの
+ *     総当たり照合を防ぐ。
+ *   - bind 成功時の返信に氏名・応募求人名など個人情報を含めない
+ *     （成功/失敗の応答差から他人の在籍情報を推測できてしまうオラクルになるため）。
+ *
+ * 戻り値: bind できたら true、できなければ false
  */
 async function tryAutoBind(
   userId: string,
   displayName: string | null,
   text: string
-): Promise<{ leadName: string; jobTitle: string | null } | null> {
+): Promise<boolean> {
   // 電話番号正規化: 数字とハイフン以外を除去
   const phoneCandidates = (text.match(PHONE_REGEX) ?? []).map((p) =>
     p.replace(/[\s+]/g, "")
   )
-  const emailCandidates = text.match(EMAIL_REGEX) ?? []
-  if (phoneCandidates.length === 0 && emailCandidates.length === 0) return null
+  const emailCandidates: string[] = text.match(EMAIL_REGEX) ?? []
+  if (phoneCandidates.length === 0 && emailCandidates.length === 0) return false
+
+  // 総当たり照合防止: 同一 LINE ユーザーからの試行を制限する
+  // （成功/失敗の応答差が「その電話番号/メールで応募した人がいるか」の
+  // オラクルになり得るため、試行回数そのものを絞る）。
+  const rl = checkRateLimit({
+    key: `line-autobind:${userId}`,
+    limit: 5,
+    windowMs: 60 * 60 * 1000,
+  })
+  if (!rl.allowed) return false
 
   const since = new Date(Date.now() - AUTO_BIND_WINDOW_DAYS * 24 * 60 * 60 * 1000)
 
-  // Prisma で電話番号は正規化保存ではないので、保存フォーマット揺れに対応するため
-  // 最後 8 桁が一致するもので拾う（市外局番無し / 0 始まり / +81 など揺れ吸収）
-  const phoneLast8s = phoneCandidates
+  // フル桁の正規化番号（bind 可否の最終判定に使う）
+  const phoneDigitsFull = phoneCandidates
     .map((p) => p.replace(/\D/g, ""))
     .filter((p) => p.length >= 8)
-    .map((p) => p.slice(-8))
+
+  // Prisma で電話番号は正規化保存ではないので、DB クエリ自体は保存フォーマット
+  // 揺れ吸収のため末尾 8 桁一致で緩く絞り込む（市外局番無し / 0 始まり / +81
+  // 等の揺れ吸収が目的で、この時点ではまだ「一致とみなさない」）。
+  const phoneLast8s = phoneDigitsFull.map((p) => p.slice(-8))
 
   const candidates = await prisma.lineLead
     .findMany({
@@ -119,17 +145,22 @@ async function tryAutoBind(
         ],
       },
       orderBy: { createdAt: "desc" },
-      take: 1,
       select: {
         id: true,
-        name: true,
-        job: { select: { title: true } },
+        phone: true,
+        email: true,
       },
     })
     .catch(() => [])
 
-  if (candidates.length === 0) return null
-  const lead = candidates[0]
+  // 末尾一致で拾った候補のうち、フル桁の数字列が完全一致するものだけを採用
+  // （メールは元々完全一致でしか拾っていないのでそのまま採用）。
+  const lead = candidates.find((c) => {
+    if (emailCandidates.includes(c.email)) return true
+    const storedDigits = c.phone.replace(/\D/g, "")
+    return phoneDigitsFull.some((full) => full === storedDigits)
+  })
+  if (!lead) return false
 
   try {
     await prisma.lineLead.update({
@@ -141,9 +172,9 @@ async function tryAutoBind(
       },
     })
   } catch {
-    return null
+    return false
   }
-  return { leadName: lead.name, jobTitle: lead.job?.title ?? null }
+  return true
 }
 
 function autoReplyText(input: string): string | null {
@@ -282,20 +313,19 @@ async function handleEvent(ev: LineEvent): Promise<void> {
       // プロフィール取得（自動 bind と AI 応答で共用）
       const profile = userId ? await getUserProfile(userId).catch(() => null) : null
 
-      // 自動 bind トライ（電話番号 / メールが含まれる場合）
+      // 自動 bind トライ（電話番号 / メールが含まれる場合）。
+      // 返信に氏名・応募求人名等の個人情報は含めない（bind 成功/失敗の
+      // 応答差が「その連絡先の人が応募済みか」のオラクルになるのを防ぐため。
+      // 本人には応募完了時に別途詳細を案内済み）。
       if (userId) {
         const bound = await tryAutoBind(userId, profile?.displayName ?? null, text)
         if (bound) {
-          const msg = [
-            `${bound.leadName} さん、応募内容と紐付けました🎉`,
-            "",
-            bound.jobTitle ? `▼ 応募求人\n${bound.jobTitle}` : "",
-            "",
-            "担当者より 1 営業日以内にこの LINE トークでご連絡いたします。",
-          ]
-            .filter(Boolean)
-            .join("\n")
-          await replyMessage(ev.replyToken, [{ type: "text", text: msg }])
+          await replyMessage(ev.replyToken, [
+            {
+              type: "text",
+              text: "確認しました🎉\n担当者より 1 営業日以内にこの LINE トークでご連絡いたします。",
+            },
+          ])
           return
         }
       }

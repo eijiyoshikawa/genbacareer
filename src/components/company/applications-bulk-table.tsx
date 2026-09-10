@@ -83,6 +83,19 @@ export function ApplicationsBulkTable({
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error ?? `HTTP ${res.status}`)
       }
+      const data = (await res.json()) as {
+        updated: number
+        skipped?: { id: string; error: string }[]
+      }
+      if (data.skipped && data.skipped.length > 0) {
+        // 状態遷移として無効な行は個別にスキップされる（例: 「応募済み」から
+        // 直接「採用」へ等）。何件変更され何件スキップされたかを明示する。
+        setError(
+          `${data.updated} 件を変更しました。${data.skipped.length} 件はステータス変更の順序が不正なためスキップされました（例: ${data.skipped[0].error}）。`
+        )
+      } else {
+        setError(null)
+      }
       setSelectedIds(new Set())
       router.refresh()
     } catch (e) {
