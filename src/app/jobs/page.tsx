@@ -126,6 +126,22 @@ export default async function JobsPage({ searchParams }: Props) {
       ? { source: params.source }
       : {}
 
+  // 17.3 ブロック企業 / NG キーワード除外。あいまい検索（fuzzy）経路でも
+  // 適用する必要があるため、where 本体とは別に切り出す
+  // （id IN (...) だけで再クエリする fuzzy 経路に where 全体を混ぜると、
+  // 通常検索用の q 完全一致 OR 条件が類似度一致の結果を逆に弾いてしまうため）。
+  const blockFilters = {
+    ...(blockedCompanyIds.length > 0 && {
+      companyId: { notIn: blockedCompanyIds },
+    }),
+    ...(blockedKeywords.length > 0 && {
+      AND: blockedKeywords.map((kw) => ({
+        title: { not: { contains: kw, mode: "insensitive" as const } },
+        description: { not: { contains: kw, mode: "insensitive" as const } },
+      })),
+    }),
+  }
+
   const where = {
     status: "active" as const,
     ...(params.prefecture && { prefecture: params.prefecture }),
@@ -142,17 +158,7 @@ export default async function JobsPage({ searchParams }: Props) {
         { description: { contains: params.q, mode: "insensitive" as const } },
       ],
     }),
-    // 17.3 ブロック企業除外
-    ...(blockedCompanyIds.length > 0 && {
-      companyId: { notIn: blockedCompanyIds },
-    }),
-    // 17.3 NG キーワード除外: title/description のいずれにも含まれない
-    ...(blockedKeywords.length > 0 && {
-      AND: blockedKeywords.map((kw) => ({
-        title: { not: { contains: kw, mode: "insensitive" as const } },
-        description: { not: { contains: kw, mode: "insensitive" as const } },
-      })),
-    }),
+    ...blockFilters,
   }
 
   const orderBy = buildOrderBy(sort)
@@ -213,7 +219,8 @@ export default async function JobsPage({ searchParams }: Props) {
     fuzzyIds
       ? prisma.job
           .findMany({
-            where: { id: { in: fuzzyIds } },
+            // 17.3 ブロック企業 / NG キーワードは fuzzy 経路でも適用する
+            where: { id: { in: fuzzyIds }, ...blockFilters },
             select: jobListSelect,
           })
           // fuzzy で返ってきた id 順を維持
@@ -234,7 +241,7 @@ export default async function JobsPage({ searchParams }: Props) {
           select: jobListSelect,
         }),
     fuzzyIds
-      ? Promise.resolve(fuzzyIds.length)
+      ? prisma.job.count({ where: { id: { in: fuzzyIds }, ...blockFilters } })
       : prisma.job.count({ where }),
   ])
 

@@ -39,6 +39,9 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
     title,
     description:
       "全国の公共求人をまとめて検索。建築・土木・設備・解体・製造・運転など現場系職種を網羅。最終更新日時を併記し、原文を改変せず転載しています。",
+    // canonical はクエリ無しの /hw-jobs に固定（/jobs と同じ方針。
+    // prefecture/jobType/q の組み合わせごとに別 URL が重複コンテンツ扱いされるのを防ぐ）
+    alternates: { canonical: "/hw-jobs" },
   }
 }
 

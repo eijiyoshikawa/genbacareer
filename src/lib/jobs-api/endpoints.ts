@@ -78,7 +78,12 @@ function jobToHwJob(j: Job): HwJob {
     benefits: { annualHolidays: null, insurance: null },
     contact: { name: null, role: null, tel: null, email: null },
     dates: {
-      receivedAt: null,
+      // JobPosting の datePosted は必須フィールド（jobposting-validator.ts）。
+      // HelloWork 由来の実際の受付日 (receivedDate) を優先し、無ければ
+      // 自サイトへの取込日 (publishedAt) にフォールバックする。
+      // 常に null だと Google for Jobs のリッチリザルト対象から外れてしまう。
+      receivedAt:
+        j.receivedDate?.toISOString() ?? j.publishedAt?.toISOString() ?? null,
       validUntil: j.expiresAt?.toISOString() ?? null,
       applyBy: null,
     },

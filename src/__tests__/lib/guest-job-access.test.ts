@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 import {
   isCrawlerUserAgent,
   isGuestBlockedFromJob,
+  isValidPreviewToken,
   GUEST_LIMIT,
 } from "@/lib/guest-job-access"
 
@@ -93,5 +94,34 @@ describe("isGuestBlockedFromJob", () => {
       jobId: "any-job-id-not-in-top-15",
     })
     expect(blocked).toBe(false)
+  })
+})
+
+describe("isValidPreviewToken", () => {
+  // /jobs/preview/[token] の遷移を経由したことを保証するチェック。
+  // 固定値 ("1" 等) を許すとゲスト向けゲートを誰でも迂回できてしまうため、
+  // 実際の Job.previewToken との完全一致のみを許可する。
+
+  it("accepts a matching token", () => {
+    expect(isValidPreviewToken("abc123", "abc123")).toBe(true)
+  })
+
+  it("rejects a non-matching token (someone else's job's token)", () => {
+    expect(isValidPreviewToken("abc123", "someone-elses-token")).toBe(false)
+  })
+
+  it("rejects a guessed fixed value like '1' when the job has a real token", () => {
+    expect(isValidPreviewToken("abc123", "1")).toBe(false)
+  })
+
+  it("rejects when the job has no previewToken set, even if a value is provided", () => {
+    expect(isValidPreviewToken(null, "1")).toBe(false)
+    expect(isValidPreviewToken(undefined, "anything")).toBe(false)
+  })
+
+  it("rejects when no token param is provided", () => {
+    expect(isValidPreviewToken("abc123", undefined)).toBe(false)
+    expect(isValidPreviewToken("abc123", null)).toBe(false)
+    expect(isValidPreviewToken("abc123", "")).toBe(false)
   })
 })

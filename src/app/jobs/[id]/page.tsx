@@ -3,7 +3,10 @@ import { notFound, redirect } from "next/navigation"
 import { headers } from "next/headers"
 import Link from "next/link"
 import { auth } from "@/lib/auth"
-import { isGuestBlockedFromJob } from "@/lib/guest-job-access"
+import {
+  isGuestBlockedFromJob,
+  isValidPreviewToken,
+} from "@/lib/guest-job-access"
 import { JobViewBeacon } from "@/components/jobs/job-view-beacon"
 import {
   MapPin,
@@ -83,7 +86,11 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   // Prisma に渡す前に弾いて 404 を返す。
   if (!isValidUuid(id)) notFound()
   const sp = (await searchParams) ?? {}
-  const isPreview = sp.preview === "1"
+  // ?preview=<Job.previewToken> の形で渡ってくる。値は下で job.previewToken と
+  // 突き合わせてから isPreview を確定する（単なる "1" 等の固定値だと、
+  // トークンを持たない誰でも ?preview=1 を付けるだけでゲスト向けの
+  // 登録ゲートを迂回できてしまう）。
+  const previewTokenParam = sp.preview
   // 閲覧記録はクライアント beacon (<JobViewBeacon />) 経由で行う。
   // SSR 中に DB 書き込みを行わないことで、TTFB と将来の ISR 化を可能にする。
 
@@ -139,6 +146,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       companyFeatures: true,
       businessContent: true,
       companyUrl: true,
+      previewToken: true,
       company: {
         select: {
           id: true,
@@ -167,6 +175,10 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   })
 
   if (!job) notFound()
+
+  // previewToken が実際に一致した場合のみプレビューモードとして扱う
+  // （/jobs/preview/[token] からの遷移を経由したことの証明になる）。
+  const isPreview = isValidPreviewToken(job.previewToken, previewTokenParam)
 
   // 未登録ゲストは「グローバル上位 15 件（recommended sort / フィルタ無し）」の詳細のみ閲覧可。
   // 検索エンジン等のクローラは Google for Jobs SEO 維持のため除外する。

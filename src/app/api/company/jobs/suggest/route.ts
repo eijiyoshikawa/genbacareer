@@ -16,6 +16,7 @@ import {
   generateDescriptionDraft,
   isAiSuggestConfigured,
 } from "@/lib/ai-job-suggest"
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -46,6 +47,15 @@ export async function POST(request: NextRequest) {
   if (isCompanyAuthError(ctx)) {
     return Response.json({ error: ctx.error }, { status: ctx.status })
   }
+
+  // AI API 呼び出しコストの歯止め（他の全 API と異なりここだけ未設定だった）。
+  // companyId 単位: 認証済みなので IP よりなりすまし耐性がある。
+  const rl = checkRateLimit({
+    key: `company-jobs-suggest:${ctx.companyId}`,
+    limit: 30,
+    windowMs: 10 * 60 * 1000,
+  })
+  if (!rl.allowed) return rateLimitResponse(rl)
 
   if (!isAiSuggestConfigured()) {
     return Response.json(

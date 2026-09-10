@@ -35,6 +35,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: `${baseTitle}${company ? ` - ${company}` : ""}`,
     description: job.description?.slice(0, 160) ?? undefined,
+    alternates: { canonical: `/hw-jobs/${kjno}` },
   }
 }
 

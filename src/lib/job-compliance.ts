@@ -35,7 +35,9 @@ const RULES: Array<{
 }> = [
   // ----- 年齢制限 (雇用対策法 第10条) -----
   {
-    pattern: /(\d{2}|十)歳?\s*(以下|未満|まで)/,
+    // "歳" を必須にする（オプションにすると「17:00まで」の "00まで" に
+    // マッチする等、時刻・期限表現全般で誤検知する）。
+    pattern: /(\d{2}|十)歳\s*(以下|未満|まで)/,
     category: "age",
     message:
       "「○歳以下 / 未満 / まで」のような年齢上限は雇用対策法で原則禁止です。長期キャリア形成等の例外を除き、年齢制限を外すか『長期勤続による』等の理由を明記してください。",
@@ -47,7 +49,7 @@ const RULES: Array<{
       "「若手限定」「若い方」は年齢差別と解釈される可能性があります。具体的な業務内容や必要スキルで表現することをお勧めします。",
   },
   {
-    pattern: /(20|30|40)代(限定|のみ|まで|歓迎)/,
+    pattern: /(20|30|40|50|60)代(限定|のみ|まで|歓迎)/,
     category: "age",
     message:
       "年齢層を限定する表現は雇用対策法に抵触する可能性があります。「未経験歓迎」「長期勤続によるキャリア形成」等の客観的理由が必要です。",
@@ -102,9 +104,12 @@ const RULES: Array<{
  */
 export function checkJobCompliance(text: string): ComplianceIssue[] {
   if (!text) return []
+  // 全角数字（１８歳等）は \d にマッチしないため NFKC で半角化してから判定する
+  // （job-dedupe.ts の正規化と同じ方針）。
+  const normalized = text.normalize("NFKC")
   const found = new Map<string, ComplianceIssue>()
   for (const rule of RULES) {
-    const m = text.match(rule.pattern)
+    const m = normalized.match(rule.pattern)
     if (m) {
       const key = `${rule.category}:${m[0]}`
       if (!found.has(key)) {

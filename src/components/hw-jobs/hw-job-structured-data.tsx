@@ -36,7 +36,10 @@ export function HwJobStructuredData({ job }: { job: HwJob }) {
       name: "JP",
     },
     ...(baseSalary ? { baseSalary } : {}),
-    directApply: true,
+    // directApply: HelloWork 由来の求人はサイト内に応募フォームが無く
+    // (「応募方法はハローワーク窓口でご確認ください」表示のみ)、実際には
+    // サイト内で直接応募できない。true を偽って主張しないよう省略する
+    // （/jobs/[id] 側は実際に LINE 応募フォームがあるため true のままでよい）。
     identifier: {
       "@type": "PropertyValue",
       name: "公共求人番号",

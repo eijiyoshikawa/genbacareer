@@ -46,6 +46,31 @@ describe("checkJobCompliance", () => {
     expect(categories.has("age")).toBe(true)
     expect(categories.has("gender")).toBe(true)
   })
+
+  it("does not false-positive on ordinary shift-hour text ending on the hour", () => {
+    // "17:00まで" のような時刻表現は「歳」を伴わないため誤検知してはいけない
+    expect(checkJobCompliance("勤務時間 8:00〜17:00まで")).toEqual([])
+    expect(checkJobCompliance("受付は18:00まで対応可能です")).toEqual([])
+  })
+
+  it("detects age limit written with full-width digits", () => {
+    const r = checkJobCompliance("１８歳以下の方はご遠慮ください")
+    expect(r.some((i) => i.category === "age")).toBe(true)
+  })
+
+  it("detects age-band limit written with full-width digits", () => {
+    const r = checkJobCompliance("４０代限定の募集です")
+    expect(r.some((i) => i.category === "age")).toBe(true)
+  })
+
+  it("detects 50代/60代 age-band limits", () => {
+    expect(
+      checkJobCompliance("50代歓迎").some((i) => i.category === "age")
+    ).toBe(true)
+    expect(
+      checkJobCompliance("60代限定").some((i) => i.category === "age")
+    ).toBe(true)
+  })
 })
 
 describe("checkJobFields", () => {

@@ -71,3 +71,19 @@ export async function isGuestBlockedFromJob(args: {
   const allowedIds = await getGuestAccessibleJobIds()
   return !allowedIds.includes(args.jobId)
 }
+
+/**
+ * ?preview=<token> クエリパラメータが、その求人の Job.previewToken と
+ * 実際に一致するかを判定する。
+ *
+ * "1" のような固定値ではなくトークンそのものを要求することで、
+ * /jobs/preview/[token] での事前チェックを経由したことを保証する。
+ * ここを緩めると、トークンを持たない誰でも ?preview=<何か> を付けるだけで
+ * 未登録ゲスト向けの登録ゲートを迂回できてしまう。
+ */
+export function isValidPreviewToken(
+  jobPreviewToken: string | null | undefined,
+  providedToken: string | null | undefined
+): boolean {
+  return !!jobPreviewToken && !!providedToken && providedToken === jobPreviewToken
+}
