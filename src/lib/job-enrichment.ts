@@ -187,18 +187,18 @@ export function fallbackSalary(
   if (!text) return current
 
   // 月給優先で探す（最も一般的）
-  const monthly = matchSalary(text, /月給[\s　]*([\d,，]+)\s*円?(?:\s*[〜~から-]\s*([\d,，]+)\s*円?)?/, "monthly")
+  const monthly = matchSalary(text, /月給[\s　]*([\d,，]+)\s*円?(?:\s*(?:〜|~|から|-)\s*([\d,，]+)\s*円?)?/, "monthly")
   if (monthly) return monthly
 
-  const hourly = matchSalary(text, /時給[\s　]*([\d,，]+)\s*円?(?:\s*[〜~から-]\s*([\d,，]+)\s*円?)?/, "hourly")
+  const hourly = matchSalary(text, /時給[\s　]*([\d,，]+)\s*円?(?:\s*(?:〜|~|から|-)\s*([\d,，]+)\s*円?)?/, "hourly")
   if (hourly) return hourly
 
-  const daily = matchSalary(text, /日給[\s　]*([\d,，]+)\s*円?(?:\s*[〜~から-]\s*([\d,，]+)\s*円?)?/, "daily")
+  const daily = matchSalary(text, /日給[\s　]*([\d,，]+)\s*円?(?:\s*(?:〜|~|から|-)\s*([\d,，]+)\s*円?)?/, "daily")
   if (daily) return daily
 
   // 年収（万円単位）— レンジを先に試して、無ければ単一値
   const annualRange = text.match(
-    /年収[\s　]*([\d,，]+)(?:\s*万円?)?\s*[〜~から-]\s*([\d,，]+)\s*万円?/
+    /年収[\s　]*([\d,，]+)(?:\s*万円?)?\s*(?:〜|~|から|-)\s*([\d,，]+)\s*万円?/
   )
   if (annualRange) {
     return {
@@ -261,7 +261,7 @@ export function extractWorkConditions(
 
   // 勤務時間: HH:MM〜HH:MM
   const hoursMatch = haystack.match(
-    /(\d{1,2}[:：]\d{2})\s*[〜~から-]\s*(\d{1,2}[:：]\d{2})/
+    /(\d{1,2}[:：]\d{2})\s*(?:〜|~|から|-)\s*(\d{1,2}[:：]\d{2})/
   )
   const workingHours = hoursMatch
     ? `${hoursMatch[1].replace("：", ":")}〜${hoursMatch[2].replace("：", ":")}`

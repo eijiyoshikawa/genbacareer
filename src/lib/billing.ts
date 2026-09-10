@@ -14,6 +14,17 @@ import { resolveHiringFee } from "./hiring-fee"
  *   3. 請求書を作成・送付
  *   4. BillingEvent を invoiced に更新（失敗時は failed）
  */
+/**
+ * 呼び出し可能なタイミング:
+ *   - 採用確定 (Application.status → "hired") 直後（新規発行）
+ *   - admin が /admin/billing-todo から「再試行」した場合（発行失敗の再送）
+ *
+ * 冪等性: 同一 applicationId (eventType="hired") の BillingEvent が既にあり、
+ * status が pending/invoiced/paid（＝発行済 or 処理中）なら何もしない
+ * （二重請求防止）。status が failed の場合のみ、既存レコードを使って
+ * 再試行する（MoneyForward API が一時的に落ちていた等で失敗した請求は、
+ * 従来ここで永久に詰まって二度と発行されなかった）。
+ */
 export async function createHiringInvoice(applicationId: string) {
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
@@ -31,16 +42,30 @@ export async function createHiringInvoice(applicationId: string) {
   // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ定数フォールバック
   const feeAmount = resolveHiringFee(application.job)
 
-  const billingEvent = await prisma.billingEvent.create({
-    data: {
-      companyId: application.company.id,
-      applicationId,
-      eventType: "hired",
-      amount: feeAmount,
-      provider: "moneyforward",
-      status: "pending",
-    },
+  const existing = await prisma.billingEvent.findFirst({
+    where: { applicationId, eventType: "hired" },
   })
+  if (existing && existing.status !== "failed") {
+    return {
+      billingEvent: existing,
+      invoiceId: existing.mfBillingId,
+      provider: "moneyforward" as const,
+      skipped: true as const,
+    }
+  }
+
+  const billingEvent =
+    existing ??
+    (await prisma.billingEvent.create({
+      data: {
+        companyId: application.company.id,
+        applicationId,
+        eventType: "hired",
+        amount: feeAmount,
+        provider: "moneyforward",
+        status: "pending",
+      },
+    }))
 
   try {
     return await invoiceViaMoneyForward({

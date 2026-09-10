@@ -104,6 +104,19 @@ describe("fallbackSalary", () => {
   it("returns null when no salary found", () => {
     expect(fallbackSalary("詳細はお問い合わせください", empty)).toEqual(empty)
   })
+
+  // 回帰テスト: 「から」は 2 文字の連結詞なのに文字クラス [〜~から-] に
+  // 入れてしまうと 1 文字ずつ (か/ら) に分解され、"から" をつなぎとして
+  // 認識できず上限が消えてしまっていた。
+  it("extracts monthly salary range connected with から (regression)", () => {
+    const r = fallbackSalary("月給250,000円から300,000円", empty)
+    expect(r).toEqual({ min: 250000, max: 300000, type: "monthly" })
+  })
+
+  it("extracts annual salary range connected with から (regression)", () => {
+    const r = fallbackSalary("年収300万円から400万円", empty)
+    expect(r).toEqual({ min: 3000000, max: 4000000, type: "annual" })
+  })
 })
 
 describe("extractWorkConditions", () => {
@@ -125,6 +138,11 @@ describe("extractWorkConditions", () => {
       accessNote: null,
       insurance: null,
     })
+  })
+
+  it("extracts working hours connected with から (regression)", () => {
+    const c = extractWorkConditions("勤務時間 9:00から18:00")
+    expect(c.workingHours).toBe("9:00〜18:00")
   })
 
   it("falls back to per-insurance bundle when 完備 not stated", () => {

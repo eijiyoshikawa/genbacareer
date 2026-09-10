@@ -147,18 +147,11 @@ export async function PUT(
     },
   })
 
-  // 採用確定時の自動請求
+  // 採用確定時の自動請求（重複防止・failed 時の再試行判定は createHiringInvoice 内で行う）
   if (newStatus === "hired") {
     try {
-      const existingBilling = await prisma.billingEvent.findFirst({
-        where: { applicationId: id, eventType: "hired" },
-      })
-      if (!existingBilling) {
-        const { createHiringInvoice } = await import("@/lib/billing")
-        await createHiringInvoice(id)
-      } else {
-        console.info(`[billing] Skipped duplicate invoice for application ${id}`)
-      }
+      const { createHiringInvoice } = await import("@/lib/billing")
+      await createHiringInvoice(id)
     } catch (error) {
       console.error(`[billing] Failed to create invoice for application ${id}:`, error)
     }

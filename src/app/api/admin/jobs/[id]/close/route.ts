@@ -10,9 +10,10 @@
 
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
+import { logAudit, buildActorFromSession } from "@/lib/audit-log"
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth()
@@ -29,12 +30,35 @@ export async function POST(
     return Response.json({ error: "Bad Request" }, { status: 400 })
   }
 
+  let reason: string | undefined
   try {
+    const body = (await request.json()) as { reason?: string } | null
+    reason = body?.reason?.trim() || undefined
+  } catch {
+    // body 省略可
+  }
+
+  try {
+    const existing = await prisma.job.findUnique({
+      where: { id },
+      select: { status: true, title: true },
+    })
     const job = await prisma.job.update({
       where: { id },
       data: { status: "closed" },
       select: { id: true, status: true },
     })
+
+    const actor = await buildActorFromSession()
+    void logAudit({
+      ...actor,
+      resourceType: "job",
+      resourceId: id,
+      action: "close",
+      summary: `求人「${existing?.title ?? id}」を不適切として closed に変更`,
+      diff: { previousStatus: existing?.status, newStatus: "closed", reason },
+    })
+
     return Response.json({ ok: true, job })
   } catch (e) {
     console.error(`[admin/jobs/close] failed for ${id}:`, e)

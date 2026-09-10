@@ -157,7 +157,14 @@ export async function createMfBilling(args: {
             name: args.itemName,
             unit_price: args.amount,
             quantity: 1,
-            // 内税で消費税 10%（業務委託・成果報酬は課税対象）
+            // 消費税率 10%（業務委託・成果報酬は課税対象）。
+            // 注意: unit_price を「税抜」（この関数の JSDoc の通り）として MF 側が
+            // 10% を上乗せするのか、「税込」総額として扱うのかは実際の MF API
+            // レスポンス（請求書 PDF の合計額）で未検証。resolveHiringFee() が
+            // 返す金額（¥498,000〜 など、社外にも「¥498,000」と案内している額）
+            // と実際に発行される請求書の合計額が一致するか、本番/サンドボックスで
+            // 1 件テスト請求書を発行して確認すること（最大 10% ≒ 5 万円弱のズレ
+            // が生じ得る）。
             excise: "ten_percent",
           },
         ],

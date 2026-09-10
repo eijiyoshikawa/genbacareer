@@ -13,6 +13,7 @@ import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
 import { HIRING_FEE_MIN, HIRING_FEE_MAX } from "@/lib/hiring-fee"
+import { logAudit, buildActorFromSession } from "@/lib/audit-log"
 
 const bodySchema = z.object({
   hiringFeeAmount: z
@@ -60,11 +61,31 @@ export async function PATCH(
   }
 
   try {
+    const existing = await prisma.job.findUnique({
+      where: { id },
+      select: { hiringFeeAmount: true, title: true },
+    })
     const job = await prisma.job.update({
       where: { id },
       data: { hiringFeeAmount: parsed.data.hiringFeeAmount },
       select: { id: true, hiringFeeAmount: true },
     })
+
+    // 請求金額に直結する値なので、他の企業向け金額系変更 (プラン等) と
+    // 同様に必ず監査ログへ残す。
+    const actor = await buildActorFromSession()
+    void logAudit({
+      ...actor,
+      resourceType: "job",
+      resourceId: id,
+      action: "update_hiring_fee",
+      summary: `求人「${existing?.title ?? id}」の成果報酬単価を変更`,
+      diff: {
+        previousAmount: existing?.hiringFeeAmount ?? null,
+        newAmount: parsed.data.hiringFeeAmount,
+      },
+    })
+
     return Response.json({ ok: true, job })
   } catch (e) {
     console.error(`[admin/jobs/hiring-fee] failed for ${id}:`, e)

@@ -167,6 +167,13 @@ providers.push(
 
         if (!companyUser) return null
 
+        // 却下済み企業のユーザーはログイン拒否。status のみ変更しても
+        // ログインが素通りしてしまうと、却下後も求人編集・スカウト送信等が
+        // 継続できてしまう（rejected/route.ts と対の防御）。
+        if (companyUser.company.status === "rejected") {
+          throw new Error("COMPANY_REJECTED")
+        }
+
         const isValid = await compare(
           credentials.password as string,
           companyUser.passwordHash

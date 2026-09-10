@@ -75,6 +75,14 @@ export async function POST(
     },
   })
 
+  // 却下しても既存の active 求人が公開され続けたままだと、却下の意味が
+  // 実質無くなってしまう（求職者は引き続き閲覧・応募可能なまま）。
+  // 却下と同時に close して一覧・詳細から外す。
+  const closedJobs = await prisma.job.updateMany({
+    where: { companyId: id, status: "active" },
+    data: { status: "closed" },
+  })
+
   const actor = await buildActorFromSession()
   void logAudit({
     ...actor,
@@ -82,7 +90,12 @@ export async function POST(
     resourceId: id,
     action: "reject",
     summary: `企業「${company.name}」を却下`,
-    diff: { previousStatus: company.status, newStatus: "rejected", reason },
+    diff: {
+      previousStatus: company.status,
+      newStatus: "rejected",
+      reason,
+      closedJobs: closedJobs.count,
+    },
   })
 
   if (company.contactEmail) {
@@ -93,5 +106,9 @@ export async function POST(
     }
   }
 
-  return Response.json({ success: true, status: "rejected" })
+  return Response.json({
+    success: true,
+    status: "rejected",
+    closedJobs: closedJobs.count,
+  })
 }

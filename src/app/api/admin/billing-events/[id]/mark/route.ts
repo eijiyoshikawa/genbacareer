@@ -6,11 +6,13 @@
  *     { action: "mark_invoiced", mfBillingId?: string, invoiceUrl?: string }
  *     { action: "mark_paid" }
  *     { action: "mark_failed", reason?: string }
+ *     { action: "retry" }
  *
  * 用途: MoneyForward 自動連携は未導入のため、admin が手動で
  *   - 請求書発行 (pending → invoiced) + MF 側 ID を保存
  *   - 入金確認 (invoiced → paid)
  *   - 失敗マーク (* → failed)
+ *   - 再試行 (failed → MoneyForward へ再送。成功すれば invoiced)
  * を打ち込んで運用する。
  */
 
@@ -43,6 +45,9 @@ const patchSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("mark_failed"),
   }),
+  z.object({
+    action: z.literal("retry"),
+  }),
 ])
 
 export async function POST(
@@ -70,7 +75,7 @@ export async function POST(
 
   const row = await prisma.billingEvent.findUnique({
     where: { id },
-    select: { id: true, status: true },
+    select: { id: true, status: true, applicationId: true },
   })
   if (!row) {
     return Response.json({ error: "対象が見つかりません" }, { status: 404 })
@@ -113,6 +118,32 @@ export async function POST(
         data: { status: "failed" },
       })
       return Response.json({ ok: true })
+    }
+    case "retry": {
+      if (row.status !== "failed") {
+        return Response.json(
+          { error: `現在のステータス (${row.status}) は再試行対象ではありません` },
+          { status: 409 },
+        )
+      }
+      if (!row.applicationId) {
+        return Response.json(
+          { error: "対象の応募情報が見つかりません" },
+          { status: 404 },
+        )
+      }
+      try {
+        const { createHiringInvoice } = await import("@/lib/billing")
+        const result = await createHiringInvoice(row.applicationId)
+        return Response.json({ ok: true, invoiceId: result.invoiceId })
+      } catch (e) {
+        return Response.json(
+          {
+            error: `MoneyForward への再送に失敗しました: ${e instanceof Error ? e.message : "unknown error"}`,
+          },
+          { status: 502 },
+        )
+      }
     }
   }
 }

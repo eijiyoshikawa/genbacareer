@@ -51,6 +51,12 @@ export default function CompanyLoginPage() {
           setError("認証コードが正しくありません。もう一度お試しください。");
           return;
         }
+        if (result.error.includes("COMPANY_REJECTED")) {
+          setError(
+            "本アカウントではご利用いただくことができません。詳細は info@let-inc.net までお問い合わせください。"
+          );
+          return;
+        }
         setError("メールアドレスまたはパスワードが正しくありません。");
       } else if (result?.ok) {
         window.location.href = "/company/dashboard";
