@@ -20,7 +20,7 @@ const MAX_URLS = 10
  * - hostname が localhost / private IP でないこと
  * - 最大 500 文字
  */
-function isSafeSchedulingUrl(value: string): boolean {
+export function isSafeSchedulingUrl(value: string): boolean {
   if (value.length === 0 || value.length > 500) return false
   let parsed: URL
   try {

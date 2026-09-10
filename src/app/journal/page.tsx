@@ -2,7 +2,8 @@ import Link from "next/link"
 import Image from "next/image"
 import type { Metadata } from "next"
 import { prisma } from "@/lib/db"
-import { publishedArticleFilter } from "@/lib/articles"
+import { publishedMagazineArticleFilter } from "@/lib/articles"
+import { MAGAZINE_CATEGORY_VALUES } from "@/lib/article-categories"
 import { Newspaper, Search, ChevronRight } from "lucide-react"
 import { Pagination } from "@/components/pagination"
 
@@ -38,10 +39,19 @@ type Props = {
 export default async function JournalPage({ searchParams }: Props) {
   const params = await searchParams
   const page = Math.max(1, Number(params.page ?? "1"))
-  const categoryFilter = params.category ?? ""
+  // ヘルプ記事 (help-seeker / help-employer) はマガジン対象外。URL パラメータ
+  // で category=help-seeker のような値を渡されても素通りしないよう、
+  // マガジンの 6 カテゴリのみ許可する（Article テーブルはマガジンと
+  // ヘルプ記事を共用しているため、緩めると /journal に混入してしまう）。
+  const rawCategory = params.category ?? ""
+  const categoryFilter = (
+    MAGAZINE_CATEGORY_VALUES as readonly string[]
+  ).includes(rawCategory)
+    ? rawCategory
+    : ""
 
   const where = {
-    ...publishedArticleFilter(),
+    ...publishedMagazineArticleFilter(),
     ...(categoryFilter ? { category: categoryFilter } : {}),
   }
 
@@ -56,7 +66,7 @@ export default async function JournalPage({ searchParams }: Props) {
     prisma.article.count({ where }),
     page === 1 && !categoryFilter
       ? prisma.article.findMany({
-          where: { ...publishedArticleFilter(), featured: true },
+          where: { ...publishedMagazineArticleFilter(), featured: true },
           orderBy: { publishedAt: "desc" },
           take: 3,
           select: { slug: true, title: true, category: true, imageUrl: true },
@@ -64,13 +74,13 @@ export default async function JournalPage({ searchParams }: Props) {
       : Promise.resolve([]),
     prisma.article.groupBy({
       by: ["category"],
-      where: publishedArticleFilter(),
+      where: publishedMagazineArticleFilter(),
       _count: true,
       orderBy: { _count: { category: "desc" } },
     }),
     // 13.1: 人気記事ランキング (viewCount desc, 上位 5 件)
     prisma.article.findMany({
-      where: publishedArticleFilter(),
+      where: publishedMagazineArticleFilter(),
       orderBy: { viewCount: "desc" },
       take: 5,
       select: { slug: true, title: true, category: true, viewCount: true },

@@ -7,6 +7,7 @@
 
 import { type NextRequest } from "next/server"
 import { z } from "zod"
+import { Prisma } from "@prisma/client"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import {
@@ -71,24 +72,36 @@ export async function POST(
 
   const session = await auth().catch(() => null)
 
-  await prisma.companyReview.create({
-    data: {
-      companyId,
-      userId: session?.user?.id ?? null,
-      employmentStatus: parsed.data.employmentStatus,
-      rating: parsed.data.rating,
-      ratingSalary: parsed.data.ratingSalary ?? null,
-      ratingWorkLife: parsed.data.ratingWorkLife ?? null,
-      ratingGrowth: parsed.data.ratingGrowth ?? null,
-      ratingBenefits: parsed.data.ratingBenefits ?? null,
-      title: parsed.data.title ?? null,
-      goodPoints: parsed.data.goodPoints ?? null,
-      badPoints: parsed.data.badPoints ?? null,
-      advice: parsed.data.advice ?? null,
-      displayName: parsed.data.displayName ?? "建設業界の方",
-      reporterIp: ip,
-    },
-  })
+  try {
+    await prisma.companyReview.create({
+      data: {
+        companyId,
+        userId: session?.user?.id ?? null,
+        employmentStatus: parsed.data.employmentStatus,
+        rating: parsed.data.rating,
+        ratingSalary: parsed.data.ratingSalary ?? null,
+        ratingWorkLife: parsed.data.ratingWorkLife ?? null,
+        ratingGrowth: parsed.data.ratingGrowth ?? null,
+        ratingBenefits: parsed.data.ratingBenefits ?? null,
+        title: parsed.data.title ?? null,
+        goodPoints: parsed.data.goodPoints ?? null,
+        badPoints: parsed.data.badPoints ?? null,
+        advice: parsed.data.advice ?? null,
+        displayName: parsed.data.displayName ?? "建設業界の方",
+        reporterIp: ip,
+      },
+    })
+  } catch (e) {
+    // ログイン済みユーザーが同じ企業に複数回投稿しようとした場合
+    // (@@unique([companyId, userId]))。評価操作対策のため 1 社 1 件まで。
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return Response.json(
+        { error: "この企業への口コミは既に投稿済みです" },
+        { status: 409 }
+      )
+    }
+    throw e
+  }
 
   return Response.json({ ok: true, status: "pending" }, { status: 201 })
 }

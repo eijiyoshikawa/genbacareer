@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og"
 import { prisma } from "@/lib/db"
-import { publishedArticleFilter } from "@/lib/articles"
+import { publishedMagazineArticleFilter } from "@/lib/articles"
 
 export const alt = "記事"
 export const size = { width: 1200, height: 630 }
@@ -26,7 +26,7 @@ export default async function OGImage({
 
   const article = await prisma.article
     .findFirst({
-      where: { slug, ...publishedArticleFilter() },
+      where: { slug, ...publishedMagazineArticleFilter() },
       select: {
         title: true,
         excerpt: true,

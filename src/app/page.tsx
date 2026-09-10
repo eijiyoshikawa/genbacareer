@@ -12,7 +12,7 @@ import {
   MapPin,
   Banknote,
 } from "lucide-react"
-import { CATEGORY_LABELS } from "@/lib/article-categories"
+import { CATEGORY_LABELS, MAGAZINE_CATEGORY_VALUES } from "@/lib/article-categories"
 import { RecommendedForYou } from "@/components/jobs/recommended-for-you"
 import { Section } from "@/components/ui/section"
 import { getCategoryCounts } from "@/lib/job-stats"
@@ -377,7 +377,15 @@ export default async function HomePage() {
     withTimeout(
       prisma.article
         .findMany({
-          where: { ...publishedArticleFilter(), category: { not: "interview" } },
+          where: {
+            ...publishedArticleFilter(),
+            // ヘルプ記事 (help-seeker / help-employer) は Article テーブルを
+            // 共用しているため、単に category!=interview だけでは通過して
+            // しまう。マガジンの残り 5 カテゴリに明示的に絞る。
+            category: {
+              in: MAGAZINE_CATEGORY_VALUES.filter((c) => c !== "interview"),
+            },
+          },
           orderBy: { publishedAt: "desc" },
           take: 4,
           select: { slug: true, title: true, category: true, publishedAt: true, imageUrl: true },

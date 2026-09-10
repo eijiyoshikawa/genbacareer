@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db"
-import { publishedArticleFilter } from "@/lib/articles"
+import { publishedMagazineArticleFilter } from "@/lib/articles"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 
 /**
@@ -65,7 +65,7 @@ export async function GET() {
       .catch(() => []),
     prisma.article
       .findMany({
-        where: publishedArticleFilter(),
+        where: publishedMagazineArticleFilter(),
         select: { slug: true, title: true, imageUrl: true },
         orderBy: { publishedAt: "desc" },
         take: 200,

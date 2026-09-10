@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db"
-import { publishedArticleFilter } from "@/lib/articles"
+import { publishedMagazineArticleFilter } from "@/lib/articles"
 
 /**
  * マガジンの RSS 2.0 フィード。
@@ -17,6 +17,20 @@ export const revalidate = 3600
 const SITE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
+/**
+ * URL の拡張子から画像 MIME を推定する。
+ * imageUrl は PNG/WebP でも登録され得るため（storage-images.ts の
+ * ALLOWED_MIME 参照）、常に image/jpeg 決め打ちだと厳格な RSS/podcast
+ * リーダーが型不一致で enclosure を拒否・誤処理する可能性がある。
+ */
+function guessImageMimeFromUrl(url: string): string {
+  const ext = url.split("?")[0]?.split(".").pop()?.toLowerCase()
+  if (ext === "png") return "image/png"
+  if (ext === "webp") return "image/webp"
+  if (ext === "gif") return "image/gif"
+  return "image/jpeg"
+}
+
 function escapeXml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
@@ -29,7 +43,7 @@ function escapeXml(str: string): string {
 export async function GET() {
   const articles = await prisma.article
     .findMany({
-      where: publishedArticleFilter(),
+      where: publishedMagazineArticleFilter(),
       orderBy: { publishedAt: "desc" },
       take: 50,
       select: {
@@ -62,7 +76,7 @@ export async function GET() {
         `    <author>noreply@genbacareer.jp (${escapeXml(a.authorName)})</author>`,
         ...(a.imageUrl
           ? [
-              `    <enclosure url="${escapeXml(a.imageUrl)}" type="image/jpeg" />`,
+              `    <enclosure url="${escapeXml(a.imageUrl)}" type="${guessImageMimeFromUrl(a.imageUrl)}" />`,
             ]
           : []),
         "  </item>",

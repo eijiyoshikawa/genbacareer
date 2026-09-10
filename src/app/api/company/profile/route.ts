@@ -13,6 +13,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { isCompanyAuthError, requireCompanyAuth } from "@/lib/company-auth"
 import { computeRankScore } from "@/lib/ranking"
+import { isSafeSchedulingUrl } from "@/lib/scheduling-urls"
 
 export const dynamic = "force-dynamic"
 
@@ -27,11 +28,22 @@ const profileSchema = z.object({
     .max(12)
     .optional()
     .default([]),
+  // isSafeSchedulingUrl と同じ基準（https のみ、localhost / private IP 拒否）を
+  // 書き込み時にも強制する。ここで緩いチェックのまま保存を許すと、
+  // 保存自体は成功するのに読み取り側 (parseSchedulingUrls) で黙って
+  // フィルタされ、企業側からは「保存したのに消えた」ようにしか見えない。
   schedulingUrls: z
     .array(
       z.object({
         name: z.string().min(1).max(60),
-        url: z.string().url().max(500),
+        url: z
+          .string()
+          .url()
+          .max(500)
+          .refine(isSafeSchedulingUrl, {
+            message:
+              "スケジューリング URL は https:// で始まる公開 URL のみ使用できます",
+          }),
         primary: z.boolean().optional(),
       })
     )

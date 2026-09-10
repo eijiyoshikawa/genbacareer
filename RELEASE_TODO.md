@@ -150,6 +150,22 @@ CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pn
 
 ---
 
+## 🆕 口コミ重複投稿防止 (2026-09-10 追加)
+
+不正レビュー対策として `CompanyReview` に `@@unique([companyId, userId])` を追加（ログイン済みユーザーは同一企業への口コミを 1 件までに制限。匿名投稿は引き続き無制限）。
+
+- [ ] **本番 DB にスキーマ反映**:
+  ```bash
+  pnpm prisma db push
+  ```
+  事前確認（重複が既にある場合は db push が失敗するので先に手動で整理）:
+  ```sql
+  SELECT company_id, user_id, COUNT(*) FROM company_reviews
+  WHERE user_id IS NOT NULL GROUP BY company_id, user_id HAVING COUNT(*) > 1;
+  ```
+
+---
+
 ## 📋 すでに完了済み
 
 参考: 直近のセッションで完了した手作業:

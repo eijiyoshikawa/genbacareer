@@ -10,6 +10,9 @@ export const ARTICLE_CATEGORIES = [
 
 export type ArticleCategoryValue = (typeof ARTICLE_CATEGORIES)[number]["value"]
 
+/** マガジン（/journal 以下）が対象とする 6 カテゴリの値一覧。 */
+export const MAGAZINE_CATEGORY_VALUES = ARTICLE_CATEGORIES.map((c) => c.value)
+
 export const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
   ARTICLE_CATEGORIES.map((c) => [c.value, c.label])
 )

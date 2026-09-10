@@ -1112,6 +1112,10 @@ model CompanyReview {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
+  // ログイン済みユーザーは同一企業への口コミを 1 件までに制限する（評価操作対策）。
+  // userId は nullable（匿名投稿許可）で Postgres の UNIQUE は NULL 同士を
+  // 別値扱いするため、匿名投稿同士は引き続き何件でも許可される。
+  @@unique([companyId, userId])
   @@index([companyId, status, createdAt(sort: Desc)], name: "idx_company_reviews_by_company")
   @@index([status, createdAt(sort: Desc)], name: "idx_company_reviews_moderation")
   @@map("company_reviews")

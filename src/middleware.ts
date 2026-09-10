@@ -99,8 +99,12 @@ export function middleware(request: NextRequest) {
   // /api/cron/* と /api/webhooks/* は Vercel Cron / 外部 Webhook が deployment URL
   // を直接叩く。canonical へ 301 すると Authorization ヘッダが落ちて認証失敗するため
   // ホスト書き換えからは除外する（後段の noindex は引き続き付与）。
+  // /api/health も同様に除外: 外形監視ツールがリダイレクトを追従しない場合、
+  // deployment URL への死活監視が「ダウン」と誤検知されてしまう。
   const isInfraEndpoint =
-    pathname.startsWith("/api/cron") || pathname.startsWith("/api/webhooks")
+    pathname.startsWith("/api/cron") ||
+    pathname.startsWith("/api/webhooks") ||
+    pathname.startsWith("/api/health")
   if (
     process.env.VERCEL_ENV === "production" &&
     isVercelHost &&

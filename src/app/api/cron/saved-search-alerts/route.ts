@@ -22,6 +22,34 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 export const maxDuration = 300
 
+/**
+ * 通知本文には上位 N 件だけ表示する（メールが長くなりすぎないため）。
+ * カーソル（lastNotifiedAt）の前進判定には別途、これより大きい FETCH_CAP 件で
+ * 取得した結果を使う。DISPLAY_LIMIT で fetch すると、その日に DISPLAY_LIMIT
+ * 件を超える新着があった場合に古い方が「二度と拾われない」まま
+ * lastNotifiedAt が現在時刻まで進んでしまう（旧実装のバグ）。
+ */
+export const DISPLAY_LIMIT = 5
+export const FETCH_CAP = 50
+
+/**
+ * 次回実行時に取りこぼしが出ないよう、lastNotifiedAt をどこまで進めてよいかを決める。
+ *
+ * - 取得件数が FETCH_CAP 未満 → その期間の新着を全件拾えている → startedAt まで進めてよい
+ * - 取得件数が FETCH_CAP 件ちょうど → CAP 超過分が残っている可能性があるので、
+ *   今回拾えた最古の求人の publishedAt の直後までしか進めない
+ *   （+1ms することで、その最古の求人自体が次回また一致してしまうのを防ぐ）
+ */
+export function nextCursor(
+  matches: Array<{ publishedAt: Date | null }>,
+  startedAt: Date
+): Date {
+  if (matches.length < FETCH_CAP) return startedAt
+  const oldest = matches[matches.length - 1]?.publishedAt
+  if (!oldest) return startedAt
+  return new Date(oldest.getTime() + 1)
+}
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
@@ -45,24 +73,27 @@ export async function GET(request: Request) {
   for (const s of searches) {
     searchProcessed++
     try {
-      const matches = await findNewMatchingJobs(s, 5)
+      const matches = await findNewMatchingJobs(s, FETCH_CAP)
+      const cursor = nextCursor(matches, startedAt)
       if (matches.length === 0) {
         await prisma.savedSearch.update({
           where: { id: s.id },
-          data: { lastNotifiedAt: startedAt },
+          data: { lastNotifiedAt: cursor },
         })
         continue
       }
 
       const qs = toSearchQueryString(s)
       const link = qs ? `/jobs?${qs}` : "/jobs"
+      const displayed = matches.slice(0, DISPLAY_LIMIT)
+      const moreCount = matches.length - displayed.length
 
       await createNotification({
         userId: s.userId,
         type: "system",
-        title: `🆕 「${s.name}」に新着求人 ${matches.length} 件`,
-        body: `条件: ${formatSearchLabel(s)}`,
-        items: matches.map((m) => m.title),
+        title: `🆕 「${s.name}」に新着求人 ${matches.length}${matches.length >= FETCH_CAP ? "+" : ""} 件`,
+        body: `条件: ${formatSearchLabel(s)}${moreCount > 0 ? `\n\n... 他 ${moreCount} 件` : ""}`,
+        items: displayed.map((m) => m.title),
         linkUrl: link,
         linkLabel: "新着求人を見る",
         refId: s.id,
@@ -70,7 +101,7 @@ export async function GET(request: Request) {
 
       await prisma.savedSearch.update({
         where: { id: s.id },
-        data: { lastNotifiedAt: startedAt },
+        data: { lastNotifiedAt: cursor },
       })
       searchNotified++
     } catch (e) {
@@ -117,17 +148,18 @@ export async function GET(request: Request) {
             publishedAt: { gte: since },
           },
           orderBy: { publishedAt: "desc" },
-          take: 5,
-          select: { id: true, title: true },
+          take: FETCH_CAP,
+          select: { id: true, title: true, publishedAt: true },
         })
         .catch(() => [])
+      const cursor = nextCursor(matches, startedAt)
 
       if (matches.length === 0) {
         await prisma.companyFollow.update({
           where: {
             userId_companyId: { userId: f.userId, companyId: f.companyId },
           },
-          data: { lastNotifiedAt: startedAt },
+          data: { lastNotifiedAt: cursor },
         })
         continue
       }
@@ -140,7 +172,7 @@ export async function GET(request: Request) {
       await createNotification({
         userId: f.userId,
         type: "system",
-        title: `🆕 ${f.company.name} の新着求人 ${matches.length} 件`,
+        title: `🆕 ${f.company.name} の新着求人 ${matches.length}${matches.length >= FETCH_CAP ? "+" : ""} 件`,
         body: `フォロー中の企業に新しい求人が公開されました。\n\n${titleBody}${moreText}`,
         linkUrl: `/companies/${f.companyId}`,
         refId: f.companyId,
@@ -150,7 +182,7 @@ export async function GET(request: Request) {
         where: {
           userId_companyId: { userId: f.userId, companyId: f.companyId },
         },
-        data: { lastNotifiedAt: startedAt },
+        data: { lastNotifiedAt: cursor },
       })
       followNotified++
     } catch (e) {

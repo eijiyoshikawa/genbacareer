@@ -3,7 +3,7 @@ import Link from "next/link"
 import Image from "next/image"
 import type { Metadata } from "next"
 import { prisma } from "@/lib/db"
-import { publishedArticleFilter } from "@/lib/articles"
+import { publishedMagazineArticleFilter } from "@/lib/articles"
 import { CATEGORY_LABELS } from "@/lib/article-categories"
 import {
   generateBreadcrumbSchema,
@@ -41,7 +41,7 @@ export default async function TagPage({ params }: Props) {
   const articles = await prisma.article
     .findMany({
       where: {
-        ...publishedArticleFilter(),
+        ...publishedMagazineArticleFilter(),
         tags: { has: tagLabel },
       },
       orderBy: { publishedAt: "desc" },

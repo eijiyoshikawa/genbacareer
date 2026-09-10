@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { prisma } from "@/lib/db"
-import { publishedArticleFilter } from "@/lib/articles"
+import { publishedMagazineArticleFilter } from "@/lib/articles"
 import { ChevronRight } from "lucide-react"
 import { Buildings, Clock, ArrowLeft, ArrowRight, Tag } from "@phosphor-icons/react/dist/ssr"
 import { getAuthorByName } from "@/lib/authors"
@@ -29,7 +29,7 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const article = await prisma.article.findFirst({
-    where: { slug, ...publishedArticleFilter() },
+    where: { slug, ...publishedMagazineArticleFilter() },
     select: {
       title: true,
       metaDescription: true,
@@ -89,7 +89,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params
   const article = await prisma.article.findFirst({
-    where: { slug, ...publishedArticleFilter() },
+    where: { slug, ...publishedMagazineArticleFilter() },
   })
 
   if (!article) notFound()
@@ -137,7 +137,7 @@ export default async function ArticlePage({ params }: Props) {
   // Fetch related articles (same category, excluding current)
   const related = await prisma.article.findMany({
     where: {
-      ...publishedArticleFilter(),
+      ...publishedMagazineArticleFilter(),
       category: article.category,
       id: { not: article.id },
     },
@@ -152,7 +152,7 @@ export default async function ArticlePage({ params }: Props) {
       ? prisma.article
           .findFirst({
             where: {
-              ...publishedArticleFilter(),
+              ...publishedMagazineArticleFilter(),
               category: article.category,
               publishedAt: { lt: article.publishedAt },
             },
@@ -165,7 +165,7 @@ export default async function ArticlePage({ params }: Props) {
       ? prisma.article
           .findFirst({
             where: {
-              ...publishedArticleFilter(),
+              ...publishedMagazineArticleFilter(),
               category: article.category,
               publishedAt: { gt: article.publishedAt },
             },

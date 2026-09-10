@@ -2,7 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { prisma } from "@/lib/db"
-import { publishedArticleFilter } from "@/lib/articles"
+import { publishedMagazineArticleFilter } from "@/lib/articles"
 import { AUTHORS, getAuthorBySlug } from "@/lib/authors"
 import { CATEGORY_LABELS } from "@/lib/article-categories"
 import {
@@ -56,7 +56,7 @@ export default async function AuthorPage({ params }: Props) {
   const articles = await prisma.article
     .findMany({
       where: {
-        ...publishedArticleFilter(),
+        ...publishedMagazineArticleFilter(),
         authorName: author.name,
       },
       orderBy: { publishedAt: "desc" },
