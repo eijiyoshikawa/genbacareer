@@ -70,13 +70,12 @@ async function seedHelpArticles() {
             status: "published",
             publishedAt: now,
           },
-          update: {
-            // 既存の body はユーザー編集を優先するため上書きしない
-            title: stub.title,
-            excerpt: stub.excerpt,
-            category,
-            subcategory: stub.subcategory,
-          },
+          // 既存記事は admin 編集（body に限らず title/excerpt/category/
+          // subcategory も /admin/articles で編集され得る）を優先し、
+          // 再実行時に上書きしない。以前は body だけ保護対象で、
+          // 他フィールドは再実行のたびに admin の編集内容が
+          // スタブ内容へ静かに巻き戻されていた。
+          update: {},
         })
         upserted++
       }

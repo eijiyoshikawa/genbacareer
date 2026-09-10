@@ -190,16 +190,22 @@ User 作成時に一切保存されず破棄されていた（専用カラムが
 
 ---
 
-## 🆕 記事著者名の旧ブランド名修正 (2026-09-10 追加)
+## 🆕 記事の旧ブランド名修正 (2026-09-10 追加、本文まで拡大対応)
 
-`prisma/seed-data/seed-articles.ts` が全記事の `authorName` に旧ブランド名
-「建設求人ポータル編集部」を書き込んでいたのを「ゲンバキャリア編集部」に修正
-（`seed-help-articles.ts` は元々正しい表記だった）。
+`prisma/seed-data/` 配下で旧ブランド名「建設求人ポータル」が使われていた箇所を
+「ゲンバキャリア」に修正:
+- `seed-articles.ts` の `authorName`（「建設求人ポータル編集部」）
+- `seed-articles.ts` のプレースホルダー本文生成部
+- `prisma/seed-data/articles/*.html`（199 ファイル / 計 398 箇所、記事本文
+  末尾の「建設求人ポータルでは、〜求人を掲載しています」という定型文）
 
 - [ ] 本番 DB に既に seed 済みの記事がある場合、以下で一括修正:
   ```sql
   UPDATE articles SET author_name = 'ゲンバキャリア編集部'
   WHERE author_name = '建設求人ポータル編集部';
+
+  UPDATE articles SET body = REPLACE(body, '建設求人ポータル', 'ゲンバキャリア')
+  WHERE body LIKE '%建設求人ポータル%';
   ```
 
 ---
