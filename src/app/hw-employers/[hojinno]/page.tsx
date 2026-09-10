@@ -26,6 +26,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: `${result.data.employer.name}の求人`,
     description: result.data.employer.description?.slice(0, 160) ?? undefined,
+    // offset/limit のクエリバリエーションが重複コンテンツ扱いされないよう、
+    // クエリ無しの基本 URL に固定する（/hw-jobs と同じ方針）。
+    alternates: { canonical: `/hw-employers/${hojinno}` },
   }
 }
 

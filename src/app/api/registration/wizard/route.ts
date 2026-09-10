@@ -95,10 +95,20 @@ export async function POST(request: Request) {
         prefecture: answers.prefecture,
         city: answers.city,
         // 「経験あり」と「希望」は別概念。Phase 2 で希望カテゴリ入力ステップを
-        // 追加するまでは空配列で保存し、experiencedCategories は Phase 2 で
-        // 別カラム or metadata jsonb に格納する。
+        // 追加するまでは空配列で保存する。
         desiredCategories: [],
         desiredSalaryMin: answers.desiredSalaryMin,
+        // experiencedCategories 等は専用カラムが無いため、以前は破棄していた
+        // （必須ステップで回答させておきながら保存されない状態だった）。
+        // 専用カラム化するまでの保存先として wizardAnswers に残す。
+        wizardAnswers: {
+          experiencedCategories: answers.experiencedCategories ?? [],
+          experiencedSubcategories: answers.experiencedSubcategories ?? [],
+          experienceYears: answers.experienceYears ?? null,
+          companyCount: answers.companyCount ?? null,
+          desiredPrefectures: answers.desiredPrefectures ?? [],
+          desiredTransferTiming: answers.desiredTransferTiming ?? null,
+        },
         authProvider: "email",
         verificationToken,
         verificationTokenExpiry,

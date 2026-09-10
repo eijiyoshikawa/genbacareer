@@ -9,9 +9,8 @@
  *   1. typecheck (tsc --noEmit)
  *   2. lint (eslint)
  *   3. unit tests (vitest)
- *   4. env vars (check-env.ts)
- *   5. prisma schema diff (本番 DB と比較)
- *   6. build (next build) ※ 最後 (重い)
+ *   4. env vars (check-env.ts --env=production)
+ *   5. build (next build) ※ 最後 (重い)
  *
  * 失敗したら即 exit。CI でも使える。
  */
@@ -39,8 +38,12 @@ const ALL_STEPS: Step[] = [
   },
   {
     name: "env",
-    cmd: "pnpm check:env",
-    optional: true,
+    // --env= 無指定だと targetEnv="local" 扱いになり、DATABASE_URL 等の最低限
+    // しか見ない。リリース前チェックとしては production 必須セット
+    // (LINE_* / SMTP_* / ADMIN_* / GA_ID / Supabase 等) を見なければ意味が
+    // 無いため明示する。optional も外し、本当に不足していれば preflight を
+    // 失敗させる（以前は無指定 + optional で実質何もチェックしていなかった）。
+    cmd: "pnpm check:env --env=production",
   },
   {
     name: "build",

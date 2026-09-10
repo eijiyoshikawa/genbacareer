@@ -6,14 +6,18 @@
  * 実行方法:
  *   pnpm tsx --env-file=.env.local scripts/seed-demo-accounts.ts
  *
- * 冪等: 既に同じ email のアカウントがあれば updateOrCreate でパスワードと内容を更新する。
- * 何度実行しても結果は同じ。
+ * 冪等: 既に同じ email のアカウントがあれば updateOrCreate で内容を更新する。
+ * ただし、本番ドメインでも案内するデモアカウントに固定パスワードを
+ * コミットしておくのはそれ自体が漏洩なので、パスワードは実行のたびに
+ * ランダム生成し直す（再実行すればローテーションされる）。
  *
  * 出力に表示されるパスワードはコンソールに 1 度だけ表示される。控えてください。
+ * （このスクリプトの実行ログ自体を CI 等の共有ログに残さないよう注意）
  */
 
 import { readFileSync, existsSync } from "node:fs"
 import { join } from "node:path"
+import { randomBytes } from "node:crypto"
 
 // .env.local を自前ロード（tsx は自動ロードしない）
 function loadDotEnv(): void {
@@ -44,7 +48,9 @@ const bcrypt = (await import("bcryptjs")).default
 // ============================================================
 const COMPANY_EMAIL = "demo-company@genbacareer.jp"
 const SEEKER_EMAIL = "demo-seeker@genbacareer.jp"
-const COMMON_PASSWORD = "GenbaDemo2025!"
+// 固定パスワードを git にコミットすると、本番の admin ロール企業アカウントの
+// ログイン情報が実質公開されてしまう。実行ごとにランダム生成する。
+const COMMON_PASSWORD = randomBytes(12).toString("base64url")
 
 const DEMO_COMPANY_NAME = "デモ建設株式会社"
 

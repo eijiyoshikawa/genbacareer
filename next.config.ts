@@ -57,14 +57,20 @@ const nextConfig: NextConfig = {
     const csp = [
       "default-src 'self'",
       // GA / Sentry / Vercel Analytics + Next.js 必須 inline
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://*.sentry.io https://va.vercel-scripts.com",
-      "script-src-elem 'self' 'unsafe-inline' https://www.googletagmanager.com https://*.sentry.io https://va.vercel-scripts.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://*.sentry.io https://va.vercel-scripts.com https://maps.googleapis.com",
+      "script-src-elem 'self' 'unsafe-inline' https://www.googletagmanager.com https://*.sentry.io https://va.vercel-scripts.com https://maps.googleapis.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",
       "img-src 'self' data: blob: https:",
       "media-src 'self' https://www.youtube.com https://player.vimeo.com",
-      "connect-src 'self' https://*.supabase.co https://*.sentry.io https://www.google-analytics.com https://va.vercel-scripts.com wss://*.supabase.co https://info.gbiz.go.jp",
-      "frame-src 'self' https://www.youtube.com https://player.vimeo.com https://www.tiktok.com",
+      // /jobs/map の都道府県ヒートマップが動的 <script> で読み込む Google Maps
+      // JavaScript API。ロード後は maps.googleapis.com へ XHR も行うため connect-src
+      // にも必要（無いと "Google Maps の読み込みに失敗しました" になる）。
+      "connect-src 'self' https://*.supabase.co https://*.sentry.io https://www.google-analytics.com https://va.vercel-scripts.com wss://*.supabase.co https://info.gbiz.go.jp https://maps.googleapis.com",
+      // 求人詳細ページの地図埋め込み (map-embed.tsx) が maps.google.com の iframe
+      // (output=embed) を使うため必須。無いと住所ありの全求人詳細で地図が
+      // 表示されない。
+      "frame-src 'self' https://www.youtube.com https://player.vimeo.com https://www.tiktok.com https://maps.google.com",
       "frame-ancestors 'none'",
       "form-action 'self'",
       "base-uri 'self'",

@@ -175,6 +175,35 @@ CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pn
 
 ---
 
+## 🆕 登録ウィザードの回答保存漏れ修正 (2026-09-10 追加)
+
+`/register/wizard` の必須ステップ（経験職種・年数、希望条件）で回答させていた
+`experiencedCategories` / `experiencedSubcategories` / `experienceYears` /
+`companyCount` / `desiredPrefectures` / `desiredTransferTiming` が、
+User 作成時に一切保存されず破棄されていた（専用カラムが存在しなかったため）。
+`User.wizardAnswers` (Json) を追加し保存するよう修正。
+
+- [ ] **本番 DB にスキーマ反映**:
+  ```bash
+  pnpm prisma db push
+  ```
+
+---
+
+## 🆕 記事著者名の旧ブランド名修正 (2026-09-10 追加)
+
+`prisma/seed-data/seed-articles.ts` が全記事の `authorName` に旧ブランド名
+「建設求人ポータル編集部」を書き込んでいたのを「ゲンバキャリア編集部」に修正
+（`seed-help-articles.ts` は元々正しい表記だった）。
+
+- [ ] 本番 DB に既に seed 済みの記事がある場合、以下で一括修正:
+  ```sql
+  UPDATE articles SET author_name = 'ゲンバキャリア編集部'
+  WHERE author_name = '建設求人ポータル編集部';
+  ```
+
+---
+
 ## 📋 すでに完了済み
 
 参考: 直近のセッションで完了した手作業:

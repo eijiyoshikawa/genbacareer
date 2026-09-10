@@ -25,6 +25,13 @@ model User {
   birthDate         DateTime? @map("birth_date") @db.Date
   desiredCategories String[]  @default([]) @map("desired_categories")
   desiredSalaryMin  Int?      @map("desired_salary_min")
+  // 登録ウィザードで収集する回答のうち、専用カラムがまだ無いもの
+  // (experiencedCategories / experiencedSubcategories / experienceYears /
+  // companyCount / desiredPrefectures / desiredTransferTiming)。
+  // 以前はこれらを一切保存しておらず、必須ステップで回答させた内容が
+  // ユーザー作成時に丸ごと破棄されていた。マッチング/レコメンドが
+  // 専用カラムを必要とするまでの一時保存先として JSON で保持する。
+  wizardAnswers     Json?     @map("wizard_answers")
   // 17.3 ブロック企業 / NG キーワード: 求職者が現職バレ防止用に設定
   blockedCompanyIds String[]  @default([]) @map("blocked_company_ids")
   blockedKeywords   String[]  @default([]) @map("blocked_keywords")

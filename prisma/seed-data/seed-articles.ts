@@ -51,7 +51,7 @@ async function seedArticles() {
         tags: plan.tags,
         metaDescription: plan.excerpt,
         imageUrl: plan.imageUrl ?? null,
-        authorName: "建設求人ポータル編集部",
+        authorName: "ゲンバキャリア編集部",
         status: "published",
         featured: i < 3, // 最初の 3 記事を featured
         publishedAt,
