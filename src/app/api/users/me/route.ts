@@ -30,6 +30,7 @@ const updateProfileSchema = z.object({
       frequency: z.enum(["immediate", "daily", "weekly"]).optional(),
       quietHoursStart: z.number().int().min(0).max(23).nullable().optional(),
       quietHoursEnd: z.number().int().min(0).max(23).nullable().optional(),
+      scoutEnabled: z.boolean().optional(),
     })
     .optional(),
 })
@@ -91,6 +92,23 @@ export async function PUT(request: NextRequest) {
 
   const data = parsed.data
 
+  // notificationPrefs は Json 列を丸ごと置き換えるため、クライアントが
+  // 送ってこなかったフィールド（またはこの API の Zod スキーマにまだ
+  // 反映されていない新フィールド）は parsePrefs の DEFAULT_PREFS 側の値に
+  // 巻き戻ってしまう。既存の保存値の上にマージすることで、更新対象外の
+  // フィールド（scoutEnabled 等）が意図せずリセットされないようにする。
+  let mergedNotificationPrefs: object | undefined
+  if (data.notificationPrefs !== undefined) {
+    const current = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { notificationPrefs: true },
+    })
+    mergedNotificationPrefs = parsePrefs({
+      ...parsePrefs(current?.notificationPrefs),
+      ...data.notificationPrefs,
+    }) as unknown as object
+  }
+
   const user = await prisma.user.update({
     where: { id: session.user.id },
     data: {
@@ -119,12 +137,8 @@ export async function PUT(request: NextRequest) {
       ...(data.blockedKeywords !== undefined
         ? { blockedKeywords: data.blockedKeywords }
         : {}),
-      ...(data.notificationPrefs !== undefined
-        ? {
-            notificationPrefs: parsePrefs(
-              data.notificationPrefs
-            ) as unknown as object,
-          }
+      ...(mergedNotificationPrefs !== undefined
+        ? { notificationPrefs: mergedNotificationPrefs }
         : {}),
     },
     select: {
