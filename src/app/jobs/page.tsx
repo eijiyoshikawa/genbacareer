@@ -166,9 +166,10 @@ export default async function JobsPage({ searchParams }: Props) {
   // 検索クエリがあり、デフォルトの「おすすめ順」の場合は pg_trgm で類似度順に並べる
   const useFuzzy = !!params.q && sort === "recommended"
   let fuzzyIds: string[] | null = null
+  let fuzzyTotal = 0
   if (useFuzzy) {
-    const { fuzzySearchJobs } = await import("@/lib/job-search")
-    const rows = await fuzzySearchJobs({
+    const { fuzzySearchJobs, countFuzzyMatches } = await import("@/lib/job-search")
+    const fuzzyInput = {
       q: params.q!,
       prefecture: params.prefecture,
       city: params.city,
@@ -178,11 +179,29 @@ export default async function JobsPage({ searchParams }: Props) {
       salaryMin: salaryMinYen ?? undefined,
       salaryMax: salaryMaxYen ?? undefined,
       publishedSince: dateWithinThreshold ?? undefined,
-      limit: limit * 5, // 後でページング切り出すため多めに取得
-    })
+      // 17.3 ブロック企業 / NG キーワードは SQL 側で除外する
+      // （後段で id IN (...) に対して再度フィルタすると、ちょうど
+      // このページの求人がブロック対象だった場合に limit 件に満たない
+      // ページが返ってしまう）。
+      excludeCompanyIds: blockedCompanyIds.length > 0 ? blockedCompanyIds : undefined,
+      excludeKeywords: blockedKeywords.length > 0 ? blockedKeywords : undefined,
+    }
+    // limit*5 で多めに取得して client 側で切り出す方式だと、100 件を超える
+    // 一致がある人気キーワードで後続ページに永遠に到達できなかった
+    // （fuzzySearchJobs 内部の上限 100 件でも頭打ちになる）。
+    // offset を正しく渡し、総件数は別途 countFuzzyMatches で取得する。
+    const [rows, count] = await Promise.all([
+      fuzzySearchJobs({
+        ...fuzzyInput,
+        limit,
+        offset: (page - 1) * limit,
+      }),
+      countFuzzyMatches(fuzzyInput),
+    ])
     if (rows && rows.length > 0) {
       fuzzyIds = rows.map((r) => r.id)
     }
+    fuzzyTotal = count ?? fuzzyIds?.length ?? 0
   }
 
   // 一覧表示用の最小カラムのみ select。Job.description (長文) や
@@ -219,20 +238,20 @@ export default async function JobsPage({ searchParams }: Props) {
     fuzzyIds
       ? prisma.job
           .findMany({
-            // 17.3 ブロック企業 / NG キーワードは fuzzy 経路でも適用する
-            where: { id: { in: fuzzyIds }, ...blockFilters },
+            // ブロック企業 / NG キーワード除外は fuzzySearchJobs 側の SQL で
+            // 既に適用済み。fuzzyIds は既に該当ページ分だけに絞られている
+            // ので、ここでは再フィルタ・再スライスしない
+            // （再フィルタすると limit 件に満たないページが返り得る）。
+            where: { id: { in: fuzzyIds } },
             select: jobListSelect,
           })
-          // fuzzy で返ってきた id 順を維持
+          // fuzzy で返ってきた id 順（類似度順）を維持
           .then((rows) => {
             const order = new Map(fuzzyIds!.map((id, i) => [id, i]))
             return rows.sort(
               (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)
             )
           })
-          .then((rows) =>
-            rows.slice((page - 1) * limit, (page - 1) * limit + limit)
-          )
       : prisma.job.findMany({
           where,
           orderBy,
@@ -240,9 +259,7 @@ export default async function JobsPage({ searchParams }: Props) {
           take: limit,
           select: jobListSelect,
         }),
-    fuzzyIds
-      ? prisma.job.count({ where: { id: { in: fuzzyIds }, ...blockFilters } })
-      : prisma.job.count({ where }),
+    fuzzyIds ? Promise.resolve(fuzzyTotal) : prisma.job.count({ where }),
   ])
 
   // ログイン中ならお気に入り Set を取得（カードの星表示用）
