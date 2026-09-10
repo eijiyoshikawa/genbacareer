@@ -187,6 +187,22 @@ export async function DELETE(
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
   }
 
+  // Job を削除すると Application (onDelete: Cascade) 経由で BillingEvent /
+  // EarlyResignation / HiringBonus まで連鎖削除され、成果報酬請求・返金・
+  // 祝い金の記録が完全に失われてしまう（財務・監査上復元不可）。
+  // 応募が 1 件でもある求人は物理削除せず、募集終了（status=closed）に
+  // 誘導する。
+  const applicationCount = await prisma.application.count({ where: { jobId: id } })
+  if (applicationCount > 0) {
+    return Response.json(
+      {
+        error:
+          "応募履歴のある求人は削除できません。募集を終了する場合はステータスを「closed」に変更してください。",
+      },
+      { status: 409 }
+    )
+  }
+
   await prisma.job.delete({ where: { id } })
 
   return Response.json({ success: true })

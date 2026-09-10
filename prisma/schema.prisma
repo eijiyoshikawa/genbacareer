@@ -72,6 +72,7 @@ model User {
   reportsSubmitted  Report[] @relation("ReportReporter")
   scoutsReceived    ScoutMessage[]
   earlyResignations EarlyResignation[]
+  hiringBonuses     HiringBonus[]
 
   @@map("users")
 }
@@ -354,6 +355,7 @@ model Company {
   reviews       CompanyReview[]
   scoutsSent    ScoutMessage[]
   earlyResignations EarlyResignation[]
+  hiringBonuses HiringBonus[]
 
   @@unique([source, name], name: "company_source_name_unique")
   @@index([status], name: "idx_companies_status")
@@ -519,6 +521,9 @@ model Job {
   @@index([salaryMin, salaryMax], name: "idx_jobs_salary")
   @@index([status, publishedAt(sort: Desc)], name: "idx_jobs_status_published")
   @@index([status, rankScore(sort: Desc), publishedAt(sort: Desc)], name: "idx_jobs_status_rank")
+  // /jobs 一覧の sort=salary_max（status=active フィルタ + salaryMax 降順）用。
+  // 既存の idx_jobs_salary は status を先頭に持たないため、この並び替えでは使えない。
+  @@index([status, salaryMax(sort: Desc)], name: "idx_jobs_status_salary_max")
   @@index([industryMajorCode], name: "idx_jobs_industry_major")
   // 企業ダッシュボード KPI 集計 (status 別カウント / aggregate viewCount) 高速化
   @@index([companyId, status], name: "idx_jobs_company_status")
@@ -561,6 +566,7 @@ model Application {
   company         Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
   billingEvent    BillingEvent?
   earlyResignation EarlyResignation?
+  hiringBonus     HiringBonus?
 
   @@unique([jobId, userId])
   @@index([companyId, createdAt(sort: Desc)], name: "idx_applications_by_company")
@@ -991,6 +997,14 @@ model HiringBonus {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
+  // BillingEvent / EarlyResignation と異なり、これまで FK 制約が一切無く
+  // 存在しない application/user/company を指す行を作成でき、参照先が
+  // 消えても孤児化を検知できなかった。実際の申請フローは常に有効な
+  // Application 経由 (users/me/hiring-bonuses) なので Cascade を付与する。
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
   @@index([status, createdAt(sort: Desc)], name: "idx_hiring_bonuses_status")
   @@index([userId, createdAt(sort: Desc)], name: "idx_hiring_bonuses_user")
   @@map("hiring_bonuses")
@@ -1168,7 +1182,10 @@ model ScoutMessage {
   companyId     String   @map("company_id") @db.Uuid
   jobId         String   @map("job_id") @db.Uuid
   userId        String   @map("user_id") @db.Uuid
-  // 送信担当者 (監査用)。CompanyUser 削除時は NULL に
+  // 送信担当者 (監査用)。
+  // 注: CompanyUser との FK は未設定 (CompanyUser の削除経路が現状存在しないため)。
+  // CompanyUser のハード削除を実装する場合は、ここに onDelete: SetNull の
+  // @relation を追加すること（この列は無効な company_user_id を指せてしまう）。
   companyUserId String?  @map("company_user_id") @db.Uuid
 
   subject       String   @db.VarChar(120)

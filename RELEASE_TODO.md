@@ -5,6 +5,45 @@
 
 ---
 
+## 🆕 求人削除時の課金・監査データ消失防止 + HiringBonus FK 追加 (2026-09-10 追加)
+
+Prisma スキーマ構造レビューで発見:
+
+1. **[重大]** `DELETE /api/company/jobs/[id]` は応募 (`Application`) がある求人でも
+   無条件に物理削除しており、`Job.applications` の `onDelete: Cascade` により
+   `BillingEvent`（成果報酬請求）・`EarlyResignation`（返金記録）・
+   `HiringBonus`（祝い金）まで連鎖削除され、財務・監査記録が復元不能に
+   消失し得た（UI に削除ボタンは無いが、エンドポイント自体は生きていた）。
+   → 応募が 1 件でもある求人の削除を 409 で拒否するようアプリ側にガードを追加
+   （`src/app/api/company/jobs/[id]/route.ts`）。募集終了は `status=closed` で行う。
+2. **[高]** `HiringBonus` に `applicationId`/`userId`/`companyId` の FK 制約が
+   一切無く、存在しない参照先を指す行を作成できてしまっていた。
+   `BillingEvent`/`EarlyResignation` と同様に `@relation(onDelete: Cascade)` を追加。
+3. **[中]** `/jobs?sort=salary_max` に対応するインデックスが無かった
+   （既存の `idx_jobs_salary` は `status` を先頭に持たず使えない）ため
+   `idx_jobs_status_salary_max` を追加。
+
+- [ ] **本番 DB にスキーマ反映**（新しい FK 制約 3 本 + インデックス 1 本）:
+  ```bash
+  pnpm prisma db push
+  ```
+  - 反映前に、既存データで `hiring_bonuses.application_id` /
+    `user_id` / `company_id` が存在しない行を参照していないか確認しておくこと
+    （あれば `db push` が FK 制約作成時に失敗する）:
+    ```sql
+    SELECT hb.id FROM hiring_bonuses hb
+    LEFT JOIN applications a ON a.id = hb.application_id
+    WHERE a.id IS NULL;
+    SELECT hb.id FROM hiring_bonuses hb
+    LEFT JOIN users u ON u.id = hb.user_id
+    WHERE u.id IS NULL;
+    SELECT hb.id FROM hiring_bonuses hb
+    LEFT JOIN companies c ON c.id = hb.company_id
+    WHERE c.id IS NULL;
+    ```
+
+---
+
 ## 🔴 最優先（今すぐ着手 — リードタイムが長いもの）
 
 ### 1. GbizINFO API キー取得 ✅ 完了
