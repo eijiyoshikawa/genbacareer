@@ -47,58 +47,83 @@ interface RankedCompany {
   score: number
 }
 
+/**
+ * スコア = 公開求人数×2 + フォロワー数×3 + 応募数×1 の TOP 10 を求める。
+ *
+ * 以前は対象企業を最大 200 件 (orderBy 無し = DB 側で順序保証の無い任意順)
+ * 取得してから in-memory でソートしていた。フィルタ条件（業界 / 都道府県）
+ * に一致する企業が 200 件を超えると、実際のスコア上位企業がこの任意の
+ * 先頭 200 件に含まれず、TOP 10 に永遠に出てこられない可能性があった。
+ * スコア計算とソート・LIMIT を SQL 側（集計 + ORDER BY + LIMIT 10）で
+ * 行うことで、対象企業数に関わらず正しい TOP 10 を返す。
+ */
 async function aggregateRanking(opts: {
   industry?: string
   prefecture?: string
 }): Promise<RankedCompany[]> {
-  const companies = await prisma.company.findMany({
-    where: {
-      status: "approved",
-      ...(opts.industry ? { industry: opts.industry } : {}),
-      ...(opts.prefecture ? { prefecture: opts.prefecture } : {}),
-    },
-    select: {
-      id: true,
-      name: true,
-      industry: true,
-      prefecture: true,
-      logoUrl: true,
-      tagline: true,
-      _count: {
-        select: {
-          jobs: { where: { status: "active" } },
-          followers: true,
-          applications: true,
-        },
-      },
-    },
-    take: 200, // 集計上限。スコア降順 in-memory ソート用
-  })
+  const conditions = [`c.status = 'approved'`]
+  const params: unknown[] = []
+  if (opts.industry) {
+    params.push(opts.industry)
+    conditions.push(`c.industry = $${params.length}`)
+  }
+  if (opts.prefecture) {
+    params.push(opts.prefecture)
+    conditions.push(`c.prefecture = $${params.length}`)
+  }
 
-  const ranked: RankedCompany[] = companies
-    .map((c) => {
-      const publishedJobs = c._count.jobs
-      const followers = c._count.followers
-      const applications = c._count.applications
-      const score = publishedJobs * 2 + followers * 3 + applications
-      return {
-        id: c.id,
-        name: c.name,
-        industry: c.industry,
-        prefecture: c.prefecture,
-        logoUrl: c.logoUrl,
-        tagline: c.tagline,
-        publishedJobs,
-        followers,
-        applications,
-        score,
-      }
-    })
-    .filter((c) => c.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 10)
+  type Row = {
+    id: string
+    name: string
+    industry: string | null
+    prefecture: string | null
+    logo_url: string | null
+    tagline: string | null
+    published_jobs: bigint
+    followers: bigint
+    applications: bigint
+    score: bigint
+  }
 
-  return ranked
+  const rows = await prisma.$queryRawUnsafe<Row[]>(
+    `
+    SELECT
+      c.id, c.name, c.industry, c.prefecture, c.logo_url, c.tagline,
+      COALESCE(j.cnt, 0) AS published_jobs,
+      COALESCE(f.cnt, 0) AS followers,
+      COALESCE(a.cnt, 0) AS applications,
+      (COALESCE(j.cnt, 0) * 2 + COALESCE(f.cnt, 0) * 3 + COALESCE(a.cnt, 0)) AS score
+    FROM companies c
+    LEFT JOIN (
+      SELECT company_id, COUNT(*) AS cnt FROM jobs
+      WHERE status = 'active' GROUP BY company_id
+    ) j ON j.company_id = c.id
+    LEFT JOIN (
+      SELECT company_id, COUNT(*) AS cnt FROM company_follows GROUP BY company_id
+    ) f ON f.company_id = c.id
+    LEFT JOIN (
+      SELECT company_id, COUNT(*) AS cnt FROM applications GROUP BY company_id
+    ) a ON a.company_id = c.id
+    WHERE ${conditions.join(" AND ")}
+      AND (COALESCE(j.cnt, 0) * 2 + COALESCE(f.cnt, 0) * 3 + COALESCE(a.cnt, 0)) > 0
+    ORDER BY score DESC
+    LIMIT 10;
+    `,
+    ...params
+  )
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    industry: r.industry,
+    prefecture: r.prefecture,
+    logoUrl: r.logo_url,
+    tagline: r.tagline,
+    publishedJobs: Number(r.published_jobs),
+    followers: Number(r.followers),
+    applications: Number(r.applications),
+    score: Number(r.score),
+  }))
 }
 
 export default async function CompanyRankingPage(props: {

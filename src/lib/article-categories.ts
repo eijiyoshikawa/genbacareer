@@ -16,3 +16,17 @@ export const MAGAZINE_CATEGORY_VALUES = ARTICLE_CATEGORIES.map((c) => c.value)
 export const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
   ARTICLE_CATEGORIES.map((c) => [c.value, c.label])
 )
+
+/** ヘルプ記事（/help 以下）のカテゴリ値。help-articles.ts の helpCategory() と対応。 */
+export const HELP_CATEGORY_VALUES = ["help-seeker", "help-employer"] as const
+
+/**
+ * Article テーブルが受け付ける全カテゴリ値（マガジン + ヘルプ）。
+ * admin の記事 CRUD API で category を検証する際の許可リストとして使う
+ * （自由入力にすると、想定外の値や誤ってヘルプ⇄マガジン間で
+ * カテゴリを混同する入力をそのまま保存できてしまう）。
+ */
+export const ALL_ARTICLE_CATEGORY_VALUES = [
+  ...MAGAZINE_CATEGORY_VALUES,
+  ...HELP_CATEGORY_VALUES,
+]

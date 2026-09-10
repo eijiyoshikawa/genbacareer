@@ -58,9 +58,19 @@ export async function PATCH(
           suspendedReason: null,
         }
 
-  await prisma.user.update({ where: { id }, data: updates }).catch((e) => {
+  // 更新失敗を握りつぶさない。以前は catch でログのみ出して処理を続行して
+  // いたため、対象が存在しない/DB エラー等で実際には凍結されていない
+  // のに、監査ログには「凍結しました」と記録され admin UI にも成功表示
+  // される状態になっていた。
+  try {
+    await prisma.user.update({ where: { id }, data: updates })
+  } catch (e) {
     console.error("[admin/users/PATCH] failed:", e)
-  })
+    return Response.json(
+      { error: "ユーザーの更新に失敗しました" },
+      { status: 500 }
+    )
+  }
 
   // 監査ログ
   await prisma.auditLog

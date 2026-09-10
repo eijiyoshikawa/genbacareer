@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { ALL_ARTICLE_CATEGORY_VALUES } from "@/lib/article-categories"
 
 const articleUpdateSchema = z.object({
   slug: z
@@ -13,7 +14,11 @@ const articleUpdateSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   excerpt: z.string().max(500).nullable().optional(),
   body: z.string().min(1).optional(),
-  category: z.string().min(1).max(50).optional(),
+  // マガジン / ヘルプ以外の値を保存できないよう許可リスト化
+  // （/admin/articles/[id]/edit のカテゴリ欄と対応）。
+  category: z
+    .enum(ALL_ARTICLE_CATEGORY_VALUES as unknown as [string, ...string[]])
+    .optional(),
   tags: z.array(z.string()).optional(),
   imageUrl: z.string().url().max(500).nullable().optional().or(z.literal("")),
   metaDescription: z.string().max(300).nullable().optional(),

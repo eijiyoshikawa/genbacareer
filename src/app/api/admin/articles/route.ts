@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { ALL_ARTICLE_CATEGORY_VALUES } from "@/lib/article-categories"
 
 const articleCreateSchema = z.object({
   slug: z
@@ -12,7 +13,12 @@ const articleCreateSchema = z.object({
   title: z.string().min(1).max(200),
   excerpt: z.string().max(500).nullable().optional(),
   body: z.string().min(1),
-  category: z.string().min(1).max(50),
+  // マガジン (career 等 6 種) とヘルプ (help-seeker/help-employer) 以外の
+  // 値を保存できてしまうと、/journal・/help どちらからも到達不能な記事や、
+  // 誤ったカテゴリ間の混同（過去に発生した leak と同種）を招く。
+  category: z.enum(
+    ALL_ARTICLE_CATEGORY_VALUES as unknown as [string, ...string[]]
+  ),
   tags: z.array(z.string()).optional(),
   imageUrl: z.string().url().max(500).nullable().optional().or(z.literal("")),
   metaDescription: z.string().max(300).nullable().optional(),

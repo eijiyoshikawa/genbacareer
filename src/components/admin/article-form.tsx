@@ -5,6 +5,16 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ARTICLE_CATEGORIES } from "@/lib/article-categories"
 
+// ヘルプ記事 (help-seeker / help-employer) は /journal のマガジン記事とは
+// 別体系のカテゴリで、専用の編集画面が無くこのフォームを共用している。
+// マガジン 6 カテゴリの <select> にこれらの値を渡すと選択肢が無く、
+// 誤ってどれかへ変更されると /help/[audience]/[slug] が 404 になり
+// /journal に漏れて表示される（過去に一度発生した不具合と同種）。
+const HELP_CATEGORY_LABELS: Record<string, string> = {
+  "help-seeker": "ヘルプ（求職者向け）",
+  "help-employer": "ヘルプ（企業向け）",
+}
+
 export type ArticleFormValues = {
   slug: string
   title: string
@@ -205,17 +215,33 @@ export function ArticleForm({ mode, articleId, initialValues }: Props) {
             <label className="block text-sm font-medium text-gray-700">
               カテゴリ <span className="text-red-500">*</span>
             </label>
-            <select
-              value={form.category}
-              onChange={(e) => update("category", e.target.value)}
-              className="mt-1 block w-full border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-            >
-              {ARTICLE_CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+            {form.category in HELP_CATEGORY_LABELS ? (
+              <>
+                <input
+                  type="text"
+                  readOnly
+                  disabled
+                  value={HELP_CATEGORY_LABELS[form.category]}
+                  className="mt-1 block w-full border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-600"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  ヘルプ記事のカテゴリはこの画面から変更できません
+                  （/help 側の分類を変えると URL が変わってしまうため）。
+                </p>
+              </>
+            ) : (
+              <select
+                value={form.category}
+                onChange={(e) => update("category", e.target.value)}
+                className="mt-1 block w-full border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                {ARTICLE_CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
