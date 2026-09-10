@@ -1,8 +1,16 @@
 /**
  * POST /api/companies/[id]/reviews — 企業口コミ投稿 (12.2)
  *
- * 未ログインでも投稿可 (匿名扱い)、1 IP / 24h 1 件まで rate-limit。
- * status=pending で保存し、admin モデレーション後に approved で公開される。
+ * ログイン必須（求職者アカウント）。status=pending で保存し、
+ * admin モデレーション後に approved で公開される。
+ *
+ * 以前は未ログインでも投稿可能で、1 IP / 24h 1 件の rate-limit のみが
+ * 歯止めだった。IP ローテーションで容易に回避できるうえ、@@unique([companyId, userId])
+ * は userId が NULL（匿名）の行同士には効かないため、実質どの企業にも
+ * 無制限に星評価付きの口コミを投稿できてしまっていた（競合による評判
+ * 攻撃・自社による自作自演レビューの両方に悪用され得る）。ログイン必須化
+ * により、最低限「1 アカウント 1 社 1 件まで」の既存の unique 制約が
+ * 実効性を持つようにする。
  */
 
 import { type NextRequest } from "next/server"
@@ -71,12 +79,15 @@ export async function POST(
   }
 
   const session = await auth().catch(() => null)
+  if (!session?.user?.id) {
+    return Response.json({ error: "ログインが必要です" }, { status: 401 })
+  }
 
   try {
     await prisma.companyReview.create({
       data: {
         companyId,
-        userId: session?.user?.id ?? null,
+        userId: session.user.id,
         employmentStatus: parsed.data.employmentStatus,
         rating: parsed.data.rating,
         ratingSalary: parsed.data.ratingSalary ?? null,

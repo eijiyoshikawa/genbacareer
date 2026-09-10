@@ -5,6 +5,26 @@
 
 ---
 
+## 🆕 求人の重複検出 (dedupeKey) が自動実行されておらず、実質死んでいる機能 (2026-09-10 追加、製品判断待ち)
+
+`prisma/schema.prisma` の `Job.dedupeKey`/`dedupedTo` は「同じ dedupeKey の
+求人は 1 つだけ active」という前提でコメントされているが、実際に
+`computeDedupeKey`/`mergeDuplicates`（`src/lib/job-dedupe.ts`）を呼び出す
+経路は admin の手動バックフィル API (`POST /api/admin/dedupe/backfill` 等)
+のみ。企業の求人作成・編集 (`POST/PUT /api/company/jobs`)、複製ボタン
+(`/api/company/jobs/[id]/duplicate`)、HelloWork 取り込みバッチのいずれも
+dedupeKey を計算・保存しない。つまり admin が手動で「バックフィル→統合」を
+定期的に実行しない限り、同一内容の求人が複数 active のまま無期限に
+残り続ける。バグとして直すには「作成/取り込み時に自動計算する」
+「重複を検知したらどう扱うか (作成をブロック / 自動で旧求人を closed に
+/ admin 通知のみに留める)」という製品判断が要るため、今回はコードを
+変更せずここに記録する。
+
+- [ ] dedupeKey を作成/更新/取り込み時に自動計算するか
+- [ ] 重複を検知した場合の挙動（拒否 / 自動統合 / admin レビュー待ち）を決める
+
+---
+
 ## 🆕 早期退職の戻入申請が請求失敗 (BillingEvent.status='failed') でも承認できてしまう (2026-09-10 追加、要判断)
 
 `src/app/api/company/early-resignations/route.ts` の `originalFeeAmount` は

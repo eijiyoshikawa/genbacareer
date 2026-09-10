@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next"
 import { prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { publishedArticleFilter } from "@/lib/articles"
+import { MAGAZINE_CATEGORY_VALUES } from "@/lib/article-categories"
 import { AUTHORS } from "@/lib/authors"
 import {
   SALARY_RANGES,
@@ -255,7 +256,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }))
 
   // タグページ /tags/[tag] — 記事から登場する distinct なタグを抽出
-  // PostgreSQL の text[] カラムから distinct unnest するため $queryRaw を使う
+  // PostgreSQL の text[] カラムから distinct unnest するため $queryRaw を使う。
+  // /tags/[tag] ページ自体は publishedMagazineArticleFilter() でマガジン
+  // カテゴリのみを対象にしており、ヘルプ記事 (help-seeker/help-employer) しか
+  // 持たないタグは 0 件で notFound() になる。ここで category を絞らずに
+  // タグを集めると、ヘルプ記事だけのタグの URL をサイトマップに載せてしまい、
+  // クローラに 404 を渡すことになっていた。
   const tagRows = await safeFindMany<{ tag: string }>(
     "articleTags",
     () =>
@@ -264,6 +270,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         FROM articles
         WHERE status = 'published'
           AND published_at <= NOW()
+          AND category = ANY(${MAGAZINE_CATEGORY_VALUES})
         LIMIT 500
       `,
   )

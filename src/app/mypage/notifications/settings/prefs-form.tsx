@@ -104,8 +104,10 @@ export function NotificationPrefsForm({ initial }: { initial: NotificationPrefs 
                 </p>
                 <p className="text-xs text-gray-500">
                   {f === "immediate" && "新着があり次第すぐに配信"}
-                  {f === "daily" && "1 日 1 回まとめて配信 (朝 9 時頃)"}
-                  {f === "weekly" && "週 1 回まとめて配信 (月曜朝)"}
+                  {f === "daily" &&
+                    "1 日 1 回まとめて配信予定 (まとめ配信機能は準備中のため、当面は即時配信と同じタイミングで届きます)"}
+                  {f === "weekly" &&
+                    "週 1 回まとめて配信予定 (まとめ配信機能は準備中のため、当面は即時配信と同じタイミングで届きます)"}
                 </p>
               </div>
             </label>

@@ -76,8 +76,14 @@ export async function createNotification(input: {
   // 静音時間帯ならプッシュ系をスキップ (inbox には残る)
   if (isInQuietHours(prefs)) return
 
-  // 即時配信のみ LINE Push 発火 (daily/weekly は cron でバッチ送信、未実装)
-  if (prefs.frequency === "immediate" && prefs.lineEnabled) {
+  // frequency (daily/weekly) によるまとめ配信バッチは未実装。以前は
+  // frequency === "immediate" の場合のみ push しており、daily/weekly を
+  // 選んだユーザーは LINE 通知を一切受け取れないまま気付けない状態が
+  // 続いていた（設定 UI は「1日1回/週1回まとめて配信」と案内しており、
+  // ユーザーは配信されると期待している）。まとめ配信が実装されるまでの
+  // 間、選択に関わらず即時配信にフォールバックする
+  // （何も届かないより、頻度が期待と違っても届く方が実害が小さいため）。
+  if (prefs.lineEnabled) {
     pushUserNotification({
       userId: input.userId,
       title: input.title,

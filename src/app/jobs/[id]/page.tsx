@@ -180,6 +180,16 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   // （/jobs/preview/[token] からの遷移を経由したことの証明になる）。
   const isPreview = isValidPreviewToken(job.previewToken, previewTokenParam)
 
+  // status が closed の求人（自然期限切れ / 企業による募集終了 / 重複統合
+  // による降格のいずれか）は、恒久 URL で残り続けても一覧には出ないため
+  // 気づかれにくいが、直接 URL を知っていれば誰でも今まで通り閲覧・
+  // 応募導線に到達できてしまっていた（Google にも stale な JobPosting
+  // 構造化データとして残り続ける）。プレビュー（下書きの社内確認）は
+  // status=draft のときのみ意味を持つため対象外にする必要はない。
+  if (job.status === "closed" && !isPreview) {
+    notFound()
+  }
+
   // 未登録ゲストは「グローバル上位 15 件（recommended sort / フィルタ無し）」の詳細のみ閲覧可。
   // 検索エンジン等のクローラは Google for Jobs SEO 維持のため除外する。
   const session = await auth().catch(() => null)

@@ -2,7 +2,7 @@
 
 /**
  * 12.2 企業口コミ投稿フォーム (modal style)。
- * 1 IP / 24h 1 件、admin モデレーション後に公開される旨を明示。
+ * ログイン必須（1 アカウント 1 社 1 件まで）、admin モデレーション後に公開される旨を明示。
  */
 
 import { useRef, useState } from "react"
