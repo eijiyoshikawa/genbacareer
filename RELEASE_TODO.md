@@ -5,6 +5,50 @@
 
 ---
 
+## 🆕 Google Calendar OAuth トークンが平文保存 (2026-09-10 追加、要判断)
+
+`CompanyCalendarOauth.refreshToken`/`accessToken` (`prisma/schema.prisma`) は
+暗号化されず平文で DB に保存されている。TOTP secret も同様に平文保存だが、
+それと比べても Google Calendar のリフレッシュトークンは「取り消されるまで
+有効な、企業の実 Google Calendar への読み書きアクセス権」そのものであり、
+DB 漏洩時の実害がより大きい（bcrypt 化されているパスワードハッシュとは
+性質が異なり、盗まれれば即座に悪用可能）。
+
+アプリ全体に暗号化ユーティリティや鍵管理の仕組みが無く、今回のセッションでは
+本番 DB への疎通も無いため、独自に暗号化層を実装して中途半端な状態
+（コードは対応済みだが鍵が本番に設定されておらず既存データが復号できない等）
+にすることを避け、ここに記録するに留めた。
+
+- [ ] `refreshToken`/`accessToken` をアプリ層で暗号化する（例: AES-256-GCM +
+      `CALENDAR_TOKEN_ENCRYPTION_KEY` 環境変数）か、DB 側の暗号化
+      (Supabase の列レベル暗号化 / pgcrypto 等) を使うか方針を決める
+- [ ] 導入する場合、既存の平文データをどう移行するか（複合化ロジックの
+      後方互換 or 一括再暗号化バッチ）も合わせて設計する
+
+---
+
+## 🆕 CSP の script-src が unsafe-inline/unsafe-eval を許可している (2026-09-10 追加、要判断)
+
+`next.config.ts` の CSP は GA / Sentry / Vercel Analytics / Next.js 自体の
+インラインスクリプトのために `script-src`/`script-src-elem` に
+`'unsafe-inline' 'unsafe-eval'` を許可している。これにより、万一 HTML/スクリプト
+注入 (XSS) を許す不具合が将来発生した場合、CSP は「許可リストにないホストへの
+読み込み」は防げても「インラインスクリプトの実行」自体は防げず、CSP の
+XSS 対策としての実効性が大きく下がる。
+
+nonce ベースの CSP（リクエストごとにランダムな nonce を発行し、
+`<script nonce="...">` のみ許可）への移行が本来望ましいが、Next.js の
+static/dynamic 混在レンダリングや現状使用中の全サードパーティスクリプト
+（GA, Sentry, Vercel Analytics, Google Maps 等）への影響を実機検証なしに
+変更するのはリグレッションリスクが高いため、今回は変更せずここに記録する。
+
+- [ ] nonce ベース CSP への移行を検討する（Next.js の `middleware.ts` で
+      nonce 発行 + `next.config.ts` の CSP に反映）
+- [ ] 移行時は GA/Sentry/Vercel Analytics/Google Maps 等、現状動いている
+      全サードパーティスクリプトが継続して動作することを実機で確認する
+
+---
+
 ## 🆕 求人の重複検出 (dedupeKey) が自動実行されておらず、実質死んでいる機能 (2026-09-10 追加、製品判断待ち)
 
 `prisma/schema.prisma` の `Job.dedupeKey`/`dedupedTo` は「同じ dedupeKey の

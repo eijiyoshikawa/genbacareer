@@ -39,13 +39,31 @@ export function buildScoutExpiry(sentAt: Date): Date {
  * - 求人が active であること
  * - 求職者が searching または employed_open であること (hired は除く)
  * - 求職者アカウントが active であること
+ * - 求職者が profilePublic=false（非公開設定）でないこと
+ * - 求職者がこの企業を blockedCompanyIds でブロックしていないこと
+ *
+ * profilePublic / blockedCompanyIds のチェックは、求人検索・企業側の
+ * 候補者一覧 (/api/company/candidates) では既に反映されていたが、
+ * スカウト送信は client から任意の userId を受け取る経路のため、
+ * ここで同じチェックをしないと「非公開設定」「企業ブロック」の両方を
+ * スカウト経由で完全に迂回できてしまっていた。
  */
 export function canSendScout({
   job,
   user,
+  companyId,
 }: {
   job: { status: string } | null | undefined
-  user: { status: string; jobSearchStatus: string } | null | undefined
+  user:
+    | {
+        status: string
+        jobSearchStatus: string
+        profilePublic: boolean
+        blockedCompanyIds: string[]
+      }
+    | null
+    | undefined
+  companyId: string
 }): boolean {
   if (!job || !user) return false
   if (job.status !== "active") return false
@@ -53,7 +71,25 @@ export function canSendScout({
   if (user.jobSearchStatus !== "searching" && user.jobSearchStatus !== "employed_open") {
     return false
   }
+  if (!user.profilePublic) return false
+  if (user.blockedCompanyIds.includes(companyId)) return false
   return true
+}
+
+/** スカウト辞退後、同じ求職者への再スカウトを禁止する期間 (日数)。 */
+export const SCOUT_RESCOUT_COOLDOWN_DAYS = 30
+
+/**
+ * DB の status がまだ cron (expire-scouts, 日次) で更新されていなくても、
+ * expiresAt を過ぎていれば期限切れとして扱う。
+ * 期限切れ後 cron 実行までの間、求職者が期限切れスカウトに応募できたり
+ * 企業側の一覧で「対応中」に見え続けたりするのを防ぐ。
+ */
+export function isScoutEffectivelyExpired(scout: {
+  status: string
+  expiresAt: Date
+}): boolean {
+  return scout.status === "expired" || scout.expiresAt.getTime() <= Date.now()
 }
 
 /**

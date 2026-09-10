@@ -72,6 +72,8 @@ export default async function ScoutNewPage({ searchParams }: Props) {
         status: true,
         jobSearchStatus: true,
         prefecture: true,
+        profilePublic: true,
+        blockedCompanyIds: true,
       },
     }),
     prisma.scoutMessage.findFirst({
@@ -101,7 +103,7 @@ export default async function ScoutNewPage({ searchParams }: Props) {
     )
   }
 
-  const canSend = canSendScout({ job, user })
+  const canSend = canSendScout({ job, user, companyId })
   const subject = buildScoutSubject(job.company?.name ?? "企業")
 
   return (
@@ -141,7 +143,8 @@ export default async function ScoutNewPage({ searchParams }: Props) {
       {!canSend && !existing && (
         <div className="mt-4 border border-red-300 bg-red-50 p-3 text-sm text-red-700">
           現在この組合せでは送信できません。
-          求人が active で、求職者が「求職中」または「在職中(スカウト歓迎)」のときのみ送信できます。
+          求人が active で、求職者が「求職中」または「在職中(スカウト歓迎)」であり、
+          プロフィールを公開設定にしていて、貴社をブロックしていない場合のみ送信できます。
         </div>
       )}
 

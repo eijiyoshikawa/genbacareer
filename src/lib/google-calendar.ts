@@ -12,6 +12,18 @@
 
 import { prisma } from "@/lib/db"
 
+/**
+ * リフレッシュトークンが失効/取り消し済み (Google が invalid_grant を返す) の
+ * ときに throw する専用エラー。一時的なネットワーク障害と区別することで、
+ * 呼び出し元が「連携を切れた状態としてクリーンアップすべきか」を判定できる。
+ */
+export class GoogleCalendarDisconnectedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "GoogleCalendarDisconnectedError"
+  }
+}
+
 const TOKEN_URL = "https://oauth2.googleapis.com/token"
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 const USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
@@ -101,6 +113,24 @@ async function refreshAccessToken(refreshToken: string): Promise<{
   })
   if (!res.ok) {
     const text = await res.text().catch(() => "")
+    // Google はリフレッシュトークンが取り消し/失効済みの場合、
+    // HTTP 400 + body: {"error":"invalid_grant", ...} を返す。
+    // これは再試行しても絶対に成功しない永続的なエラーであり、
+    // 一時的な API 障害と区別して呼び出し元に伝える必要がある
+    // （区別しないと、以後の全同期試行がここで無限に失敗し続け、
+    // かつ UI 上は「連携済み」のまま気付かれない）。
+    let isPermanentlyRevoked = false
+    try {
+      const body = JSON.parse(text) as { error?: string }
+      isPermanentlyRevoked = body?.error === "invalid_grant"
+    } catch {
+      // ignore parse failure
+    }
+    if (isPermanentlyRevoked) {
+      throw new GoogleCalendarDisconnectedError(
+        `Google Calendar のリフレッシュトークンが無効化されています (invalid_grant): ${text}`
+      )
+    }
     throw new Error(`Google token refresh failed: ${res.status} ${text}`)
   }
   const data = (await res.json()) as { access_token: string; expires_in: number }
@@ -130,7 +160,21 @@ async function getValidAccessToken(companyId: string): Promise<{
   if (row.accessToken && expiresAt && expiresAt.getTime() > now.getTime() + 60_000) {
     return { accessToken: row.accessToken, calendarId: row.calendarId }
   }
-  const refreshed = await refreshAccessToken(row.refreshToken)
+  let refreshed: { accessToken: string; expiresInSec: number }
+  try {
+    refreshed = await refreshAccessToken(row.refreshToken)
+  } catch (e) {
+    if (e instanceof GoogleCalendarDisconnectedError) {
+      // 取り消し済みトークンをそのまま残しても次回以降も同じ失敗を
+      // 繰り返すだけなので、連携レコード自体を削除して「未連携」状態に
+      // 戻す。これにより isCompanyCalendarConnected() が正しく false を
+      // 返すようになり、UI にも実態（要再連携）が反映される。
+      await prisma.companyCalendarOauth
+        .delete({ where: { companyId } })
+        .catch(() => {})
+    }
+    throw e
+  }
   const newExpiresAt = new Date(Date.now() + refreshed.expiresInSec * 1000)
   await prisma.companyCalendarOauth.update({
     where: { companyId },
@@ -219,6 +263,25 @@ export async function deleteCalendarEvent(
   if (!res.ok && res.status !== 404 && res.status !== 410) {
     const text = await res.text().catch(() => "")
     throw new Error(`Calendar deleteEvent failed: ${res.status} ${text}`)
+  }
+}
+
+/**
+ * Google 側で OAuth 許可自体を取り消す (https://oauth2.googleapis.com/revoke)。
+ * ローカルの CompanyCalendarOauth 行を消すだけでは、Google 側には許可が
+ * 残ったままになる（disconnect が「ローカルの連携を忘れる」だけで済んで
+ * しまっていた）。ベストエフォート: 失敗してもローカル切断は続行してよい
+ * （トークン自体はこの後 DB から削除されるため、アプリ側からは無害）。
+ */
+export async function revokeGoogleToken(token: string): Promise<void> {
+  try {
+    await fetch("https://oauth2.googleapis.com/revoke", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token }).toString(),
+    })
+  } catch {
+    // ベストエフォート。失敗してもローカル切断処理は継続する。
   }
 }
 

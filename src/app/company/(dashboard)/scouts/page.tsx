@@ -7,6 +7,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isScoutEffectivelyExpired } from "@/lib/scouts"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Mail, MailOpen, Clock, XCircle, Send } from "lucide-react"
@@ -36,7 +37,7 @@ export default async function CompanyScoutsPage() {
   if (!companyId) redirect("/login")
   if (role !== "company_admin" && role !== "company_member") redirect("/login")
 
-  const scouts = await prisma.scoutMessage.findMany({
+  const scoutRows = await prisma.scoutMessage.findMany({
     where: { companyId },
     orderBy: { sentAt: "desc" },
     take: 100,
@@ -51,6 +52,14 @@ export default async function CompanyScoutsPage() {
       user: { select: { id: true, name: true } },
     },
   })
+
+  // 日次 cron (expire-scouts) がまだ status="expired" に更新していない
+  // 期限切れ直後のスカウトも「対応中」に見えてしまわないよう、表示上の
+  // status を expiresAt ベースで補正する。
+  const scouts = scoutRows.map((s) => ({
+    ...s,
+    status: isScoutEffectivelyExpired(s) ? "expired" : s.status,
+  }))
 
   const stats = {
     total: scouts.length,

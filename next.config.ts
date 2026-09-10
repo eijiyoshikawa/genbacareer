@@ -75,6 +75,14 @@ const nextConfig: NextConfig = {
       "form-action 'self'",
       "base-uri 'self'",
       "object-src 'none'",
+      // 明示しないと script-src (unsafe-inline/unsafe-eval 込み) にフォール
+      // バックしてしまうため、Service Worker は使っていない前提で明示的に絞る。
+      "worker-src 'self'",
+      // CSP 違反 (実際に XSS がブロックされた場合等) を検知できるよう、
+      // ブラウザからの違反レポート送信先を指定する。以前は report-uri/
+      // report-to のどちらも無く、CSP がブロックしても何のシグナルも
+      // 残らなかった。
+      "report-uri /api/csp-report",
       "upgrade-insecure-requests",
     ].join("; ")
 

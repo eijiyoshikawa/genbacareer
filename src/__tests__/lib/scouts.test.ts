@@ -4,10 +4,29 @@ import {
   buildScoutSubject,
   buildScoutExcerpt,
   canSendScout,
+  isScoutEffectivelyExpired,
   scoutInputSchema,
   SCOUT_BODY_MIN,
   SCOUT_BODY_MAX,
 } from "@/lib/scouts"
+
+const COMPANY_ID = "11111111-1111-1111-1111-111111111111"
+const OTHER_COMPANY_ID = "22222222-2222-2222-2222-222222222222"
+
+function baseUser(overrides: Partial<{
+  status: string
+  jobSearchStatus: string
+  profilePublic: boolean
+  blockedCompanyIds: string[]
+}> = {}) {
+  return {
+    status: "active",
+    jobSearchStatus: "searching",
+    profilePublic: true,
+    blockedCompanyIds: [],
+    ...overrides,
+  }
+}
 
 describe("buildScoutExpiry", () => {
   it("returns date 30 days after sentAt", () => {
@@ -54,7 +73,8 @@ describe("canSendScout", () => {
     expect(
       canSendScout({
         job: { status: "active" },
-        user: { status: "active", jobSearchStatus: "searching" },
+        user: baseUser(),
+        companyId: COMPANY_ID,
       }),
     ).toBe(true)
   })
@@ -63,7 +83,8 @@ describe("canSendScout", () => {
     expect(
       canSendScout({
         job: { status: "active" },
-        user: { status: "active", jobSearchStatus: "employed_open" },
+        user: baseUser({ jobSearchStatus: "employed_open" }),
+        companyId: COMPANY_ID,
       }),
     ).toBe(true)
   })
@@ -72,7 +93,8 @@ describe("canSendScout", () => {
     expect(
       canSendScout({
         job: { status: "closed" },
-        user: { status: "active", jobSearchStatus: "searching" },
+        user: baseUser(),
+        companyId: COMPANY_ID,
       }),
     ).toBe(false)
   })
@@ -81,7 +103,8 @@ describe("canSendScout", () => {
     expect(
       canSendScout({
         job: { status: "active" },
-        user: { status: "active", jobSearchStatus: "hired" },
+        user: baseUser({ jobSearchStatus: "hired" }),
+        companyId: COMPANY_ID,
       }),
     ).toBe(false)
   })
@@ -90,13 +113,79 @@ describe("canSendScout", () => {
     expect(
       canSendScout({
         job: { status: "active" },
-        user: { status: "suspended", jobSearchStatus: "searching" },
+        user: baseUser({ status: "suspended" }),
+        companyId: COMPANY_ID,
       }),
     ).toBe(false)
   })
 
   it("returns false for null inputs", () => {
-    expect(canSendScout({ job: null, user: null })).toBe(false)
+    expect(canSendScout({ job: null, user: null, companyId: COMPANY_ID })).toBe(false)
+  })
+
+  it("returns false for a user with profilePublic=false (opted out of visibility)", () => {
+    expect(
+      canSendScout({
+        job: { status: "active" },
+        user: baseUser({ profilePublic: false }),
+        companyId: COMPANY_ID,
+      }),
+    ).toBe(false)
+  })
+
+  it("returns false when the user has blocked this company", () => {
+    expect(
+      canSendScout({
+        job: { status: "active" },
+        user: baseUser({ blockedCompanyIds: [COMPANY_ID] }),
+        companyId: COMPANY_ID,
+      }),
+    ).toBe(false)
+  })
+
+  it("returns true when the user has blocked a different company", () => {
+    expect(
+      canSendScout({
+        job: { status: "active" },
+        user: baseUser({ blockedCompanyIds: [OTHER_COMPANY_ID] }),
+        companyId: COMPANY_ID,
+      }),
+    ).toBe(true)
+  })
+})
+
+describe("isScoutEffectivelyExpired", () => {
+  it("returns true when status is already 'expired'", () => {
+    expect(
+      isScoutEffectivelyExpired({
+        status: "expired",
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      }),
+    ).toBe(true)
+  })
+
+  it("returns true when expiresAt is in the past even if status is still 'sent'/'read' (cron hasn't caught up yet)", () => {
+    expect(
+      isScoutEffectivelyExpired({
+        status: "sent",
+        expiresAt: new Date(Date.now() - 1000),
+      }),
+    ).toBe(true)
+    expect(
+      isScoutEffectivelyExpired({
+        status: "read",
+        expiresAt: new Date(Date.now() - 1000),
+      }),
+    ).toBe(true)
+  })
+
+  it("returns false when status is active and expiresAt is in the future", () => {
+    expect(
+      isScoutEffectivelyExpired({
+        status: "sent",
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      }),
+    ).toBe(false)
   })
 })
 

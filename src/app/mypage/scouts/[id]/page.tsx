@@ -7,6 +7,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isScoutEffectivelyExpired } from "@/lib/scouts"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Building2, MapPin, Briefcase, Clock } from "lucide-react"
@@ -63,8 +64,13 @@ export default async function ScoutDetailPage({ params }: Props) {
 
   if (!scout || scout.userId !== userId) notFound()
 
+  // 日次 cron (expire-scouts) が status を更新するのを待たず、expiresAt を
+  // 過ぎていれば期限切れ扱いにする（cron 実行前の隙間で既読化・応募が
+  // できてしまうのを防ぐ）。
+  const expired = isScoutEffectivelyExpired(scout)
+
   // 未読 → 既読を自動更新 (期限切れ / 辞退済みは変更しない)
-  if (scout.status === "sent") {
+  if (scout.status === "sent" && !expired) {
     await prisma.scoutMessage.update({
       where: { id: scout.id },
       data: { status: "read", readAt: new Date() },
@@ -72,8 +78,8 @@ export default async function ScoutDetailPage({ params }: Props) {
     scout.status = "read"
   }
 
-  const isActive = scout.status === "sent" || scout.status === "read"
-  const isExpired = scout.status === "expired"
+  const isActive = !expired && (scout.status === "sent" || scout.status === "read")
+  const isExpired = expired
   const isDeclined = scout.status === "declined"
   const canApply = isActive && scout.job?.status === "active"
 

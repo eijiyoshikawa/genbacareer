@@ -6,7 +6,10 @@
  * - Body: { jobId: UUID, userId: UUID, body: 20〜2000 文字 }
  * - 件名はサーバ側で固定書式生成 (企業はカスタマイズ不可)
  * - (companyId, jobId, userId) で active scout が既にあれば 409 (DB 側 partial unique index で保証)
- * - 求人が active / 求職者が searching|employed_open でなければ 400
+ * - 求人が active / 求職者が searching|employed_open / profilePublic=true /
+ *   自社を blockedCompanyIds に含んでいない、でなければ 400
+ * - 直近 30 日以内にこの求職者から辞退 (declined) されていれば 409（再送クールダウン）
+ * - 1 企業あたり 50 件/日のレート制限（大量一斉スカウト防止）
  * - 求職者の notificationPrefs.scoutEnabled が false なら DB 記録のみ、メール送信は skip
  *
  * GET /api/company/scouts
@@ -24,11 +27,16 @@ import {
   buildScoutSubject,
   buildScoutExcerpt,
   canSendScout,
+  SCOUT_RESCOUT_COOLDOWN_DAYS,
 } from "@/lib/scouts"
 import { sendScoutEmail } from "@/lib/email"
 import { parsePrefs } from "@/lib/notification-prefs"
 import { canSendScoutByPlan, isPlanActive } from "@/lib/plans"
 import { createNotification } from "@/lib/notifications"
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit"
+
+/** 1 企業あたりの日次スカウト送信上限。大量一斉スカウトによる求職者への迷惑を抑止する。 */
+const DAILY_SCOUT_LIMIT = 50
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -53,6 +61,17 @@ export async function POST(request: NextRequest) {
   if (!auth) {
     return NextResponse.json({ error: "認証が必要です" }, { status: 401 })
   }
+
+  // 大量一斉スカウト（DB 内の全ユーザーへの spam）を防ぐ日次上限。
+  // canSendScout の各種チェック（プラン・求人・求職者状態）はどれも
+  // 「1 件ずつは正当」なリクエストを弾く仕組みではないため、件数自体を
+  // 制限する歯止めがこれまで存在しなかった。
+  const rl = checkRateLimit({
+    key: `scout-send:${auth.companyId}`,
+    limit: DAILY_SCOUT_LIMIT,
+    windowMs: 24 * 60 * 60 * 1000,
+  })
+  if (!rl.allowed) return rateLimitResponse(rl)
 
   let raw: unknown
   try {
@@ -125,6 +144,8 @@ export async function POST(request: NextRequest) {
       name: true,
       status: true,
       jobSearchStatus: true,
+      profilePublic: true,
+      blockedCompanyIds: true,
       notificationPrefs: true,
     },
   })
@@ -132,10 +153,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "求職者が見つかりません" }, { status: 404 })
   }
 
-  if (!canSendScout({ job, user })) {
+  if (!canSendScout({ job, user, companyId: auth.companyId })) {
     return NextResponse.json(
       { error: "送信対象が条件を満たしていません (求人 active / 求職者 active+searching/employed_open)" },
       { status: 400 },
+    )
+  }
+
+  // 辞退後クールダウン: 同じ求職者から直近 N 日以内に辞退 (declined) された
+  // 履歴があれば再送不可（求人を変えての即再送も含めて防ぐ）。以前は
+  // active スカウトの重複防止 (partial unique index) しかなく、辞退直後に
+  // 何度でも別求人でスカウトを送り直せてしまっていた。
+  const cooldownSince = new Date(
+    Date.now() - SCOUT_RESCOUT_COOLDOWN_DAYS * 24 * 60 * 60 * 1000,
+  )
+  const recentDecline = await prisma.scoutMessage.findFirst({
+    where: {
+      companyId: auth.companyId,
+      userId,
+      status: "declined",
+      updatedAt: { gte: cooldownSince },
+    },
+    select: { id: true },
+  })
+  if (recentDecline) {
+    return NextResponse.json(
+      {
+        error: `この求職者は直近 ${SCOUT_RESCOUT_COOLDOWN_DAYS} 日以内にスカウトを辞退しています。しばらく時間を置いてから再度お試しください`,
+      },
+      { status: 409 },
     )
   }
 
