@@ -22,5 +22,8 @@ declare module "next-auth/jwt" {
     id: string
     role: string
     companyId?: string
+    // アカウント状態の定期再チェック用（凍結/却下後の revocation gap 対策）。
+    statusCheckedAt?: number
+    revoked?: boolean
   }
 }

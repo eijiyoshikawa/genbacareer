@@ -39,6 +39,10 @@ function assertAuthRateLimit(req: Request | undefined, scope: string) {
   }
 }
 
+// セッション状態（凍結 / 却下）の再チェック間隔。短すぎると DB 負荷が
+// 増え、長すぎると凍結後の猶予期間が延びるため 5 分をバランス値とする。
+const STATUS_RECHECK_INTERVAL_MS = 5 * 60 * 1000
+
 // Build providers list dynamically based on available env vars
 const providers: Provider[] = []
 
@@ -311,14 +315,51 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.companyId = (user as { companyId?: string }).companyId
         token.mustChangePassword =
           (user as { mustChangePassword?: boolean }).mustChangePassword ?? false
+        token.statusCheckedAt = Date.now()
+        token.revoked = false
+        return token
       }
       // PW 変更後の update() 呼び出しでフラグを下げる
       if (trigger === "update") {
         token.mustChangePassword = false
       }
+
+      // 凍結 / 却下はログイン時 (authorize) でしか弾いておらず、発行済み
+      // JWT は最長 30 日（NextAuth デフォルト maxAge）そのまま使え続けて
+      // しまう（凍結後も応募・スカウト送信・求人編集等が継続できる
+      // revocation gap）。毎リクエスト DB を引くと負荷が高いため、
+      // STATUS_RECHECK_INTERVAL_MS 間隔でのみ状態を再確認する。
+      const lastChecked = (token.statusCheckedAt as number | undefined) ?? 0
+      const role = token.role as string | undefined
+      const userId = token.id as string | undefined
+      const companyId = token.companyId as string | undefined
+      if (Date.now() - lastChecked > STATUS_RECHECK_INTERVAL_MS) {
+        token.statusCheckedAt = Date.now()
+        if (role === "seeker" && userId) {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { status: true },
+          })
+          token.revoked = !dbUser || dbUser.status === "suspended" || dbUser.status === "deleted"
+        } else if ((role === "company_admin" || role === "company_member") && companyId) {
+          const dbCompany = await prisma.company.findUnique({
+            where: { id: companyId },
+            select: { status: true },
+          })
+          token.revoked = !dbCompany || dbCompany.status === "rejected"
+        }
+      }
       return token
     },
     async session({ session, token }) {
+      if (token.revoked) {
+        // 無効化済みトークン: 未ログイン相当として扱わせる
+        // （各ルートの `!session?.user?.id` / role チェックで弾かれる）。
+        return {
+          ...session,
+          user: { id: "", email: "", name: null, role: "", companyId: undefined },
+        }
+      }
       if (session.user) {
         session.user.id = token.id as string
         ;(session.user as { role: string }).role = token.role as string

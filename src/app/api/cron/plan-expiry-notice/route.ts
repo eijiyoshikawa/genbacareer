@@ -55,6 +55,7 @@ export async function GET(request: Request) {
 
   let notified = 0
   let mailFailures = 0
+  let skippedFailed = 0
 
   for (const c of companies) {
     if (!c.planPaidUntil) continue
@@ -81,6 +82,7 @@ export async function GET(request: Request) {
       ],
     }
 
+    let emailOk = false
     if (c.contactEmail) {
       try {
         await sendEmail({
@@ -89,6 +91,7 @@ export async function GET(request: Request) {
           html: renderEmailLayout(layout),
           text: renderEmailText(layout),
         })
+        emailOk = true
       } catch (err) {
         mailFailures += 1
         console.error(`[cron/plan-expiry-notice] mail failed for ${c.id}:`, err)
@@ -96,35 +99,51 @@ export async function GET(request: Request) {
     }
 
     // 企業ユーザー全員にサイト内通知
+    let notifOk = false
     if (c.companyUsers.length > 0) {
-      await prisma.notification.createMany({
-        data: c.companyUsers.map((u) => ({
-          userId: u.id,
-          type: "plan_expiry",
-          title: "ご契約プランの期限が近づいています",
-          body: `${planLabel} は ${expiryStr} に期限を迎えます。`,
-          linkUrl: "/company/billing",
-        })),
-      }).catch((e) => {
+      try {
+        await prisma.notification.createMany({
+          data: c.companyUsers.map((u) => ({
+            userId: u.id,
+            type: "plan_expiry",
+            title: "ご契約プランの期限が近づいています",
+            body: `${planLabel} は ${expiryStr} に期限を迎えます。`,
+            linkUrl: "/company/billing",
+          })),
+        })
+        notifOk = true
+      } catch (e) {
         console.error(`[cron/plan-expiry-notice] notif failed for ${c.id}:`, e)
-      })
+      }
     }
 
-    await prisma.company.update({
-      where: { id: c.id },
-      data: { planExpiryNotifiedAt: now },
-    })
-    notified += 1
+    // メール・サイト内通知のどちらも失敗（一時的な障害等）した場合は
+    // planExpiryNotifiedAt を進めない。ここで無条件に進めてしまうと、
+    // 30 日前通知の唯一のチャンスがメール障害と重なっただけで
+    // 二度と再通知されず、プラン失効に気付けないまま掲載が止まる。
+    // 通知先が最初から無い（contactEmail 未設定 かつ companyUsers 0 件）
+    // 場合のみ、進めても再送の見込みがないため notified 扱いにする。
+    const hadAnyChannel = Boolean(c.contactEmail) || c.companyUsers.length > 0
+    if (!hadAnyChannel || emailOk || notifOk) {
+      await prisma.company.update({
+        where: { id: c.id },
+        data: { planExpiryNotifiedAt: now },
+      })
+      notified += 1
+    } else {
+      skippedFailed += 1
+    }
   }
 
   console.log(
-    `[cron/plan-expiry-notice] notified=${notified} mailFailures=${mailFailures}`,
+    `[cron/plan-expiry-notice] notified=${notified} mailFailures=${mailFailures} skippedFailed=${skippedFailed}`,
   )
 
   return Response.json({
     ok: true,
     notified,
     mailFailures,
+    skippedFailed,
     timestamp: now.toISOString(),
   })
 }

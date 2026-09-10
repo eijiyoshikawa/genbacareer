@@ -88,6 +88,18 @@ export async function GET(request: Request) {
       const displayed = matches.slice(0, DISPLAY_LIMIT)
       const moreCount = matches.length - displayed.length
 
+      // カーソル更新を通知の「前」に行う。createNotification は内部で
+      // 例外を握り潰す (通知作成 / LINE push とも catch 済み) ため、
+      // 通知後にカーソル更新が失敗する順序だと、通知は届いたのに
+      // lastNotifiedAt が進まず翌日また同じ求人で再通知される
+      // （旧実装のバグ）。先にカーソルを進めておけば、この後の
+      // createNotification が万一何もできなくても「今回分の通知を
+      // 1 回逃す」で済み、重複通知にはならない。
+      await prisma.savedSearch.update({
+        where: { id: s.id },
+        data: { lastNotifiedAt: cursor },
+      })
+
       await createNotification({
         userId: s.userId,
         type: "system",
@@ -97,11 +109,6 @@ export async function GET(request: Request) {
         linkUrl: link,
         linkLabel: "新着求人を見る",
         refId: s.id,
-      })
-
-      await prisma.savedSearch.update({
-        where: { id: s.id },
-        data: { lastNotifiedAt: cursor },
       })
       searchNotified++
     } catch (e) {
@@ -169,6 +176,14 @@ export async function GET(request: Request) {
       const moreText =
         matches.length > 3 ? `\n... 他 ${matches.length - 3} 件` : ""
 
+      // Phase 1 と同じ理由でカーソル更新を通知より先に行う（重複通知防止）。
+      await prisma.companyFollow.update({
+        where: {
+          userId_companyId: { userId: f.userId, companyId: f.companyId },
+        },
+        data: { lastNotifiedAt: cursor },
+      })
+
       await createNotification({
         userId: f.userId,
         type: "system",
@@ -176,13 +191,6 @@ export async function GET(request: Request) {
         body: `フォロー中の企業に新しい求人が公開されました。\n\n${titleBody}${moreText}`,
         linkUrl: `/companies/${f.companyId}`,
         refId: f.companyId,
-      })
-
-      await prisma.companyFollow.update({
-        where: {
-          userId_companyId: { userId: f.userId, companyId: f.companyId },
-        },
-        data: { lastNotifiedAt: cursor },
       })
       followNotified++
     } catch (e) {

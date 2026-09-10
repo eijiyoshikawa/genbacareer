@@ -22,9 +22,22 @@ const profileSchema = z.object({
   pitchHighlights: z.string().max(4000).optional().default(""),
   idealCandidate: z.string().max(4000).optional().default(""),
   employeeVoice: z.string().max(4000).optional().default(""),
-  logoUrl: urlOrEmpty(),
+  // logoUrl / photos も schedulingUrls と同じ基準（https のみ、
+  // localhost / private IP 拒否）を課す。通常は ImageUploader が返す
+  // 自社ストレージ URL しか送られてこないが、API を直接叩けば任意の
+  // 外部 URL を保存できてしまい、求人カードや企業ページ・サイトマップに
+  // そのまま埋め込まれる（schedulingUrls には既に同じ理由で適用済み）。
+  logoUrl: safeUrlOrEmpty(),
   photos: z
-    .array(z.string().url().max(500))
+    .array(
+      z
+        .string()
+        .url()
+        .max(500)
+        .refine(isSafeSchedulingUrl, {
+          message: "画像 URL は https:// で始まる公開 URL のみ使用できます",
+        })
+    )
     .max(12)
     .optional()
     .default([]),
@@ -67,6 +80,19 @@ function urlOrEmpty() {
       (v) => !v || /^https?:\/\//i.test(v),
       "URL は http(s):// で始めてください"
     )
+}
+
+// logoUrl は <img> として公開ページに直接埋め込まれるため、schedulingUrls /
+// photos と同じ厳格な基準（https のみ、localhost / private IP 拒否）を課す。
+function safeUrlOrEmpty() {
+  return z
+    .string()
+    .max(500)
+    .optional()
+    .default("")
+    .refine((v) => !v || isSafeSchedulingUrl(v), {
+      message: "URL は https:// で始まる公開 URL のみ使用できます",
+    })
 }
 
 function emptyToNull(s: string | undefined): string | null {

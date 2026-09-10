@@ -5,6 +5,29 @@
 
 ---
 
+## 🆕 履歴書ストレージ (documents バケット) の公開設定要確認 (2026-09-10 追加)
+
+`src/lib/storage.ts` の `uploadFile()` は `getPublicUrl()` で URL を発行しており
+（`createSignedUrl` ではない）、これが実際に機能するには Supabase Storage の
+`documents` バケットが公開読み取り可能に設定されている必要がある。履歴書には
+氏名・住所・電話番号・経歴等の PII が含まれるため、これが実際に「誰でも URL さえ
+知れば読める」状態だとすると本来望ましくない。
+
+今回のコード修正で保存パスにランダムトークンを追加し（旧: `${userId}/${fileType}/${Date.now()}.${ext}`
+→ 新: `...${Date.now()}_${randomHex16}.${ext}`）、URL の推測可能性は大幅に下げたが、
+根本的には「バケットが公開かどうか」「読み取り時に所有者チェックが一切無い」
+という設計自体は変わっていない（本セッションには Supabase の実運用設定を確認する
+手段が無いため、バケットポリシーの変更や signed URL への移行はここでは行っていない）。
+
+- [ ] Supabase Dashboard → Storage → `documents` バケットの Public/Private 設定を確認
+- [ ] Private であれば対応不要（現状のコードは動作しないはずなので、そもそも
+      別の配信経路を使っている可能性がある。要調査）
+- [ ] Public であれば、`createSignedUrl`（短期限）に切り替え、`resumeUrl` には
+      signed URL ではなく storage path を保存して閲覧時に都度署名する方式への
+      移行を検討
+
+---
+
 ## 🆕 求人削除時の課金・監査データ消失防止 + HiringBonus FK 追加 (2026-09-10 追加)
 
 Prisma スキーマ構造レビューで発見:

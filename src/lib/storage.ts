@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto"
 import { createClient } from "@supabase/supabase-js"
 
 function getSupabaseClient() {
@@ -71,7 +72,11 @@ export async function uploadFile(
 
   // 拡張子は実 MIME から決定する（client 申告のファイル名拡張子は信用しない）
   const ext = actualMime === "application/pdf" ? "pdf" : "docx"
-  const path = `${userId}/${fileType}/${Date.now()}.${ext}`
+  // Date.now() だけだとミリ秒精度の推測可能な値になり、userId が漏れた場合に
+  // 履歴書 (氏名・住所・経歴等の PII) のパスを総当たりされ得る
+  // （storage-images.ts の画像アップロードは元々ランダム要素付き）。
+  // ランダムなトークンを必須の構成要素として加える。
+  const path = `${userId}/${fileType}/${Date.now()}_${randomBytes(16).toString("hex")}.${ext}`
 
   const { error } = await getSupabaseClient().storage
     .from(BUCKET_NAME)

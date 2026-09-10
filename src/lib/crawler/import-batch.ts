@@ -386,7 +386,12 @@ export function inferCategory(
  * @param jobs - パース済みのハローワーク求人データ配列
  * @param options - オプション設定
  * @param options.dryRun - true の場合、DB 変更を行わずに統計のみ返す
- * @param options.closeOrphans - true の場合、今回のバッチに含まれない HW 求人を closed にする（デフォルト: true）
+ * @param options.closeOrphans - true の場合、今回のバッチに含まれない HW 求人を closed にする破壊的操作
+ *   （デフォルト: false）。全件を一度に取り込むフルスイープ実行（現状未実装）専用で、
+ *   ローテーション取り込み（dataId 単位の部分バッチ）で true にすると、そのバッチに
+ *   含まれなかった無関係な求人まで大量に closed になる事故につながる。
+ *   実際の呼び出し元（cron / admin API / scripts）はすべて明示的に false をデフォルト
+ *   にしており、このデフォルト値だけが true という食い違いがあった（過去の事故の原因）。
  * @returns インポート統計
  *
  * @example
@@ -403,7 +408,7 @@ export async function importHelloworkJobs(
   jobs: HelloworkJobData[],
   options: { dryRun?: boolean; closeOrphans?: boolean } = {}
 ): Promise<ImportStats> {
-  const { dryRun = false, closeOrphans = true } = options
+  const { dryRun = false, closeOrphans = false } = options
   const startedAt = new Date()
 
   let created = 0

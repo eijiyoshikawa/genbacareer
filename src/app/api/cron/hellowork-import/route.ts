@@ -15,8 +15,12 @@
  *   dataId        : 取り込む dataId（例: "M100"）
  *   page          : 開始ページ番号（1〜）
  *   pages         : 連続取得するページ数（default: 2）
- *   closeOrphans  : 今回バッチに含まれない HW 求人を closed にするか（default: false。
- *                   ローテーション中は常に false にすべき。週次 fullSweep でのみ true 推奨）
+ *   closeOrphans  : 今回バッチに含まれない HW 求人を closed にするか（default: false）。
+ *                   このエンドポイントは dataId 単位の部分バッチしか取り込まないため、
+ *                   true にすると今回たまたま処理対象外だった無関係な求人まで大量に
+ *                   closed 化される（過去に発生した事故と同種）。全件を横断してから
+ *                   orphan 判定する「フルスイープ」モードは現状未実装であり、それが
+ *                   実装されるまでは true を指定しないこと。
  */
 
 import {
