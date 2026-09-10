@@ -382,6 +382,12 @@ model CompanyUser {
   totpSecret      String?  @map("totp_secret") @db.VarChar(64)
   totpEnabled     Boolean  @default(false) @map("totp_enabled")
   totpEnabledAt   DateTime? @map("totp_enabled_at") @db.Timestamptz()
+  // 直近で受理した TOTP のタイムステップ（30 秒単位のカウンタ）。
+  // これが無いと、有効期間内（epochTolerance 込みで最大 90 秒程度）の同じ
+  // 6 桁コードを盗聴・ログ流出等で入手した第三者が繰り返しログインに使い
+  // 回せてしまう（リプレイ攻撃）。ログイン成功のたびに更新し、同じ/古い
+  // ステップの再利用を拒否する。
+  totpLastUsedStep Int?    @map("totp_last_used_step")
   // 1 回限りのリカバリコード（ハッシュ化 [bcrypt] して保存。1 件 60 char 程度）
   totpRecoveryCodes String[] @default([]) @map("totp_recovery_codes")
   // 直接発行 (admin が仮 PW 手渡し) で作成された場合 true。

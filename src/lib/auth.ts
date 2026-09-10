@@ -187,9 +187,16 @@ providers.push(
             // フロント側で 2 段目フォームを表示するためのシグナル
             throw new Error("TOTP_REQUIRED")
           }
-          const { verifyTotp, consumeRecoveryCode } = await import("@/lib/totp")
-          const ok = verifyTotp(code, companyUser.totpSecret)
-          if (!ok) {
+          const { verifyTotpStep, consumeRecoveryCode } = await import("@/lib/totp")
+          // afterTimeStep 指定で、同じ（または過去の）タイムステップの
+          // 再利用を otplib 側で拒否させる（リプレイ攻撃防止。コードの
+          // 桁が正しくても使い回しは弾く）。
+          const step = verifyTotpStep(
+            code,
+            companyUser.totpSecret,
+            companyUser.totpLastUsedStep
+          )
+          if (step === null) {
             // リカバリコードで救済
             const consumed = await consumeRecoveryCode(
               code,
@@ -202,6 +209,13 @@ providers.push(
               .update({
                 where: { id: companyUser.id },
                 data: { totpRecoveryCodes: consumed.remaining },
+              })
+              .catch(() => {})
+          } else {
+            await prisma.companyUser
+              .update({
+                where: { id: companyUser.id },
+                data: { totpLastUsedStep: step },
               })
               .catch(() => {})
           }

@@ -9,7 +9,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { verifyTotp, generateRecoveryCodes } from "@/lib/totp"
+import { verifyTotpStep, generateRecoveryCodes } from "@/lib/totp"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -58,7 +58,8 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  if (!verifyTotp(parsed.data.code, user.totpSecret)) {
+  const step = verifyTotpStep(parsed.data.code, user.totpSecret)
+  if (step === null) {
     return Response.json(
       { error: "コードが正しくありません" },
       { status: 400 }
@@ -72,6 +73,9 @@ export async function POST(request: NextRequest) {
       totpEnabled: true,
       totpEnabledAt: new Date(),
       totpRecoveryCodes: hashed,
+      // ここで使った有効化コードを直後のログインで再利用（リプレイ）
+      // できないよう、既にこの時点で「使用済み」として記録しておく。
+      totpLastUsedStep: step,
     },
   })
 

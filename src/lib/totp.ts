@@ -35,8 +35,22 @@ export function buildOtpAuthUrl(email: string, secret: string): string {
   })
 }
 
-export function verifyTotp(token: string, secret: string): boolean {
-  if (!/^\d{6}$/.test(token)) return false
+/**
+ * TOTP コードを検証し、成功時は実際に一致したタイムステップ
+ * （RFC 6238 の time step カウンタ、otplib が算出）を返す
+ * （不一致・不正な形式なら null）。
+ *
+ * @param afterTimeStep 前回受理したタイムステップ（あれば）。otplib
+ *   がこれ以下のステップを replay として拒否する（同じ/古いコードの
+ *   使い回しを防ぐ）。呼び出し側は成功時の戻り値を保存し、次回の
+ *   検証でここに渡すこと。
+ */
+export function verifyTotpStep(
+  token: string,
+  secret: string,
+  afterTimeStep?: number | null
+): number | null {
+  if (!/^\d{6}$/.test(token)) return null
   try {
     const result = verifySync({
       token,
@@ -44,10 +58,16 @@ export function verifyTotp(token: string, secret: string): boolean {
       digits: COMMON.digits,
       period: COMMON.period,
       epochTolerance: COMMON.epochTolerance,
+      ...(afterTimeStep != null ? { afterTimeStep } : {}),
     })
-    return result.valid === true
+    if (!result.valid) return null
+    // otplib の型は TOTP/HOTP 共通の union になっており、この関数は TOTP
+    // 専用に呼んでいるため実際には timeStep が必ず入っているが、型上は
+    // 存在しない可能性があるとされる。実行時チェックしてから使う。
+    const timeStep = (result as { timeStep?: unknown }).timeStep
+    return typeof timeStep === "number" ? timeStep : null
   } catch {
-    return false
+    return null
   }
 }
 
