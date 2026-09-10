@@ -197,11 +197,15 @@ async function SummaryStatsSection() {
     prisma.company
       .count({ where: { source: "direct", status: "pending" } })
       .catch(() => 0),
+    // 「入金確認された日」で直近 30 日を見るため paidAt を使う（createdAt だと
+    // 「請求が発生した日」になり、実際の入金タイミングとズレる。例: 8/1 採用確定で
+    // 請求発生、9/8 に入金確認された場合、createdAt 基準では今週の売上として
+    // 一切カウントされない）。
     prisma.billingEvent
       .aggregate({
         _sum: { amount: true },
         _count: true,
-        where: { status: "paid", createdAt: { gte: since30d } },
+        where: { status: "paid", paidAt: { gte: since30d } },
       })
       .catch(() => ({ _sum: { amount: 0 as number | null }, _count: 0 })),
   ])

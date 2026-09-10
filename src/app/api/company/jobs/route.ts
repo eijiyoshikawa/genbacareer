@@ -5,8 +5,22 @@ import { prisma } from "@/lib/db"
 import { CATEGORIES } from "@/lib/categories"
 import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
 import { isPlanActive } from "@/lib/plans"
+import { parseVideoUrl } from "@/lib/video-embed"
 
 const VALID_CATEGORIES = CATEGORIES.map((c) => c.value)
+
+// videoUrls は z.string().url() だけだと任意の URL を許してしまい、
+// 求人詳細ページの構造化データ (JSON-LD) や video サイトマップにそのまま
+// 埋め込まれる（parseVideoUrl でフィルタしている iframe 表示自体は安全だが、
+// それ以外の消費側が生の URL を信用してしまっていた）。スキーマが元々
+// 想定している YouTube / TikTok / Vimeo のみを受理する。
+const videoUrlSchema = z
+  .string()
+  .url()
+  .max(500)
+  .refine((url) => parseVideoUrl(url) !== null, {
+    message: "動画 URL は YouTube / TikTok / Vimeo のみ対応しています",
+  })
 
 const jobSchema = z.object({
   title: z.string().min(1).max(200),
@@ -23,7 +37,7 @@ const jobSchema = z.object({
   address: z.string().nullable().optional(),
   benefits: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
-  videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
+  videoUrls: z.array(videoUrlSchema).max(6).optional(),
   status: z.enum(["draft", "active", "closed"]).optional(),
 })
 

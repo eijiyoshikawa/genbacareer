@@ -56,6 +56,7 @@ import { HeroBanner } from "@/components/jobs/hero-banner"
 import { SnsLinks } from "@/components/jobs/sns-links"
 import { PhotoGallery } from "@/components/jobs/photo-gallery"
 import { VideoGallery } from "@/components/jobs/video-gallery"
+import { parseVideoUrl } from "@/lib/video-embed"
 import { ClientErrorBoundary } from "@/components/error-boundary"
 import { MapEmbed } from "@/components/jobs/map-embed"
 import { isValidUuid } from "@/lib/uuid"
@@ -370,27 +371,36 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
       />
-      {/* VideoObject: 動画つき求人で「動画あり」リッチリザルトを狙う */}
+      {/* VideoObject: 動画つき求人で「動画あり」リッチリザルトを狙う。
+          videoUrls は Zod で YouTube/TikTok/Vimeo のみに制限済みだが、
+          制限導入前に保存された既存データが混在し得るため、ここでも
+          parseVideoUrl で弾く（構造化データに任意の外部 URL を
+          embedUrl/contentUrl としてそのまま載せてしまうと、Google 検索結果に
+          genbacareer.jp の求人として無関係な外部ページが embed される
+          フィッシング/ブランド悪用の経路になる）。 */}
       {job.videoUrls.length > 0 &&
-        job.videoUrls.slice(0, 3).map((videoUrl) => (
-          <script
-            key={videoUrl}
-            type="application/ld+json"
-            dangerouslySetInnerHTML={{
-              __html: JSON.stringify(
-                generateVideoObjectSchema({
-                  jobId: job.id,
-                  jobTitle: job.title,
-                  videoUrl,
-                  uploadDate: job.publishedAt ?? job.createdAt,
-                  description:
-                    job.description?.slice(0, 280) ??
-                    `${job.title} の紹介動画`,
-                }),
-              ),
-            }}
-          />
-        ))}
+        job.videoUrls
+          .filter((videoUrl) => parseVideoUrl(videoUrl) !== null)
+          .slice(0, 3)
+          .map((videoUrl) => (
+            <script
+              key={videoUrl}
+              type="application/ld+json"
+              dangerouslySetInnerHTML={{
+                __html: JSON.stringify(
+                  generateVideoObjectSchema({
+                    jobId: job.id,
+                    jobTitle: job.title,
+                    videoUrl,
+                    uploadDate: job.publishedAt ?? job.createdAt,
+                    description:
+                      job.description?.slice(0, 280) ??
+                      `${job.title} の紹介動画`,
+                  }),
+                ),
+              }}
+            />
+          ))}
 
       {isPreview && (
         <div className="bg-amber-100 border-b border-amber-300">

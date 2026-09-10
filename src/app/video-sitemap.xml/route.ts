@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
+import { parseVideoUrl } from "@/lib/video-embed"
 
 /**
  * Google 動画検索向け video sitemap。
@@ -26,27 +27,6 @@ function escapeXml(str: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;")
-}
-
-// YouTube / TikTok / Vimeo URL → 埋め込み URL に正規化
-function toPlayerUrl(url: string): string {
-  try {
-    const u = new URL(url)
-    // YouTube watch?v=XXXX → embed/XXXX
-    if (u.hostname.endsWith("youtube.com") && u.pathname === "/watch") {
-      const v = u.searchParams.get("v")
-      if (v) return `https://www.youtube.com/embed/${v}`
-    }
-    if (u.hostname === "youtu.be") {
-      const v = u.pathname.replace(/^\//, "")
-      return `https://www.youtube.com/embed/${v}`
-    }
-    // TikTok @user/video/XXXX → そのまま
-    // Vimeo /XXXX → /XXXX (player URL は要 oEmbed)
-  } catch {
-    // ignore
-  }
-  return url
 }
 
 export async function GET() {
@@ -81,8 +61,16 @@ export async function GET() {
         ? j.description.slice(0, 280)
         : `${j.title} の紹介動画`
 
+    // videoUrls は Zod で YouTube/TikTok/Vimeo に限定済みだが、制限導入前の
+    // 既存データが混在し得るため、ここでも parseVideoUrl で検証されない
+    // URL を弾く（以前の toPlayerUrl は非対応ホストのとき生の URL を
+    // そのまま <video:player_loc> に出力しており、任意の外部 URL を
+    // Google の動画検索結果に genbacareer.jp の求人として載せられる
+    // 経路になっていた）。
     for (const v of j.videoUrls.slice(0, 3)) {
-      const playerUrl = toPlayerUrl(v)
+      const parsed = parseVideoUrl(v)
+      if (!parsed) continue
+      const playerUrl = parsed.embedUrl
       const publishDate = (j.publishedAt ?? j.updatedAt).toISOString()
       blocks.push(
         [

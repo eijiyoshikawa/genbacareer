@@ -735,6 +735,10 @@ model BillingEvent {
   invoiceUrl      String?  @map("invoice_url") @db.VarChar(500)
   status          String   @default("pending") @db.VarChar(20) // pending | invoiced | paid | failed
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  // 入金確認 (mark_paid) された実際の日時。createdAt は請求発生（採用確定）
+  // 時点で決まるため、admin ダッシュボードの「売上（直近30日）」等、実際の
+  // 入金タイミングを見るべき集計は createdAt ではなくこちらを使う。
+  paidAt          DateTime? @map("paid_at") @db.Timestamptz()
 
   company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)

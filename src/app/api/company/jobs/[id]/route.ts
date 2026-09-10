@@ -4,6 +4,16 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
 import { isPlanActive } from "@/lib/plans"
+import { parseVideoUrl } from "@/lib/video-embed"
+
+// POST /api/company/jobs と同じ理由で YouTube/TikTok/Vimeo のみ許可する。
+const videoUrlSchema = z
+  .string()
+  .url()
+  .max(500)
+  .refine((url) => parseVideoUrl(url) !== null, {
+    message: "動画 URL は YouTube / TikTok / Vimeo のみ対応しています",
+  })
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -20,7 +30,7 @@ const updateJobSchema = z.object({
   address: z.string().nullable().optional(),
   benefits: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
-  videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
+  videoUrls: z.array(videoUrlSchema).max(6).optional(),
   status: z.enum(["draft", "active", "closed"]).optional(),
   /**
    * 楽観ロック用 ISO timestamp。GET で取得した updatedAt をそのまま PUT に

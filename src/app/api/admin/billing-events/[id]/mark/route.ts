@@ -108,7 +108,7 @@ export async function POST(
       }
       await prisma.billingEvent.update({
         where: { id },
-        data: { status: "paid" },
+        data: { status: "paid", paidAt: new Date() },
       })
       return Response.json({ ok: true })
     }

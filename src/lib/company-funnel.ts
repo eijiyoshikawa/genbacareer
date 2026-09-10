@@ -329,7 +329,12 @@ async function computeTimeSeriesUncached(
 
   if (jobIds.length === 0) return []
 
-  // applications / hires は createdAt ベース、views は viewedAt
+  // applications は createdAt ベース、views は viewedAt、hires は hiredAt
+  // (以前は hires を updatedAt でバケット分けしており、採用確定後に
+  // internalNotes 等を編集するだけで updatedAt が進み、その求人の「採用」
+  // イベントが編集した日のバケットへ移動してしまう=履歴改ざんのような
+  // 挙動になっていた。hiredAt は status='hired' へ遷移した時点で一度だけ
+  // セットされるため、これを使う)
   const [views, applications, hires] = await Promise.all([
     prisma.jobView
       .findMany({
@@ -345,20 +350,25 @@ async function computeTimeSeriesUncached(
       .catch(() => [] as { createdAt: Date; status: string }[]),
     prisma.application
       .findMany({
-        where: { companyId, createdAt: { gte: from }, status: "hired" },
-        select: { updatedAt: true },
+        where: { companyId, status: "hired", hiredAt: { gte: from } },
+        select: { hiredAt: true },
       })
-      .catch(() => [] as { updatedAt: Date }[]),
+      .catch(() => [] as { hiredAt: Date | null }[]),
   ])
 
-  // バケット作成
+  // バケット作成 (日付ラベルは JST 基準。UTC のまま丸めると、JST 08:00
+  // = UTC 前日 23:00 のようなデータが前日のバケットに入ってしまい、
+  // 日次グラフが人の感覚とズレる — analytics.ts の ymd() と同じ方針)
+  function toJstYmd(d: Date): string {
+    return new Date(d.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  }
+
   const buckets = new Map<string, TimeSeriesPoint>()
   const fromMs = from.getTime()
   const toMs = to.getTime()
   const bucketMs = bucketDays * 86_400_000
   for (let t = fromMs; t <= toMs; t += bucketMs) {
-    const d = new Date(t)
-    const key = d.toISOString().slice(0, 10)
+    const key = toJstYmd(new Date(t))
     buckets.set(key, { date: key, views: 0, applications: 0, hired: 0 })
   }
 
@@ -367,7 +377,7 @@ async function computeTimeSeriesUncached(
     if (diff < 0) return ""
     const bucketIdx = Math.floor(diff / bucketMs)
     const bucketStart = new Date(fromMs + bucketIdx * bucketMs)
-    return bucketStart.toISOString().slice(0, 10)
+    return toJstYmd(bucketStart)
   }
 
   for (const v of views) {
@@ -381,7 +391,8 @@ async function computeTimeSeriesUncached(
     if (b) b.applications++
   }
   for (const h of hires) {
-    const k = bucketKey(h.updatedAt)
+    if (!h.hiredAt) continue
+    const k = bucketKey(h.hiredAt)
     const b = buckets.get(k)
     if (b) b.hired++
   }

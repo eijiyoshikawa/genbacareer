@@ -54,23 +54,35 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const count = await prisma.applicationMessageTemplate
-    .count({ where: { userId: session.user.id } })
-    .catch(() => 0)
-  if (count >= 10) {
-    return Response.json(
-      { error: "テンプレートは 10 件までです。不要なものを削除してください。" },
-      { status: 400 }
-    )
+  // count → create を 1 トランザクション内で行う。以前は 2 つの独立した
+  // クエリだったため、同時に複数リクエストを送ると全リクエストが
+  // 「count < 10」を通過してから create してしまい、10 件の上限を超えて
+  // 作成できてしまう TOCTOU レースがあった。
+  try {
+    const created = await prisma.$transaction(async (tx) => {
+      const count = await tx.applicationMessageTemplate.count({
+        where: { userId: session.user.id },
+      })
+      if (count >= 10) {
+        throw new Error("TEMPLATE_LIMIT_REACHED")
+      }
+      return tx.applicationMessageTemplate.create({
+        data: {
+          userId: session.user.id,
+          name: parsed.data.name,
+          body: parsed.data.body,
+          sortOrder: parsed.data.sortOrder ?? 100,
+        },
+      })
+    })
+    return Response.json({ template: created }, { status: 201 })
+  } catch (e) {
+    if (e instanceof Error && e.message === "TEMPLATE_LIMIT_REACHED") {
+      return Response.json(
+        { error: "テンプレートは 10 件までです。不要なものを削除してください。" },
+        { status: 400 }
+      )
+    }
+    throw e
   }
-
-  const created = await prisma.applicationMessageTemplate.create({
-    data: {
-      userId: session.user.id,
-      name: parsed.data.name,
-      body: parsed.data.body,
-      sortOrder: parsed.data.sortOrder ?? 100,
-    },
-  })
-  return Response.json({ template: created }, { status: 201 })
 }

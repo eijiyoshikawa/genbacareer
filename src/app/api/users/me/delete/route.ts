@@ -8,7 +8,11 @@
  *   - User.name / phone / prefecture / city / birthDate / resumeUrl を null 化
  *   - SavedSearch / JobFavorite / CompanyFollow / Notification を物理削除
  *   - Application は残す（企業側の業務記録のため）が、user.name は匿名表示
- *   - Resume は本人 PII を含むため deletion
+ *   - Resume / UploadedFile (履歴書・職務経歴書ファイル) は本人 PII を含む
+ *     ため DB 行を削除し、実体ファイルもベストエフォートでストレージから削除
+ *     (以前は UploadedFile が一切削除されておらず、氏名・住所・電話番号を
+ *     含む履歴書 PDF が「退会済み(個人情報匿名化済)」の後も無期限に
+ *     ダウンロード可能なまま残っていた)
  *
  * クライアントは確認画面で「退会する」を押下した場合のみここを叩く。
  */
@@ -60,6 +64,24 @@ export async function POST(request: Request) {
   }
 
   try {
+    // ストレージ上の実ファイル削除は Supabase への外部呼び出しのため
+    // トランザクション外・DB 行削除の前に行う（先に DB 行を消してしまうと
+    // fileUrl を失い、実ファイルが永久に参照不能な孤児として残ってしまう）。
+    const uploadedFiles = await prisma.uploadedFile
+      .findMany({ where: { userId }, select: { fileUrl: true } })
+      .catch(() => [])
+    if (uploadedFiles.length > 0) {
+      const { deleteFile, extractStoragePathFromUrl } = await import(
+        "@/lib/storage"
+      )
+      await Promise.all(
+        uploadedFiles.map((f) => {
+          const path = extractStoragePathFromUrl(f.fileUrl)
+          return path ? deleteFile(path).catch(() => {}) : Promise.resolve()
+        })
+      )
+    }
+
     await prisma.$transaction(async (tx) => {
       // PII を匿名化
       // name は "退会済みユーザー" としておくと、企業側 UI に残る Application
@@ -101,6 +123,7 @@ export async function POST(request: Request) {
           userId
         ).catch(() => null),
         tx.resume.deleteMany({ where: { userId } }).catch(() => null),
+        tx.uploadedFile.deleteMany({ where: { userId } }).catch(() => null),
       ])
     })
   } catch (e) {

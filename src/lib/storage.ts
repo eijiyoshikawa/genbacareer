@@ -105,3 +105,16 @@ export async function deleteFile(path: string): Promise<void> {
     console.error(`[storage] Failed to delete ${path}:`, error)
   }
 }
+
+/**
+ * uploadFile() が返す公開 URL からストレージ内 path を逆算する。
+ * `UploadedFile.fileUrl` は path ではなく公開 URL しか保存していないため、
+ * 退会時に実体ファイルも削除したい場合はここから path を復元する必要がある。
+ * 形式が一致しなければ null（呼び出し側は「削除できなかった」として扱う）。
+ */
+export function extractStoragePathFromUrl(url: string): string | null {
+  const marker = `/object/public/${BUCKET_NAME}/`
+  const idx = url.indexOf(marker)
+  if (idx === -1) return null
+  return decodeURIComponent(url.slice(idx + marker.length))
+}
