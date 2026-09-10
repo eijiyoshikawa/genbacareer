@@ -230,7 +230,7 @@ model JobTemplate {
 model Notification {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
-  // application_status | system | promo
+  // application_status | scout | system | promo
   type      String   @db.VarChar(30)
   title     String   @db.VarChar(200)
   body      String?

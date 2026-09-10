@@ -39,6 +39,8 @@ export interface JobWizardData {
   tags: string[]
   videoUrls?: string[]
   status: string
+  /** 楽観ロック用。編集時のみ渡す（サーバの updatedAt をそのまま） */
+  updatedAt?: Date | string
 }
 
 type FormState = {
@@ -83,7 +85,11 @@ function buildInitial(initial?: JobWizardData): FormState {
   }
 }
 
-function toApiBody(form: FormState, status: string) {
+function toApiBody(
+  form: FormState,
+  status: string,
+  expectedUpdatedAt?: string
+) {
   return {
     title: form.title.trim(),
     category: form.category,
@@ -109,6 +115,7 @@ function toApiBody(form: FormState, status: string) {
           .slice(0, 6)
       : [],
     status,
+    ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
   }
 }
 
@@ -240,14 +247,26 @@ export function JobWizard({
         ? `/api/company/jobs/${initialData!.id}`
         : "/api/company/jobs"
       const method = isEditing ? "PUT" : "POST"
+      const expectedUpdatedAt =
+        isEditing && initialData?.updatedAt
+          ? new Date(initialData.updatedAt).toISOString()
+          : undefined
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toApiBody(form, status)),
+        body: JSON.stringify(toApiBody(form, status, expectedUpdatedAt)),
       })
       if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null
-        setError(data?.error ?? "保存に失敗しました")
+        const data = (await res.json().catch(() => null)) as
+          | { error?: string; code?: string }
+          | null
+        if (data?.code === "STALE_UPDATE") {
+          setError(
+            `${data.error ?? "他の編集が反映されています。"}（ページを再読み込みしてください）`
+          )
+        } else {
+          setError(data?.error ?? "保存に失敗しました")
+        }
         return
       }
       if (!isEditing && typeof window !== "undefined") {

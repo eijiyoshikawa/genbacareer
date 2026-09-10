@@ -49,6 +49,8 @@ function mapKind(type: string | null | undefined): FlexNotificationKind {
     case "saved_search_alert":
     case "saved_search":
       return "saved_search_alert"
+    case "scout":
+      return "scout"
     case "promo":
       return "promo"
     default:

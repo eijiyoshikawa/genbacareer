@@ -28,6 +28,7 @@ import {
 import { sendScoutEmail } from "@/lib/email"
 import { parsePrefs } from "@/lib/notification-prefs"
 import { canSendScoutByPlan, isPlanActive } from "@/lib/plans"
+import { createNotification } from "@/lib/notifications"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -171,18 +172,19 @@ export async function POST(request: NextRequest) {
     throw e
   }
 
-  // 4. サイト内通知 (Notification) を作成
-  await prisma.notification.create({
-    data: {
-      userId,
-      type: "scout",
-      title: `${job.company?.name ?? "企業"}からスカウトが届きました`,
-      body: buildScoutExcerpt(body, 80),
-      linkUrl: `/mypage/scouts/${scout.id}`,
-      refId: scout.id,
-    },
-  }).catch((err) => {
-    console.error("[scouts] Notification create failed:", err)
+  // 4. サイト内通知 (Notification) を作成 + (opt-in なら) LINE push
+  // 他の通知種別 (application_status 等) と同じく createNotification 経由にする。
+  // 直接 prisma.notification.create するとサイト内通知は記録されるが、
+  // LINE 即時配信が一切発火しない（scoutEnabled=false でメールを止めている
+  // 求職者は、LINE も未対応だと期限切れまで気づけない）。
+  await createNotification({
+    userId,
+    type: "scout",
+    title: `${job.company?.name ?? "企業"}からスカウトが届きました`,
+    body: buildScoutExcerpt(body, 80),
+    linkUrl: `/mypage/scouts/${scout.id}`,
+    linkLabel: "スカウトを見る",
+    refId: scout.id,
   })
 
   // 5. opt-in なら メール送信 (失敗は throw しない、ログのみ)

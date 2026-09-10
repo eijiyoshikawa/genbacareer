@@ -62,7 +62,10 @@ export async function GET(request: Request) {
   const refundCount = refunds._count ?? 0
   const refundAmount = refunds._sum.refundAmount ?? 0
 
-  const totalTasks = pendingCount + refundCount
+  // ドキュメント通り A/B/C いずれかが 1 件でもあれば送る。
+  // invoicedCount (B: 発行済・入金待ち) を条件から外すと、新規の pending/refund が
+  // 無い日は入金待ち一覧が溜まっていても digest が一切飛ばなくなってしまう。
+  const totalTasks = pendingCount + invoicedCount + refundCount
 
   if (totalTasks === 0) {
     console.log("[cron/billing-todo-digest] no tasks, skipping email")

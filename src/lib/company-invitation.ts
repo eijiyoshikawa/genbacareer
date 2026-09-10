@@ -1,5 +1,6 @@
 import { randomBytes, randomInt } from "crypto"
 import bcrypt from "bcryptjs"
+import { Prisma } from "@prisma/client"
 import { prisma } from "./db"
 import { sendEmail } from "./email"
 
@@ -135,23 +136,33 @@ export async function acceptInvitation({
 
   const passwordHash = await bcrypt.hash(password, 10)
 
-  const created = await prisma.$transaction(async (tx) => {
-    const user = await tx.companyUser.create({
-      data: {
-        companyId: inv.companyId,
-        email: inv.email,
-        passwordHash,
-        name: name ?? null,
-        role: inv.role,
-        mustChangePassword: false,
-      },
+  try {
+    const created = await prisma.$transaction(async (tx) => {
+      const user = await tx.companyUser.create({
+        data: {
+          companyId: inv.companyId,
+          email: inv.email,
+          passwordHash,
+          name: name ?? null,
+          role: inv.role,
+          mustChangePassword: false,
+        },
+      })
+      await tx.companyInvitation.update({
+        where: { id: inv.id },
+        data: { acceptedAt: new Date() },
+      })
+      return user
     })
-    await tx.companyInvitation.update({
-      where: { id: inv.id },
-      data: { acceptedAt: new Date() },
-    })
-    return user
-  })
 
-  return { ok: true, companyUserId: created.id }
+    return { ok: true, companyUserId: created.id }
+  } catch (e) {
+    // 事前の existing チェックと create の間の競合（同一トークンの二重送信、
+    // 同じメールへの別招待の同時 accept 等）で unique 制約に引っかかった場合は
+    // 素の 500 にせず、通常の email_taken と同じ扱いにする。
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { ok: false, reason: "email_taken" }
+    }
+    throw e
+  }
 }

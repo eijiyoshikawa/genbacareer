@@ -28,12 +28,14 @@ const TEXT_MUTED = "#888888"
 export type FlexNotificationKind =
   | "application_status"
   | "saved_search_alert"
+  | "scout"
   | "system"
   | "promo"
 
 const KIND_LABEL: Record<FlexNotificationKind, string> = {
   application_status: "選考お知らせ",
   saved_search_alert: "新着求人",
+  scout: "スカウト",
   system: "お知らせ",
   promo: "おすすめ",
 }
@@ -41,6 +43,7 @@ const KIND_LABEL: Record<FlexNotificationKind, string> = {
 const KIND_ACCENT: Record<FlexNotificationKind, string> = {
   application_status: BRAND_GREEN,
   saved_search_alert: "#0ea5e9",
+  scout: "#7c3aed",
   system: "#475569",
   promo: "#f59e0b",
 }

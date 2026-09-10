@@ -14,25 +14,29 @@ export function BonusActions({
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
 
-  async function run(action: "approve" | "mark_paid" | "reject") {
+  function run(action: "approve" | "mark_paid" | "reject") {
     setError("")
     const reason =
       action === "reject" ? window.prompt("却下理由 (任意)") : null
-    try {
-      const res = await fetch(`/api/admin/hiring-bonuses/${bonusId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, rejectionReason: reason ?? undefined }),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        setError(d?.error ?? "更新失敗")
-        return
+    // fetch 自体を startTransition に包む（await の前でだけ包むと、通信中は
+    // pending が false のままボタンが押せてしまい、連打で二重送信できてしまう）。
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/admin/hiring-bonuses/${bonusId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, rejectionReason: reason ?? undefined }),
+        })
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}))
+          setError(d?.error ?? "更新失敗")
+          return
+        }
+        router.refresh()
+      } catch {
+        setError("通信エラー")
       }
-      startTransition(() => router.refresh())
-    } catch {
-      setError("通信エラー")
-    }
+    })
   }
 
   return (

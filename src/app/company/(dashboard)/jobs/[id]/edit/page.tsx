@@ -45,6 +45,7 @@ export default async function EditJobPage({
       videoUrls: true,
       status: true,
       previewToken: true,
+      updatedAt: true,
     },
   })
 

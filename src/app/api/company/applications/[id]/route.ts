@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db"
 import { sendApplicationStatusEmail } from "@/lib/application-notifications"
 import { notifyApplicationStatusChange } from "@/lib/notifications"
 import { syncApplicationToCalendar } from "@/lib/application-calendar-sync"
+import { parsePrefs } from "@/lib/notification-prefs"
 
 const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
   applied: ["reviewing", "rejected"],
@@ -87,7 +88,7 @@ export async function PUT(
       status: true,
       statusHistory: true,
       hiredAt: true,
-      user: { select: { email: true, name: true } },
+      user: { select: { email: true, name: true, notificationPrefs: true } },
       job: { select: { title: true } },
       company: { select: { name: true } },
     },
@@ -173,8 +174,11 @@ export async function PUT(
     console.warn(`[notification] failed: ${e instanceof Error ? e.message : e}`)
   })
 
-  // ステータス通知メール（fire-and-forget）
-  if (application.user.email) {
+  // ステータス通知メール（fire-and-forget）。
+  // 通知設定でメール受信を OFF にしているユーザーには送らない
+  // （マイページの inbox 通知は上の notifyApplicationStatusChange で別途記録済み）。
+  const emailEnabled = parsePrefs(application.user.notificationPrefs).emailEnabled
+  if (application.user.email && emailEnabled) {
     sendApplicationStatusEmail({
       to: application.user.email,
       candidateName: application.user.name ?? null,
