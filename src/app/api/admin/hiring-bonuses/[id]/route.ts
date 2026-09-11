@@ -7,6 +7,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { logAudit, buildActorFromSession } from "@/lib/audit-log"
 
 export const dynamic = "force-dynamic"
 
@@ -53,5 +54,13 @@ export async function PATCH(
   }
 
   await prisma.hiringBonus.update({ where: { id }, data })
+  void logAudit({
+    ...(await buildActorFromSession()),
+    resourceType: "hiring_bonus",
+    resourceId: id,
+    action: parsed.data.action,
+    summary: `採用ボーナス ${id} を ${data.status} に変更`,
+    diff: JSON.parse(JSON.stringify(data)),
+  })
   return Response.json({ ok: true })
 }

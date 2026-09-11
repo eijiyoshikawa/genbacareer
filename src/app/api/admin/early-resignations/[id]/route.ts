@@ -17,6 +17,7 @@
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { logAudit, buildActorFromSession } from "@/lib/audit-log"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -96,6 +97,14 @@ export async function PATCH(
           approvedAt: now,
         },
       })
+      void logAudit({
+        ...(await buildActorFromSession()),
+        resourceType: "early_resignation",
+        resourceId: id,
+        action: "approve",
+        summary: `戻入申請 ${id} を承認`,
+        diff: { previousStatus: row.status, newStatus: "approved", adminNote: parsed.data.adminNote ?? null },
+      })
       return Response.json({ ok: true })
     }
     case "reject": {
@@ -114,6 +123,14 @@ export async function PATCH(
           rejectedAt: now,
         },
       })
+      void logAudit({
+        ...(await buildActorFromSession()),
+        resourceType: "early_resignation",
+        resourceId: id,
+        action: "reject",
+        summary: `戻入申請 ${id} を却下`,
+        diff: { previousStatus: row.status, newStatus: "rejected", adminNote: parsed.data.adminNote },
+      })
       return Response.json({ ok: true })
     }
     case "mark_invoiced": {
@@ -130,6 +147,14 @@ export async function PATCH(
           mfCreditNoteId: parsed.data.mfCreditNoteId ?? null,
           invoicedAt: now,
         },
+      })
+      void logAudit({
+        ...(await buildActorFromSession()),
+        resourceType: "early_resignation",
+        resourceId: id,
+        action: "mark_invoiced",
+        summary: `戻入申請 ${id} を請求書発行済みにマーク`,
+        diff: { previousStatus: row.status, newStatus: "invoiced" },
       })
       return Response.json({ ok: true })
     }

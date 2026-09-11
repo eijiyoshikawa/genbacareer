@@ -7,7 +7,10 @@
  * 主な用途:
  *  - lead 化時の conversion 計測 (`generate_lead` イベント)
  *  - 各種 CTA クリックのカスタムイベント
- *  - 内部 sessionId と GA client_id の紐付け
+ *
+ * 内部 sessionId (gc_sid) と GA client_id を紐付ける機能は未実装
+ * （gtag('config', ...) はデフォルトの GA client_id をそのまま使っており、
+ * gc_sid はここに一切渡していない）。
  */
 
 type GtagEventParams = Record<string, string | number | boolean | undefined | null>

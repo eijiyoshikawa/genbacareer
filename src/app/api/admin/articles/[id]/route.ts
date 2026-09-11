@@ -3,6 +3,7 @@ import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { ALL_ARTICLE_CATEGORY_VALUES } from "@/lib/article-categories"
+import { logAudit, buildActorFromSession } from "@/lib/audit-log"
 
 const articleUpdateSchema = z.object({
   slug: z
@@ -155,5 +156,12 @@ export async function DELETE(
   }
 
   await prisma.article.delete({ where: { id } })
+  void logAudit({
+    ...(await buildActorFromSession()),
+    resourceType: "article",
+    resourceId: id,
+    action: "delete",
+    summary: `記事「${existing.title}」(${existing.slug}) を削除`,
+  })
   return Response.json({ success: true })
 }

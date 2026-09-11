@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { logAudit, buildActorFromSession } from "@/lib/audit-log"
 
 const patchSchema = z.object({
   status: z.enum(["resolved", "dismissed"]),
@@ -57,6 +58,15 @@ export async function PATCH(
       resolvedAt: new Date(),
       resolvedBy: session.user.id,
     },
+  })
+
+  void logAudit({
+    ...(await buildActorFromSession()),
+    resourceType: "report",
+    resourceId: id,
+    action: parsed.data.status,
+    summary: `通報 ${id} (対象: ${report.targetType}/${report.targetId}) を ${parsed.data.status} に変更`,
+    diff: { targetType: report.targetType, targetId: report.targetId, resolution: parsed.data.resolution ?? null },
   })
 
   return Response.json({ ok: true })

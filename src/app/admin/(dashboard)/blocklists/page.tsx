@@ -4,7 +4,11 @@
  * クローラ取り込み時の除外フィルタを admin がメンテナンスする画面。
  * keyword + scope (any/title/description/company) + enabled トグル。
  *
- * 実際の判定は別途 lib/blocklist-match.ts と クローラ取り込み側で使う想定。
+ * 実際の判定は src/lib/blocklist-match.ts が行い、HelloWork 取り込み
+ * (src/lib/crawler/import-batch.ts) から呼ばれる。マッチした求人は
+ * 取り込み対象から除外され、ヒット件数は hitCount に加算される
+ * （以前はこの画面でキーワードを登録しても実際には何も除外されない
+ * 未接続の状態だった）。
  */
 
 import { prisma } from "@/lib/db"

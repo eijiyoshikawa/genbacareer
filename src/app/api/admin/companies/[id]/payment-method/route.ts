@@ -11,6 +11,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { logAudit, buildActorFromSession } from "@/lib/audit-log"
 
 const schema = z.object({
   paymentMethod: z.enum(["moneyforward"]),
@@ -61,6 +62,14 @@ export async function PATCH(
   await prisma.company.update({
     where: { id },
     data: { paymentMethod: parsed.data.paymentMethod },
+  })
+
+  void logAudit({
+    ...(await buildActorFromSession()),
+    resourceType: "company",
+    resourceId: id,
+    action: "payment_method_change",
+    summary: `企業 ${id} の支払方法を ${parsed.data.paymentMethod} に変更`,
   })
 
   return Response.json({ success: true, paymentMethod: parsed.data.paymentMethod })

@@ -20,6 +20,7 @@ import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { PLAN_TYPES, planTier } from "@/lib/plans"
+import { logAudit, buildActorFromSession } from "@/lib/audit-log"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -124,6 +125,20 @@ export async function POST(
       planNotes,
       planTier: planTier({ planType, source: company.source }),
       planExpiryNotifiedAt: null,
+    },
+  })
+
+  void logAudit({
+    ...(await buildActorFromSession()),
+    resourceType: "company",
+    resourceId: id,
+    action: "plan_change",
+    summary: `企業 ${id} のプランを ${company.planType} → ${planType} に変更`,
+    diff: {
+      previousPlanType: company.planType,
+      newPlanType: planType,
+      planPaidUntil,
+      planPrepaidFull,
     },
   })
 

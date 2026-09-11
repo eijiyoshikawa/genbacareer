@@ -20,6 +20,11 @@ import {
   fallbackSalary,
 } from "@/lib/job-enrichment"
 import { computeRankScore } from "@/lib/ranking"
+import {
+  loadEnabledBlocklistRules,
+  matchBlocklistRule,
+  incrementBlocklistHitCounts,
+} from "@/lib/blocklist-match"
 import type { HelloworkJobData } from "./hellowork"
 
 // ========================================
@@ -36,6 +41,8 @@ export interface ImportStats {
   closed: number
   /** 建設業カテゴリにマッチせずスキップした件数 */
   skipped: number
+  /** 除外キーワード (Blocklist) にマッチして取り込まなかった件数 */
+  blocked: number
   /** エラーが発生した件数 */
   errors: number
   /** 処理対象の総件数 */
@@ -415,8 +422,15 @@ export async function importHelloworkJobs(
   let updated = 0
   let closed = 0
   let skipped = 0
+  let blocked = 0
   let errors = 0
   const importErrors: ImportError[] = []
+
+  // 除外キーワード (Blocklist)。admin 画面で登録できるが、以前はここで
+  // 一切参照されておらず、登録しても何も除外されないサイレントな
+  // 機能未実装だった。バッチ全体で 1 回だけ読み込む。
+  const blocklistRules = await loadEnabledBlocklistRules().catch(() => [])
+  const blocklistHits = new Map<string, number>()
 
   // 今回バッチで処理された hellowork_id のセット
   // 建設業カテゴリにマッチした（＝取り込み対象になった）ジョブのみが入る。
@@ -439,6 +453,14 @@ export async function importHelloworkJobs(
       const category = inferCategory(job.title, job.description)
       if (category === null) {
         skipped++
+        continue
+      }
+
+      // 除外キーワードにマッチする求人は取り込まない
+      const blockedRule = matchBlocklistRule(job, blocklistRules)
+      if (blockedRule) {
+        blocked++
+        blocklistHits.set(blockedRule.id, (blocklistHits.get(blockedRule.id) ?? 0) + 1)
         continue
       }
 
@@ -578,6 +600,10 @@ export async function importHelloworkJobs(
     }
   }
 
+  if (blocklistHits.size > 0) {
+    await incrementBlocklistHitCounts(blocklistHits)
+  }
+
   const finishedAt = new Date()
   const durationMs = finishedAt.getTime() - startedAt.getTime()
 
@@ -589,6 +615,7 @@ export async function importHelloworkJobs(
     updated,
     closed,
     skipped,
+    blocked,
     errors,
     totalProcessed: jobs.length,
     startedAt,
@@ -601,6 +628,7 @@ export async function importHelloworkJobs(
   console.info(`  更新: ${stats.updated} 件`)
   console.info(`  終了 (closed): ${stats.closed} 件`)
   console.info(`  スキップ (非建設業): ${stats.skipped} 件`)
+  console.info(`  除外 (blocklist): ${stats.blocked} 件`)
   console.info(`  エラー: ${stats.errors} 件`)
   console.info(`  処理時間: ${stats.durationMs}ms`)
 

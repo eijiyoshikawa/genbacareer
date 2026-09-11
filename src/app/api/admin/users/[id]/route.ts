@@ -10,6 +10,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { z } from "zod"
+import { logAudit } from "@/lib/audit-log"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -72,24 +73,22 @@ export async function PATCH(
     )
   }
 
-  // 監査ログ
-  await prisma.auditLog
-    .create({
-      data: {
-        actorType: "admin",
-        actorId: session.user.id,
-        actorEmail: session.user.email ?? null,
-        action: parsed.data.status === "suspended" ? "user.suspend" : "user.unsuspend",
-        resourceType: "user",
-        resourceId: id,
-        summary:
-          parsed.data.status === "suspended"
-            ? `User suspended${parsed.data.reason ? `: ${parsed.data.reason}` : ""}`
-            : "User unsuspended",
-        diff: parsed.data.reason ? { reason: parsed.data.reason } : undefined,
-      },
-    })
-    .catch(() => null)
+  // 監査ログ（共通ヘルパー経由に統一。以前はここだけ独自に prisma.auditLog.create
+  // を直書きしており、書き込み失敗時も logAudit() のような警告ログすら残らず
+  // 完全に無音で握り潰されていた）。
+  void logAudit({
+    actorType: "admin",
+    actorId: session.user.id,
+    actorEmail: session.user.email ?? null,
+    action: parsed.data.status === "suspended" ? "user.suspend" : "user.unsuspend",
+    resourceType: "user",
+    resourceId: id,
+    summary:
+      parsed.data.status === "suspended"
+        ? `User suspended${parsed.data.reason ? `: ${parsed.data.reason}` : ""}`
+        : "User unsuspended",
+    diff: parsed.data.reason ? { reason: parsed.data.reason } : undefined,
+  })
 
   return Response.json({ ok: true })
 }

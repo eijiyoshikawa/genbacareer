@@ -19,6 +19,7 @@
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { logAudit, buildActorFromSession } from "@/lib/audit-log"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -97,6 +98,14 @@ export async function POST(
           invoiceUrl: parsed.data.invoiceUrl ?? null,
         },
       })
+      void logAudit({
+        ...(await buildActorFromSession()),
+        resourceType: "billing_event",
+        resourceId: id,
+        action: "mark_invoiced",
+        summary: `請求イベント ${id} を invoiced にマーク`,
+        diff: { previousStatus: row.status, newStatus: "invoiced", mfBillingId: parsed.data.mfBillingId ?? null },
+      })
       return Response.json({ ok: true })
     }
     case "mark_paid": {
@@ -110,12 +119,28 @@ export async function POST(
         where: { id },
         data: { status: "paid", paidAt: new Date() },
       })
+      void logAudit({
+        ...(await buildActorFromSession()),
+        resourceType: "billing_event",
+        resourceId: id,
+        action: "mark_paid",
+        summary: `請求イベント ${id} を入金確認済み(paid)にマーク`,
+        diff: { previousStatus: row.status, newStatus: "paid" },
+      })
       return Response.json({ ok: true })
     }
     case "mark_failed": {
       await prisma.billingEvent.update({
         where: { id },
         data: { status: "failed" },
+      })
+      void logAudit({
+        ...(await buildActorFromSession()),
+        resourceType: "billing_event",
+        resourceId: id,
+        action: "mark_failed",
+        summary: `請求イベント ${id} を failed にマーク`,
+        diff: { previousStatus: row.status, newStatus: "failed" },
       })
       return Response.json({ ok: true })
     }
@@ -135,6 +160,14 @@ export async function POST(
       try {
         const { createHiringInvoice } = await import("@/lib/billing")
         const result = await createHiringInvoice(row.applicationId)
+        void logAudit({
+          ...(await buildActorFromSession()),
+          resourceType: "billing_event",
+          resourceId: id,
+          action: "retry",
+          summary: `請求イベント ${id} をMoneyForwardへ再送 (invoiceId=${result.invoiceId})`,
+          diff: { previousStatus: "failed" },
+        })
         return Response.json({ ok: true, invoiceId: result.invoiceId })
       } catch (e) {
         return Response.json(
