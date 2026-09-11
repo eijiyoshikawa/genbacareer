@@ -7,6 +7,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { toActorUuid } from "@/lib/actor-id"
 
 export const dynamic = "force-dynamic"
 
@@ -43,7 +44,7 @@ export async function PATCH(
       status: parsed.data.status,
       moderationNote: parsed.data.moderationNote ?? null,
       moderatedAt: new Date(),
-      moderatedBy: session?.user?.id ?? null,
+      moderatedBy: toActorUuid(session?.user?.id),
     },
   })
   return Response.json({ ok: true })

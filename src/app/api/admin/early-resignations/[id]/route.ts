@@ -17,6 +17,7 @@
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { toActorUuid } from "@/lib/actor-id"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -28,7 +29,7 @@ async function requireAdmin() {
   if (!session?.user) return null
   const u = session.user as SessionUser
   if (u.role !== "admin") return null
-  return { userId: u.id ?? null }
+  return { userId: toActorUuid(u.id) }
 }
 
 const patchSchema = z.discriminatedUnion("action", [

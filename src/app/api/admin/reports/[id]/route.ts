@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { toActorUuid } from "@/lib/actor-id"
 
 const patchSchema = z.object({
   status: z.enum(["resolved", "dismissed"]),
@@ -55,7 +56,7 @@ export async function PATCH(
       status: parsed.data.status,
       resolution: parsed.data.resolution ?? null,
       resolvedAt: new Date(),
-      resolvedBy: session.user.id,
+      resolvedBy: toActorUuid(session.user.id),
     },
   })
 

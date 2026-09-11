@@ -29,6 +29,24 @@
 - `pnpm prisma generate` — Prisma クライアント生成
 - `pnpm prisma db push` — スキーマをDBに反映
 
+## 定期バグ検査ルーティンでの確認事項
+「バグがないか確認・修正して」系のタスク（定期実行含む）では、通常のビルド/lint/test/本番ログ確認に加えて、以下も毎回チェックする:
+
+- **非建設業求人の混入防止**（本サイトは建設業 9 カテゴリ固定のため最重要）
+  - `src/lib/crawler/import-batch.ts` の `inferCategory` が `src/lib/categories.ts` の
+    `CATEGORIES`（9 カテゴリ）以外にマップしていないか。新しい求人ソース（クローラ/フィード連携）を
+    追加する際は必ず `inferCategory` 相当の絞り込みを通すこと（絞り込まず生投入しない）
+  - 新しい求人一覧・検索系のコード（`/jobs` 系ページ、`/api/jobs` 系 API、サイトマップ等）を追加・変更
+    する際は `CONSTRUCTION_CATEGORY_VALUES`（`src/lib/categories.ts`）で `category` を絞り込んでいるか
+    （保険のフィルタ。既存 27 ファイルが参照 — 新規箇所も同じパターンに揃える）
+  - 企業による求人投稿 API（`/api/company/jobs`）が `CATEGORIES` の値以外を弾いているか
+  - 可能であれば本番 DB で `SELECT category, COUNT(*) FROM jobs GROUP BY category` 相当を確認し、
+    9 カテゴリ以外（またはタイトルが明らかに建設業と無関係）の行が無いか確認する
+- **過去の定期バグ検査 PR の滞留確認**: `claude/stoic-johnson-*` ブランチの未マージ PR が
+  蓄積していないか GitHub で確認する。過去に何週間も未レビューのまま溜まり、同じバグが
+  本番に残り続けた実績があるため、見つけた場合は現行 main に対して検証・再実装した上で
+  自分の作業ブランチにも反映すること。
+
 ## 【恒久ルール・厳守】デプロイ再トリガーに関する禁止事項
 
 > 背景: 空コミットを数時間おきに自動 push して Vercel のデプロイを再トリガーしたことが
