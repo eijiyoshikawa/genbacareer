@@ -25,5 +25,7 @@ declare module "next-auth/jwt" {
     // アカウント状態の定期再チェック用（凍結/却下後の revocation gap 対策）。
     statusCheckedAt?: number
     revoked?: boolean
+    // このトークンが発行された時刻。パスワード変更後の失効判定に使う。
+    issuedAt?: number
   }
 }

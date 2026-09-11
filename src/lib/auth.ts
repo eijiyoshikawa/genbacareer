@@ -316,6 +316,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.mustChangePassword =
           (user as { mustChangePassword?: boolean }).mustChangePassword ?? false
         token.statusCheckedAt = Date.now()
+        token.issuedAt = Date.now()
         token.revoked = false
         return token
       }
@@ -341,12 +342,31 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             select: { status: true },
           })
           token.revoked = !dbUser || dbUser.status === "suspended" || dbUser.status === "deleted"
-        } else if ((role === "company_admin" || role === "company_member") && companyId) {
-          const dbCompany = await prisma.company.findUnique({
-            where: { id: companyId },
-            select: { status: true },
-          })
-          token.revoked = !dbCompany || dbCompany.status === "rejected"
+        } else if ((role === "company_admin" || role === "company_member") && companyId && userId) {
+          const [dbCompany, dbCompanyUser] = await Promise.all([
+            prisma.company.findUnique({
+              where: { id: companyId },
+              select: { status: true },
+            }),
+            prisma.companyUser.findUnique({
+              where: { id: userId },
+              select: { passwordChangedAt: true },
+            }),
+          ])
+          // パスワード変更後に発行済みの（＝盗まれた可能性のある）古い
+          // セッションを失効させる。issuedAt はログイン時刻の一度きりの
+          // スナップショットなので、以後 5 分おきに更新される
+          // statusCheckedAt と違い「このセッションがいつ発行されたか」を
+          // 正しく表す。
+          const issuedAt = (token.issuedAt as number | undefined) ?? 0
+          const passwordChangedAfterIssue =
+            !!dbCompanyUser?.passwordChangedAt &&
+            dbCompanyUser.passwordChangedAt.getTime() > issuedAt
+          token.revoked =
+            !dbCompany ||
+            dbCompany.status === "rejected" ||
+            !dbCompanyUser ||
+            passwordChangedAfterIssue
         }
       }
       return token

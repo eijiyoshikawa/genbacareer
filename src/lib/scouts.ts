@@ -42,11 +42,12 @@ export function buildScoutExpiry(sentAt: Date): Date {
  * - 求職者が profilePublic=false（非公開設定）でないこと
  * - 求職者がこの企業を blockedCompanyIds でブロックしていないこと
  *
- * profilePublic / blockedCompanyIds のチェックは、求人検索・企業側の
- * 候補者一覧 (/api/company/candidates) では既に反映されていたが、
- * スカウト送信は client から任意の userId を受け取る経路のため、
- * ここで同じチェックをしないと「非公開設定」「企業ブロック」の両方を
- * スカウト経由で完全に迂回できてしまっていた。
+ * profilePublic のチェックは求人検索・企業側の候補者一覧
+ * (/api/company/candidates) でも行われている（blockedCompanyIds は
+ * candidates 側にも別途フィルタを追加済み）。スカウト送信は client から
+ * 任意の userId を受け取る経路のため、ここで同じチェックをしないと
+ * 「非公開設定」「企業ブロック」の両方をスカウト経由で完全に迂回
+ * できてしまう。
  */
 export function canSendScout({
   job,

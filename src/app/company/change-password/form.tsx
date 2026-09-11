@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { signOut } from "next-auth/react"
 
 export function ChangePasswordForm({ forced }: { forced: boolean }) {
   const router = useRouter()
@@ -34,7 +35,12 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
         setError(data.error ?? "更新に失敗しました")
         return
       }
-      router.push("/company/dashboard")
+      // パスワード変更後は必ずサインアウトし、新しいパスワードで再ログイン
+      // させる。以前はここでセッションを継続していたため、盗まれた
+      // Cookie 等で使われている別セッションが（auth.ts の定期再チェック
+      // が効くまでの数分間）そのまま有効であり続ける隙があった。
+      await signOut({ redirect: false })
+      router.push("/company/login")
       router.refresh()
     } catch {
       setError("通信エラーが発生しました")

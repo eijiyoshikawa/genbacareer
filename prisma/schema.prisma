@@ -395,6 +395,10 @@ model CompanyUser {
   // 直接発行 (admin が仮 PW 手渡し) で作成された場合 true。
   // 初回ログイン直後に /company/change-password へ強制リダイレクト。
   mustChangePassword Boolean @default(false) @map("must_change_password")
+  // パスワードを最後に変更した日時。セッション (JWT) 側が保持する
+  // 発行時刻 (issuedAt) と比較し、パスワード変更後もなお有効な古いセッション
+  // (盗まれた Cookie 等) を検知して失効させるために使う。
+  passwordChangedAt DateTime? @map("password_changed_at") @db.Timestamptz()
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)

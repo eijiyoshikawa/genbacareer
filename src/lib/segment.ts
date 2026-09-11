@@ -18,6 +18,16 @@ import { prisma } from "./db"
 import { LEAD_STATUSES, type LeadStatus } from "./line-lead-status"
 import type { Prisma } from "@prisma/client"
 
+/**
+ * 実際の一括配信 (broadcast) が 1 回のリクエストで送る最大件数。
+ * countSegment (プレビュー) もこれと同じ上限でカウントしないと、
+ * プレビューでは「3000 件に配信」と表示されるのに実際の送信は
+ * 新しい順の先頭 1000 件だけに送られる、という無警告の乖離が起きる
+ * （Vercel の maxDuration=60s 内に収める必要があるため、実送信側の上限を
+ * 大きくする方向では解決できない）。
+ */
+export const BROADCAST_SEND_LIMIT = 1000
+
 export interface Segment {
   utmSource?: string
   status?: LeadStatus
@@ -113,9 +123,13 @@ export async function resolveSegment(
     .catch(() => [] as LeadRowForBroadcast[])
 }
 
-/** セグメント条件にマッチする lead 数を高速にカウント。 */
+/**
+ * セグメント条件にマッチする lead 数を高速にカウント。
+ * 実際の配信 (resolveSegment(segment, BROADCAST_SEND_LIMIT)) と同じ上限で
+ * サンプリングし、プレビューの件数が実送信数と食い違わないようにする。
+ */
 export async function countSegment(segment: Segment): Promise<{ total: number; bound: number }> {
-  const rows = await resolveSegment(segment, 5000)
+  const rows = await resolveSegment(segment, BROADCAST_SEND_LIMIT)
   return {
     total: rows.length,
     bound: rows.filter((r) => !!r.lineUserId).length,

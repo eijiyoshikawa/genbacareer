@@ -7,6 +7,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isConstructionCategory } from "@/lib/categories"
 
 export const dynamic = "force-dynamic"
 
@@ -15,7 +16,17 @@ const createSchema = z.object({
   q: z.string().max(200).nullable().optional(),
   prefecture: z.string().max(20).nullable().optional(),
   city: z.string().max(100).nullable().optional(),
-  category: z.string().max(50).nullable().optional(),
+  // /api/jobs の検索と同じ許可リストで検証する。以前は自由文字列を
+  // そのまま保存でき、無効なカテゴリを保存すると日次の通知アラート cron
+  // (saved-search-alerts) が毎回 0 件のまま気付かれずに動き続けていた。
+  category: z
+    .string()
+    .max(50)
+    .nullable()
+    .optional()
+    .refine((v) => !v || isConstructionCategory(v), {
+      message: "無効なカテゴリです",
+    }),
   employmentType: z.string().max(20).nullable().optional(),
   salaryMin: z.number().int().min(0).nullable().optional(),
   source: z.enum(["direct", "hellowork"]).nullable().optional(),
