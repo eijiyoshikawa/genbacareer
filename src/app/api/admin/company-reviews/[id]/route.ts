@@ -37,14 +37,20 @@ export async function PATCH(
     return Response.json({ error: "入力エラー" }, { status: 400 })
   }
 
-  await prisma.companyReview.update({
-    where: { id },
-    data: {
-      status: parsed.data.status,
-      moderationNote: parsed.data.moderationNote ?? null,
-      moderatedAt: new Date(),
-      moderatedBy: session?.user?.id ?? null,
-    },
-  })
+  try {
+    await prisma.companyReview.update({
+      where: { id },
+      data: {
+        status: parsed.data.status,
+        moderationNote: parsed.data.moderationNote ?? null,
+        moderatedAt: new Date(),
+        moderatedBy: session?.user?.id ?? null,
+      },
+    })
+  } catch {
+    // 存在しない id (二重クリック等) は 404 として返す。他の admin ルートと
+    // 揃え、Prisma の P2025 が素の 500 として返るのを防ぐ。
+    return Response.json({ error: "口コミが見つかりません" }, { status: 404 })
+  }
   return Response.json({ ok: true })
 }

@@ -129,8 +129,13 @@ export async function acceptInvitation({
   const inv = await findValidInvitation(token)
   if (!inv) return { ok: false, reason: "invalid" }
 
-  const existing = await prisma.companyUser.findUnique({
-    where: { email: inv.email },
+  // メールアドレスは大文字小文字を区別せず一意として扱う。email カラムの
+  // 実体は大文字小文字を区別する VarChar/unique index のため、ここを
+  // findUnique（完全一致）のままにすると、既に "Foo@Bar.com" で登録済みの
+  // アカウントがあっても "foo@bar.com" 宛の招待を accept でき、同一人物が
+  // 別表記のメールで複数アカウント（別会社の CompanyUser）を持ててしまう。
+  const existing = await prisma.companyUser.findFirst({
+    where: { email: { equals: inv.email, mode: "insensitive" } },
   })
   if (existing) return { ok: false, reason: "email_taken" }
 

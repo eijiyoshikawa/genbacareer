@@ -850,7 +850,14 @@ model ImportProgress {
   lastPage     Int       @default(0) @map("last_page")  // 直近で完了したページ番号 (0=未着手)
   exhausted    Boolean   @default(false)  // 末尾ページに到達したら true
   totalFetched Int       @default(0) @map("total_fetched")
+  // 直近で「成功完了」した実行時刻（表示・診断用）。
   lastRunAt    DateTime? @map("last_run_at") @db.Timestamptz()
+  // 直近で「試行」した時刻（成功/失敗を問わない）。ローテーション選択の
+  // 基準はこちらを使う。lastRunAt だけを基準にすると、取得に失敗し続ける
+  // dataId は lastRunAt が更新されないまま「最も古い」判定され続け、
+  // 他の全 dataId を無期限に飢餓状態にしてしまう（1 件の失敗が全国
+  // ローテーションを止める致命的なバグだった）。
+  lastAttemptAt DateTime? @map("last_attempt_at") @db.Timestamptz()
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 

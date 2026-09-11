@@ -5,6 +5,30 @@
 
 ---
 
+## 🆕 ImportProgress.lastAttemptAt 追加 + HelloWork ローテーションの飢餓バグ修正 (2026-09-11 追加)
+
+HelloWork 全国取り込みのローテーションプランナー (`planNextRotation`) は
+`lastRunAt`（成功時のみ更新）が最も古い dataId を次の対象として選んでいた。
+そのため、恒常的に失敗し続ける dataId（都道府県）が1つでもあると、
+`lastRunAt` が二度と更新されないままずっと「最も古い」と判定され続け、
+他の46都道府県が無期限に取り込み対象から外れてしまう致命的なバグが
+あった。加えて、cron が二重起動した場合に同じ dataId を同時に選んで
+しまう競合もあった。
+
+- `ImportProgress.lastAttemptAt`（成功/失敗を問わず「試行」した時刻）を
+  追加し、ローテーション選択の基準を `lastRunAt` からこちらに変更
+- `planNextRotation` で選択と同時に `lastAttemptAt` をアトミックに
+  更新（楽観ロック）することで claim とし、二重起動時の競合も解消
+- `lastRunAt` は引き続き成功完了時刻として `recordBatchResult` が更新
+  （表示・診断用に残す）
+
+- [ ] **本番 DB にスキーマ反映**:
+  ```bash
+  pnpm prisma db push
+  ```
+
+---
+
 ## 🆕 除外キーワード (Blocklist) を実際に機能させるよう修正 (2026-09-11 追加、運用要確認)
 
 `/admin/blocklists` はキーワード登録 UI が以前から存在したが、実際に

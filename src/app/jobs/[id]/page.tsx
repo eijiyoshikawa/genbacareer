@@ -97,7 +97,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
 
   // 詳細ページで実際に使うカラムだけを select する。
   // rawData (Hellowork 由来の Json 丸ごと格納) や dedupeKey 等は不要なので含めない。
-  // viewCount は別途 increment で update するだけなので select 不要。
+  // viewCount はこのページでは更新しない（<JobViewBeacon /> 経由で記録）ため select 不要。
   const job = await prisma.job.findUnique({
     where: { id },
     select: {
@@ -207,12 +207,10 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
     redirect(`/login?callbackUrl=${encodeURIComponent(`/jobs/${id}`)}`)
   }
 
-  // プレビューモードではトラッキングを行わない（社内チェックを実件数に混ぜないため）
-  if (!isPreview) {
-    prisma.job
-      .update({ where: { id }, data: { viewCount: { increment: 1 } } })
-      .catch(() => {})
-  }
+  // viewCount の記録は <JobViewBeacon /> 経由の recordJobView() に一本化
+  // 済み（bot 除外・同一セッション 5 分間の重複抑制あり）。以前はここでも
+  // 無条件に increment しており、SSR ページを連続リロードするだけで
+  // 検索ランキングに使われる viewCount を無制限に水増しできてしまっていた。
 
   const jsonLd = generateJobPostingSchema({
     id: job.id,

@@ -30,6 +30,14 @@ export interface RotationPlan {
  *
  * 進捗テーブルが空なら、API から dataId 一覧を取得して初期化する。
  *
+ * 選ばれた行は lastAttemptAt をアトミックに現在時刻へ更新してから返す
+ * （「claim」する）。これにより:
+ *   - 取得が失敗しても次回同じ dataId が無限に選ばれ続けることがない
+ *     （lastAttemptAt は成功/失敗によらず更新されるため、失敗した dataId は
+ *     一旦キューの最後尾に回り、他の dataId に順番が回る）
+ *   - cron が二重起動しても、同時に同じ dataId を選んでしまう競合を
+ *     楽観ロック（更新前の lastAttemptAt を条件にした updateMany）で防ぐ
+ *
  * @returns 次バッチの計画。全 dataId 完走済みの場合は新サイクルにリセットして1件目を返す。
  */
 export async function planNextRotation(
@@ -39,38 +47,55 @@ export async function planNextRotation(
   // 1. 進捗テーブルを最新化（dataId 一覧との差分を埋める）
   await ensureProgressRows(prisma)
 
-  // 2. exhausted=false で最も古い lastRunAt の行を選ぶ
-  let row = await prisma.importProgress.findFirst({
-    where: { source: SOURCE, exhausted: false },
-    orderBy: [{ lastRunAt: { sort: "asc", nulls: "first" } }, { dataId: "asc" }],
-  })
-
-  // 3. 全部 exhausted ならリセットして再選択
-  if (!row) {
-    console.info(
-      "[rotation-planner] 全 dataId が exhausted。新サイクルとしてリセットします。"
-    )
-    await prisma.importProgress.updateMany({
-      where: { source: SOURCE },
-      data: { exhausted: false, lastPage: 0 },
-    })
-    row = await prisma.importProgress.findFirst({
+  const MAX_CLAIM_ATTEMPTS = 5
+  for (let attempt = 0; attempt < MAX_CLAIM_ATTEMPTS; attempt++) {
+    // 2. exhausted=false で最も古く「試行」された行を選ぶ
+    let row = await prisma.importProgress.findFirst({
       where: { source: SOURCE, exhausted: false },
-      orderBy: [{ lastRunAt: { sort: "asc", nulls: "first" } }, { dataId: "asc" }],
+      orderBy: [{ lastAttemptAt: { sort: "asc", nulls: "first" } }, { dataId: "asc" }],
     })
+
+    // 3. 全部 exhausted ならリセットして再選択
+    if (!row) {
+      console.info(
+        "[rotation-planner] 全 dataId が exhausted。新サイクルとしてリセットします。"
+      )
+      await prisma.importProgress.updateMany({
+        where: { source: SOURCE },
+        data: { exhausted: false, lastPage: 0 },
+      })
+      row = await prisma.importProgress.findFirst({
+        where: { source: SOURCE, exhausted: false },
+        orderBy: [{ lastAttemptAt: { sort: "asc", nulls: "first" } }, { dataId: "asc" }],
+      })
+    }
+
+    if (!row) {
+      throw new Error(
+        "[rotation-planner] 進捗テーブルが空です。HelloWork API から dataId が取得できているか確認してください。"
+      )
+    }
+
+    // 4. アトミックに claim（更新前の lastAttemptAt が一致する場合のみ更新が成功する）
+    const claim = await prisma.importProgress.updateMany({
+      where: { id: row.id, lastAttemptAt: row.lastAttemptAt },
+      data: { lastAttemptAt: new Date() },
+    })
+    if (claim.count === 0) {
+      // 他の同時実行が先に claim した。次候補で再試行。
+      continue
+    }
+
+    return {
+      dataId: row.dataId,
+      startPage: row.lastPage + 1,
+      pagesPerRun,
+    }
   }
 
-  if (!row) {
-    throw new Error(
-      "[rotation-planner] 進捗テーブルが空です。HelloWork API から dataId が取得できているか確認してください。"
-    )
-  }
-
-  return {
-    dataId: row.dataId,
-    startPage: row.lastPage + 1,
-    pagesPerRun,
-  }
+  throw new Error(
+    "[rotation-planner] 同時実行との競合により計画を確定できませんでした（再試行上限に達しました）。"
+  )
 }
 
 /**

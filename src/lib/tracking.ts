@@ -83,6 +83,17 @@ export async function recordJobView(input: RecordJobViewInput): Promise<void> {
         utmCampaign: input.utm.campaign,
       },
     })
+
+    // Job.viewCount はここでだけ増やす。以前は求人詳細ページの SSR
+    // レンダリングと GET /api/jobs/[id] がそれぞれ独自に無条件で
+    // increment しており、bot 判定もセッション単位の重複抑制も無かった
+    // ため、同じページを連続リロードしたり /api/jobs/[id] を直接
+    // 叩くだけで検索ランキング (computeRankScore の人気度加点) に使われる
+    // viewCount を簡単に水増しできてしまっていた。ここに一本化することで
+    // 両方の保護 (bot 除外 + 5 分間の同一セッション重複排除) を効かせる。
+    await prisma.job
+      .update({ where: { id: input.jobId }, data: { viewCount: { increment: 1 } } })
+      .catch(() => {})
   } catch (e) {
     // テーブル未作成・接続エラーなどはサイレントにスキップ
     console.warn(`[tracking.jobView] ${e instanceof Error ? e.message : e}`)

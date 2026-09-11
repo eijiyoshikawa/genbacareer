@@ -71,9 +71,12 @@ export async function POST(
 
   const d = parsed.data
 
-  // 同 email の CompanyUser が既に存在する場合は弾く
-  const existing = await prisma.companyUser.findUnique({
-    where: { email: d.email },
+  // 同 email の CompanyUser が既に存在する場合は弾く（大文字小文字を区別
+  // しない。区別すると "Foo@Bar.com" 登録済みの人物に "foo@bar.com" で
+  // 別会社の招待を発行でき、同一人物が複数の CompanyUser アカウントを
+  // 持ててしまっていた）。
+  const existing = await prisma.companyUser.findFirst({
+    where: { email: { equals: d.email, mode: "insensitive" } },
   })
   if (existing) {
     return Response.json(
@@ -87,7 +90,7 @@ export async function POST(
   if (d.method === "email") {
     // 既存の未受領招待があれば再利用ではなく取り消して新規発行（運用シンプル化）
     await prisma.companyInvitation.deleteMany({
-      where: { email: d.email, companyId, acceptedAt: null },
+      where: { email: { equals: d.email, mode: "insensitive" }, companyId, acceptedAt: null },
     })
 
     const token = generateInvitationToken()

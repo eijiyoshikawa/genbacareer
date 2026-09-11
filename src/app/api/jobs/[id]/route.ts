@@ -62,10 +62,11 @@ export async function GET(
     )
   }
 
-  // 閲覧数をインクリメント（非同期、レスポンスをブロックしない）
-  prisma.job
-    .update({ where: { id }, data: { viewCount: { increment: 1 } } })
-    .catch(() => {})
+  // viewCount はここでは増やさない。以前はここでも無条件に increment して
+  // おり、bot 判定も重複抑制も無いまま検索ランキングに使われる viewCount を
+  // 誰でも `GET /api/jobs/{id}` を連打するだけで水増しできてしまっていた
+  // （60 req/min のレート制限だけでは日次で数万回の水増しを防げない）。
+  // 閲覧記録は <JobViewBeacon /> 経由の recordJobView() に一本化済み。
 
   return Response.json(job)
 }
