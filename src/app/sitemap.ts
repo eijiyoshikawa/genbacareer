@@ -191,21 +191,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
   )
 
-  // Prefecture x category SEO landing pages (上限あり)
-  const seoPages = await safeFindMany("seoPages", () =>
-    prisma.seoPage.findMany({
-      select: { prefecture: true, category: true, updatedAt: true },
-      orderBy: { updatedAt: "desc" },
-      take: MAX_SEO_COMBOS,
-    })
-  )
-
-  const seoCombos: MetadataRoute.Sitemap = seoPages.map((page) => ({
-    url: `${BASE_URL}/${page.prefecture}/${page.category}`,
-    lastModified: page.updatedAt,
-    changeFrequency: "daily" as const,
-    priority: 0.8,
-  }))
+  // Prefecture x category SEO landing pages（/[prefecture]/[category]/page.tsx に対応）。
+  // 以前は SeoPage テーブルから件数を取得していたが、このテーブルは
+  // どの seed / cron / admin 操作からも一切書き込まれておらず常に空
+  // だったため、実際にはコンテンツが存在するページ (最大 47 都道府県 ×
+  // 8 建設業カテゴリ = 376 件) が sitemap に一切載っていなかった
+  // （safeFindMany が空配列を返しても検知できないため無警告のまま）。
+  // ページ側のバリデーション (PREFECTURE_SLUG_TO_LABEL × CONSTRUCTION_CATEGORY_VALUES、
+  // "other" は SEO 対象外) と同じ組み合わせをここでも直接生成する。
+  const seoCombos: MetadataRoute.Sitemap = PREFECTURE_SLUGS.flatMap((prefecture) =>
+    CONSTRUCTION_CATEGORY_VALUES.map((category) => ({
+      url: `${BASE_URL}/${prefecture}/${category}`,
+      lastModified: new Date(),
+      changeFrequency: "daily" as const,
+      priority: 0.8,
+    }))
+  ).slice(0, MAX_SEO_COMBOS)
 
   // 公開されている直接掲載企業の詳細ページ (上限あり)
   const companies = await safeFindMany("companies", () =>

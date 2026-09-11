@@ -95,7 +95,15 @@ export async function generateAiReply(
     const block = response.content[0]
     if (!block || block.type !== "text") return null
     const text = block.text.trim()
-    return text.length > 0 ? text : null
+    if (text.length === 0) return null
+    // system prompt の「200 文字以内」はモデルへの指示に過ぎず強制力が無い。
+    // プロンプトインジェクション等で無視された場合に備え、コード側でも
+    // 上限を強制する（LINE の 1 メッセージとして不自然に長い返信が
+    // そのまま顧客に届くのを防ぐ、最終防御ライン）。
+    const MAX_REPLY_CHARS = 400
+    return text.length > MAX_REPLY_CHARS
+      ? `${text.slice(0, MAX_REPLY_CHARS)}…`
+      : text
   } catch (e) {
     console.warn(`[ai-reply] failed: ${e instanceof Error ? e.message : e}`)
     return null

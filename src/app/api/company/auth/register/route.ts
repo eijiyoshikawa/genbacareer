@@ -15,7 +15,10 @@ const companyRegisterSchema = z.object({
   industry: z.string().min(1, "業種は必須です。"),
   prefecture: z.enum(PREFECTURES, "有効な都道府県を選択してください。"),
   contactEmail: z.string().email("有効なメールアドレスを入力してください。"),
-  password: z.string().min(8, "パスワードは8文字以上で入力してください。"),
+  password: z
+    .string()
+    .min(8, "パスワードは8文字以上で入力してください。")
+    .max(128, "パスワードは128文字以内で入力してください。"),
 });
 
 export async function POST(request: NextRequest) {

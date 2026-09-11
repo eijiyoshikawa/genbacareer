@@ -337,12 +337,24 @@ async function handleEvent(ev: LineEvent): Promise<void> {
         return
       }
 
-      // AI フォールバック（ANTHROPIC_API_KEY 設定時のみ）
-      if (isAiReplyConfigured()) {
-        const aiReply = await generateAiReply(text, profile?.displayName ?? null)
-        if (aiReply) {
-          await replyMessage(ev.replyToken, [{ type: "text", text: aiReply }])
-          return
+      // AI フォールバック（ANTHROPIC_API_KEY 設定時のみ）。
+      // FAQ と違い実際に Anthropic API を叩く（実コスト発生）ため、
+      // tryAutoBind と同様に LINE ユーザーごとにレート制限する。
+      // 以前はここに制限が無く、正規の LINE 友だち（署名検証は当然通る）が
+      // FAQ に一致しない文面を連投するだけで無制限に課金対象の API 呼び出し
+      // を発生させられた。
+      if (isAiReplyConfigured() && userId) {
+        const rl = checkRateLimit({
+          key: `line-ai-reply:${userId}`,
+          limit: 20,
+          windowMs: 60 * 60 * 1000,
+        })
+        if (rl.allowed) {
+          const aiReply = await generateAiReply(text, profile?.displayName ?? null)
+          if (aiReply) {
+            await replyMessage(ev.replyToken, [{ type: "text", text: aiReply }])
+            return
+          }
         }
       }
 
