@@ -11,7 +11,7 @@ import { HIRING_FEE_MIN, HIRING_FEE_MAX } from "@/lib/hiring-fee"
  *
  * - direct 求人 (自社認定企業の掲載) のみ対象 (hellowork は対象外)
  * - NULL = 求人の給与から理論年収×35%を自動計算
- * - 範囲: 200,000 〜 2,000,000
+ * - 範囲: HIRING_FEE_MIN 〜 HIRING_FEE_MAX (lib/hiring-fee.ts 参照)
  */
 
 export const metadata = {

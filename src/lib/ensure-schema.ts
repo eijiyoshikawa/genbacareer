@@ -52,6 +52,12 @@ const STATEMENTS: ReadonlyArray<string> = [
  // Application Google Calendar イベント ID (14.4)
  `ALTER TABLE "applications"
    ADD COLUMN IF NOT EXISTS "google_calendar_event_id" VARCHAR(200)`,
+ // Application「offered」遷移時点の給与スナップショット。
+ // 採用確定直前の求人給与編集による成果報酬圧縮を防ぐため (定期バグ検査)。
+ `ALTER TABLE "applications"
+   ADD COLUMN IF NOT EXISTS "offer_salary_min" INTEGER,
+   ADD COLUMN IF NOT EXISTS "offer_salary_max" INTEGER,
+   ADD COLUMN IF NOT EXISTS "offer_salary_type" VARCHAR(20)`,
  // admin 企業一覧 / 応募集計の高速化用 index (本番でテーブル既存の場合用)
  `CREATE INDEX IF NOT EXISTS "idx_applications_by_company"
     ON "applications" ("company_id", "created_at" DESC)`,
