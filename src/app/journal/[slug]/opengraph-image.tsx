@@ -39,6 +39,7 @@ export default async function OGImage({
 
   const title = sanitizeOgText(truncate(article?.title ?? "ゲンバキャリア マガジン", 60))
   const excerpt = sanitizeOgText(truncate(article?.excerpt ?? "", 100))
+  const authorName = sanitizeOgText(article?.authorName ?? "ゲンバキャリア編集部")
   const categoryLabel = article?.category
     ? CATEGORY_LABELS[article.category] ?? article.category
     : "マガジン"
@@ -120,7 +121,7 @@ export default async function OGImage({
             display: "flex",
           }}
         >
-          {article?.authorName ?? "ゲンバキャリア編集部"}
+          {authorName}
         </div>
 
         <div
