@@ -56,7 +56,32 @@ export async function GET(
 
   const { id } = await params
 
-  const job = await prisma.job.findUnique({ where: { id } })
+  const job = await prisma.job.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      companyId: true,
+      title: true,
+      category: true,
+      subcategory: true,
+      employmentType: true,
+      description: true,
+      requirements: true,
+      salaryMin: true,
+      salaryMax: true,
+      salaryType: true,
+      prefecture: true,
+      city: true,
+      address: true,
+      benefits: true,
+      tags: true,
+      videoUrls: true,
+      imageUrls: true,
+      status: true,
+      previewToken: true,
+      updatedAt: true,
+    },
+  })
   if (!job || job.companyId !== ctx.companyId) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
   }

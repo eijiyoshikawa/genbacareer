@@ -419,15 +419,14 @@ async function handleEvent(ev: LineEvent): Promise<void> {
       if (userId) {
         const bound = await tryAutoBind(userId, profile?.displayName ?? null, text)
         if (bound) {
+          // 電話番号下 8 桁 / メール一致だけで bind しており本人確認はしていないため、
+          // 応募者名・求人名を返信に含めると第三者への PII 漏えいになる。
+          // 紐付け成功の事実だけを伝える。
           const msg = [
-            `${bound.leadName} さん、応募内容と紐付けました🎉`,
-            "",
-            bound.jobTitle ? `▼ 応募求人\n${bound.jobTitle}` : "",
+            "応募内容と紐付けました🎉",
             "",
             "担当者より 1 営業日以内にこの LINE トークでご連絡いたします。",
-          ]
-            .filter(Boolean)
-            .join("\n")
+          ].join("\n")
           await replyMessage(ev.replyToken, [{ type: "text", text: msg }])
           return
         }
