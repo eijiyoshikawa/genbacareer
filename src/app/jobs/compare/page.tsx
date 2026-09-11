@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db"
 import Link from "next/link"
 import { ArrowLeft, X, MapPin, Money, Buildings } from "@phosphor-icons/react/dist/ssr"
 import { getCategoryLabel } from "@/lib/categories"
+import { isValidUuid } from "@/lib/uuid"
 import type { Metadata } from "next"
 
 export const dynamic = "force-dynamic"
@@ -31,6 +32,7 @@ export default async function CompareJobsPage({ searchParams }: Props) {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean)
+    .filter(isValidUuid)
     .slice(0, MAX_COMPARE)
 
   if (ids.length === 0) {
@@ -51,9 +53,14 @@ export default async function CompareJobsPage({ searchParams }: Props) {
     )
   }
 
+  // status: "active" が無いと、/jobs/[id] では既に修正済みの「非公開
+  // (draft/closed) 求人が URL さえ分かれば見られる」問題がこのページには
+  // 残ったままになる。しかもここは詳細（説明文・条件・企業名等）を
+  // 丸ごと描画するため、他社の未公開下書きや終了済み求人の内容を
+  // そのまま閲覧できてしまっていた。
   const jobs = await prisma.job
     .findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, status: "active" },
       include: { company: { select: { name: true, logoUrl: true } } },
     })
     .catch(() => [])

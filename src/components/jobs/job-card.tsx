@@ -31,6 +31,12 @@ type JobCardProps = {
   tags: string[]
   annualHolidays?: number | null
   insurance?: string | null
+  /**
+   * お気に入り/気になるリスト等、必ずしも active 求人だけを表示しない
+   * 一覧から呼ばれる場合にのみ渡す。/jobs 等の通常一覧は active のみを
+   * 検索対象にしているため渡す必要はない。
+   */
+  status?: string
   company:
     | {
         name: string
@@ -72,6 +78,14 @@ export function JobCard({
       <div className="flex-1 min-w-0">
         {/* メタ: 出典バッジ + カテゴリ + 雇用形態 */}
         <div className="flex items-center gap-2 flex-wrap">
+          {job.status && job.status !== "active" && (
+            <span
+              className="inline-flex items-center gap-1 bg-gray-700 px-2 py-0.5 text-xs font-bold text-white"
+              title="この求人は募集を終了しているため、詳細ページは表示できません"
+            >
+              募集終了
+            </span>
+          )}
           {job.source === "direct" ? (
             <span
               className="inline-flex items-center gap-1 bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800"

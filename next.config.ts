@@ -66,11 +66,17 @@ const nextConfig: NextConfig = {
       // /jobs/map の都道府県ヒートマップが動的 <script> で読み込む Google Maps
       // JavaScript API。ロード後は maps.googleapis.com へ XHR も行うため connect-src
       // にも必要（無いと "Google Maps の読み込みに失敗しました" になる）。
-      "connect-src 'self' https://*.supabase.co https://*.sentry.io https://www.google-analytics.com https://va.vercel-scripts.com wss://*.supabase.co https://info.gbiz.go.jp https://maps.googleapis.com",
+      // https://api.line.me / https://access.line.me は /liff/apply/[id] の
+      // @line/liff SDK (liff.init / getProfile / getAccessToken 等) が内部で
+      // 呼ぶ LINE 側 API。これが無いとブラウザ外で開いた「LINE で応募」導線が
+      // CSP に阻まれて liff.init() が失敗し、常にエラー画面になっていた。
+      "connect-src 'self' https://*.supabase.co https://*.sentry.io https://www.google-analytics.com https://va.vercel-scripts.com wss://*.supabase.co https://info.gbiz.go.jp https://maps.googleapis.com https://api.line.me https://access.line.me",
       // 求人詳細ページの地図埋め込み (map-embed.tsx) が maps.google.com の iframe
       // (output=embed) を使うため必須。無いと住所ありの全求人詳細で地図が
-      // 表示されない。
-      "frame-src 'self' https://www.youtube.com https://player.vimeo.com https://www.tiktok.com https://maps.google.com",
+      // 表示されない。https://liff.line.me / https://access.line.me は
+      // LIFF のログイン/認可フローが内部で開く iframe に必要
+      // （connect-src と同じ理由）。
+      "frame-src 'self' https://www.youtube.com https://player.vimeo.com https://www.tiktok.com https://maps.google.com https://liff.line.me https://access.line.me",
       "frame-ancestors 'none'",
       "form-action 'self'",
       "base-uri 'self'",

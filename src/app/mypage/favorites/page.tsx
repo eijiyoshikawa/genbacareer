@@ -62,6 +62,7 @@ async function FavoritesList({ userId }: { userId: string }) {
           select: {
             id: true,
             title: true,
+            status: true,
             category: true,
             employmentType: true,
             salaryMin: true,
