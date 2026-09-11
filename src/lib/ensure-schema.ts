@@ -640,34 +640,57 @@ export function ensureSchema(): Promise<boolean> {
  // ただしセキュリティDDL (RLS 有効化) だけは env に関係なく必ず実行する。
  if (process.env.ENSURE_SCHEMA === "false") {
    if (!securityInflight) {
-     securityInflight = runStatements(SECURITY_STATEMENTS)
+     securityInflight = runStatements(SECURITY_STATEMENTS).then((result) => {
+       // 接続エラーによる失敗はこの Lambda インスタンスの寿命いっぱいキャッシュせず、
+       // 次回呼び出しで再試行させる（プール枯渇等の一時的な障害で ALTER が丸ごと
+       // 未実行のまま「実行済み」扱いになり、欠落カラムが永久に自己修復されない
+       // 事故を防ぐ）。
+       if (result.hadConnectionError) securityInflight = null
+       return result.allOk
+     })
    }
    return securityInflight
  }
  if (!inflight) {
    inflight = (async () => {
-     const secOk = await runStatements(SECURITY_STATEMENTS)
-     const restOk = await runStatements(STATEMENTS)
-     return secOk && restOk
+     const sec = await runStatements(SECURITY_STATEMENTS)
+     const rest = await runStatements(STATEMENTS)
+     if (sec.hadConnectionError || rest.hadConnectionError) inflight = null
+     return sec.allOk && rest.allOk
    })()
  }
  return inflight
 }
 
+/** DB 接続そのものが失敗したことを示すエラーか（スキーマ不整合等の恒久的な失敗とは区別する）。 */
+function isConnectionError(e: unknown): boolean {
+  const message = e instanceof Error ? e.message : String(e)
+  return (
+    message.includes("P2024") || // Prisma: connection pool timeout
+    message.includes("P1001") || // Prisma: can't reach database server
+    message.includes("P1002") || // Prisma: database server timed out
+    message.includes("ECONNRESET") ||
+    message.includes("ETIMEDOUT") ||
+    message.includes("Timed out fetching a new connection")
+  )
+}
+
 async function runStatements(
   statements: ReadonlyArray<string>
-): Promise<boolean> {
+): Promise<{ allOk: boolean; hadConnectionError: boolean }> {
   let allOk = true
+  let hadConnectionError = false
   for (const sql of statements) {
     try {
       await prisma.$executeRawUnsafe(sql)
     } catch (e) {
       allOk = false
+      if (isConnectionError(e)) hadConnectionError = true
       console.warn(
         "[ensureSchema] statement skipped:",
         e instanceof Error ? e.message : e
       )
     }
   }
-  return allOk
+  return { allOk, hadConnectionError }
 }
