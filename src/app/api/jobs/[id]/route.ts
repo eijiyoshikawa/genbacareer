@@ -20,8 +20,10 @@ export async function GET(
 
   const { id } = await params
 
+  // draft/closed の求人は公開 API から取得できないようにする
+  // (企業の下書き内容や掲載終了済み求人が誰でも閲覧できてしまうのを防ぐ)。
   const job = await prisma.job.findUnique({
-    where: { id },
+    where: { id, status: "active" },
     include: {
       company: {
         select: {

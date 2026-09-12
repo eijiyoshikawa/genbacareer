@@ -62,17 +62,22 @@ export async function GET(request: NextRequest) {
     }),
   }
 
+  // 末尾に id を付けて一意なタイブレークにする。付けないと同値が多い列
+  // (viewCount=0 が大半、一括インポートで publishedAt が同時刻等) で
+  // skip/take ページングした際に Postgres が順序を保証できず、
+  // ページ送りで同じ求人が重複/欠落することがある。
   const orderBy =
     sort === "salary_max"
-      ? { salaryMax: "desc" as const }
+      ? [{ salaryMax: "desc" as const }, { id: "asc" as const }]
       : sort === "view_count"
-        ? { viewCount: "desc" as const }
+        ? [{ viewCount: "desc" as const }, { id: "asc" as const }]
         : sort === "newest"
-          ? { publishedAt: "desc" as const }
+          ? [{ publishedAt: "desc" as const }, { id: "asc" as const }]
           : // default: recommended (rankScore)
             [
               { rankScore: "desc" as const },
               { publishedAt: "desc" as const },
+              { id: "asc" as const },
             ]
 
   const [jobs, total] = await Promise.all([

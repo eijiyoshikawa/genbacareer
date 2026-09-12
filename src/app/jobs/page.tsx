@@ -574,15 +574,31 @@ export default async function JobsPage({ searchParams }: Props) {
 // ---------------- helpers ----------------
 
 function buildOrderBy(sort: string) {
+  // 全パターンの末尾に id を付けて一意なタイブレークにする。
+  // 付けないと同値が多い列（viewCount=0 が大半、publishedAt が同時刻の
+  // 一括インポート分など）で skip/take ページングした際に Postgres が
+  // 行の順序を保証できず、ページ送りで同じ求人が重複/欠落することがある。
   switch (sort) {
     case "salary_high":
-      return [{ salaryMin: "desc" as const }, { publishedAt: "desc" as const }]
+      return [
+        { salaryMin: "desc" as const },
+        { publishedAt: "desc" as const },
+        { id: "asc" as const },
+      ]
     case "salary_low":
-      return [{ salaryMin: "asc" as const }, { publishedAt: "desc" as const }]
+      return [
+        { salaryMin: "asc" as const },
+        { publishedAt: "desc" as const },
+        { id: "asc" as const },
+      ]
     case "popular":
-      return [{ viewCount: "desc" as const }, { publishedAt: "desc" as const }]
+      return [
+        { viewCount: "desc" as const },
+        { publishedAt: "desc" as const },
+        { id: "asc" as const },
+      ]
     case "newest":
-      return { publishedAt: "desc" as const }
+      return [{ publishedAt: "desc" as const }, { id: "asc" as const }]
     case "recommended":
     default:
       // C8 上位表示 + 公平ローテーション:
@@ -590,12 +606,14 @@ function buildOrderBy(sort: string) {
       //   2. company.rotationKey asc — 日次でランダム化 (paid 平等枠の機会均等)
       //   3. rankScore desc — 同 rotationKey 内では既存のコンテンツ品質順
       //   4. publishedAt desc — タイブレーク
+      //   5. id asc — 最終タイブレーク (上記全てが同値の場合)
       // rotationKey は /api/cron/rotate-companies が毎日 03:30 UTC に更新する。
       return [
         { company: { planTier: "desc" as const } },
         { company: { rotationKey: "asc" as const } },
         { rankScore: "desc" as const },
         { publishedAt: "desc" as const },
+        { id: "asc" as const },
       ]
   }
 }

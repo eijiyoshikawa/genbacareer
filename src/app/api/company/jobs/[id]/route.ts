@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isPlanActive } from "@/lib/plans"
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -113,6 +114,26 @@ export async function PUT(
     }
   }
 
+  // 下書き/停止中の求人を新たに active へ公開する場合は、プランが有効か確認する
+  // (既に active な求人の編集保存では再チェックしない)
+  let publishingCompany: { corporateNumber: string | null; name: string } | null = null
+  if (data.status === "active" && existing.status !== "active") {
+    const company = await prisma.company.findUnique({
+      where: { id: existing.companyId ?? "" },
+      select: { corporateNumber: true, name: true, planType: true, planPaidUntil: true },
+    })
+    if (
+      company &&
+      !isPlanActive({ planType: company.planType, planPaidUntil: company.planPaidUntil })
+    ) {
+      return Response.json(
+        { error: "プランが期限切れです。契約更新後に求人を公開してください" },
+        { status: 403 }
+      )
+    }
+    publishingCompany = company
+  }
+
   // Set publishedAt when first publishing
   const publishedAt =
     data.status === "active" && !existing.publishedAt
@@ -129,16 +150,10 @@ export async function PUT(
 
   // GbizINFO リマインダー: draft → active への初回公開で法人番号未登録なら
   // 観測ログ。UI バナーで既に注意喚起しているため、ここでは記録のみ。
-  if (publishedAt) {
-    const company = await prisma.company.findUnique({
-      where: { id: existing.companyId ?? "" },
-      select: { corporateNumber: true, name: true },
-    })
-    if (company && !company.corporateNumber) {
-      console.info(
-        `[gbiz-reminder] job published without corporateNumber: companyId=${existing.companyId} name=${company.name} jobId=${id}`
-      )
-    }
+  if (publishedAt && publishingCompany && !publishingCompany.corporateNumber) {
+    console.info(
+      `[gbiz-reminder] job published without corporateNumber: companyId=${existing.companyId} name=${publishingCompany.name} jobId=${id}`
+    )
   }
 
   return Response.json({ job })

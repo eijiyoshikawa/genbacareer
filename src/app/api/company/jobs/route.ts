@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { CATEGORIES } from "@/lib/categories"
 import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
+import { isPlanActive } from "@/lib/plans"
 
 const VALID_CATEGORIES = CATEGORIES.map((c) => c.value)
 
@@ -99,6 +100,31 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  let publishingCompany: {
+    corporateNumber: string | null
+    name: string
+    planType: string | null
+    planPaidUntil: Date | null
+  } | null = null
+  if (data.status === "active") {
+    publishingCompany = await prisma.company.findUnique({
+      where: { id: ctx.companyId },
+      select: { corporateNumber: true, name: true, planType: true, planPaidUntil: true },
+    })
+    if (
+      publishingCompany &&
+      !isPlanActive({
+        planType: publishingCompany.planType,
+        planPaidUntil: publishingCompany.planPaidUntil,
+      })
+    ) {
+      return Response.json(
+        { error: "プランが期限切れです。契約更新後に求人を公開してください" },
+        { status: 403 }
+      )
+    }
+  }
+
   const job = await prisma.job.create({
     data: {
       companyId: ctx.companyId,
@@ -126,16 +152,10 @@ export async function POST(request: NextRequest) {
   // GbizINFO リマインダー: 法人番号未登録の企業が active 求人を公開した場合、
   // 観測用ログを出す（将来的にメール通知 / Slack 通知につなげる足場）。
   // UI 側のバナーで既に注意喚起済みなので、ここでは強制せずログのみ。
-  if (data.status === "active") {
-    const company = await prisma.company.findUnique({
-      where: { id: ctx.companyId },
-      select: { corporateNumber: true, name: true },
-    })
-    if (company && !company.corporateNumber) {
-      console.info(
-        `[gbiz-reminder] job published without corporateNumber: companyId=${ctx.companyId} name=${company.name} jobId=${job.id}`
-      )
-    }
+  if (publishingCompany && !publishingCompany.corporateNumber) {
+    console.info(
+      `[gbiz-reminder] job published without corporateNumber: companyId=${ctx.companyId} name=${publishingCompany.name} jobId=${job.id}`
+    )
   }
 
   return Response.json({ job }, { status: 201 })
