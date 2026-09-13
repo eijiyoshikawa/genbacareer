@@ -78,6 +78,22 @@ describe("resolveHiringFee (年収35%モデル)", () => {
   it("率は 35%", () => {
     expect(HIRING_FEE_RATE).toBe(0.35)
   })
+  it("入力ミスで理論年収が極端に大きくなっても上限でクランプされる", () => {
+    // 時給欄に月給額を誤入力した想定 (300,000円/時 → 年収6億円超)
+    expect(
+      resolveHiringFee({ salaryMin: 300_000, salaryType: "hourly" }),
+    ).toBe(HIRING_FEE_MAX)
+  })
+  it("入力ミスで理論年収が極端に小さくなっても下限でクランプされる", () => {
+    expect(
+      resolveHiringFee({ salaryMin: 1, salaryType: "monthly" }),
+    ).toBe(HIRING_FEE_MIN)
+  })
+  it("admin の個別確定額はクランプの影響を受けない（既に書き込み時に検証済み）", () => {
+    expect(
+      resolveHiringFee({ hiringFeeAmount: 1_234_000, salaryMin: 1, salaryType: "monthly" }),
+    ).toBe(1_234_000)
+  })
 })
 
 describe("isValidHiringFee", () => {

@@ -66,7 +66,10 @@ export function resolveHiringFee(
   if (job?.hiringFeeAmount != null) return job.hiringFeeAmount
   const annual = job ? estimateAnnualIncome(job) : null
   if (annual == null) return HIRING_FEE_FALLBACK
-  return Math.round((annual * HIRING_FEE_RATE) / 1000) * 1000
+  const computed = Math.round((annual * HIRING_FEE_RATE) / 1000) * 1000
+  // 給与情報の入力ミス（例: 時給欄に月給額を誤入力）で理論年収が極端な値になっても、
+  // 実請求額が許容レンジを外れないようクランプする。
+  return Math.min(Math.max(computed, HIRING_FEE_MIN), HIRING_FEE_MAX)
 }
 
 /**

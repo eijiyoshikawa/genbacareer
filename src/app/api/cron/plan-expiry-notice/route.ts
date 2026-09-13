@@ -81,6 +81,9 @@ export async function GET(request: Request) {
       ],
     }
 
+    // メール送信に失敗した場合は planExpiryNotifiedAt を立てず、翌日以降の
+    // cron 実行で再送を試みる（成功扱いにすると通知が永久に届かなくなるため）。
+    let mailOk = true
     if (c.contactEmail) {
       try {
         await sendEmail({
@@ -90,6 +93,7 @@ export async function GET(request: Request) {
           text: renderEmailText(layout),
         })
       } catch (err) {
+        mailOk = false
         mailFailures += 1
         console.error(`[cron/plan-expiry-notice] mail failed for ${c.id}:`, err)
       }
@@ -110,11 +114,13 @@ export async function GET(request: Request) {
       })
     }
 
-    await prisma.company.update({
-      where: { id: c.id },
-      data: { planExpiryNotifiedAt: now },
-    })
-    notified += 1
+    if (mailOk) {
+      await prisma.company.update({
+        where: { id: c.id },
+        data: { planExpiryNotifiedAt: now },
+      })
+      notified += 1
+    }
   }
 
   console.log(

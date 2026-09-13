@@ -75,6 +75,13 @@ export async function POST(
     },
   })
 
+  // 却下企業の求人は即座に非公開にする（/jobs, XML フィード等は status="active" のみ
+  // 配信するため、ここで closed にしないと却下後も求人が公開され続けてしまう）
+  await prisma.job.updateMany({
+    where: { companyId: id, status: "active" },
+    data: { status: "closed" },
+  })
+
   const actor = await buildActorFromSession()
   void logAudit({
     ...actor,

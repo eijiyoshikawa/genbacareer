@@ -336,6 +336,15 @@ describe("inferCategory", () => {
       expect(
         inferCategory("板金工（ダクト製作）", "空調ダクトの製作・取付")
       ).toBe("electrical")
+
+      // 「鈑金」(異体字) も同様に扱う: タイトルのみでは即除外しない
+      expect(inferCategory("建築鈑金工（屋根・外壁）", null)).toBe("construction")
+      expect(
+        inferCategory("鈑金工", "屋根・外壁の鈑金工事、雨樋の取り付けを行います")
+      ).toBe("construction")
+      expect(
+        inferCategory("鈑金工", "自動車の事故車修理、バンパー交換、車検対応をお任せします")
+      ).toBe(null)
     })
 
     it("excludes insurance/finance sales even when description mentions construction", () => {
