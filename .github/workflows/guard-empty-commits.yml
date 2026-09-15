@@ -1,0 +1,51 @@
+# 空コミット検査ガード
+#
+# 背景: 空コミットの定期自動pushがGitHubのabuse detectionに抵触し
+# アカウントがフラグされた実績がある (2026-08。CLAUDE.md 恒久ルール参照)。
+# このワークフローは push された全コミット(マージコミット除く)を検査し、
+# ファイル変更ゼロの空コミットを検出したら CI を失敗させて即時に通知する。
+#
+# 検出された場合の直し方:
+#   git rebase -i で該当コミットを drop して force-push (または revert)
+name: guard-empty-commits
+
+on:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+jobs:
+  no-empty-commits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 空コミットを検査
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -eu
+          ZERO="0000000000000000000000000000000000000000"
+          if [ "$BEFORE" = "$ZERO" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            # 新規ブランチ等: 直近20コミットのみ検査
+            COMMITS=$(git rev-list --no-merges -n 20 "$AFTER")
+          else
+            COMMITS=$(git rev-list --no-merges "$BEFORE..$AFTER")
+          fi
+          bad=0
+          for c in $COMMITS; do
+            if [ -z "$(git diff-tree --no-commit-id --name-only -r "$c")" ]; then
+              echo "::error::空コミットを検出: $c $(git log -1 --format=%s "$c")"
+              bad=1
+            fi
+          done
+          if [ "$bad" = "1" ]; then
+            echo "::error::CLAUDE.md 恒久ルール違反: 空コミットのpushは禁止です(GitHubフラグ再発防止)。rebaseで該当コミットをdropしてください。"
+            exit 1
+          fi
+          echo "OK: 空コミットなし"
