@@ -3,6 +3,7 @@ import Image from "next/image"
 import type { Metadata } from "next"
 import { prisma } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
+import { withTimeout } from "@/lib/with-timeout"
 import { Newspaper, Search, ChevronRight } from "lucide-react"
 import { Pagination } from "@/components/pagination"
 
@@ -45,36 +46,61 @@ export default async function JournalPage({ searchParams }: Props) {
     ...(categoryFilter ? { category: categoryFilter } : {}),
   }
 
+  // Supabase 接続プールが混雑すると findMany が connection pool timeout (30s) で
+  // 例外を投げ、/journal 全体が 500 になる。8s デッドラインでフォールバック値に
+  // 逃がし、ページ自体は空データで描画を続ける（home page と同じ対策）。
+  const DB_DEADLINE_MS = 8000
+
   const [articles, total, featured, categories, popular] = await Promise.all([
-    prisma.article.findMany({
-      where,
-      orderBy: { publishedAt: "desc" },
-      skip: (page - 1) * PER_PAGE,
-      take: PER_PAGE,
-      select: { slug: true, title: true, excerpt: true, category: true, imageUrl: true, publishedAt: true, featured: true },
-    }),
-    prisma.article.count({ where }),
+    withTimeout(
+      prisma.article.findMany({
+        where,
+        orderBy: { publishedAt: "desc" },
+        skip: (page - 1) * PER_PAGE,
+        take: PER_PAGE,
+        select: { slug: true, title: true, excerpt: true, category: true, imageUrl: true, publishedAt: true, featured: true },
+      }),
+      DB_DEADLINE_MS,
+      [],
+      "journal.articles"
+    ),
+    withTimeout(prisma.article.count({ where }), DB_DEADLINE_MS, 0, "journal.count"),
     page === 1 && !categoryFilter
-      ? prisma.article.findMany({
-          where: { ...publishedArticleFilter(), featured: true },
-          orderBy: { publishedAt: "desc" },
-          take: 3,
-          select: { slug: true, title: true, category: true, imageUrl: true },
-        })
+      ? withTimeout(
+          prisma.article.findMany({
+            where: { ...publishedArticleFilter(), featured: true },
+            orderBy: { publishedAt: "desc" },
+            take: 3,
+            select: { slug: true, title: true, category: true, imageUrl: true },
+          }),
+          DB_DEADLINE_MS,
+          [],
+          "journal.featured"
+        )
       : Promise.resolve([]),
-    prisma.article.groupBy({
-      by: ["category"],
-      where: publishedArticleFilter(),
-      _count: true,
-      orderBy: { _count: { category: "desc" } },
-    }),
+    withTimeout(
+      prisma.article.groupBy({
+        by: ["category"],
+        where: publishedArticleFilter(),
+        _count: true,
+        orderBy: { _count: { category: "desc" } },
+      }),
+      DB_DEADLINE_MS,
+      [],
+      "journal.categories"
+    ),
     // 13.1: 人気記事ランキング (viewCount desc, 上位 5 件)
-    prisma.article.findMany({
-      where: publishedArticleFilter(),
-      orderBy: { viewCount: "desc" },
-      take: 5,
-      select: { slug: true, title: true, category: true, viewCount: true },
-    }),
+    withTimeout(
+      prisma.article.findMany({
+        where: publishedArticleFilter(),
+        orderBy: { viewCount: "desc" },
+        take: 5,
+        select: { slug: true, title: true, category: true, viewCount: true },
+      }),
+      DB_DEADLINE_MS,
+      [],
+      "journal.popular"
+    ),
   ])
 
   const totalPages = Math.ceil(total / PER_PAGE)

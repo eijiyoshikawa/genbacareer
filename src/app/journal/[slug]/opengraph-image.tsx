@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og"
 import { prisma } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
+import { sanitizeOgText } from "@/lib/og-text"
 
 export const alt = "記事"
 export const size = { width: 1200, height: 630 }
@@ -36,11 +37,15 @@ export default async function OGImage({
     })
     .catch(() => null)
 
-  const title = truncate(article?.title ?? "ゲンバキャリア マガジン", 60)
-  const excerpt = truncate(article?.excerpt ?? "", 100)
+  const title = truncate(
+    sanitizeOgText(article?.title ?? "ゲンバキャリア マガジン"),
+    60
+  )
+  const excerpt = truncate(sanitizeOgText(article?.excerpt ?? ""), 100)
   const categoryLabel = article?.category
     ? CATEGORY_LABELS[article.category] ?? article.category
     : "マガジン"
+  const authorName = sanitizeOgText(article?.authorName ?? "ゲンバキャリア編集部")
 
   return new ImageResponse(
     (
@@ -119,7 +124,7 @@ export default async function OGImage({
             display: "flex",
           }}
         >
-          {article?.authorName ?? "ゲンバキャリア編集部"}
+          {authorName}
         </div>
 
         <div
