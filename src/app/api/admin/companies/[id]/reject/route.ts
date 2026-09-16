@@ -4,6 +4,9 @@
  * POST /api/admin/companies/:id/reject
  * Body: { reason?: string }
  * - status を pending/approved → rejected に変更
+ * - 却下時点で active な自社求人を closed にする
+ *   (却下後も /jobs・各種フィード・sitemap は company.status を見ないため、
+ *    ここで閉じておかないと却下済み企業の求人が掲載され続けてしまう)
  * - 担当メールへ却下通知メールを送信
  */
 import { type NextRequest } from "next/server"
@@ -75,6 +78,11 @@ export async function POST(
     },
   })
 
+  const closedJobs = await prisma.job.updateMany({
+    where: { companyId: id, status: "active" },
+    data: { status: "closed" },
+  })
+
   const actor = await buildActorFromSession()
   void logAudit({
     ...actor,
@@ -82,7 +90,12 @@ export async function POST(
     resourceId: id,
     action: "reject",
     summary: `企業「${company.name}」を却下`,
-    diff: { previousStatus: company.status, newStatus: "rejected", reason },
+    diff: {
+      previousStatus: company.status,
+      newStatus: "rejected",
+      reason,
+      closedJobs: closedJobs.count,
+    },
   })
 
   if (company.contactEmail) {
@@ -93,5 +106,9 @@ export async function POST(
     }
   }
 
-  return Response.json({ success: true, status: "rejected" })
+  return Response.json({
+    success: true,
+    status: "rejected",
+    closedJobs: closedJobs.count,
+  })
 }

@@ -125,6 +125,10 @@ export function formatSearchLabel(input: SavedSearchInput): string {
 
 /**
  * 1 件の SavedSearch について、最後の通知時刻以降に公開された新着求人を取得。
+ *
+ * `hasMore` が true の場合、実際の新着件数は `jobs` (上位 limit 件) より多い。
+ * 呼び出し側はこの場合 lastNotifiedAt を「今」まで進めてはいけない
+ * (進めると、通知しきれなかった残りの求人が二度と通知されず消えてしまう)。
  */
 export async function findNewMatchingJobs(
   search: {
@@ -141,23 +145,26 @@ export async function findNewMatchingJobs(
     createdAt: Date
   },
   limit = 5
-): Promise<
-  Array<{
+): Promise<{
+  jobs: Array<{
     id: string
     title: string
     prefecture: string
     publishedAt: Date | null
   }>
-> {
+  hasMore: boolean
+}> {
   const since = search.lastNotifiedAt ?? search.createdAt
   const where = buildJobWhere(search, since)
 
-  return prisma.job
+  const rows = await prisma.job
     .findMany({
       where,
       orderBy: { publishedAt: "desc" },
-      take: limit,
+      take: limit + 1,
       select: { id: true, title: true, prefecture: true, publishedAt: true },
     })
     .catch(() => [])
+
+  return { jobs: rows.slice(0, limit), hasMore: rows.length > limit }
 }

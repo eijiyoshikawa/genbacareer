@@ -85,11 +85,19 @@ export function checkRateLimit(opts: RateLimitOptions): RateLimitResult {
 
 /**
  * リクエストヘッダから client IP を抽出する。
- * Vercel/Next.js 環境では x-forwarded-for に含まれる先頭値を使う。
+ * x-forwarded-for はクライアントが先頭〜中間の値を自由に偽装できるため、
+ * Vercel が実接続元として追記する末尾の値を使う（先頭を使うと rate limit を
+ * 容易にバイパスされる）。
  */
 export function getClientIp(request: Request): string {
   const xff = request.headers.get("x-forwarded-for")
-  if (xff) return xff.split(",")[0]?.trim() || "unknown"
+  if (xff) {
+    const parts = xff
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+    if (parts.length > 0) return parts[parts.length - 1]
+  }
   const real = request.headers.get("x-real-ip")
   if (real) return real
   return "unknown"

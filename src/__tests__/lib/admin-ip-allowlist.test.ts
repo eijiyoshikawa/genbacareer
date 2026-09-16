@@ -29,9 +29,18 @@ describe("extractClientIp", () => {
     }
   }
 
-  it("returns first IP from x-forwarded-for", () => {
+  it("returns the last IP from x-forwarded-for (Vercel-appended, trusted)", () => {
     const h = mockHeaders({ "x-forwarded-for": "1.2.3.4, 10.0.0.1" })
-    expect(extractClientIp(h)).toBe("1.2.3.4")
+    expect(extractClientIp(h)).toBe("10.0.0.1")
+  })
+
+  it("is not fooled by a client spoofing an allowlisted IP as the first entry", () => {
+    // 攻撃者が allowlist 済み IP を先頭に偽装しても、Vercel が追記した
+    // 実接続元 (末尾) が採用されなければならない。
+    const h = mockHeaders({
+      "x-forwarded-for": "203.0.113.10, 198.51.100.99",
+    })
+    expect(extractClientIp(h)).toBe("198.51.100.99")
   })
 
   it("falls back to x-real-ip", () => {

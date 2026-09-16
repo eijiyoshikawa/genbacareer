@@ -32,7 +32,10 @@ export async function logAudit(event: AuditEvent): Promise<void> {
   try {
     const h = await headers()
     const fwd = h.get("x-forwarded-for")
-    ipAddress = fwd ? fwd.split(",")[0].trim() : null
+    // 先頭〜中間はクライアントが偽装できるため、Vercel が追記する末尾を使う。
+    ipAddress = fwd
+      ? fwd.split(",").map((s) => s.trim()).filter(Boolean).pop() ?? null
+      : null
     userAgent = h.get("user-agent")
   } catch {
     // server actions の外（cron 等）では headers() が使えないので無視

@@ -14,11 +14,20 @@ import { checkRateLimit } from "./rate-limit"
  *
  * NextAuth v5 では authorize の第 2 引数で Request を受け取れる。
  * x-forwarded-for ヘッダから IP を抽出して使用。
+ * クライアントは先頭〜中間の値を自由に偽装できるため、Vercel が実接続元として
+ * 追記する末尾の値を使う（先頭を使うと IP ごとの失敗回数制限を偽装 IP で
+ * 無効化され、brute force / credential stuffing を防げなくなる）。
  */
 function getIpFromRequest(req: Request | undefined): string {
   if (!req) return "unknown"
   const fwd = req.headers.get("x-forwarded-for")
-  if (fwd) return fwd.split(",")[0].trim()
+  if (fwd) {
+    const parts = fwd
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+    if (parts.length > 0) return parts[parts.length - 1]
+  }
   const real = req.headers.get("x-real-ip")
   return real ?? "unknown"
 }

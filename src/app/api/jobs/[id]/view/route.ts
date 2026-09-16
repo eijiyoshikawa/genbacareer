@@ -55,7 +55,10 @@ export async function POST(
 
   const ua = request.headers.get("user-agent") ?? null
   const fwd = request.headers.get("x-forwarded-for")
-  const ipAddress = fwd ? fwd.split(",")[0].trim() : null
+  // 先頭〜中間はクライアントが偽装できるため、Vercel が追記する末尾を使う。
+  const ipAddress = fwd
+    ? fwd.split(",").map((s) => s.trim()).filter(Boolean).pop() ?? null
+    : null
   const referer = body.referrer ?? request.headers.get("referer") ?? null
   const utm = body.pageUrl
     ? extractUtmFromUrl(body.pageUrl)

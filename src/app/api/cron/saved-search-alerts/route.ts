@@ -17,15 +17,14 @@ import {
   formatSearchLabel,
   toSearchQueryString,
 } from "@/lib/saved-searches"
+import { isCronAuthorized } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 export const maxDuration = 300
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isCronAuthorized(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -45,11 +44,20 @@ export async function GET(request: Request) {
   for (const s of searches) {
     searchProcessed++
     try {
-      const matches = await findNewMatchingJobs(s, 5)
+      const { jobs: matches, hasMore } = await findNewMatchingJobs(s, 5)
+      // hasMore の場合、まだ通知していない求人が残っているため lastNotifiedAt を
+      // startedAt まで進めず、今回配信した最古の求人の直前までに留める。
+      // こうすることで次回実行時に取りこぼした残りの新着求人を再取得できる
+      // (進めてしまうと、上位 5 件を超えた分は二度と通知されず消えてしまう)。
+      const nextCursor =
+        hasMore && matches.length > 0 && matches[matches.length - 1].publishedAt
+          ? matches[matches.length - 1].publishedAt!
+          : startedAt
+
       if (matches.length === 0) {
         await prisma.savedSearch.update({
           where: { id: s.id },
-          data: { lastNotifiedAt: startedAt },
+          data: { lastNotifiedAt: nextCursor },
         })
         continue
       }
@@ -70,7 +78,7 @@ export async function GET(request: Request) {
 
       await prisma.savedSearch.update({
         where: { id: s.id },
-        data: { lastNotifiedAt: startedAt },
+        data: { lastNotifiedAt: nextCursor },
       })
       searchNotified++
     } catch (e) {
@@ -109,7 +117,8 @@ export async function GET(request: Request) {
       }
 
       const since = f.lastNotifiedAt ?? f.createdAt
-      const matches = await prisma.job
+      const FOLLOW_LIMIT = 5
+      const rows = await prisma.job
         .findMany({
           where: {
             companyId: f.companyId,
@@ -117,17 +126,24 @@ export async function GET(request: Request) {
             publishedAt: { gte: since },
           },
           orderBy: { publishedAt: "desc" },
-          take: 5,
-          select: { id: true, title: true },
+          take: FOLLOW_LIMIT + 1,
+          select: { id: true, title: true, publishedAt: true },
         })
         .catch(() => [])
+      const hasMore = rows.length > FOLLOW_LIMIT
+      const matches = rows.slice(0, FOLLOW_LIMIT)
+      // hasMore の場合は startedAt まで進めず、残りを次回に取りこぼさないようにする。
+      const nextCursor =
+        hasMore && matches.length > 0 && matches[matches.length - 1].publishedAt
+          ? matches[matches.length - 1].publishedAt!
+          : startedAt
 
       if (matches.length === 0) {
         await prisma.companyFollow.update({
           where: {
             userId_companyId: { userId: f.userId, companyId: f.companyId },
           },
-          data: { lastNotifiedAt: startedAt },
+          data: { lastNotifiedAt: nextCursor },
         })
         continue
       }
@@ -150,7 +166,7 @@ export async function GET(request: Request) {
         where: {
           userId_companyId: { userId: f.userId, companyId: f.companyId },
         },
-        data: { lastNotifiedAt: startedAt },
+        data: { lastNotifiedAt: nextCursor },
       })
       followNotified++
     } catch (e) {
