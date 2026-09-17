@@ -25,6 +25,7 @@ import {
   delToken,
 } from "@/lib/crawler/hellowork"
 import { importHelloworkJobs } from "@/lib/crawler/import-batch"
+import { requireCronAuth } from "@/lib/cron-auth"
 import {
   planNextRotation,
   recordBatchResult,
@@ -38,11 +39,8 @@ export const dynamic = "force-dynamic"
 const DEFAULT_PAGES_PER_RUN = 2
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const authError = requireCronAuth(request)
+  if (authError) return authError
 
   const url = new URL(request.url)
   const dataIdParam = url.searchParams.get("dataId")

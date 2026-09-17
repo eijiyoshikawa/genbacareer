@@ -10,6 +10,7 @@
  */
 
 import { prisma } from "@/lib/db"
+import { requireCronAuth } from "@/lib/cron-auth"
 import { querySearchAnalytics } from "@/lib/gsc"
 
 export const dynamic = "force-dynamic"
@@ -22,11 +23,8 @@ function yyyymmdd(d: Date): string {
 }
 
 async function handler(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const authError = requireCronAuth(request)
+  if (authError) return authError
 
   const siteUrl = process.env.GSC_SITE_URL
   if (!siteUrl) {

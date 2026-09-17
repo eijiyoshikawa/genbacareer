@@ -272,8 +272,8 @@ export default async function JobsPage({ searchParams }: Props) {
       query: params.q ?? null,
       prefecture: params.prefecture ?? null,
       category: params.category ?? null,
-      employmentType: params.employmentType ?? null,
-      salaryMin: params.salaryMin ?? null,
+      employmentType: params.employment_type ?? null,
+      salaryMin: params.salary_min ?? null,
       resultCount: total,
     },
   })

@@ -16,6 +16,7 @@
  */
 
 import { prisma } from "@/lib/db"
+import { requireCronAuth } from "@/lib/cron-auth"
 import { sendEmail } from "@/lib/email"
 import { renderEmailLayout, renderEmailText, baseUrl } from "@/lib/email-template"
 import { PLAN_LABELS, type PlanType } from "@/lib/plans"
@@ -26,11 +27,8 @@ export const runtime = "nodejs"
 const SOON_THRESHOLD_DAYS = 30
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const authError = requireCronAuth(request)
+  if (authError) return authError
 
   const now = new Date()
   const threshold = new Date(now.getTime() + SOON_THRESHOLD_DAYS * 24 * 60 * 60 * 1000)
@@ -55,6 +53,7 @@ export async function GET(request: Request) {
 
   let notified = 0
   let mailFailures = 0
+  let skippedNoDelivery = 0
 
   for (const c of companies) {
     if (!c.planPaidUntil) continue
@@ -81,6 +80,7 @@ export async function GET(request: Request) {
       ],
     }
 
+    let emailDelivered = false
     if (c.contactEmail) {
       try {
         await sendEmail({
@@ -89,6 +89,7 @@ export async function GET(request: Request) {
           html: renderEmailLayout(layout),
           text: renderEmailText(layout),
         })
+        emailDelivered = true
       } catch (err) {
         mailFailures += 1
         console.error(`[cron/plan-expiry-notice] mail failed for ${c.id}:`, err)
@@ -96,6 +97,7 @@ export async function GET(request: Request) {
     }
 
     // 企業ユーザー全員にサイト内通知
+    let notifDelivered = false
     if (c.companyUsers.length > 0) {
       await prisma.notification.createMany({
         data: c.companyUsers.map((u) => ({
@@ -105,9 +107,19 @@ export async function GET(request: Request) {
           body: `${planLabel} は ${expiryStr} に期限を迎えます。`,
           linkUrl: "/company/billing",
         })),
+      }).then(() => {
+        notifDelivered = true
       }).catch((e) => {
         console.error(`[cron/plan-expiry-notice] notif failed for ${c.id}:`, e)
       })
+    }
+
+    // メール・サイト内通知のどちらも届かなかった場合は planExpiryNotifiedAt を
+    // 更新しない。ここで更新してしまうと対象クエリの `planExpiryNotifiedAt: null`
+    // 条件から外れ、実際には一度も通知が届いていないのに二度と再送されなくなる。
+    if (!emailDelivered && !notifDelivered) {
+      skippedNoDelivery += 1
+      continue
     }
 
     await prisma.company.update({
@@ -118,13 +130,14 @@ export async function GET(request: Request) {
   }
 
   console.log(
-    `[cron/plan-expiry-notice] notified=${notified} mailFailures=${mailFailures}`,
+    `[cron/plan-expiry-notice] notified=${notified} mailFailures=${mailFailures} skippedNoDelivery=${skippedNoDelivery}`,
   )
 
   return Response.json({
     ok: true,
     notified,
     mailFailures,
+    skippedNoDelivery,
     timestamp: now.toISOString(),
   })
 }

@@ -37,6 +37,7 @@ import {
   generateJobPostingSchema,
   generateBreadcrumbSchema,
   generateVideoObjectSchema,
+  jsonLdScript,
 } from "@/lib/structured-data"
 import { getCategoryLabel } from "@/lib/categories"
 import { groupTags } from "@/lib/job-enrichment"
@@ -142,6 +143,8 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       companyFeatures: true,
       businessContent: true,
       companyUrl: true,
+      companyId: true,
+      previewToken: true,
       company: {
         select: {
           id: true,
@@ -171,9 +174,33 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
 
   if (!job) notFound()
 
+  const session = await auth().catch(() => null)
+
+  // draft / closed は一般公開しない。UUID を知っているだけの第三者が見られては
+  // ならないため、以下のいずれかを満たさない限り 404 にする:
+  //   - previewToken クエリが Job.previewToken と一致（/jobs/preview/[token] 経由）
+  //     ※ previewToken を null に戻す「リンクを無効化」操作で即座に失効する
+  //   - 求人の所有企業本人としてログイン
+  //   - admin としてログイン
+  if (job.status !== "active") {
+    const previewTokenParam = sp.previewToken
+    const tokenMatches =
+      !!previewTokenParam &&
+      !!job.previewToken &&
+      previewTokenParam === job.previewToken
+    const role = (session?.user as { role?: string } | undefined)?.role
+    const sessionCompanyId = (session?.user as { companyId?: string } | undefined)
+      ?.companyId
+    const isOwner =
+      (role === "company_admin" || role === "company_member") &&
+      !!sessionCompanyId &&
+      sessionCompanyId === job.companyId
+    const isAdmin = role === "admin"
+    if (!tokenMatches && !isOwner && !isAdmin) notFound()
+  }
+
   // 未登録ゲストは「グローバル上位 15 件（recommended sort / フィルタ無し）」の詳細のみ閲覧可。
   // 検索エンジン等のクローラは Google for Jobs SEO 維持のため除外する。
-  const session = await auth().catch(() => null)
   if (!session?.user?.id && !isPreview) {
     const hdrs = await headers()
     const ua = hdrs.get("user-agent")
@@ -343,11 +370,11 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       <JobViewBeacon jobId={job.id} enabled={!isPreview} />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumb) }}
       />
       {/* VideoObject: 動画つき求人で「動画あり」リッチリザルトを狙う */}
       {job.videoUrls.length > 0 &&
@@ -356,7 +383,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
             key={videoUrl}
             type="application/ld+json"
             dangerouslySetInnerHTML={{
-              __html: JSON.stringify(
+              __html: jsonLdScript(
                 generateVideoObjectSchema({
                   jobId: job.id,
                   jobTitle: job.title,

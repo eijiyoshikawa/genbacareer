@@ -170,12 +170,15 @@ export function middleware(request: NextRequest) {
     "/company/candidates",
   ]
   const adminRoutes = ["/admin"]
+  // IP allowlist は管理画面ページに加え、実際に変更を行う /api/admin/* エンドポイントにも
+  // 適用する（ページだけ制限しても API を直接叩けば allowlist を素通りできてしまうため）。
+  const adminIpAllowlistRoutes = ["/admin", "/api/admin"]
 
   const isSeekerRoute = seekerRoutes.some((r) => pathname.startsWith(r))
   const isCompanyRoute = companyRoutes.some((r) => pathname.startsWith(r))
   const isAdminRoute =
     adminRoutes.some((r) => pathname.startsWith(r)) && pathname !== "/admin/login"
-  const isAdminAnyRoute = adminRoutes.some((r) => pathname.startsWith(r))
+  const isAdminAnyRoute = adminIpAllowlistRoutes.some((r) => pathname.startsWith(r))
 
   // /admin/* への IP allowlist 制御。ADMIN_IP_ALLOWLIST 未設定なら無制限。
   // 設定済みなら /admin/login 含めて全 /admin パスに適用 (ブルートフォース防御も兼ねる)。

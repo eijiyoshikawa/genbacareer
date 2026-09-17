@@ -84,15 +84,31 @@ export function checkRateLimit(opts: RateLimitOptions): RateLimitResult {
 }
 
 /**
- * リクエストヘッダから client IP を抽出する。
- * Vercel/Next.js 環境では x-forwarded-for に含まれる先頭値を使う。
+ * ヘッダから client IP を抽出する（Request / next/headers() の両方に対応する
+ * ダックタイピングの型を受け取る）。
+ *
+ * `x-forwarded-for` の先頭エントリはクライアントが自由に偽装できる
+ * （偽装した値を送ればレート制限のキーを毎回変えて回避できてしまう）。
+ * Vercel エッジが観測した実際の接続元 IP は `x-real-ip`、または
+ * `x-forwarded-for` の末尾（Vercel が追記する）にあるため、そちらを使う。
  */
+export function extractClientIpFromHeaders(headers: {
+  get(name: string): string | null
+}): string | null {
+  const real = headers.get("x-real-ip")
+  if (real?.trim()) return real.trim()
+  const xff = headers.get("x-forwarded-for")
+  if (xff) {
+    const parts = xff.split(",").map((s) => s.trim()).filter(Boolean)
+    const last = parts[parts.length - 1]
+    if (last) return last
+  }
+  return null
+}
+
+/** リクエストから client IP を抽出する。不明な場合は "unknown"。 */
 export function getClientIp(request: Request): string {
-  const xff = request.headers.get("x-forwarded-for")
-  if (xff) return xff.split(",")[0]?.trim() || "unknown"
-  const real = request.headers.get("x-real-ip")
-  if (real) return real
-  return "unknown"
+  return extractClientIpFromHeaders(request.headers) ?? "unknown"
 }
 
 /**

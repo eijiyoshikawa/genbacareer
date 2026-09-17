@@ -12,6 +12,7 @@ import {
   generateBreadcrumbSchema,
   generateCollectionPageSchema,
   generateItemListSchema,
+  jsonLdScript,
 } from "@/lib/structured-data"
 import { auth } from "@/lib/auth"
 import { GUEST_LIMIT } from "@/lib/guest-job-access"
@@ -117,15 +118,15 @@ export default async function EmploymentTypeLpPage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPage) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(collectionPage) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(itemList) }}
       />
 
       <header className="border-b bg-warm-50">

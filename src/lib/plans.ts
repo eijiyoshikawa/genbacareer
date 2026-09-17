@@ -35,6 +35,24 @@ export const PLAN_SHORT_LABELS: Record<PlanType, string> = {
   sns_client: "SNS 連携",
 }
 
+/**
+ * 契約終了日 (planPaidUntil) をパースする。
+ *
+ * 管理画面の `<input type="date">` からは "YYYY-MM-DD" の日付のみの文字列が
+ * 送られてくる。これを素直に `new Date("2026-12-31")` とすると UTC 00:00
+ * （= JST 09:00）として解釈されてしまい、expire-plans cron（毎日 14:00 JST
+ * 実行）が「契約終了日」当日の午後にはもう満了扱いにしてしまう。
+ * 管理者が選んだ日付は「その日の終わりまで有効」の意図なので、JST の
+ * その日 23:59:59.999 として解釈する。
+ * 既に時刻を含む ISO 文字列が渡された場合はそのまま使う。
+ */
+export function parsePlanPaidUntil(value: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T23:59:59.999+09:00`)
+  }
+  return new Date(value)
+}
+
 /** 入力文字列が PlanType として有効かを判定 */
 export function isPlanType(s: string): s is PlanType {
   return (PLAN_TYPES as readonly string[]).includes(s)

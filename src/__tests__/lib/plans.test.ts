@@ -12,6 +12,7 @@ import {
   daysUntilPlanExpiry,
   isPlanExpiringSoon,
   canPostJob,
+  parsePlanPaidUntil,
 } from "@/lib/plans"
 
 describe("PLAN_TYPES / PLAN_LABELS", () => {
@@ -230,5 +231,22 @@ describe("canPostJob", () => {
         now,
       }),
     ).toBe(false)
+  })
+})
+
+describe("parsePlanPaidUntil", () => {
+  it("interprets a bare date as end-of-day JST, not UTC midnight", () => {
+    const parsed = parsePlanPaidUntil("2026-12-31")
+    // 契約終了日当日の 14:00 JST (expire-plans cron の実行時刻) はまだ有効であるべき。
+    const cronRunTime = new Date("2026-12-31T05:00:00.000Z") // 14:00 JST
+    expect(parsed.getTime()).toBeGreaterThan(cronRunTime.getTime())
+    // 翌日になれば期限切れ扱いになる。
+    const nextDay = new Date("2027-01-01T05:00:00.000Z")
+    expect(parsed.getTime()).toBeLessThan(nextDay.getTime())
+  })
+
+  it("leaves a full ISO datetime string untouched", () => {
+    const parsed = parsePlanPaidUntil("2026-12-31T00:00:00.000Z")
+    expect(parsed.toISOString()).toBe("2026-12-31T00:00:00.000Z")
   })
 })

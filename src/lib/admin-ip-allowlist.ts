@@ -9,8 +9,12 @@
  *
  * - IPv4 / IPv6 / CIDR 表記対応 (CIDR は単純なプレフィックスマッチ)
  * - 開発環境 (NODE_ENV !== "production") では loopback (127.0.0.1, ::1) を常に許可
- * - Vercel 経由の場合 `x-forwarded-for` 先頭がクライアント IP
+ * - Vercel は `x-forwarded-for` にクライアントが指定した値をそのまま前段に残し、
+ *   自身が観測した実際の接続元 IP を末尾に追加する。先頭はクライアントが自由に
+ *   偽装できるため、信頼できるのは末尾（最後）のエントリのみ。
  */
+
+import { extractClientIpFromHeaders } from "@/lib/rate-limit"
 
 const LOOPBACK_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"])
 
@@ -24,20 +28,11 @@ export function parseAllowlist(envValue: string | undefined): string[] {
 
 /**
  * リクエストヘッダからクライアント IP を抽出する。
- * Vercel は `x-forwarded-for` をセットする。先頭 (左端) が元クライアント。
+ * `x-real-ip` は Vercel エッジが観測した接続元 IP（クライアントからは上書き不可）を
+ * 優先的に使用し、なければ `x-forwarded-for` の末尾（Vercel が追記した実 IP）を使う。
+ * 先頭のエントリはクライアントが自由に偽装できるため使用しない。
  */
-export function extractClientIp(headers: {
-  get(name: string): string | null
-}): string | null {
-  const xff = headers.get("x-forwarded-for")
-  if (xff) {
-    const first = xff.split(",")[0]?.trim()
-    if (first) return first
-  }
-  const xri = headers.get("x-real-ip")
-  if (xri) return xri.trim()
-  return null
-}
+export const extractClientIp = extractClientIpFromHeaders
 
 /** IPv4 文字列を 32-bit 整数に変換。失敗時は null。 */
 function ipv4ToInt(ip: string): number | null {

@@ -1,4 +1,5 @@
 import type { HwJob } from "@/lib/jobs-api"
+import { jsonLdScript } from "@/lib/structured-data"
 
 /**
  * Google for Jobs 用 JSON-LD（schema.org JobPosting）。
@@ -47,7 +48,7 @@ export function HwJobStructuredData({ job }: { job: HwJob }) {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{ __html: jsonLdScript(data) }}
     />
   )
 }

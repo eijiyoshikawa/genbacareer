@@ -8,6 +8,7 @@
  */
 
 const VERIFY_URL = "https://api.line.me/oauth2/v2.1/verify"
+const PROFILE_URL = "https://api.line.me/v2/profile"
 
 function getLiffChannelId(): string {
   return process.env.LIFF_CHANNEL_ID ?? process.env.NEXT_PUBLIC_LIFF_CHANNEL_ID ?? ""
@@ -21,10 +22,20 @@ export interface LiffVerifyResult {
   ok: boolean
   clientId?: string
   expiresIn?: number
+  userId?: string
   reason?: string
 }
 
-export async function verifyLiffAccessToken(token: string): Promise<LiffVerifyResult> {
+/**
+ * accessToken を検証し、続けて LINE の profile API でトークン所有者の userId を取得する。
+ * expectedUserId を渡した場合、profile の userId と一致しない限り拒否する
+ * （verify API 単体では「有効なトークンか」しか分からず、「誰のトークンか」は分からないため、
+ *  expectedUserId 未検証のままだと他人の accessToken を使って任意の lineUserId になりすませてしまう）。
+ */
+export async function verifyLiffAccessToken(
+  token: string,
+  expectedUserId?: string
+): Promise<LiffVerifyResult> {
   if (!token) return { ok: false, reason: "empty_token" }
   try {
     const res = await fetch(`${VERIFY_URL}?access_token=${encodeURIComponent(token)}`, {
@@ -47,7 +58,30 @@ export async function verifyLiffAccessToken(token: string): Promise<LiffVerifyRe
     if (typeof json.expires_in === "number" && json.expires_in <= 0) {
       return { ok: false, reason: "expired" }
     }
-    return { ok: true, clientId: json.client_id, expiresIn: json.expires_in }
+
+    const profileRes = await fetch(PROFILE_URL, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+    if (!profileRes.ok) {
+      return { ok: false, reason: `profile_http_${profileRes.status}` }
+    }
+    const profile = (await profileRes.json()) as { userId?: string }
+    if (!profile.userId) {
+      return { ok: false, reason: "profile_missing_user_id" }
+    }
+    if (expectedUserId && profile.userId !== expectedUserId) {
+      // トークン所有者と申告された lineUserId が一致しない → なりすまし
+      return { ok: false, reason: "user_id_mismatch" }
+    }
+
+    return {
+      ok: true,
+      clientId: json.client_id,
+      expiresIn: json.expires_in,
+      userId: profile.userId,
+    }
   } catch (e) {
     return { ok: false, reason: e instanceof Error ? e.message : "unknown" }
   }

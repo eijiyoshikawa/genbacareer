@@ -8,6 +8,7 @@ import { CookieConsentBanner } from "@/components/cookie-consent";
 import {
   generateOrganizationSchema,
   generateWebSiteSchema,
+  jsonLdScript,
 } from "@/lib/structured-data";
 import { ensureSchema } from "@/lib/ensure-schema";
 import "./globals.css";
@@ -160,11 +161,11 @@ export default async function RootLayout({
         <GoogleAnalytics />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(orgSchema) }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteSchema) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(siteSchema) }}
         />
         {/* Skip link — Tab キー押下時のみ表示。
             キーボード/SR ユーザーが Header を飛ばして本文へ直接遷移できる */}

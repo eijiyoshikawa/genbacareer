@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { isGbizConfigured } from "@/lib/gbizinfo"
+import { requireCronAuth } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -8,14 +9,22 @@ export const runtime = "nodejs"
 /**
  * 拡張ヘルスチェック。
  *
- * - GET /api/health           軽量チェック (DB 接続 + デプロイ情報)
- * - GET /api/health?full=1    全項目チェック (必須 env / 任意 env / Cron 設定)
+ * - GET /api/health           軽量チェック (DB 接続の成否のみ。詳細メッセージは含まない)
+ * - GET /api/health?full=1    全項目チェック (必須 env / 任意 env / Cron 設定 / デプロイ情報 / DB エラー詳細)
+ *                             内部の設定状況・エラー詳細を含むため CRON_SECRET による認証が必要。
  *
  * 200 = 健全 / 503 = どこか NG。CD パイプラインや uptime 監視で利用。
  */
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const full = url.searchParams.get("full") === "1"
+
+  // full=1 は env 設定状況や DB エラー内容など内部情報を返すため、
+  // 未認証の第三者に対する情報漏えい・攻撃対象調査の材料にならないよう認証を必須にする。
+  if (full) {
+    const authError = requireCronAuth(request)
+    if (authError) return authError
+  }
 
   const checks: Record<string, { ok: boolean; detail?: string }> = {}
 
@@ -26,7 +35,8 @@ export async function GET(request: Request) {
   } catch (e) {
     checks.database = {
       ok: false,
-      detail: e instanceof Error ? e.message : String(e),
+      // full (認証済み) の場合のみ内部エラーメッセージを返す
+      detail: full ? (e instanceof Error ? e.message : String(e)) : undefined,
     }
   }
 
@@ -72,12 +82,14 @@ export async function GET(request: Request) {
     {
       status: allOk ? "ok" : "degraded",
       timestamp: new Date().toISOString(),
-      deploy: {
-        commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
-        branch: process.env.VERCEL_GIT_COMMIT_REF ?? "unknown",
-        env: process.env.VERCEL_ENV ?? "development",
-        region: process.env.VERCEL_REGION ?? "unknown",
-      },
+      deploy: full
+        ? {
+            commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+            branch: process.env.VERCEL_GIT_COMMIT_REF ?? "unknown",
+            env: process.env.VERCEL_ENV ?? "development",
+            region: process.env.VERCEL_REGION ?? "unknown",
+          }
+        : { env: process.env.VERCEL_ENV ?? "development" },
       checks,
     },
     {
