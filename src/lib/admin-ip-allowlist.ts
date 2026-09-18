@@ -9,7 +9,8 @@
  *
  * - IPv4 / IPv6 / CIDR 表記対応 (CIDR は単純なプレフィックスマッチ)
  * - 開発環境 (NODE_ENV !== "production") では loopback (127.0.0.1, ::1) を常に許可
- * - Vercel 経由の場合 `x-forwarded-for` 先頭がクライアント IP
+ * - `x-forwarded-for` はクライアントが任意の値を前置できるため信頼しない。
+ *   Vercel が上書き保証する `x-vercel-forwarded-for` を優先して使う。
  */
 
 const LOOPBACK_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"])
@@ -24,11 +25,20 @@ export function parseAllowlist(envValue: string | undefined): string[] {
 
 /**
  * リクエストヘッダからクライアント IP を抽出する。
- * Vercel は `x-forwarded-for` をセットする。先頭 (左端) が元クライアント。
+ *
+ * `x-forwarded-for` はクライアントが送信した値の前に Vercel がクライアント IP を
+ * 追加する（上書きではない）ため、先頭 (左端) を信じるとクライアントが偽装した
+ * IP をそのまま許可判定に使ってしまう。Vercel が確実に上書きする
+ * `x-vercel-forwarded-for`（単一値）を最優先で使う。
  */
 export function extractClientIp(headers: {
   get(name: string): string | null
 }): string | null {
+  const xvf = headers.get("x-vercel-forwarded-for")
+  if (xvf) {
+    const first = xvf.split(",")[0]?.trim()
+    if (first) return first
+  }
   const xff = headers.get("x-forwarded-for")
   if (xff) {
     const first = xff.split(",")[0]?.trim()

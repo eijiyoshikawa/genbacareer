@@ -152,10 +152,12 @@ export async function findNewMatchingJobs(
   const since = search.lastNotifiedAt ?? search.createdAt
   const where = buildJobWhere(search, since)
 
+  // 古い順に取得する: 新しい順だと 1 バッチで拾いきれない分（limit 超過分）が
+  // 通知済みマーク後に「since より古い」扱いになり永久に取りこぼされるため。
   return prisma.job
     .findMany({
       where,
-      orderBy: { publishedAt: "desc" },
+      orderBy: { publishedAt: "asc" },
       take: limit,
       select: { id: true, title: true, prefecture: true, publishedAt: true },
     })

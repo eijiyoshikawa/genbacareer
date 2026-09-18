@@ -42,6 +42,16 @@ describe("extractClientIp", () => {
   it("returns null when both headers missing", () => {
     expect(extractClientIp(mockHeaders({}))).toBeNull()
   })
+
+  it("prefers x-vercel-forwarded-for over a client-spoofed x-forwarded-for", () => {
+    // クライアントが x-forwarded-for に偽のIPを前置しても、Vercel が上書きする
+    // x-vercel-forwarded-for が優先されなければならない (allowlist bypass 対策)。
+    const h = mockHeaders({
+      "x-forwarded-for": "203.0.113.10, 9.9.9.9",
+      "x-vercel-forwarded-for": "9.9.9.9",
+    })
+    expect(extractClientIp(h)).toBe("9.9.9.9")
+  })
 })
 
 describe("ipMatches", () => {

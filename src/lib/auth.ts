@@ -13,10 +13,17 @@ import { checkRateLimit } from "./rate-limit"
  * 連続失敗の brute force / credential stuffing を抑止する。
  *
  * NextAuth v5 では authorize の第 2 引数で Request を受け取れる。
- * x-forwarded-for ヘッダから IP を抽出して使用。
+ * `x-forwarded-for` はクライアントが前置できてしまう（Vercel は追記のみで
+ * 上書きしない）ため、Vercel が確実に上書きする `x-vercel-forwarded-for` を
+ * 優先して使い、レート制限のキーを偽装 IP で使い分けられないようにする。
  */
 function getIpFromRequest(req: Request | undefined): string {
   if (!req) return "unknown"
+  const xvf = req.headers.get("x-vercel-forwarded-for")
+  if (xvf) {
+    const first = xvf.split(",")[0]?.trim()
+    if (first) return first
+  }
   const fwd = req.headers.get("x-forwarded-for")
   if (fwd) return fwd.split(",")[0].trim()
   const real = req.headers.get("x-real-ip")

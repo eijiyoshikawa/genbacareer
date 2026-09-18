@@ -12,6 +12,7 @@ import {
   daysUntilPlanExpiry,
   isPlanExpiringSoon,
   canPostJob,
+  planPaidUntilToDate,
 } from "@/lib/plans"
 
 describe("PLAN_TYPES / PLAN_LABELS", () => {
@@ -230,5 +231,29 @@ describe("canPostJob", () => {
         now,
       }),
     ).toBe(false)
+  })
+})
+
+describe("planPaidUntilToDate", () => {
+  it("interprets a date-only string as end-of-day JST, not UTC midnight", () => {
+    const d = planPaidUntilToDate("2026-01-31")
+    // 2026-01-31T23:59:59.999+09:00 === 2026-01-31T14:59:59.999Z
+    expect(d.toISOString()).toBe("2026-01-31T14:59:59.999Z")
+  })
+
+  it("keeps a plan active through the entire JST calendar day it was paid for", () => {
+    const paidUntil = planPaidUntilToDate("2026-01-31")
+    // 21:00 JST on Jan 31 (= 12:00 UTC) must still be within the paid period.
+    const stillJst31 = new Date("2026-01-31T12:00:00Z")
+    expect(isPlanActive({ planType: "monthly_12", planPaidUntil: paidUntil, now: stillJst31 })).toBe(true)
+
+    // 00:30 JST on Feb 1 (= 15:30 UTC on Jan 31) must be expired.
+    const jst01Feb = new Date("2026-01-31T15:30:00Z")
+    expect(isPlanActive({ planType: "monthly_12", planPaidUntil: paidUntil, now: jst01Feb })).toBe(false)
+  })
+
+  it("passes through a full ISO datetime unchanged", () => {
+    const d = planPaidUntilToDate("2026-01-31T10:00:00.000Z")
+    expect(d.toISOString()).toBe("2026-01-31T10:00:00.000Z")
   })
 })

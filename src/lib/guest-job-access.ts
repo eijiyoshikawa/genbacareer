@@ -42,8 +42,10 @@ export async function getGuestAccessibleJobIds(): Promise<string[]> {
       status: "active",
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
     },
+    // /jobs の recommended sort（デフォルト）と同じ並び順（src/app/jobs/page.tsx 参照）。
     orderBy: [
-      { source: "asc" },
+      { company: { planTier: "desc" } },
+      { company: { rotationKey: "asc" } },
       { rankScore: "desc" },
       { publishedAt: "desc" },
     ],

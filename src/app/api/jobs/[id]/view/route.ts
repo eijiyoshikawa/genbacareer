@@ -54,8 +54,14 @@ export async function POST(
   const sessionId = await getSessionIdIfExists().catch(() => null)
 
   const ua = request.headers.get("user-agent") ?? null
+  // x-vercel-forwarded-for はクライアントが偽装できない（Vercel が上書きする）ため優先する。
+  const xvf = request.headers.get("x-vercel-forwarded-for")
   const fwd = request.headers.get("x-forwarded-for")
-  const ipAddress = fwd ? fwd.split(",")[0].trim() : null
+  const ipAddress = xvf
+    ? xvf.split(",")[0].trim()
+    : fwd
+      ? fwd.split(",")[0].trim()
+      : null
   const referer = body.referrer ?? request.headers.get("referer") ?? null
   const utm = body.pageUrl
     ? extractUtmFromUrl(body.pageUrl)

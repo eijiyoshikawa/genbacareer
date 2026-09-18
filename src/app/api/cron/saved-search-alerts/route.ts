@@ -45,7 +45,8 @@ export async function GET(request: Request) {
   for (const s of searches) {
     searchProcessed++
     try {
-      const matches = await findNewMatchingJobs(s, 5)
+      const limit = 5
+      const matches = await findNewMatchingJobs(s, limit)
       if (matches.length === 0) {
         await prisma.savedSearch.update({
           where: { id: s.id },
@@ -68,9 +69,17 @@ export async function GET(request: Request) {
         refId: s.id,
       })
 
+      // limit に達した = まだ未通知の求人が残っている可能性がある。
+      // その場合は今回拾った分の直後まで watermark を進め、残りを次回に持ち越す
+      // （startedAt まで一気に進めると limit 超過分を永久に取りこぼす）。
+      const nextNotifiedAt =
+        matches.length < limit
+          ? startedAt
+          : new Date(matches[matches.length - 1].publishedAt!.getTime() + 1)
+
       await prisma.savedSearch.update({
         where: { id: s.id },
-        data: { lastNotifiedAt: startedAt },
+        data: { lastNotifiedAt: nextNotifiedAt },
       })
       searchNotified++
     } catch (e) {

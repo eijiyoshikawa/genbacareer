@@ -122,6 +122,24 @@ export function canSendScoutByPlan(
   )
 }
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * "YYYY-MM-DD" 形式（管理画面の `<input type="date">` から送られる契約終了日）を
+ * その日の JST 23:59:59.999 として解釈する。
+ *
+ * 素の `new Date("YYYY-MM-DD")` は UTC 深夜 0 時として解釈されるため、
+ * JST では同日の朝 9 時扱いになってしまい、isPlanActive / expire-plans cron が
+ * 契約終了日当日の日中〜夕方の時点で既に「期限切れ」と判定してしまう。
+ * 既にタイムゾーン付きの ISO 文字列が渡された場合はそのまま解釈する。
+ */
+export function planPaidUntilToDate(raw: string): Date {
+  if (DATE_ONLY_RE.test(raw)) {
+    return new Date(`${raw}T23:59:59.999+09:00`)
+  }
+  return new Date(raw)
+}
+
 /**
  * プランがアクティブか (期限切れしていないか)。
  *

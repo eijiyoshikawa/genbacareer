@@ -31,8 +31,15 @@ export async function logAudit(event: AuditEvent): Promise<void> {
   let userAgent: string | null = null
   try {
     const h = await headers()
+    // x-forwarded-for はクライアントが前置できてしまう（Vercel は追記のみで上書きしない）
+    // ため、Vercel が確実に上書きする x-vercel-forwarded-for を優先する。
+    const xvf = h.get("x-vercel-forwarded-for")
     const fwd = h.get("x-forwarded-for")
-    ipAddress = fwd ? fwd.split(",")[0].trim() : null
+    ipAddress = xvf
+      ? xvf.split(",")[0].trim()
+      : fwd
+        ? fwd.split(",")[0].trim()
+        : null
     userAgent = h.get("user-agent")
   } catch {
     // server actions の外（cron 等）では headers() が使えないので無視
