@@ -143,7 +143,12 @@ export async function replyMessage(replyToken: string, messages: LineMessage[]):
   }
 }
 
-/** 任意の LINE ユーザーへプッシュ送信（要 Messaging API 有効化 + 同意済み友だち）。 */
+/**
+ * 任意の LINE ユーザーへプッシュ送信（要 Messaging API 有効化 + 同意済み友だち）。
+ * LINE API がエラーを返した場合は throw する。呼び出し側の多くが try/catch で
+ * 成功/失敗を判定・記録しているため（配信ログ・deliveredAt 等）、ここで握り
+ * つぶすと「実際は届いていないのに成功扱いになる」サイレント障害になる。
+ */
 export async function pushMessage(to: string, messages: LineMessage[]): Promise<void> {
   if (!getToken()) return
   const res = await callApi("/v2/bot/message/push", {
@@ -152,7 +157,9 @@ export async function pushMessage(to: string, messages: LineMessage[]): Promise<
     body: JSON.stringify({ to, messages }),
   })
   if (!res.ok) {
-    console.warn("[line.push] failed", res.status, await res.text().catch(() => ""))
+    const body = await res.text().catch(() => "")
+    console.warn("[line.push] failed", res.status, body)
+    throw new Error(`LINE push failed: ${res.status} ${body}`)
   }
 }
 
