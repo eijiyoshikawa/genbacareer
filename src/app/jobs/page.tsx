@@ -139,7 +139,7 @@ export default async function JobsPage({ searchParams }: Props) {
 
   // 未登録ユーザーには「お試し検索」として上位 GUEST_LIMIT 件のみ。
   // ページネーションも無効化し、`page` パラメータは無視する。
-  const rawPage = Math.max(1, Number(params.page ?? "1"))
+  const rawPage = Math.max(1, Number(params.page ?? "1") || 1)
   const page = loggedIn ? rawPage : 1
   const limit = loggedIn ? 20 : GUEST_LIMIT
 
@@ -218,9 +218,12 @@ export default async function JobsPage({ searchParams }: Props) {
   const useFuzzy =
     !!params.q && sort === "recommended" && conditionList.length === 0
   let fuzzyIds: string[] | null = null
+  let fuzzyTotal: number | null = null
   if (useFuzzy) {
-    const { fuzzySearchJobs } = await import("@/lib/job-search")
-    const rows = await fuzzySearchJobs({
+    const { fuzzySearchJobs, fuzzySearchJobsCount } = await import(
+      "@/lib/job-search"
+    )
+    const fuzzyInput = {
       q: params.q!,
       prefecture: params.prefecture,
       city: params.city,
@@ -236,11 +239,22 @@ export default async function JobsPage({ searchParams }: Props) {
           : snsFilter === "without"
             ? false
             : undefined,
-      limit: limit * 5, // 後でページング切り出すため多めに取得
-    })
+    }
+    // ページ単位で直接 LIMIT/OFFSET する（旧実装は上位 100 件を毎回まとめて
+    // 取得してからスライスしていたため、100 件超のヒットで総件数・ページ数を
+    // 過小表示し、かつ 6 ページ目以降は常に空になっていた）。
+    const [rows, count] = await Promise.all([
+      fuzzySearchJobs({
+        ...fuzzyInput,
+        limit,
+        offset: (page - 1) * limit,
+      }),
+      fuzzySearchJobsCount(fuzzyInput),
+    ])
     if (rows && rows.length > 0) {
       fuzzyIds = rows.map((r) => r.id)
     }
+    fuzzyTotal = count
   }
 
   // 一覧表示用の最小カラムのみ select。Job.description (長文) や
@@ -282,16 +296,13 @@ export default async function JobsPage({ searchParams }: Props) {
             where: { id: { in: fuzzyIds } },
             select: jobListSelect,
           })
-          // fuzzy で返ってきた id 順を維持
+          // fuzzy で返ってきた id 順（類似度順）を維持
           .then((rows) => {
             const order = new Map(fuzzyIds!.map((id, i) => [id, i]))
             return rows.sort(
               (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)
             )
           })
-          .then((rows) =>
-            rows.slice((page - 1) * limit, (page - 1) * limit + limit)
-          )
       : prisma.job.findMany({
           where,
           orderBy,
@@ -299,8 +310,10 @@ export default async function JobsPage({ searchParams }: Props) {
           take: limit,
           select: jobListSelect,
         }),
+    // fuzzyIds が null の場合（未検索 or pg_trgm 失敗によるフォールバック）は
+    // 上の jobs 側と同じく通常の Prisma count を使う。
     fuzzyIds
-      ? Promise.resolve(fuzzyIds.length)
+      ? Promise.resolve(fuzzyTotal ?? fuzzyIds.length)
       : prisma.job.count({ where }),
   ])
 

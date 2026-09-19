@@ -7,6 +7,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { toActorUuid } from "@/lib/actor-id"
 
 export const dynamic = "force-dynamic"
 
@@ -60,11 +61,11 @@ export async function PATCH(
   if (parsed.data.action === "approve") {
     data.status = "approved"
     data.approvedAt = new Date()
-    data.approvedBy = session?.user?.id ?? null
+    data.approvedBy = toActorUuid(session?.user?.id)
   } else if (parsed.data.action === "mark_paid") {
     data.status = "paid"
     data.paidAt = new Date()
-    data.paidBy = session?.user?.id ?? null
+    data.paidBy = toActorUuid(session?.user?.id)
   } else {
     data.status = "rejected"
     data.rejectedAt = new Date()

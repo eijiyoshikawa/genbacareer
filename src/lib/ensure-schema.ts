@@ -52,6 +52,12 @@ const STATEMENTS: ReadonlyArray<string> = [
  // Application Google Calendar イベント ID (14.4)
  `ALTER TABLE "applications"
    ADD COLUMN IF NOT EXISTS "google_calendar_event_id" VARCHAR(200)`,
+ // Application「offered」遷移時点の給与スナップショット。
+ // 採用確定直前の求人給与編集による成果報酬圧縮を防ぐため (定期バグ検査)。
+ `ALTER TABLE "applications"
+   ADD COLUMN IF NOT EXISTS "offer_salary_min" INTEGER,
+   ADD COLUMN IF NOT EXISTS "offer_salary_max" INTEGER,
+   ADD COLUMN IF NOT EXISTS "offer_salary_type" VARCHAR(20)`,
  // admin 企業一覧 / 応募集計の高速化用 index (本番でテーブル既存の場合用)
  `CREATE INDEX IF NOT EXISTS "idx_applications_by_company"
     ON "applications" ("company_id", "created_at" DESC)`,
@@ -612,7 +618,19 @@ const STATEMENTS: ReadonlyArray<string> = [
 let inflight: Promise<boolean> | null = null
 let securityInflight: Promise<boolean> | null = null
 
-// 一度だけ実行され、結果を Promise でキャッシュ。成功/失敗いずれも以後 await が即解決する。
+// DB 接続そのものが確立できなかった場合のエラー(プールタイムアウト等)。
+// これらは「文が恒久的に失敗した」のではなく「今回は DB に触れなかった」だけなので、
+// inflight にキャッシュせず次回呼び出しで再試行する。pg_trgm 権限不足のような
+// 恒久的な失敗は引き続きキャッシュし、無駄なリトライで DB 負荷を増やさない。
+const CONNECTION_ERROR_PATTERN =
+  /P1001|P2024|ECHECKOUTTIMEOUT|Can't reach database server|Timed out fetching a new connection/i
+
+function isConnectionError(e: unknown): boolean {
+  const message = e instanceof Error ? e.message : String(e)
+  return CONNECTION_ERROR_PATTERN.test(message)
+}
+
+// 一度だけ実行され、結果を Promise でキャッシュする（DB 接続断による失敗を除く）。
 // 戻り値: 全 ALTER が成功したかどうか（失敗時は防御クエリへフォールバック判断に使う）。
 //
 // pg_trgm のように権限不足で失敗しうる文があるため、各 SQL は個別 try/catch。
@@ -634,15 +652,22 @@ export function ensureSchema(): Promise<boolean> {
  // ただしセキュリティDDL (RLS 有効化) だけは env に関係なく必ず実行する。
  if (process.env.ENSURE_SCHEMA === "false") {
    if (!securityInflight) {
-     securityInflight = runStatements(SECURITY_STATEMENTS)
+     securityInflight = (async () => {
+       const sec = await runStatements(SECURITY_STATEMENTS)
+       // 接続断で失敗した場合は、次回呼び出しで最初から再試行できるよう
+       // このウォーム状態のインスタンスに結果をキャッシュしない。
+       if (sec.hadConnectionError) securityInflight = null
+       return sec.ok
+     })()
    }
    return securityInflight
  }
  if (!inflight) {
    inflight = (async () => {
-     const secOk = await runStatements(SECURITY_STATEMENTS)
-     const restOk = await runStatements(STATEMENTS)
-     return secOk && restOk
+     const sec = await runStatements(SECURITY_STATEMENTS)
+     const rest = await runStatements(STATEMENTS)
+     if (sec.hadConnectionError || rest.hadConnectionError) inflight = null
+     return sec.ok && rest.ok
    })()
  }
  return inflight
@@ -650,18 +675,20 @@ export function ensureSchema(): Promise<boolean> {
 
 async function runStatements(
   statements: ReadonlyArray<string>
-): Promise<boolean> {
+): Promise<{ ok: boolean; hadConnectionError: boolean }> {
   let allOk = true
+  let hadConnectionError = false
   for (const sql of statements) {
     try {
       await prisma.$executeRawUnsafe(sql)
     } catch (e) {
       allOk = false
+      if (isConnectionError(e)) hadConnectionError = true
       console.warn(
         "[ensureSchema] statement skipped:",
         e instanceof Error ? e.message : e
       )
     }
   }
-  return allOk
+  return { ok: allOk, hadConnectionError }
 }
