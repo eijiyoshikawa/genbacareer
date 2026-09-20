@@ -74,6 +74,7 @@ export async function POST(
   // 同 email の CompanyUser が既に存在する場合は弾く
   const existing = await prisma.companyUser.findUnique({
     where: { email: d.email },
+    select: { id: true },
   })
   if (existing) {
     return Response.json(
@@ -151,6 +152,8 @@ export async function POST(
       name: d.name ?? null,
       role: d.role,
       mustChangePassword: true,
+      // 企業一覧からID/PASSを確認できるよう平文を控える（PW変更でクリア）
+      issuedLoginPassword: tempPassword,
     },
   })
 

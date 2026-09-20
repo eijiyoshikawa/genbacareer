@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db"
-import { notFound, redirect } from "next/navigation"
+import { notFound, redirect, permanentRedirect } from "next/navigation"
 import { headers } from "next/headers"
 import Link from "next/link"
 import { auth } from "@/lib/auth"
@@ -15,37 +15,23 @@ import {
   ArrowLeft,
   CaretRight,
   Briefcase,
-  Globe,
-  UsersThree,
   Megaphone,
-  Sparkle,
-  UserFocus,
-  ChatCenteredDots,
-  Camera,
-  ShareNetwork,
-  Wallet,
-  GraduationCap,
-  ClipboardText,
-  Cigarette,
-  Factory,
-  ShieldCheck,
   ClockCountdown,
-  WarningCircle,
 } from "@phosphor-icons/react/dist/ssr"
 import type { Metadata } from "next"
 import {
   generateJobPostingSchema,
   generateBreadcrumbSchema,
   generateVideoObjectSchema,
+  toJsonLdScript,
 } from "@/lib/structured-data"
 import { getCategoryLabel } from "@/lib/categories"
 import { groupTags } from "@/lib/job-enrichment"
-import { JobDescription } from "@/components/jobs/job-description"
 import { FormattedText } from "@/components/jobs/formatted-text"
 import { generateRecommendation } from "@/lib/job-recommendation"
-import { WorkConditionsBox } from "@/components/jobs/work-conditions-box"
 import { TagChip } from "@/components/jobs/tag-chip"
 import { SectionHeading } from "@/components/jobs/section-heading"
+import { AccordionSection } from "@/components/jobs/accordion-section"
 import { JobInfoTable } from "@/components/jobs/job-info-table"
 import { RightTocNav } from "@/components/jobs/right-toc-nav"
 import { StickyActionBar } from "@/components/jobs/sticky-action-bar"
@@ -53,7 +39,10 @@ import { ReportButton } from "@/components/reports/report-button"
 import { findRelatedJobs } from "@/lib/job-matching"
 import { RelatedAreaCategoryLinks } from "@/components/jobs/related-area-category-links"
 import { HeroBanner } from "@/components/jobs/hero-banner"
-import { SnsLinks } from "@/components/jobs/sns-links"
+import { JobSpec } from "@/components/jobs/job-spec"
+import { JobFaq } from "@/components/jobs/job-faq"
+import { CompanyOverview } from "@/components/jobs/company-overview"
+import { pickDefaultJobImage } from "@/lib/default-job-images"
 import { PhotoGallery } from "@/components/jobs/photo-gallery"
 import { VideoGallery } from "@/components/jobs/video-gallery"
 import { ClientErrorBoundary } from "@/components/error-boundary"
@@ -70,9 +59,35 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!isValidUuid(id)) return { title: "求人が見つかりません" }
   const job = await prisma.job.findUnique({
     where: { id },
-    select: { title: true, prefecture: true, category: true },
+    select: {
+      title: true,
+      prefecture: true,
+      category: true,
+      status: true,
+      dedupedTo: true,
+    },
   })
   if (!job) return { title: "求人が見つかりません" }
+
+  // 重複求人: canonical を正規ページに向ける（ページ本体で 301 リダイレクトもする）
+  if (job.dedupedTo) {
+    return {
+      title: job.title,
+      alternates: { canonical: `/jobs/${job.dedupedTo}` },
+      robots: { index: false, follow: true },
+    }
+  }
+
+  // 終了求人: インデックス対象から外す（既存ブックマーク用に表示はする）
+  if (job.status === "closed") {
+    return {
+      title: `${job.title}（募集終了）`,
+      description: `${job.prefecture}の${job.title}の求人は現在募集を終了しています。`,
+      alternates: { canonical: `/jobs/${id}` },
+      robots: { index: false, follow: true },
+    }
+  }
+
   return {
     title: job.title,
     description: `${job.prefecture}の${job.title}の求人詳細。ゲンバキャリアで建設業界の最新求人をチェック。`,
@@ -111,7 +126,9 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       benefits: true,
       tags: true,
       videoUrls: true,
+      imageUrls: true,
       status: true,
+      dedupedTo: true,
       source: true,
       helloworkId: true,
       publishedAt: true,
@@ -151,6 +168,8 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
           city: true,
           address: true,
           employeeCount: true,
+          capital: true,
+          foundedOn: true,
           description: true,
           logoUrl: true,
           websiteUrl: true,
@@ -170,6 +189,13 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   })
 
   if (!job) notFound()
+
+  // 重複求人として close された場合: 正規ページへ 301 リダイレクト。
+  // これがないと Google が「user-declared canonical と Google's choice が違う」と
+  // 判定して Search Console で重複エラーとして大量計上される。
+  if (job.dedupedTo) {
+    permanentRedirect(`/jobs/${job.dedupedTo}`)
+  }
 
   // 未登録ゲストは「グローバル上位 15 件（recommended sort / フィルタ無し）」の詳細のみ閲覧可。
   // 検索エンジン等のクローラは Google for Jobs SEO 維持のため除外する。
@@ -277,14 +303,16 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
     education: job.education,
   })
 
-  const hasSns = !!(
-    job.company?.instagramUrl ||
-    job.company?.tiktokUrl ||
-    job.company?.facebookUrl ||
-    job.company?.xUrl ||
-    job.company?.youtubeUrl
-  )
-  const photos = job.company?.photos ?? []
+  // 求人個別の写真を優先し、無ければ会社単位の写真にフォールバック
+  // (HW 求人や写真未設定の求人は従来どおり会社写真を使う)
+  const photos =
+    job.imageUrls && job.imageUrls.length > 0
+      ? job.imageUrls
+      : job.company?.photos ?? []
+
+  // メイン写真が無い求人は、指定の 15 枚から求人 ID をシードに決定的に 1 枚選ぶ
+  // (写真ギャラリーには使わず、ヒーローの見栄え用フォールバックとしてのみ使用)
+  const heroPhoto = photos[0] ?? pickDefaultJobImage(job.id)
 
   const mapAddress = buildMapAddress(job.address, job.prefecture, job.city)
 
@@ -343,11 +371,11 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
       <JobViewBeacon jobId={job.id} enabled={!isPreview} />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(jsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumb) }}
       />
       {/* VideoObject: 動画つき求人で「動画あり」リッチリザルトを狙う */}
       {job.videoUrls.length > 0 &&
@@ -356,7 +384,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
             key={videoUrl}
             type="application/ld+json"
             dangerouslySetInnerHTML={{
-              __html: JSON.stringify(
+              __html: toJsonLdScript(
                 generateVideoObjectSchema({
                   jobId: job.id,
                   jobTitle: job.title,
@@ -423,7 +451,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
           <div className="flex-1 min-w-0 space-y-6">
             {/* Hero + title block */}
             <section id="features" className="space-y-4">
-              <HeroBanner category={job.category} />
+              <HeroBanner category={job.category} photo={heroPhoto} />
 
               <div className="space-y-3">
                 {/* Source + Category badges */}
@@ -449,6 +477,17 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                     <Megaphone weight="duotone" className="h-4 w-4 mt-0.5 shrink-0" />
                     <span>{tagline}</span>
                   </p>
+                )}
+
+                {/* タグチップ列（建職バンク参考: タイトル直下） */}
+                {job.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {job.tags.slice(0, 14).map((t) => (
+                      <TagChip key={t} size="sm">
+                        {t}
+                      </TagChip>
+                    ))}
+                  </div>
                 )}
 
                 {job.company && (
@@ -482,22 +521,34 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                       {salaryUnitLabel(job.salaryType)}:
                     </dt>
                     <dd className="font-bold text-primary-700">
-                      {job.salaryMin
-                        ? formatSalary(
-                            job.salaryMin,
-                            job.salaryMax,
-                            job.salaryType
-                          )
-                            .replace(/^(月給|時給|年収|日給)\s*/, "")
-                        : "応相談"}
+                      <Link
+                        href="#spec-salary"
+                        className="inline-flex items-center gap-0.5 hover:underline"
+                      >
+                        {job.salaryMin
+                          ? formatSalary(
+                              job.salaryMin,
+                              job.salaryMax,
+                              job.salaryType
+                            )
+                              .replace(/^(月給|時給|年収|日給)\s*/, "")
+                          : "応相談"}
+                        <CaretRight weight="bold" className="h-3 w-3 opacity-60" />
+                      </Link>
                     </dd>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <MapPin weight="duotone" className="h-4 w-4 text-primary-500" />
                     <dt className="text-gray-500 mr-1">勤務地:</dt>
                     <dd className="font-medium text-gray-900">
-                      {job.prefecture}
-                      {job.city ? ` ${job.city}` : ""}
+                      <Link
+                        href="#spec-location"
+                        className="inline-flex items-center gap-0.5 hover:underline"
+                      >
+                        {job.prefecture}
+                        {job.city ? ` ${job.city}` : ""}
+                        <CaretRight weight="bold" className="h-3 w-3 opacity-60" />
+                      </Link>
                     </dd>
                   </div>
                   {hasOccupationMeta && (
@@ -505,16 +556,22 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                       <Briefcase weight="duotone" className="h-4 w-4 text-primary-500" />
                       <dt className="text-gray-500 mr-1">職種:</dt>
                       <dd className="font-medium text-gray-900 line-clamp-1">
-                        {job.occupationTitle ??
-                          job.occupationCategoryName ??
-                          job.jobTypeName}
-                        {job.occupationCategoryName &&
-                          job.occupationTitle &&
-                          job.occupationCategoryName !== job.occupationTitle && (
-                            <span className="ml-1.5 text-xs text-gray-500">
-                              （{job.occupationCategoryName}）
-                            </span>
-                          )}
+                        <Link
+                          href="#spec-description"
+                          className="inline-flex items-center gap-0.5 hover:underline"
+                        >
+                          {job.occupationTitle ??
+                            job.occupationCategoryName ??
+                            job.jobTypeName}
+                          {job.occupationCategoryName &&
+                            job.occupationTitle &&
+                            job.occupationCategoryName !== job.occupationTitle && (
+                              <span className="ml-1.5 text-xs text-gray-500">
+                                （{job.occupationCategoryName}）
+                              </span>
+                            )}
+                          <CaretRight weight="bold" className="h-3 w-3 opacity-60" />
+                        </Link>
                       </dd>
                     </div>
                   )}
@@ -552,30 +609,38 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
                     </div>
                   )}
                 </dl>
+
+                {/* 募集要項への「詳しく見る」導線 */}
+                <Link
+                  href="#conditions"
+                  className="inline-flex items-center gap-1 text-sm font-bold text-primary-700 hover:text-primary-800"
+                >
+                  募集要項を詳しく見る
+                  <CaretRight weight="bold" className="h-3.5 w-3.5" />
+                </Link>
               </div>
             </section>
 
-            {/* この求人のおすすめポイント */}
+            {/* この求人のおすすめポイント (マイナビ転職風: 中央寄せ見出し + 短い下線 + 区切り線リスト) */}
             {recommendation && (
               <section
                 id="recommendation"
-                className="rounded border border-primary-200 bg-gradient-to-br from-primary-50 to-white p-5 sm:p-6 shadow-sm space-y-3"
+                className="border border-primary-200 bg-primary-50/40 p-5 sm:p-6 space-y-4"
               >
-                <SectionHeading>
-                  <Sparkle weight="duotone" className="h-4 w-4 text-primary-500" />
-                  この求人のおすすめポイント
+                <SectionHeading variant="centered">
+                  この求人のポイント
                 </SectionHeading>
-                <p className="text-sm sm:text-[15px] text-gray-800 leading-relaxed">
+                <p className="text-sm sm:text-[15px] text-ink-900 leading-relaxed font-medium">
                   {recommendation.summary}
                 </p>
                 {recommendation.points.length > 0 && (
-                  <ul className="flex flex-wrap gap-1.5">
+                  <ul className="divide-y divide-dashed divide-primary-300/60 border-y border-dashed border-primary-300/60">
                     {recommendation.points.map((p) => (
                       <li
                         key={p.label}
-                        className="inline-flex items-center rounded-full border border-primary-200 bg-white px-2.5 py-1 text-xs font-medium text-primary-700"
+                        className="py-2.5 text-sm font-bold text-ink-900"
                       >
-                        {p.label}
+                        【{p.label}】
                       </li>
                     ))}
                   </ul>
@@ -589,72 +654,39 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
               tagGroups={tagGroups}
             />
 
-            {/* Description */}
-            {job.description && (
-              <section
-                id="description"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
-              >
-                <SectionHeading>
-                  <Briefcase weight="duotone" className="h-4 w-4 text-primary-500" />
-                  こんな仕事です
-                </SectionHeading>
-                <JobDescription text={job.description} />
-              </section>
-            )}
-
-            {/* こんなトコロがすごい！ */}
+            {/* この会社のここがすごい（注目ポイント） */}
             {job.company?.pitchHighlights && (
-              <section
+              <AccordionSection
                 id="pitch"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
+                title="この会社のここがすごい"
+                defaultOpen
               >
-                <SectionHeading>
-                  <Sparkle weight="duotone" className="h-4 w-4 text-primary-500" />
-                  こんなトコロがすごい！
-                </SectionHeading>
                 <FormattedText text={job.company.pitchHighlights} />
-              </section>
+              </AccordionSection>
             )}
 
-            {/* こんな人が向いています！ */}
-            {job.company?.idealCandidate && (
-              <section
-                id="ideal"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
-              >
-                <SectionHeading>
-                  <UserFocus weight="duotone" className="h-4 w-4 text-primary-500" />
-                  こんな人が向いています！
-                </SectionHeading>
-                <FormattedText text={job.company.idealCandidate} />
-              </section>
-            )}
+            {/* 募集要項（左ラベル/右本文の2カラム・建職バンク参考）
+                ※ 仕事内容 / 求める人物像 / 企業からのメッセージ はここに統合 */}
+            <JobSpec job={job} />
 
-            {/* 働いている社員の声 */}
-            {job.company?.employeeVoice && (
-              <section
-                id="voice"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
-              >
-                <SectionHeading>
-                  <ChatCenteredDots weight="duotone" className="h-4 w-4 text-primary-500" />
-                  働いている社員の声
-                </SectionHeading>
-                <FormattedText text={job.company.employeeVoice} />
-              </section>
-            )}
+            {/* 労働条件の明示に関する補足（職業安定法 / 2024年改正の明示事項）。
+                掲載できていない明示事項は企業の労働条件通知書で補完される旨と、
+                相違時の相談窓口を案内する（デザイン影響を抑えた注記ブロック）。 */}
+            <p className="mt-4 border border-gray-200 bg-gray-50 p-3 text-xs leading-relaxed text-gray-500">
+              ※ 労働条件の明示について：上記のほか、従事すべき業務・就業場所の「変更の範囲」、契約期間や更新の上限（有期雇用の場合）、試用期間中の労働条件などの詳細は、選考の過程で求人企業より労働条件通知書等の書面で明示されます。掲載内容と実際の労働条件に相違がある場合や求人内容に関するご相談は
+              <Link href="/contact" className="text-primary-600 underline">
+                お問い合わせ
+              </Link>
+              までご連絡ください。
+            </p>
 
-            {/* 写真ギャラリー */}
+
+            {/* 写真ギャラリー（建職バンク参考: 募集要項の後に横並び） */}
             {photos.length > 0 && (
-              <section
-                id="photos"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
-              >
-                <SectionHeading>
-                  <Camera weight="duotone" className="h-4 w-4 text-primary-500" />
-                  写真ギャラリー
-                </SectionHeading>
+              <section id="photos">
+                <h2 className="section-bar mb-3 text-xl font-bold text-gray-900 sm:text-2xl">
+                  現場の写真
+                </h2>
                 <PhotoGallery
                   photos={photos}
                   alt={job.company?.name ?? "求人写真"}
@@ -674,233 +706,25 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
               </section>
             )}
 
-            {/* Work conditions */}
-            <section id="conditions">
-              <WorkConditionsBox
-                description={job.description}
-                requirements={job.requirements}
-                structured={{
-                  workHours: job.workHours,
-                  workHoursNotes: job.workHoursNotes,
-                  holidays: job.holidays,
-                  holidaysOther: job.holidaysOther,
-                  annualHolidays: job.annualHolidays,
-                  insurance: job.insurance,
-                }}
-              />
-            </section>
-
-            {/* 給与の詳細 */}
-            {hasSalaryDetail && (
-              <section
-                id="salary-detail"
-                className="rounded border bg-white p-5 sm:p-6 shadow-sm space-y-4"
-              >
-                <SectionHeading>
-                  <Wallet weight="duotone" className="h-4 w-4 text-primary-500" />
-                  給与・手当
-                </SectionHeading>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {job.baseSalary && (
-                    <DlItem label="基本給" value={job.baseSalary} />
-                  )}
-                  {job.bonus && <DlItem label="賞与" value={job.bonus} />}
-                  {job.commuteAllowance && (
-                    <DlItem label="通勤手当" value={job.commuteAllowance} />
-                  )}
-                  {job.fixedOvertime && (
-                    <DlItem label="固定残業代" value={job.fixedOvertime} />
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* 待遇・福利厚生 */}
-            {hasBenefits && (
-              <section
-                id="benefits"
-                className="rounded border bg-white p-5 sm:p-6 shadow-sm space-y-4"
-              >
-                <SectionHeading>
-                  <ShieldCheck weight="duotone" className="h-4 w-4 text-primary-500" />
-                  待遇・福利厚生
-                </SectionHeading>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {job.trialPeriod && (
-                    <DlItem label="試用期間" value={job.trialPeriod} />
-                  )}
-                  {job.smokingPolicy && (
-                    <DlItem
-                      label="受動喫煙対策"
-                      value={job.smokingPolicy}
-                      icon={<Cigarette weight="duotone" className="h-3.5 w-3.5 text-gray-400" />}
-                    />
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* 求人条件の特記事項 */}
-            {job.jobConditionNotes && (
-              <section
-                id="notes"
-                className="rounded border bg-white p-5 sm:p-6 shadow-sm space-y-4"
-              >
-                <SectionHeading>
-                  <WarningCircle weight="duotone" className="h-4 w-4 text-primary-500" />
-                  求人条件の特記事項
-                </SectionHeading>
-                <FormattedText text={job.jobConditionNotes} />
-              </section>
-            )}
-
-            {/* 応募要件・採用情報 */}
-            {hasRequirements && (
-              <section
-                id="requirements"
-                className="rounded border bg-white p-5 sm:p-6 shadow-sm space-y-4"
-              >
-                <SectionHeading>
-                  <ClipboardText weight="duotone" className="h-4 w-4 text-primary-500" />
-                  応募要件・採用情報
-                </SectionHeading>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {job.requiredExperience && (
-                    <DlItem
-                      label="必要な経験"
-                      value={job.requiredExperience}
-                    />
-                  )}
-                  {job.education && (
-                    <DlItem
-                      label="必要な学歴"
-                      value={job.education}
-                      icon={
-                        <GraduationCap weight="duotone" className="h-3.5 w-3.5 text-gray-400" />
-                      }
-                    />
-                  )}
-                  {job.recruitmentCount && (
-                    <DlItem label="採用人数" value={job.recruitmentCount} />
-                  )}
-                  {job.recruitmentReason && (
-                    <DlItem label="募集理由" value={job.recruitmentReason} />
-                  )}
-                </div>
-              </section>
-            )}
 
             {/* 勤務地の地図 */}
             {mapAddress && (
-              <section
+              <AccordionSection
                 id="map"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
+                title="勤務地の地図"
               >
-                <SectionHeading>
-                  <MapPin weight="duotone" className="h-4 w-4 text-primary-500" />
-                  勤務地の地図
-                </SectionHeading>
                 <MapEmbed address={mapAddress} />
-              </section>
+              </AccordionSection>
             )}
 
-            {/* Company info */}
+            {/* 会社概要（テーブル・建職バンク参考）*/}
             {job.company && (
-              <section
-                id="company"
-                className="border bg-white p-5 sm:p-6 shadow-sm space-y-4"
-              >
-                <SectionHeading>
-                  <Buildings weight="duotone" className="h-4 w-4 text-primary-500" />
-                  企業情報
-                </SectionHeading>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <DlItem label="企業名" value={job.company.name} />
-                  {job.company.industry && (
-                    <DlItem
-                      label="業種"
-                      value={job.company.industry}
-                      icon={<Factory weight="duotone" className="h-3.5 w-3.5 text-gray-400" />}
-                    />
-                  )}
-                  {job.company.employeeCount && (
-                    <DlItem
-                      label="従業員数"
-                      value={`${job.company.employeeCount}名`}
-                      icon={<UsersThree weight="duotone" className="h-3.5 w-3.5 text-gray-400" />}
-                    />
-                  )}
-                  {(job.company.prefecture || job.company.address) && (
-                    <DlItem
-                      label="所在地"
-                      value={[
-                        job.company.prefecture,
-                        job.company.city,
-                        job.company.address,
-                      ]
-                        .filter(Boolean)
-                        .join(" ")}
-                      icon={<MapPin weight="duotone" className="h-3.5 w-3.5 text-gray-400" />}
-                    />
-                  )}
-                  {(job.company.websiteUrl || job.companyUrl) && (
-                    <DlItem
-                      label="Web サイト"
-                      value={(job.company.websiteUrl ?? job.companyUrl) as string}
-                      icon={<Globe weight="duotone" className="h-3.5 w-3.5 text-gray-400" />}
-                      isLink
-                    />
-                  )}
-                </div>
-                {job.businessContent && (
-                  <div className="border-t pt-4 space-y-2">
-                    <p className="text-xs font-medium text-gray-500">事業内容</p>
-                    <FormattedText text={job.businessContent} />
-                  </div>
-                )}
-                {job.companyFeatures && (
-                  <div className="border-t pt-4 space-y-2">
-                    <p className="text-xs font-medium text-gray-500">会社の特長</p>
-                    <FormattedText text={job.companyFeatures} />
-                  </div>
-                )}
-                {job.company.description && (
-                  <div className="border-t pt-4">
-                    <FormattedText text={job.company.description} />
-                  </div>
-                )}
-
-                {/* 公式 HP リンクボタン（CTAとして目立たせる） */}
-                {job.company.websiteUrl && (
-                  <a
-                    href={job.company.websiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 border border-primary-500 px-4 py-2 text-sm font-medium text-primary-700 hover:bg-primary-50 transition"
-                  >
-                    <Globe weight="duotone" className="h-4 w-4" />
-                    {job.company.name} 公式 HP を見る
-                  </a>
-                )}
-
-                {hasSns && (
-                  <div className="border-t pt-4">
-                    <p className="flex items-center gap-1.5 text-xs text-gray-500 mb-2">
-                      <ShareNetwork weight="duotone" className="h-3.5 w-3.5" />
-                      公式 SNS
-                    </p>
-                    <SnsLinks
-                      sns={{
-                        instagramUrl: job.company.instagramUrl,
-                        tiktokUrl: job.company.tiktokUrl,
-                        facebookUrl: job.company.facebookUrl,
-                        xUrl: job.company.xUrl,
-                        youtubeUrl: job.company.youtubeUrl,
-                      }}
-                    />
-                  </div>
-                )}
-              </section>
+              <CompanyOverview
+                company={job.company}
+                companyUrl={job.companyUrl}
+                businessContent={job.businessContent}
+                companyFeatures={job.companyFeatures}
+              />
             )}
 
             {/* HW notice */}
@@ -910,11 +734,14 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
               </p>
             )}
 
+            {/* この求人に関するよくある質問（FAQ） */}
+            <JobFaq job={job} />
+
             {/* 11.7 関連求人 (類似求人レコメンド) */}
             {relatedJobs.length > 0 && (
               <section className="border-t pt-6">
-                <h2 className="text-base font-bold text-gray-900">
-                  この求人を見た人におすすめ
+                <h2 className="section-bar text-lg font-bold text-gray-900 sm:text-xl">
+                  条件が近いおすすめ求人
                 </h2>
                 <ul className="mt-3 grid gap-2 sm:grid-cols-2">
                   {relatedJobs.map((r) => (
@@ -991,41 +818,6 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
         initialInterested={isInterested}
         loggedIn={!!loggedInUserId}
       />
-    </div>
-  )
-}
-
-function DlItem({
-  label,
-  value,
-  icon,
-  isLink,
-}: {
-  label: string
-  value: string
-  icon?: React.ReactNode
-  isLink?: boolean
-}) {
-  return (
-    <div>
-      <dt className="flex items-center gap-1 text-xs text-gray-500">
-        {icon}
-        {label}
-      </dt>
-      <dd className="mt-0.5 text-sm text-gray-900">
-        {isLink ? (
-          <a
-            href={value}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary-600 hover:underline truncate block"
-          >
-            {value}
-          </a>
-        ) : (
-          value
-        )}
-      </dd>
     </div>
   )
 }

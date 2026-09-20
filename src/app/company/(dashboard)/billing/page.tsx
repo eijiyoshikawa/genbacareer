@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
-import { HIRING_FEE_AMOUNT } from "@/lib/hiring-fee"
+import { HIRING_FEE_FALLBACK } from "@/lib/hiring-fee"
 import { resolveHiringFee } from "@/lib/hiring-fee"
 import {
   PLAN_LABELS,
@@ -55,7 +55,12 @@ export default async function CompanyBillingPage({
     // 求人ごとの単価範囲を計算するために active 求人の hiringFeeAmount を取得
     prisma.job.findMany({
       where: { companyId, status: "active" },
-      select: { hiringFeeAmount: true },
+      select: {
+        hiringFeeAmount: true,
+        salaryMin: true,
+        salaryMax: true,
+        salaryType: true,
+      },
     }),
     prisma.company.findUnique({
       where: { id: companyId },
@@ -70,8 +75,8 @@ export default async function CompanyBillingPage({
 
   // 求人別の単価レンジ表示（個別設定が混在しているケースの可視化）
   const feeAmounts = companyJobs.map((j) => resolveHiringFee(j))
-  const feeMin = feeAmounts.length > 0 ? Math.min(...feeAmounts) : HIRING_FEE_AMOUNT
-  const feeMax = feeAmounts.length > 0 ? Math.max(...feeAmounts) : HIRING_FEE_AMOUNT
+  const feeMin = feeAmounts.length > 0 ? Math.min(...feeAmounts) : HIRING_FEE_FALLBACK
+  const feeMax = feeAmounts.length > 0 ? Math.max(...feeAmounts) : HIRING_FEE_FALLBACK
   const feeIsRange = feeMin !== feeMax
 
   const totalPages = Math.ceil(total / perPage)

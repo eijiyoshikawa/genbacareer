@@ -1,6 +1,7 @@
 import Link from "next/link"
 import type { Metadata } from "next"
 import { HelpCircle, MessageCircle, Search } from "lucide-react"
+import { toJsonLdScript } from "@/lib/structured-data"
 
 export const metadata: Metadata = {
   title: "よくある質問 | ゲンバキャリア",
@@ -58,7 +59,7 @@ const FAQ: Array<{ section: string; items: QA[] }> = [
     items: [
       {
         q: "求人掲載に費用はかかりますか？",
-        a: "現在、掲載料は無料キャンペーン中です（期間中の新規掲載に限る）。採用が決定した場合のみ成果報酬（1 名あたり 49.8 万円〜・職種による）が発生します。求人の掲載数に制限はありません。",
+        a: "現在、掲載料は無料キャンペーン中です（期間中の新規掲載に限る）。採用が決定した場合のみ成果報酬（採用者の理論年収の 35%・1 名あたり）が発生します。求人の掲載数に制限はありません。",
       },
       {
         q: "求人を掲載するまでの流れを教えてください。",
@@ -126,7 +127,7 @@ export default function FaqPage() {
     <div>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(schema) }}
       />
 
       {/* Hero */}

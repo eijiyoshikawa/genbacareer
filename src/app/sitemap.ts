@@ -75,6 +75,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     },
     {
+      url: `${BASE_URL}/guide`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.7,
+    },
+    {
+      url: `${BASE_URL}/shindan`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    {
       url: `${BASE_URL}/help`,
       lastModified: new Date(),
       changeFrequency: "monthly",
@@ -151,10 +163,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }))
 
   // Active job detail pages（建設業カテゴリのみ、更新順 上位 5,000 件）
+  // dedupedTo: null は重複として close されていないことを担保（防御的）。
+  // 重複求人をサイトマップに含めると Search Console が
+  // 「user-declared canonical と Google's choice が違う」と判定するため除外。
   const jobs = await safeFindMany("jobs", () =>
     prisma.job.findMany({
       where: {
         status: "active",
+        dedupedTo: null,
         category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
       },
       select: { id: true, updatedAt: true },

@@ -27,7 +27,10 @@ export function StickyActionBar({
 }) {
   return (
     <div className="fixed bottom-0 inset-x-0 z-30 border-t-2 border-primary-500 bg-white shadow-[0_-6px_16px_rgba(0,0,0,0.06)]">
-      <div className="mx-auto max-w-7xl px-3 sm:px-6 py-2.5 flex items-center gap-3">
+      <div
+        className="mx-auto max-w-7xl px-3 sm:px-6 pt-2.5 flex items-center gap-3"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.625rem)" }}
+      >
         <div className="hidden sm:flex flex-1 min-w-0 flex-col">
           <span className="text-sm font-semibold text-gray-900 line-clamp-1">
             {title}

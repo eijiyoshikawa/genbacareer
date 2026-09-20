@@ -72,6 +72,7 @@ export default async function CompanyLineLeadsPage({ searchParams }: Props) {
   // ステータス別件数
   const statusCountMap: Record<LeadStatus, number> = {
     pending: 0,
+    follower: 0,
     line_added: 0,
     contacted: 0,
     qualified: 0,

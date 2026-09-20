@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
 
     const existingUser = await prisma.companyUser.findUnique({
       where: { email: contactEmail },
+      select: { id: true },
     });
     if (existingUser) {
       return NextResponse.json(

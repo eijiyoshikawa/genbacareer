@@ -20,6 +20,8 @@ import {
   fallbackSalary,
 } from "@/lib/job-enrichment"
 import { computeRankScore } from "@/lib/ranking"
+import { computeDisplayPriority } from "@/lib/job-display-priority"
+import { normalizeCompanyName } from "@/lib/company-name"
 import type { HelloworkJobData } from "./hellowork"
 
 // ========================================
@@ -124,6 +126,23 @@ function toJobRecord(
     null
   )
 
+  const displayPriority = computeDisplayPriority({
+    source: job.source,
+    salaryType: salary.type,
+    salaryMin: salary.min,
+    salaryMax: salary.max,
+    employmentType: job.employmentType,
+    workHours: job.workHours,
+    workHoursNotes: job.workHoursNotes,
+    holidays: job.holidays,
+    annualHolidays: job.annualHolidays,
+    insurance: job.insurance,
+    smokingPolicy: job.smokingPolicy,
+    trialPeriod: job.trialPeriod,
+    description: job.description,
+    prefecture: job.prefecture,
+  })
+
   return {
     source: job.source,
     helloworkId: truncate(job.helloworkId, 50),
@@ -136,6 +155,7 @@ function toJobRecord(
     salaryMin: salary.min,
     salaryMax: salary.max,
     salaryType: salary.type,
+    displayPriority,
     prefecture: truncate(job.prefecture, 20) || "不明",
     city: job.city ? truncate(job.city, 100) : null,
     address: job.address,
@@ -191,27 +211,34 @@ async function upsertHelloworkCompany(
   job: HelloworkJobData,
   cache: Map<string, string>
 ): Promise<string | null> {
-  const name = job.companyName?.trim()
+  // Company.name/prefecture/city は Job 側より厳しい上限 (200/10/50) なので、
+  // truncate() は Job 用の値ではなく Company 側の上限で改めてかけ直す。
+  // これを怠ると "value too long for column" で upsert 自体が失敗し、
+  // そのジョブ (と後続の同名企業ぶん) がまるごとインポートされなくなる。
+  const name = truncate(normalizeCompanyName(job.companyName), 200)
   if (!name || name === "不明") return null
 
   const cached = cache.get(name)
   if (cached) return cached
+
+  const prefecture = truncate(job.prefecture || null, 10)
+  const city = truncate(job.city, 50)
 
   const company = await prisma.company.upsert({
     where: { company_source_name_unique: { source: "hellowork", name } },
     create: {
       source: "hellowork",
       name,
-      prefecture: job.prefecture || null,
-      city: job.city,
+      prefecture,
+      city,
       address: job.address,
       status: "approved",
     },
     update: {
       // 既存レコードの prefecture/city/address は最新ジョブの値で更新
       // （HW 側で住所が変わる可能性があるため）
-      prefecture: job.prefecture || null,
-      city: job.city,
+      prefecture,
+      city,
       address: job.address,
     },
     select: { id: true },
@@ -253,9 +280,69 @@ function truncate<T extends string | null | undefined>(
  *
  * 「消防設備士」「衛生設備配管」のような建設文脈と衝突する語は意図的に外しており、
  * 「消防士」「衛生管理者」など独立した職名のみを列挙する。
+ *
+ * IT 系は「システム」単独だと「空調システム」「配管システム」等と衝突するため、
+ * 「システムエンジニア」「システム設計」のような複合語のみを列挙する。
  */
 export const BLOCKED_OCCUPATION_PATTERN = new RegExp(
   [
+    // 保険・金融・不動産の営業職（説明文に「建設業のお客様向け」等があると
+    // キーワード判定をすり抜けるため、職種名レベルで遮断する）
+    "保険営業",
+    "生命保険",
+    "損害保険",
+    "生保レディ",
+    "生保営業",
+    "損保営業",
+    "保険外交",
+    "保険募集",
+    "保険代理",
+    "保険アドバイザ",
+    "共済.{0,6}(営業|推進|普及)",
+    "ライフプランナ",
+    "ファイナンシャルプランナ",
+    "証券営業",
+    "銀行員",
+    "信用金庫",
+    "ローン営業",
+    "クレジットカード",
+    "不動産営業",
+    "不動産売買",
+    "不動産仲介",
+    "賃貸仲介",
+    "投資用マンション",
+    // 非建設の運送業（建設資材・重機系ドライバーは inferCategory 側の
+    // 文脈判定で対象内として残る）
+    "引越",
+    "引っ越し",
+    "宅配便",
+    "チャーター便",
+    "フードデリバリ",
+    "バイク便",
+    "新聞配達",
+    "郵便配達",
+    "陸送",
+    "カーキャリア",
+    "霊柩",
+    // 自動車整備・自動車板金（建築板金は対象内のため「板金」単独は入れない。
+    // タイトルが「板金工」だけの曖昧ケースは inferCategory 側で本文から判別）
+    "自動車板金",
+    "自動車鈑金",
+    "鈑金",
+    // 「板金・塗装」「板金/塗装」等の区切り付き表記も自動車系として捕捉
+    // （建築板金は通常「建築板金」「屋根板金」表記のため巻き込まない）
+    "板金.{0,3}塗装",
+    // 工場の金属加工系（建設対象外）
+    "精密板金",
+    "製缶板金",
+    "粉体塗装",
+    "自動車整備",
+    "車体整備",
+    "車両整備",
+    "カーコーティング",
+    "カー用品",
+    "洗車スタッフ",
+    "自動車検査",
     // 配送・運送 (重機・ダンプの建設ドライバーは対象内のため、ここでは個別職種を指定)
     "配送ドライバ",
     "配送員",
@@ -314,26 +401,164 @@ export const BLOCKED_OCCUPATION_PATTERN = new RegExp(
     "学童指導員",
     "児童指導員",
     "ベビーシッター",
+    // 介護・福祉（入居者・見守り・介助を含む施設系の求人）
+    // NOTE: 「介護」「老人ホーム」のような単独/施設名は誤ブロックを生む
+    // （例: 「老人ホーム新築の鳶職人」「介護施設の電気工事士」は対象内）。
+    // ここでは **職務名・業務内容** に限定してブロックする。
+    "介護スタッフ",
+    "介護職員",
+    "介護職",
+    "介護員",
+    "介助業務",
+    "介助スタッフ",
+    "訪問介護",
+    "ホームヘルパ",
+    "看護助手",
+    "看護補助",
+    "介護福祉士",
+    "入居者",
+    "見守り業務",
+    // 障害福祉・児童発達支援
+    "障害児",
+    "障害者支援",
+    "児童発達",
+    "発達支援",
+    "放課後等デイ",
+    "放課後デイ",
+    "通所支援",
+    "通所介護",
+    "デイサービス",
+    "デイケア",
+    "療育",
+    // 教育・塾・学校
+    "塾講師",
+    "学習塾",
+    "家庭教師",
+    "教員募集",
+    "学校事務",
+    "スクール講師",
+    // 美容・理容・エステ
+    "美容師",
+    "理容師",
+    "ネイリスト",
+    "エステティシャン",
+    "アイリスト",
+    "セラピスト",
+    // 接客・販売・飲食ホール
+    "販売スタッフ",
+    "アパレル販売",
+    "ホール業務",
+    "ホールスタッフ",
+    "接客販売",
+    "レジ業務",
+    "レジスタッフ",
+    // 医療事務・薬局
+    "医療事務",
+    "調剤事務",
+    "薬剤師",
+    // 歯科・口腔（「衛生指導」「予防処置」等が electrical の「衛生」に誤マッチするため
+    // 職名・文脈語でタイトル除外する）
+    "歯科",
+    "口腔",
+    // IT・ソフトウェア開発（「設計」が survey に、社名等が誤分類されるのを防ぐ。
+    // 全角表記もタイトル正規化後にマッチする。建設と衝突しない複合語のみ列挙する。
+    // 除外した語と理由（いずれも建設求人を巻き込むため）:
+    //   - 「システム設計」 … 空調/給排水「システム設計」
+    //   - 「客先常駐」     … 建設の客先常駐求人（建築施工管理 等）
+    //   - 「インフラエンジニア」「ネットワークエンジニア」
+    //                      … 土木インフラ/通信設備（例:「インフラエンジニア（土木施工管理技士）」）
+    //   - 製造オペレーター系 … 「建設機械オペレーター」を巻き込む
+    // これらの純IT求人は建設キーワードを含まないため、ブロック語が無くても
+    // カテゴリ未一致で自然に null になる（= 除外される）。
+    "システムエンジニア",
+    "システム開発",
+    "プログラマ",
+    "ソフトウェア",
+    "webエンジニア",
+    "web開発",
+    "アプリ開発",
+    "アプリケーション開発",
   ].join("|"),
   "i"
 )
 
+/**
+ * 全角英数記号（Ａ-Ｚ, ａ-ｚ, ０-９, 全角記号）を半角へ正規化する。
+ * ハローワークの求人タイトルは「ＳＥＳ」「Ｒｅａｃｔ」「ＣＡＤ」のように全角英字を
+ * 多用するため、ブロックリスト / カテゴリ判定の前に正規化してマッチ精度を上げる。
+ * 全角カタカナ（オペレーター等）や漢字は対象外（U+FF01–FF5E のみ変換）。
+ */
+function normalizeWidth(s: string): string {
+  return s.replace(/[！-～]/g, (c) =>
+    String.fromCharCode(c.charCodeAt(0) - 0xfee0)
+  )
+}
+
+/**
+ * ハローワークが求人に付与する職業分類名 (occupationCategoryName / sngbrui_n) による
+ * 非建設職種の遮断。タイトル・説明文のキーワードと違い、HW 側が「この求人の職種」
+ * として分類した属性なので、説明文に建設ワードが含まれていても誤って通過しない。
+ * ※「運転」系分類はダンプ・重機回送等の建設ドライバーを含むためここでは遮断せず、
+ *   inferCategory 内の建設文脈判定に委ねる。
+ */
+export const BLOCKED_CLASSIFICATION_PATTERN =
+  /保険|金融|証券|銀行|飲食|調理|接客|給仕|介護|福祉|看護|医療|薬剤|歯科|保育|教育|教員|美容|理容|警備|清掃|理美容/
+
 export function inferCategory(
   title: string,
-  description: string | null | undefined
+  description: string | null | undefined,
+  occupationCategoryName?: string | null
 ): CategoryValue | null {
-  const titleLower = title.toLowerCase()
+  const titleLower = normalizeWidth(title).toLowerCase()
+
+  // HW の職業分類名で非建設職種を先に遮断（説明文キーワードより信頼できる属性）
+  if (
+    occupationCategoryName &&
+    BLOCKED_CLASSIFICATION_PATTERN.test(occupationCategoryName)
+  ) {
+    return null
+  }
 
   // 非対象職種を先に除外（タイトルで判定）
   if (BLOCKED_OCCUPATION_PATTERN.test(titleLower)) return null
 
-  const text = `${titleLower} ${description ?? ""}`.toLowerCase()
+  const text = normalizeWidth(`${title} ${description ?? ""}`).toLowerCase()
+
+  // 「板金」は建築板金（屋根・外壁・雨樋・ダクト = 対象）と自動車板金（対象外）の
+  // 両方があり、タイトルだけでは判別できないケースがある（例: 「板金工」）。
+  // タイトルに板金を含む場合は、本文の自動車系シグナルで対象外と判定する。
+  if (/板金/.test(titleLower)) {
+    const automotive = /自動車|車両|車体|カー|バンパー|ディーラー|車検|鈑金|純正部品|事故車/.test(text)
+    const architectural = /建築板金|屋根|外壁|雨樋|雨とい|ダクト|折板|瓦棒|葺き/.test(text)
+    if (automotive && !architectural) return null
+  }
+
+  // 営業職: タイトルが営業で、タイトル自体に建設系ワードが無いものは対象外。
+  // （保険・人材・広告営業などは説明文に「建設業界のお客様」等が入りがちで、
+  //   本文キーワード判定だと誤って通過するため、タイトルで判定する）
+  if (/営業/.test(titleLower)) {
+    const constructionSales =
+      /建設|建築|土木|工事|住宅|リフォーム|外壁|屋根|重機|建機|資材/.test(titleLower)
+    if (!constructionSales) return null
+  }
+
+  // ドライバー・運転手: 一般貨物（食品・雑貨・宅配等）は対象外。
+  // 建設車両・建設現場の文脈がある場合のみ「ドライバー・重機」として取り込む。
+  if (/ドライバー|運転手|トラック/.test(titleLower)) {
+    const constructionDriver =
+      /重機|建設機械|建機|クレーン|ダンプ|ショベル|ユンボ|ミキサー|生コン|ユニック|回送|セルフローダ|土砂|砕石|残土|アスファルト|高所作業車|杭|建設|建築|土木|現場|資材|鉄骨|足場|型枠|解体|産廃|工事/.test(
+        text
+      )
+    return constructionDriver ? "driver" : null
+  }
 
   const patterns: Array<{ category: CategoryValue; pattern: RegExp }> = [
     { category: "civil", pattern: /土木|舗装|道路|河川|橋梁|トンネル|造成/ },
     {
+      // 「衛生」単独は歯科の「衛生指導」「口腔衛生」等に誤マッチするため、
+      // 建設の給排水衛生設備を表す複合語に限定する。
       category: "electrical",
-      pattern: /電気工事|設備工事|空調|衛生|配管|配線|消防/,
+      pattern: /電気工事|設備工事|空調|衛生設備|給排水|配管|配線|消防/,
     },
     {
       category: "interior",
@@ -341,8 +566,10 @@ export function inferCategory(
     },
     { category: "demolition", pattern: /解体|産廃|アスベスト|スクラップ/ },
     {
+      // 「オペレーター」単独は電話/PC/製造オペレーター等に誤マッチするため除外し、
+      // 建設機械（重機/建設機械/クレーン/ダンプ/建機/ショベル/ユンボ）に限定する。
       category: "driver",
-      pattern: /ドライバー|運転手|重機|オペレーター|クレーン|ダンプ/,
+      pattern: /重機|建設機械|建機|クレーン|ダンプ|ショベル|ユンボ|ミキサー車|生コン|ユニック|セルフローダ|高所作業車/,
     },
     {
       category: "management",
@@ -351,7 +578,7 @@ export function inferCategory(
     { category: "survey", pattern: /測量|設計|cad|積算/ },
     {
       category: "construction",
-      pattern: /建設|建築|躯体|鳶|鉄筋|型枠|大工|足場|基礎/,
+      pattern: /建設|建築|躯体|鳶|鉄筋|型枠|大工|足場|基礎|屋根|建築板金/,
     },
   ]
 
@@ -425,7 +652,11 @@ export async function importHelloworkJobs(
   for (const job of jobs) {
     try {
       // 建設業 9 カテゴリのいずれにも該当しないジョブは取り込まない
-      const category = inferCategory(job.title, job.description)
+      const category = inferCategory(
+        job.title,
+        job.description,
+        job.occupationCategoryName
+      )
       if (category === null) {
         skipped++
         continue
@@ -463,6 +694,7 @@ export async function importHelloworkJobs(
           salaryMin: data.salaryMin,
           salaryMax: data.salaryMax,
           salaryType: data.salaryType,
+          displayPriority: data.displayPriority,
           prefecture: data.prefecture,
           city: data.city,
           address: data.address,

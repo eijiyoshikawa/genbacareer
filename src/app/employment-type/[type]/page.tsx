@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import type { Metadata } from "next"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
 import {
@@ -12,6 +13,7 @@ import {
   generateBreadcrumbSchema,
   generateCollectionPageSchema,
   generateItemListSchema,
+  toJsonLdScript,
 } from "@/lib/structured-data"
 import { auth } from "@/lib/auth"
 import { GUEST_LIMIT } from "@/lib/guest-job-access"
@@ -70,7 +72,7 @@ export default async function EmploymentTypeLpPage({ params }: Props) {
     prisma.job
       .findMany({
         where,
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit,
         select: {
           id: true,
@@ -117,15 +119,15 @@ export default async function EmploymentTypeLpPage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPage) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(collectionPage) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(itemList) }}
       />
 
       <header className="border-b bg-warm-50">

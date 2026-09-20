@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation"
 import { PREFECTURES } from "@/lib/constants"
 import { CATEGORIES } from "@/lib/categories"
 import { JOB_SEARCH_STATUSES } from "@/lib/job-search-status"
+import { PostalCodeInput } from "@/components/forms/postal-code-input"
+
+// 希望月収（下限）の選択肢: 20万〜50万円・5万円刻み
+const SALARY_MIN_OPTIONS = [
+  200_000, 250_000, 300_000, 350_000, 400_000, 450_000, 500_000,
+]
 
 interface ProfileFormData {
   name: string
@@ -21,6 +27,8 @@ interface ProfileFormData {
 export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
   const router = useRouter()
   const [form, setForm] = useState(initialData)
+  // 郵便番号は住所自動入力の補助用。User スキーマには保存しないためローカル state。
+  const [postalCode, setPostalCode] = useState("")
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -117,6 +125,18 @@ export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
           />
         </div>
 
+        <PostalCodeInput
+          value={postalCode}
+          onValueChange={setPostalCode}
+          onResolved={(addr) =>
+            setForm((prev) => ({
+              ...prev,
+              prefecture: addr.prefecture,
+              city: `${addr.city}${addr.town}`,
+            }))
+          }
+        />
+
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700">
@@ -191,18 +211,30 @@ export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
 
         <div>
           <label className="block text-sm font-medium text-gray-700">
-            希望月収（下限・円）
+            希望月収（下限）
           </label>
-          <input
-            type="number"
-            min={0}
+          <select
             value={form.desiredSalaryMin}
             onChange={(e) =>
               setForm({ ...form, desiredSalaryMin: e.target.value })
             }
-            className="mt-1 block w-full border px-3 py-2 text-sm shadow-sm"
-            placeholder="200000"
-          />
+            className="mt-1 block w-full border bg-white px-3 py-2 text-sm shadow-sm"
+          >
+            <option value="">指定なし</option>
+            {/* 20万〜50万円・5万円刻み */}
+            {SALARY_MIN_OPTIONS.map((v) => (
+              <option key={v} value={v}>
+                {v / 10000}万円以上
+              </option>
+            ))}
+            {/* 旧フォーム(自由入力)で保存済みの値が刻みに無い場合も表示を保つ */}
+            {form.desiredSalaryMin &&
+              !SALARY_MIN_OPTIONS.includes(Number(form.desiredSalaryMin)) && (
+                <option value={form.desiredSalaryMin}>
+                  {Number(form.desiredSalaryMin).toLocaleString()}円以上（現在の設定）
+                </option>
+              )}
+          </select>
         </div>
       </div>
 
@@ -250,6 +282,18 @@ export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
             プロフィールを企業に公開する
           </span>
         </label>
+        {!form.profilePublic && (
+          <div className="mt-1 flex items-start gap-2 border border-amber-300 bg-amber-50 p-3">
+            <span aria-hidden className="text-base leading-none">⚠️</span>
+            <p className="text-xs leading-relaxed text-amber-900">
+              <span className="font-bold">
+                公開をオフにすると、企業からのスカウトが届かなくなります。
+              </span>
+              <br />
+              スカウト機能のリリース後も、あなたの経験にマッチした好条件のオファーを受け取れません。特別な理由がなければ公開のままをおすすめします。
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-3">

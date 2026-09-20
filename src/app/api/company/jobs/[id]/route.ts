@@ -2,6 +2,8 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { revalidateAfterJobChange } from "@/lib/revalidate-public"
+import { computeDisplayPriority } from "@/lib/job-display-priority"
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -19,6 +21,7 @@ const updateJobSchema = z.object({
   benefits: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
   videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
+  imageUrls: z.array(z.string().url().max(500)).max(12).optional(),
   status: z.enum(["draft", "active", "closed"]).optional(),
   /**
    * 楽観ロック用 ISO timestamp。GET で取得した updatedAt をそのまま PUT に
@@ -73,7 +76,26 @@ export async function PUT(
 
   const existing = await prisma.job.findUnique({
     where: { id },
-    select: { companyId: true, status: true, publishedAt: true, updatedAt: true },
+    select: {
+      companyId: true,
+      status: true,
+      publishedAt: true,
+      updatedAt: true,
+      source: true,
+      salaryType: true,
+      salaryMin: true,
+      salaryMax: true,
+      employmentType: true,
+      workHours: true,
+      workHoursNotes: true,
+      holidays: true,
+      annualHolidays: true,
+      insurance: true,
+      smokingPolicy: true,
+      trialPeriod: true,
+      description: true,
+      prefecture: true,
+    },
   })
   if (!existing || existing.companyId !== ctx.companyId) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
@@ -119,11 +141,32 @@ export async function PUT(
       ? new Date()
       : undefined
 
+  // 編集後の値で displayPriority を再計算（賃金タイプや明示項目の変更を反映）
+  const merged = {
+    source: existing.source,
+    salaryType: data.salaryType !== undefined ? data.salaryType : existing.salaryType,
+    salaryMin: data.salaryMin !== undefined ? data.salaryMin : existing.salaryMin,
+    salaryMax: data.salaryMax !== undefined ? data.salaryMax : existing.salaryMax,
+    employmentType:
+      data.employmentType !== undefined ? data.employmentType : existing.employmentType,
+    workHours: existing.workHours,
+    workHoursNotes: existing.workHoursNotes,
+    holidays: existing.holidays,
+    annualHolidays: existing.annualHolidays,
+    insurance: existing.insurance,
+    smokingPolicy: existing.smokingPolicy,
+    trialPeriod: existing.trialPeriod,
+    description: data.description !== undefined ? data.description : existing.description,
+    prefecture: data.prefecture !== undefined ? data.prefecture : existing.prefecture,
+  }
+  const displayPriority = computeDisplayPriority(merged)
+
   const job = await prisma.job.update({
     where: { id },
     data: {
       ...data,
       ...(publishedAt ? { publishedAt } : {}),
+      displayPriority,
     },
   })
 
@@ -139,6 +182,13 @@ export async function PUT(
         `[gbiz-reminder] job published without corporateNumber: companyId=${existing.companyId} name=${company.name} jobId=${id}`
       )
     }
+  }
+
+  // 公開中の求人に変更があった、または初回公開された場合のみ public ページを再生成。
+  // draft 編集の度に revalidate する必要は無いので、active なケースに限定する。
+  const isNowActive = data.status === "active" || (!data.status && existing.status === "active")
+  if (isNowActive || publishedAt) {
+    revalidateAfterJobChange({ companyId: existing.companyId })
   }
 
   return Response.json({ job })
@@ -157,13 +207,18 @@ export async function DELETE(
 
   const existing = await prisma.job.findUnique({
     where: { id },
-    select: { companyId: true },
+    select: { companyId: true, status: true },
   })
   if (!existing || existing.companyId !== ctx.companyId) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
   }
 
   await prisma.job.delete({ where: { id } })
+
+  // 公開中だった求人の削除はトップ / 企業ページの一覧に影響するので再生成。
+  if (existing.status === "active") {
+    revalidateAfterJobChange({ companyId: existing.companyId })
+  }
 
   return Response.json({ success: true })
 }

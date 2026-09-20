@@ -18,41 +18,15 @@ export function BrandLogo({
   const accent =
     variant === "dark" ? "text-primary-400" : "text-primary-500"
 
+  // 横長ワードマーク SVG(明背景向け・濃グレー文字)は Footer 等の暗背景で視認性が
+  // 落ちるため、Header 以外（Footer / モバイルメニュー）ではテキストのワードマークを使う。
+  // variant により明暗どちらの背景でも読めるよう配色を切り替える。
   return (
-    <span className={`inline-flex items-center gap-2 ${className}`}>
-      <span className="relative inline-flex h-8 w-8 items-center justify-center">
-        {/* ロゴアイコン: ヘルメット + 斜めライン背景 */}
-        <svg
-          viewBox="0 0 32 32"
-          className={`h-8 w-8 ${accent}`}
-          fill="currentColor"
-          aria-hidden
-        >
-          {/* 背景の斜線（safety stripe） */}
-          <defs>
-            <linearGradient id="bc-grad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="currentColor" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          <rect width="32" height="32" rx="7" fill="url(#bc-grad)" />
-          {/* ヘルメット本体 */}
-          <path
-            d="M16 7c-4.4 0-8 3.4-8 7.6V19h16v-4.4C24 10.4 20.4 7 16 7zm-6 9.6c0-3.3 2.7-6 6-6s6 2.7 6 6V17H10v-0.4z"
-            fill="currentColor"
-          />
-          {/* 顎ライン */}
-          <rect x="7" y="20" width="18" height="2.4" rx="1.2" fill="currentColor" />
-          {/* リム下のハイライト */}
-          <rect x="11" y="11.5" width="10" height="1.5" rx="0.75" fill="currentColor" opacity="0.6" />
-        </svg>
+    <span className={`inline-flex items-center ${className}`}>
+      <span className={`text-lg font-extrabold tracking-tight ${wordColor}`}>
+        ゲンバ
+        <span className={accent}>キャリア</span>
       </span>
-      {variant !== "icon" && (
-        <span className={`text-lg font-extrabold tracking-tight ${wordColor}`}>
-          ゲンバ
-          <span className={accent}>キャリア</span>
-        </span>
-      )}
     </span>
   )
 }

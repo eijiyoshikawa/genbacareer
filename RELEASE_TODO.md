@@ -92,22 +92,23 @@ CI でも実行したい場合は `PLAYWRIGHT_BASE_URL=https://genbacareer.jp pn
 
 ### 8. LINE 公式アカウント連携
 
-- [ ] LINE Developers で Messaging API 設定
-- [ ] Webhook URL を `https://genbacareer.jp/api/line/webhook` に設定
-- [ ] チャネルアクセストークン / シークレットを `LINE_CHANNEL_*` に
-- [ ] リッチメニュー登録: `pnpm tsx scripts/setup-line-rich-menu.ts`
+詳細手順は `docs/line-integration.md` 参照 (3 チャネル構成: LINE Login + Messaging API + LIFF)。
 
-### 9. MoneyForward クラウド請求書 連携（成果報酬の請求書発行）
+- [ ] LINE Developers Console でプロバイダー + 3 チャネル作成
+- [ ] Webhook URL を `https://www.genbacareer.jp/api/line/webhook` に設定 + 「Webhook の検証」を成功
+- [ ] LINE Login / Messaging API / LIFF の各 ID / secret / token を `.env.example` の通り Vercel に登録
+- [ ] LINE Official Account Manager で応答モード = Bot、あいさつ / 応答メッセージはオフ
+- [ ] リッチメニュー画像準備 (2500×1686px) → `scripts/rich-menu.png` に配置 → `pnpm tsx scripts/setup-line-rich-menu.ts`
+- [ ] スモークテスト: 友だち追加 → あいさつ受信 / LIFF 応募 → LineLead 作成 / push 送信 (`/admin/line-leads/[id]`)
 
-採用 1 件あたり成果報酬 ¥498,000〜（職種による）を MoneyForward クラウド請求書で発行する設計。
-**月額サブスクリプションは使いません**（コードも対応済み）。
-**Stripe カード決済は 2026-05 PR #204 で廃止済み**（景品表示法対応の方針見直しに伴う）。
+### 9. 成果報酬の請求書発行 —【方針変更】担当者が都度・手動発行
 
-- [ ] MoneyForward クラウド請求書アカウント作成 + 事業者情報設定
-- [ ] OAuth2 Client 設定（B2B 用途、Client Credentials Grant）
-- [ ] `MF_CLIENT_ID` / `MF_CLIENT_SECRET` / `MF_OFFICE_ID` を Vercel に設定
-- [ ] テスト用取引先で billing 作成 → PDF 発行確認
-- [ ] 環境変数未設定時は admin 手動 invoice 発行運用にフォールバック可能
+> 2026-07 決定: **MoneyForward の自動連携は行わない**。請求書は担当者が
+> 案件ごとに手動で発行・送付する運用にする。よって `MF_*` 環境変数の設定・
+> OAuth 連携・自動請求のコード整備は**不要**（該当コードがあっても未使用でよい）。
+
+- [x] 方針: 請求書は手動発行（別担当・都度）
+- （参考）Stripe カード決済は 2026-05 PR #204 で廃止済み（景品表示法対応）
 
 ### 10. Sentry プロジェクト作成
 
@@ -328,12 +329,13 @@ PR #206 で実装。マイナビ転職参考のスカウトメール + 求職者
 
   ※ RELEASE_TODO 初版にあった「6 ヶ月間はキャンペーンを最上位で運用」のロジック切替は admin から手動で `planTier` を上書き運用 (`PlanEditor.planNotes` で履歴残す)。コード固定にはしない。
 
-### C9. 一括前払い 10% OFF の請求書発行ロジック 【中】
+### C9. 一括前払い 10% OFF の請求書発行ロジック 【不要 / 手動運用】
 
-- ② 12 ヶ月 → ¥597,600 を一括 → 10% OFF → ¥537,840 請求書 1 通
-- ③ 24 ヶ月 → ¥720,000 を一括 → 10% OFF → ¥648,000 請求書 1 通
-- 分割契約と一括前払いを `CompanyPlan.prepaid_full` で識別
-- MoneyForward 連携部分で一括前払い用テンプレートを追加
+> 2026-07 決定: 請求書は担当者が手動発行するため、**一括前払いの請求書自動
+> 生成ロジックは実装しない**。金額計算の参考のみ残す（担当者が手動で適用）。
+
+- ② 12 ヶ月 → ¥597,600 を一括 → 10% OFF → ¥537,840（手動発行）
+- ③ 24 ヶ月 → ¥720,000 を一括 → 10% OFF → ¥648,000（手動発行）
 
 ### C10. 利用規約 / プラン詳細ページの更新 【高】 ⏳ 一部 PR #204
 

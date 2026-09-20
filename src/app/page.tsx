@@ -1,7 +1,8 @@
 import Link from "next/link"
 import Image from "next/image"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
-import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
+import { CONSTRUCTION_CATEGORY_VALUES, getCategoryLabel } from "@/lib/categories"
 import { publishedArticleFilter } from "@/lib/articles"
 import { withTimeout } from "@/lib/with-timeout"
 import { diversifyByCompany } from "@/lib/job-diversify"
@@ -12,92 +13,106 @@ import {
   MapPin,
   Banknote,
 } from "lucide-react"
+import {
+  HardHat,
+  Mountains,
+  Lightning,
+  PaintBrush,
+  Hammer,
+  Truck,
+  ClipboardText,
+  Ruler,
+  Wrench,
+} from "@phosphor-icons/react/dist/ssr"
 import { CATEGORY_LABELS } from "@/lib/article-categories"
 import { RecommendedForYou } from "@/components/jobs/recommended-for-you"
 import { Section } from "@/components/ui/section"
 import { getCategoryCounts } from "@/lib/job-stats"
-import { HeroSlideshow, type HeroSlide } from "@/components/home/hero-slideshow"
-import { QuickSearchPanel } from "@/components/home/quick-search-panel"
+import { HeroSearch } from "@/components/home/hero-search"
 import {
   FeaturedCompanyLogos,
   type FeaturedCompany,
 } from "@/components/home/featured-company-logos"
 import { MemberCta } from "@/components/home/member-cta"
 import { HomeSidebar } from "@/components/home/home-sidebar"
+import { AnnounceMarquee } from "@/components/home/announce-marquee"
+import { SeoFooterLinks } from "@/components/home/seo-footer-links"
+import { SalaryStats, type SalaryStatRow } from "@/components/home/salary-stats"
+import { VoiceSection } from "@/components/home/voice-section"
+import { LineLoginButton } from "@/components/auth/line-login-button"
+import { unstable_cache } from "next/cache"
 import type { Metadata } from "next"
+
+// 「掲載求人数」の表示値は週 1 回だけ更新する（毎日の増減で数字が揺れて
+// 見えるのを防ぐ）。ページ本体の ISR(24h) や求人リスト・カテゴリ件数の
+// 鮮度には影響しない — この合計値のみ 7 日間 Data Cache に保持される。
+const getWeeklyTotalJobs = unstable_cache(
+  async () => {
+    const counts = await getCategoryCounts()
+    return counts.reduce((sum, c) => sum + c.count, 0)
+  },
+  ["weekly-total-jobs"],
+  { revalidate: 7 * 24 * 60 * 60 },
+)
 
 // ホームは ISR で 24 時間キャッシュ。/api/cron/warmup が 5 分おきに叩いて
 // CDN キャッシュとラムダをウォームに保つため、PageSpeed や初回訪問でも
 // コールド lambda の 5 秒待ちが発生しない。
-// 新着求人や記事の反映が遅れる場合は、管理画面側で revalidatePath('/') を
-// 叩く運用にする（公開直後の即時反映が必要なケース）。
+// 新着求人 / 記事の公開時は src/lib/revalidate-public.ts 経由で
+// 自動的に revalidatePath('/') が呼ばれるので、24h 待たずに即時反映される。
 export const revalidate = 86400
 
 export const metadata: Metadata = {
-  title: "ゲンバキャリア | 建築・土木・電気・内装の求人サイト",
+  title: "ゲンバキャリア | 今、稼げる建設業界で新しい自分を",
   description:
-    "20〜30 代の若手も活躍中。建築・土木・電気・内装・解体・ドライバー・施工管理・測量の求人を探せる建設業特化型求人サイト。LINE で気軽に応募。",
+    "未経験から高収入も狙える、今話題の建設業界。建築・土木・電気・内装・解体・ドライバー・施工管理・測量の求人を探せる求人サイト。履歴書なし、LINE で気軽に応募。",
   alternates: { canonical: "/" },
 }
 
-// Hero スライドショー用の見本データ。
-// あとから運営側で差し替え運用する想定。本番では cms / 設定パネル化を検討。
-const HERO_SLIDES: HeroSlide[] = [
-  {
-    image:
-      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1800&q=72",
-    badge: "建設業界特化",
-    title: "建設業の求人を、スマホで気軽に探せる。",
-    subtitle:
-      "全国の建設業求人を網羅。履歴書なし、LINE で気軽に応募できます。",
-    ctaLabel: "求人を探す",
-    ctaHref: "/jobs",
-  },
-  {
-    image:
-      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1800&q=72",
-    badge: "未経験 OK",
-    title: "未経験から始める建設キャリア",
-    subtitle:
-      "20〜30 代の若手が活躍中。研修・資格支援が充実した会社を厳選しました。",
-    ctaLabel: "未経験 OK の求人",
-    ctaHref: "/jobs?q=未経験",
-  },
-  {
-    image:
-      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1800&q=72",
-    badge: "資格取得支援",
-    title: "国家資格を取りながら働く",
-    subtitle:
-      "施工管理技士・電気工事士・玉掛けなど、会社負担で取れる求人を厳選。",
-    ctaLabel: "資格支援ありの求人",
-    ctaHref: "/jobs?q=資格",
-  },
-  {
-    image:
-      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1800&q=72",
-    badge: "全国 47 都道府県",
-    title: "地元の現場で長く働く",
-    subtitle: "全国の建設業求人を網羅。あなたの街の現場と出会えます。",
-    ctaLabel: "地域から探す",
-    ctaHref: "/jobs",
-  },
-]
 
 // トップ「お知らせ」プレースホルダー (運用が始まったら CMS / DB から取得に切替)
+// お知らせ（機能リリース告知）。新しい順に並べる。
+// 各 href はその機能の実ページへ遷移する（マガジン top には飛ばさない）。
 const ANNOUNCEMENTS: Array<{ date: string; label: string; href?: string }> = [
   {
-    date: "2026-05-20",
+    date: "2026-07-15",
+    label: "企業様向けに Google カレンダー連携（面接日時の自動共有）をリリースしました。",
+    href: "/for-employers",
+  },
+  {
+    date: "2026-07-13",
     label: "採用決定でお祝い金がもらえる「ハイヤリングボーナス」を開始しました。",
+    href: "/faq",
+  },
+  {
+    date: "2026-07-11",
+    label: "企業から直接オファーが届く「スカウト」機能を公開しました。",
+    href: "/mypage/scouts",
+  },
+  {
+    date: "2026-07-09",
+    label: "職種別の給与相場がわかる「給与データ」を公開しました。",
+    href: "/salary",
+  },
+  {
+    date: "2026-07-07",
+    label: "地図から近くの現場を探せる「求人マップ」を公開しました。",
+    href: "/jobs/map",
+  },
+  {
+    date: "2026-07-05",
+    label: "あなたに向いている職種がわかる「建設業 適職診断」を公開しました（無料・1分）。",
+    href: "/shindan",
+  },
+  {
+    date: "2026-07-03",
+    label: "現場のリアルがわかる「マガジン（体験談・お役立ち）」を公開しました。",
     href: "/journal",
   },
   {
-    date: "2026-05-10",
-    label: "企業様向けに Google カレンダー連携 (面接日時の自動共有) をリリースしました。",
-  },
-  {
-    date: "2026-05-01",
-    label: "ゲンバキャリアが建設業特化求人サイトとして本日正式オープンしました。",
+    date: "2026-07-01",
+    label: "ゲンバキャリアが建設業特化の求人サイトとして正式オープンしました。",
+    href: "/jobs",
   },
 ]
 
@@ -131,7 +146,7 @@ const THEMED_BUCKETS: Array<{
     desc: "高収入の現場リーダー候補。",
     query: "高収入",
     image:
-      "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1000&q=70",
+      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1000&q=70",
     bg: "from-rose-500 to-rose-700",
   },
   {
@@ -155,7 +170,7 @@ const THEMED_BUCKETS: Array<{
     desc: "現場リーダー / 監督候補。",
     query: "経験者",
     image:
-      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1000&q=70",
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1000&q=70",
     bg: "from-cyan-600 to-cyan-800",
   },
 ]
@@ -304,6 +319,30 @@ const WORK_STYLES: Array<{
   },
 ]
 
+// 職種カテゴリ → アイコン（チップ表示用）
+const CATEGORY_ICONS: Record<string, typeof HardHat> = {
+  construction: HardHat,
+  civil: Mountains,
+  electrical: Lightning,
+  interior: PaintBrush,
+  demolition: Hammer,
+  driver: Truck,
+  management: ClipboardText,
+  survey: Ruler,
+}
+
+// TOP に置く「人気のこだわり条件」チップ
+const POPULAR_CONDITIONS: string[] = [
+  "未経験歓迎",
+  "土日祝休み",
+  "週休2日",
+  "寮・社宅あり",
+  "資格取得支援",
+  "日払い・週払い",
+  "高収入",
+  "学歴不問",
+]
+
 export default async function HomePage() {
   const baseConstructionFilter = {
     status: "active" as const,
@@ -331,7 +370,7 @@ export default async function HomePage() {
       prisma.job
       .findMany({
         where: baseConstructionFilter,
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: 18,
         select: {
           id: true,
@@ -343,6 +382,7 @@ export default async function HomePage() {
           salaryMax: true,
           salaryType: true,
           tags: true,
+          imageUrls: true,
           companyId: true,
           company: { select: { name: true } },
         },
@@ -364,6 +404,7 @@ export default async function HomePage() {
               salaryMax: true,
               salaryType: true,
               tags: true,
+              imageUrls: true,
               companyId: true,
               company: { select: { name: true } },
             },
@@ -392,7 +433,7 @@ export default async function HomePage() {
         .findMany({
           where: { ...publishedArticleFilter(), category: "interview" },
           orderBy: { publishedAt: "desc" },
-          take: 4,
+          take: 5,
           select: { slug: true, title: true, publishedAt: true, imageUrl: true },
         })
         .catch(() => []),
@@ -421,9 +462,54 @@ export default async function HomePage() {
   ])
 
   // A4: 同一企業の連続表示を抑制した上で、表示用 6 件に絞る
-  const diversifiedRecommendedJobs = diversifyByCompany(recommendedJobs).slice(0, 6)
+  // メインのランキングは 6 件、サイドバー「注目求人」は 7 件使うため余裕を持って確保
+  const diversifiedRecommendedJobs = diversifyByCompany(recommendedJobs).slice(0, 8)
 
-  const totalJobs = categoryCounts.reduce((sum, c) => sum + c.count, 0)
+
+  // 職種別の平均月給（給与相場グラフ用）。月給制・提示額ありの公開求人から算出。
+  const salaryAgg = await withTimeout(
+    prisma.job
+      .groupBy({
+        by: ["category"],
+        where: {
+          status: "active",
+          salaryType: "monthly",
+          category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
+          salaryMin: { gt: 0 },
+        },
+        _avg: { salaryMin: true, salaryMax: true },
+        _count: { _all: true },
+      })
+      .catch(() => [] as never[]),
+    DB_DEADLINE_MS,
+    [] as never[],
+    "salaryByCategory",
+  )
+  const salaryStatRows: SalaryStatRow[] = (
+    salaryAgg as Array<{
+      category: string
+      _avg: { salaryMin: number | null; salaryMax: number | null }
+      _count: { _all: number }
+    }>
+  )
+    .filter((r) => (r._avg.salaryMin ?? 0) > 0)
+    .map((r) => ({
+      category: r.category,
+      label: getCategoryLabel(r.category),
+      avgMin: Math.round(r._avg.salaryMin ?? 0),
+      avgMax: Math.round(r._avg.salaryMax ?? r._avg.salaryMin ?? 0),
+      count: r._count._all,
+    }))
+    .sort((a, b) => b.avgMax - a.avgMax)
+
+  // 表示用の掲載求人数（週1更新）。キャッシュ取得に失敗した場合のみ
+  // その場の categoryCounts 合算にフォールバックする。
+  const totalJobs = await withTimeout(
+    getWeeklyTotalJobs(),
+    DB_DEADLINE_MS,
+    categoryCounts.reduce((sum, c) => sum + c.count, 0),
+    "weeklyTotalJobs",
+  )
   const categoriesWithCounts = categories.map((c) => ({
     ...c,
     count: categoryCounts.find((cc) => cc.category === c.key)?.count ?? 0,
@@ -431,14 +517,46 @@ export default async function HomePage() {
 
   return (
     <div className="bg-white">
-      {/* === Hero スライドショー ============================================== */}
-      <HeroSlideshow slides={HERO_SLIDES} />
+      {/* === Hero（写真ストリップ + 職種×勤務地 検索）======================= */}
+      <HeroSearch totalJobs={totalJobs} />
 
-      {/* === 3 軸クイック検索パネル =========================================== */}
-      <QuickSearchPanel totalJobs={totalJobs} />
+      {/* === お知らせ（1 行マーキー）======================================== */}
+      <AnnounceMarquee items={ANNOUNCEMENTS} />
 
       {/* === 注目企業ピックアップ (logoUrl のある認定企業を最大 10 社) =========== */}
       <FeaturedCompanyLogos companies={featuredCompanies} />
+
+      {/* === 適職診断バナー ================================================ */}
+      <Section size="sm">
+        <Link
+          href="/shindan"
+          className="press group relative block overflow-hidden bg-brand-gradient p-5 text-white shadow-sm sm:p-6"
+        >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl"
+          />
+          <div className="relative flex items-center justify-between gap-4">
+            <div>
+              <p className="inline-flex items-center bg-white/20 px-2 py-0.5 text-[11px] font-bold">
+                無料・1分
+              </p>
+              <p className="mt-1.5 text-lg font-black leading-tight sm:text-xl">
+                建設業 適職診断｜あなたに向いている職種は？
+              </p>
+              <p className="mt-1 text-xs text-white/90">
+                かんたん8問。診断結果からそのまま求人を探せます。
+              </p>
+            </div>
+            <span className="shrink-0 bg-white px-4 py-2.5 text-sm font-extrabold text-primary-700 transition group-hover:bg-orange-50">
+              診断する →
+            </span>
+          </div>
+        </Link>
+      </Section>
+
+      {/* === ブランドコピー + 利用者の声 ==================================== */}
+      <VoiceSection />
 
       {/* === 様々な切り口から探す (テーマ別バナー) ============================ */}
       <Section size="md">
@@ -486,53 +604,38 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12 grid gap-6 lg:gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
           <main className="min-w-0 space-y-8 sm:space-y-10">
 
-      {/* === 職種から探す ===================================================== */}
+      {/* === 勤務地から探す ================================================== */}
       <section className="card-elevated p-5 sm:p-6 bg-white">
-        <div className="flex items-end justify-between mb-6">
+        <div className="mb-6 flex items-center justify-between gap-3">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 section-bar">
-            職種から探す
+            勤務地から探す
           </h2>
-          <p className="text-xs text-gray-500">8 カテゴリ</p>
+          <Link
+            href="/jobs/map"
+            className="press inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary-600 px-4 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-primary-700"
+          >
+            <MapPin className="h-4 w-4" />
+            地図から探す
+          </Link>
         </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {categoriesWithCounts.map(({ key, label, sub, image, bg, count }) => (
-              <Link
-                key={key}
-                href={`/jobs?category=${key}`}
-                className="press group relative block overflow-hidden bg-ink-900 shadow-sm hover:shadow-md transition"
-              >
-                {/* フォールバック用色グラデ + 写真を重ねる */}
-                <div className={`relative aspect-[4/3] sm:aspect-[16/11] bg-gradient-to-br ${bg}`}>
-                  <Image
-                    src={image}
-                    alt=""
-                    fill
-                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                    className="object-cover opacity-75 group-hover:opacity-85 group-hover:scale-[1.03] transition duration-300"
-                  />
-                  {/* テキスト可読性のための暗グラデ (注目特集と統一) */}
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 bg-gradient-to-t from-ink-900/95 via-ink-900/40 to-transparent"
-                  />
-                  {/* 件数バッジ (右上) */}
-                  <span className="absolute top-2 right-2 inline-flex items-center bg-brand-yellow-500 text-ink-900 px-2 py-0.5 text-[11px] font-extrabold tracking-wide">
-                    {count.toLocaleString()} 件
-                  </span>
-                  {/* 写真の上にテキストを重ねる */}
-                  <div className="absolute inset-x-0 bottom-0 p-3">
-                    <p className="text-base font-extrabold text-white leading-tight drop-shadow">
-                      {label}
-                    </p>
-                    <p className="mt-1 text-[11px] text-white/85 leading-relaxed line-clamp-1">
-                      {sub}
-                    </p>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          {popularAreas.map((a) => (
+            <Link
+              key={a.slug}
+              href={`/${a.slug}`}
+              className="press card-flat flex items-center justify-center px-3 py-3 text-sm font-medium text-gray-700 hover:text-primary-700"
+            >
+              <MapPin className="h-4 w-4 mr-1 text-gray-400" />
+              {a.pref}
+            </Link>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-gray-600">
+          全 47 都道府県の求人ページがあります。
+          <Link href="/jobs" className="ml-1 text-primary-700 underline underline-offset-2 hover:no-underline">
+            検索ページから他県も見る →
+          </Link>
+        </p>
       </section>
 
       {/* === 働き方から探す ================================================== */}
@@ -568,6 +671,52 @@ export default async function HomePage() {
             </Link>
           ))}
         </div>
+
+        {/* 人気のこだわり条件チップ */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs font-bold text-gray-500">
+            人気のこだわり条件
+          </span>
+          {POPULAR_CONDITIONS.map((q) => (
+            <Link
+              key={q}
+              href={`/jobs?q=${encodeURIComponent(q)}`}
+              className="press rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-bold text-gray-700 transition hover:border-primary-400 hover:text-primary-700"
+            >
+              {q}
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* === 職種から探す ===================================================== */}
+      <section className="card-elevated p-5 sm:p-6 bg-white">
+        <div className="flex items-end justify-between mb-6">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 section-bar">
+            職種から探す
+          </h2>
+          <p className="text-xs text-gray-500">8 カテゴリ</p>
+        </div>
+
+          {/* リクナビ風: アイコン + テキストのチップ */}
+          <div className="flex flex-wrap gap-2.5">
+            {categoriesWithCounts.map(({ key, label, count }) => {
+              const Icon = CATEGORY_ICONS[key] ?? Wrench
+              return (
+                <Link
+                  key={key}
+                  href={`/jobs?category=${key}`}
+                  className="press inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 shadow-sm transition hover:border-primary-400 hover:text-primary-700"
+                >
+                  <Icon weight="duotone" className="h-5 w-5 text-primary-600" />
+                  {label}
+                  <span className="text-[11px] font-medium text-gray-400">
+                    {count.toLocaleString()}
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
       </section>
 
       {/* === あなたへのおすすめ (匿名 JobView から差し込み) =================== */}
@@ -592,11 +741,12 @@ export default async function HomePage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {diversifiedRecommendedJobs.map((job, i) => (
+              {diversifiedRecommendedJobs.slice(0, 6).map((job, i) => (
                 <Link
                   key={job.id}
                   href={`/jobs/${job.id}`}
-                  className="press group relative accent-l card p-4 pl-5"
+                  // スマホ(1カラム)は上位4位まで表示。sm以上は従来どおり6件
+                  className={`press group relative accent-l card p-4 pl-5 ${i >= 4 ? "hidden sm:block" : ""}`}
                 >
                   <span className="absolute top-2 right-2 inline-flex h-6 w-6 items-center justify-center bg-primary-600 text-xs font-extrabold text-white">
                     {i + 1}
@@ -639,30 +789,8 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* === 都道府県から探す ================================================== */}
-      <section className="card-elevated p-5 sm:p-6 bg-white">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6 section-bar">
-          都道府県から探す
-        </h2>
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-          {popularAreas.map((a) => (
-            <Link
-              key={a.slug}
-              href={`/${a.slug}`}
-              className="press card-flat flex items-center justify-center px-3 py-3 text-sm font-medium text-gray-700 hover:text-primary-700"
-            >
-              <MapPin className="h-4 w-4 mr-1 text-gray-400" />
-              {a.pref}
-            </Link>
-          ))}
-        </div>
-        <p className="mt-3 text-xs text-gray-600">
-          全 47 都道府県の求人ページがあります。
-          <Link href="/jobs" className="ml-1 text-primary-700 underline underline-offset-2 hover:no-underline">
-            検索ページから他県も見る →
-          </Link>
-        </p>
-      </section>
+      {/* === 給与相場グラフ（職種別平均月給）================================ */}
+      <SalaryStats rows={salaryStatRows} />
 
       {/* === お役立ちマガジン =================================================== */}
       <section className="card-elevated p-5 sm:p-6 bg-white">
@@ -671,10 +799,10 @@ export default async function HomePage() {
             お役立ちマガジン
           </h2>
           <Link
-            href="/journal"
+            href="/guide"
             className="text-sm text-primary-600 hover:underline font-medium"
           >
-            すべて見る →
+            転職成功ノウハウ →
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -715,35 +843,122 @@ export default async function HomePage() {
           </main>
 
           {/* === サイドバー (PC のみ、SP は main の下に重ねる) ================
-              下に余白があるのに動かせるのは不自然なので sticky / scroll は付けない */}
-          <div>
+              現場インタビューは全幅セクションへ移したため空配列を渡す。
+              余白(謎の空白)を避けるため sticky + self-start で高さを内容に合わせる。 */}
+          <div className="self-start lg:sticky lg:top-24">
             <HomeSidebar
               featuredJobs={diversifiedRecommendedJobs}
-              interviewArticles={interviewArticles}
+              interviewArticles={[]}
               announcements={ANNOUNCEMENTS}
             />
           </div>
         </div>
       </div>
 
-      {/* === CTA ============================================================== */}
-      <section className="bg-gradient-to-r from-primary-600 to-orange-700 text-white">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-10 text-center">
-          <h2 className="text-2xl sm:text-3xl font-extrabold leading-tight">
-            気になる求人があれば、まずは LINE で話を聞く。
-          </h2>
-          <p className="mt-2 text-sm sm:text-base text-white/90">
-            履歴書も会員登録も不要。匿名でも質問できます。
+      {/* === 現場インタビュー（全幅）======================================= */}
+      {interviewArticles.length > 0 && (
+        <Section size="md">
+          <div className="flex items-end justify-between mb-5">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 section-bar">
+              現場インタビュー
+            </h2>
+            <Link
+              href="/journal?category=interview"
+              className="text-sm font-bold text-primary-600 hover:text-primary-700"
+            >
+              すべて見る →
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {interviewArticles.map((a, idx) => (
+              <Link
+                key={a.slug}
+                href={`/journal/${a.slug}`}
+                // スマホ(2カラム)は4件=2行まで表示。sm以上は従来どおり全件
+                className={`press card group overflow-hidden ${idx >= 4 ? "hidden sm:block" : "block"}`}
+              >
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-gray-100">
+                  {a.imageUrl ? (
+                    <Image
+                      src={a.imageUrl}
+                      alt=""
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                      className="object-cover transition duration-300 group-hover:scale-105"
+                      unoptimized={
+                        !a.imageUrl.startsWith("/") &&
+                        !a.imageUrl.includes("supabase.co")
+                      }
+                    />
+                  ) : null}
+                </div>
+                <div className="p-3">
+                  <p className="text-xs font-bold text-gray-900 line-clamp-3 leading-snug group-hover:text-primary-700">
+                    {a.title}
+                  </p>
+                  {a.publishedAt && (
+                    <p className="mt-1 text-[10px] text-gray-400">
+                      {new Date(a.publishedAt).toLocaleDateString("ja-JP")}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* === 最終 CTA（LINE 訴求・大幅刷新）===================================== */}
+      <section className="relative overflow-hidden bg-brand-gradient text-white">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-2xl"
+        />
+        <div className="relative mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16 text-center">
+          <p className="inline-flex items-center gap-1.5 bg-white/15 px-3 py-1 text-xs font-bold backdrop-blur">
+            今、稼げる業界へ
           </p>
-          <Link
-            href="/jobs"
-            className="press mt-6 inline-flex items-center gap-2 bg-white px-8 py-3 text-base font-extrabold text-primary-700 shadow-lg hover:bg-yellow-50 transition"
-          >
-            <Search className="h-5 w-5" />
-            求人を探してみる
-          </Link>
+          <h2 className="mt-3 text-2xl sm:text-4xl font-black leading-tight tracking-tight">
+            未経験から、新しい自分を。
+            <br />
+            「稼げる」キャリアを今日から。
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm sm:text-base text-white/90 leading-relaxed">
+            履歴書なし・LINE で 1 タップ応募。匿名で「話を聞くだけ」もOK。
+            気になる現場に、今すぐ一歩を踏み出せます。
+          </p>
+          <ul className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm font-bold">
+            <li>✓ 履歴書なし</li>
+            <li>✓ LINE で完結</li>
+            <li>✓ 現職バレ防止</li>
+          </ul>
+          <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <div className="w-full sm:w-auto sm:min-w-[260px]">
+              <LineLoginButton
+                label="LINE で 1 タップ登録"
+                callbackUrl="/mypage"
+                size="lg"
+                fullWidth
+              />
+            </div>
+            <Link
+              href="/jobs"
+              className="press inline-flex w-full items-center justify-center gap-2 bg-white px-8 py-3.5 text-base font-extrabold text-primary-700 shadow-lg transition hover:bg-orange-50 sm:w-auto"
+            >
+              <Search className="h-5 w-5" />
+              求人を探す
+            </Link>
+          </div>
+          <p className="mt-5 text-xs text-white/80">
+            現在{" "}
+            <span className="font-bold">{totalJobs.toLocaleString()}</span>{" "}
+            件の求人を掲載中
+          </p>
         </div>
       </section>
+
+      {/* === 巨大 SEO フッター ============================================== */}
+      <SeoFooterLinks />
     </div>
   )
 }

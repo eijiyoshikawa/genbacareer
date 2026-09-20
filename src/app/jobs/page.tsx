@@ -2,7 +2,10 @@ import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
 import { EmptyJobsState } from "@/components/jobs/empty-jobs-state"
 import { CompareCart } from "@/components/jobs/compare-cart"
-import { Briefcase, Search, SlidersHorizontal } from "lucide-react"
+import { SearchAutocomplete } from "@/components/jobs/search-autocomplete"
+import { ConditionFilterModal } from "@/components/jobs/condition-filter-modal"
+import { SalaryRangeSlider } from "@/components/jobs/salary-range-slider"
+import { SlidersHorizontal } from "lucide-react"
 import Link from "next/link"
 import { Pagination } from "@/components/pagination"
 import { PREFECTURES } from "@/lib/constants"
@@ -14,6 +17,10 @@ import {
   isConstructionCategory,
 } from "@/lib/categories"
 import { auth } from "@/lib/auth"
+import {
+  buildPublicJobOrderBy,
+  type PublicJobSort,
+} from "@/lib/job-sort"
 import { SaveSearchButton } from "@/components/jobs/save-search-button"
 import {
   GuestSignupCta,
@@ -46,6 +53,36 @@ const SOURCE_OPTIONS = [
   { value: "direct", label: "認定企業のみ" },
   { value: "hellowork", label: "公共求人のみ" },
 ] as const
+
+const SNS_OPTIONS = [
+  { value: "with", label: "SNS・動画あり" },
+  { value: "without", label: "SNS・動画なし" },
+] as const
+
+// こだわり条件（複数選択モーダル用）。
+// label は表示用、tags は実データの表記ゆれを吸収する候補（hasSome で OR 一致）。
+const CONDITION_DEFS: Array<{ label: string; tags: string[] }> = [
+  { label: "未経験歓迎", tags: ["未経験歓迎", "未経験OK", "未経験者歓迎", "未経験可"] },
+  { label: "学歴不問", tags: ["学歴不問"] },
+  { label: "資格取得支援", tags: ["資格取得支援", "資格支援", "資格取得制度", "資格取得支援制度"] },
+  { label: "寮・社宅あり", tags: ["寮あり", "寮完備", "社宅あり", "住宅手当あり", "住宅手当", "寮・社宅あり"] },
+  { label: "社会保険完備", tags: ["社会保険完備", "社保完備", "各種社会保険完備"] },
+  { label: "土日祝休み", tags: ["土日祝休み", "土日休み", "土日祝日休み"] },
+  { label: "完全週休2日", tags: ["完全週休2日制", "完全週休2日", "週休2日制", "週休2日"] },
+  { label: "日払い・週払い", tags: ["日払い", "週払い", "日払いOK", "日払い可"] },
+  { label: "高収入", tags: ["高収入", "月給30万円以上", "高給与"] },
+  { label: "賞与あり", tags: ["賞与あり", "ボーナスあり", "賞与年2回"] },
+  { label: "交通費支給", tags: ["交通費支給", "交通費全額支給", "交通費あり"] },
+  { label: "車・バイク通勤OK", tags: ["車通勤OK", "バイク通勤OK", "マイカー通勤OK", "車・バイク通勤OK"] },
+  { label: "転勤なし", tags: ["転勤なし"] },
+  { label: "残業少なめ", tags: ["残業少なめ", "残業なし", "残業ほぼなし"] },
+  { label: "40代活躍", tags: ["40代活躍", "40代歓迎", "40代も活躍"] },
+  { label: "50代活躍", tags: ["50代活躍", "50代歓迎", "50代も活躍"] },
+  { label: "60代活躍", tags: ["60代活躍", "60代歓迎", "シニア歓迎", "60代も活躍"] },
+  { label: "直行直帰", tags: ["直行直帰", "直行直帰OK"] },
+]
+const CONDITION_OPTIONS: string[] = CONDITION_DEFS.map((c) => c.label)
+const CONDITION_TAGMAP = new Map(CONDITION_DEFS.map((c) => [c.label, c.tags]))
 
 const DATE_WITHIN_OPTIONS = [
   { value: "3", label: "3日以内" },
@@ -126,6 +163,22 @@ export default async function JobsPage({ searchParams }: Props) {
       ? { source: params.source }
       : {}
 
+  // SNS・動画(videoUrls)の有無で絞り込む
+  const snsFilter =
+    params.sns && SNS_OPTIONS.find((s) => s.value === params.sns)
+      ? params.sns
+      : undefined
+
+  // こだわり条件（複数選択・カンマ区切り）。許可リスト(label)のみ採用。
+  const conditionList = (params.conditions ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => CONDITION_OPTIONS.includes(s))
+  // 表記ゆれを吸収したタグ候補に展開（hasSome で OR 一致）
+  const conditionTagVariants = Array.from(
+    new Set(conditionList.flatMap((l) => CONDITION_TAGMAP.get(l) ?? [l]))
+  )
+
   const where = {
     status: "active" as const,
     ...(params.prefecture && { prefecture: params.prefecture }),
@@ -135,6 +188,9 @@ export default async function JobsPage({ searchParams }: Props) {
     ...(params.employment_type && { employmentType: params.employment_type }),
     ...(salaryMinYen !== null && { salaryMin: { gte: salaryMinYen } }),
     ...(salaryMaxYen !== null && { salaryMax: { lte: salaryMaxYen } }),
+    ...(snsFilter === "with" && { videoUrls: { isEmpty: false } }),
+    ...(snsFilter === "without" && { videoUrls: { isEmpty: true } }),
+    ...(conditionTagVariants.length > 0 && { tags: { hasSome: conditionTagVariants } }),
     ...(dateWithinThreshold && { publishedAt: { gte: dateWithinThreshold } }),
     ...(params.q && {
       OR: [
@@ -158,7 +214,9 @@ export default async function JobsPage({ searchParams }: Props) {
   const orderBy = buildOrderBy(sort)
 
   // 検索クエリがあり、デフォルトの「おすすめ順」の場合は pg_trgm で類似度順に並べる
-  const useFuzzy = !!params.q && sort === "recommended"
+  // こだわり条件選択時は fuzzy を使わず Prisma where で正確に絞る
+  const useFuzzy =
+    !!params.q && sort === "recommended" && conditionList.length === 0
   let fuzzyIds: string[] | null = null
   if (useFuzzy) {
     const { fuzzySearchJobs } = await import("@/lib/job-search")
@@ -172,6 +230,12 @@ export default async function JobsPage({ searchParams }: Props) {
       salaryMin: salaryMinYen ?? undefined,
       salaryMax: salaryMaxYen ?? undefined,
       publishedSince: dateWithinThreshold ?? undefined,
+      hasVideo:
+        snsFilter === "with"
+          ? true
+          : snsFilter === "without"
+            ? false
+            : undefined,
       limit: limit * 5, // 後でページング切り出すため多めに取得
     })
     if (rows && rows.length > 0) {
@@ -195,6 +259,8 @@ export default async function JobsPage({ searchParams }: Props) {
     tags: true,
     annualHolidays: true,
     insurance: true,
+    imageUrls: true,
+    videoUrls: true,
     companyId: true,
     publishedAt: true,
     company: {
@@ -288,44 +354,42 @@ export default async function JobsPage({ searchParams }: Props) {
     params.salary_max ||
     params.date_within ||
     params.source ||
+    params.sns ||
+    conditionList.length > 0 ||
     params.q
   )
 
   return (
     <div>
-      {/* Search header */}
+      {/* Search header — マイナビ風: 太字大型見出し + 強い検索 CTA + アイコン控えめ */}
       <div className="relative bg-ink-900">
         <div className="hero-stripe-top" />
         <div className="hero-stripe-bottom" />
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-white">求人検索</h1>
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold tracking-[0.25em] text-brand-yellow-500 sm:text-sm">
+                GENBA CAREER
+              </p>
+              <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl lg:text-4xl">
+                建設業の求人を探す
+              </h1>
+            </div>
             <Link
               href="/hw-jobs"
-              className="inline-flex items-center gap-1 bg-white/10 px-3 py-1 text-xs text-white/90 hover:bg-white/20 transition"
+              className="hidden shrink-0 items-center gap-1 border border-white/30 bg-transparent px-3 py-1.5 text-xs font-bold text-white/90 transition hover:bg-white/10 sm:inline-flex"
             >
-              <Briefcase className="h-3.5 w-3.5" />
               公共求人を見る
             </Link>
           </div>
-          <form action="/jobs" className="mt-4">
+          <form action="/jobs" className="mt-5">
             <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  name="q"
-                  defaultValue={params.q ?? ""}
-                  placeholder="職種・キーワードで検索"
-                  className="w-full  border-0 py-2.5 pl-10 pr-4 text-sm shadow-sm focus:ring-2 focus:ring-primary-400"
-                />
-              </div>
+              <SearchAutocomplete defaultValue={params.q ?? ""} />
               <button
                 type="submit"
-                className="flex items-center gap-1.5 bg-primary-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-primary-600 transition"
+                className="bg-primary-500 px-5 py-3 text-sm font-black tracking-wide text-white shadow-sm transition hover:bg-primary-600 sm:px-7"
               >
-                <Search className="h-4 w-4" />
-                検索
+                検索する
               </button>
             </div>
           </form>
@@ -343,10 +407,12 @@ export default async function JobsPage({ searchParams }: Props) {
                 <input type="hidden" name="sort" value={params.sort} />
               )}
 
-              <div className=" border bg-white shadow-sm">
-                <div className="flex items-center gap-2 border-b px-4 py-3">
-                  <SlidersHorizontal className="h-4 w-4 text-primary-500" />
-                  <h2 className="text-sm font-bold text-gray-900">絞り込み</h2>
+              <div className="border border-gray-200 bg-white shadow-sm">
+                <div className="flex items-center gap-2 border-b border-ink-900/10 bg-ink-900 px-4 py-3">
+                  <SlidersHorizontal className="h-4 w-4 text-brand-yellow-500" />
+                  <h2 className="text-sm font-bold tracking-wide text-white">
+                    絞り込み
+                  </h2>
                 </div>
 
                 <div className="divide-y p-4 space-y-0">
@@ -395,6 +461,14 @@ export default async function JobsPage({ searchParams }: Props) {
                   />
 
                   <FilterSelect
+                    id="sns"
+                    label="SNS・動画"
+                    name="sns"
+                    defaultValue={params.sns ?? ""}
+                    options={SNS_OPTIONS as readonly { value: string; label: string }[]}
+                  />
+
+                  <FilterSelect
                     id="date_within"
                     label="掲載期間"
                     name="date_within"
@@ -402,36 +476,23 @@ export default async function JobsPage({ searchParams }: Props) {
                     options={DATE_WITHIN_OPTIONS as readonly { value: string; label: string }[]}
                   />
 
-                  <div className="pt-3">
-                    <span className="block text-xs font-medium text-gray-600">月給（万円）</span>
-                    <div className="mt-1 flex items-center gap-2">
-                      <input
-                        type="number"
-                        id="salary_min"
-                        name="salary_min"
-                        defaultValue={params.salary_min ?? ""}
-                        placeholder="下限"
-                        min={0}
-                        className="w-full  border border-gray-300 px-2.5 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                      />
-                      <span className="text-xs text-gray-400">〜</span>
-                      <input
-                        type="number"
-                        id="salary_max"
-                        name="salary_max"
-                        defaultValue={params.salary_max ?? ""}
-                        placeholder="上限"
-                        min={0}
-                        className="w-full  border border-gray-300 px-2.5 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                      />
-                    </div>
-                  </div>
+                  {/* こだわり条件（複数選択モーダル） */}
+                  <ConditionFilterModal
+                    options={CONDITION_OPTIONS}
+                    initial={conditionList}
+                  />
+
+                  {/* 月給スライダー */}
+                  <SalaryRangeSlider
+                    initialMin={params.salary_min}
+                    initialMax={params.salary_max}
+                  />
                 </div>
 
                 <div className="border-t p-4">
                   <button
                     type="submit"
-                    className="w-full  bg-primary-600 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 transition"
+                    className="w-full bg-primary-500 py-3 text-sm font-black tracking-wide text-white shadow-sm transition hover:bg-primary-600"
                   >
                     この条件で検索
                   </button>
@@ -482,6 +543,20 @@ export default async function JobsPage({ searchParams }: Props) {
                   params={params}
                 />
               )}
+              {params.sns && (
+                <FilterBadge
+                  label={snsLabel(params.sns)}
+                  paramName="sns"
+                  params={params}
+                />
+              )}
+              {conditionList.length > 0 && (
+                <FilterBadge
+                  label={`こだわり ${conditionList.length}件`}
+                  paramName="conditions"
+                  params={params}
+                />
+              )}
               {(params.salary_min || params.salary_max) && (
                 <FilterBadge
                   label={salaryRangeLabel(params.salary_min, params.salary_max)}
@@ -516,8 +591,8 @@ export default async function JobsPage({ searchParams }: Props) {
             )}
 
             {/* Job list */}
-            <div className="mt-4 space-y-3">
-              {jobs.length === 0 ? (
+            {jobs.length === 0 ? (
+              <div className="mt-4">
                 <EmptyJobsState
                   params={{
                     q: params.q,
@@ -529,17 +604,20 @@ export default async function JobsPage({ searchParams }: Props) {
                   favoriteIds={favoriteIds}
                   loggedIn={loggedIn}
                 />
-              ) : (
-                jobs.map((job) => (
+              </div>
+            ) : (
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {jobs.map((job) => (
                   <JobCard
                     key={job.id}
                     job={job}
                     isFavorite={favoriteIds.has(job.id)}
                     loggedIn={loggedIn}
+                    variant="grid"
                   />
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* 未登録ユーザーの上限到達時 CTA */}
             {!loggedIn && total > GUEST_LIMIT && (
@@ -574,30 +652,17 @@ export default async function JobsPage({ searchParams }: Props) {
 // ---------------- helpers ----------------
 
 function buildOrderBy(sort: string) {
-  switch (sort) {
-    case "salary_high":
-      return [{ salaryMin: "desc" as const }, { publishedAt: "desc" as const }]
-    case "salary_low":
-      return [{ salaryMin: "asc" as const }, { publishedAt: "desc" as const }]
-    case "popular":
-      return [{ viewCount: "desc" as const }, { publishedAt: "desc" as const }]
-    case "newest":
-      return { publishedAt: "desc" as const }
-    case "recommended":
-    default:
-      // C8 上位表示 + 公平ローテーション:
-      //   1. company.planTier desc — プラン優先度 (3=paid / 2=SNS / 1=キャンペーン / 0=HW)
-      //   2. company.rotationKey asc — 日次でランダム化 (paid 平等枠の機会均等)
-      //   3. rankScore desc — 同 rotationKey 内では既存のコンテンツ品質順
-      //   4. publishedAt desc — タイブレーク
-      // rotationKey は /api/cron/rotate-companies が毎日 03:30 UTC に更新する。
-      return [
-        { company: { planTier: "desc" as const } },
-        { company: { rotationKey: "asc" as const } },
-        { rankScore: "desc" as const },
-        { publishedAt: "desc" as const },
-      ]
-  }
+  // 主キーは Job.displayPriority (asc):
+  //   1: direct (手入力) / 2: 月給完全 / 3: 月給不完全 / 4: 時給日給 / 5: その他
+  // 詳細は src/lib/job-sort.ts を参照。
+  const normalized: PublicJobSort =
+    sort === "salary_high" ||
+    sort === "salary_low" ||
+    sort === "popular" ||
+    sort === "newest"
+      ? sort
+      : "recommended"
+  return buildPublicJobOrderBy(normalized, { includeCompanyTier: true })
 }
 
 function parseManYenToYen(raw: string | undefined): number | null {
@@ -725,6 +790,10 @@ function dateWithinLabel(value: string): string {
 
 function sourceLabel(value: string): string {
   return SOURCE_OPTIONS.find((o) => o.value === value)?.label ?? value
+}
+
+function snsLabel(value: string): string {
+  return SNS_OPTIONS.find((o) => o.value === value)?.label ?? value
 }
 
 function buildSearchName(p: Record<string, string | undefined>): string {

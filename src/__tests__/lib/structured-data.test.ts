@@ -1,5 +1,22 @@
 import { describe, it, expect } from "vitest"
-import { generateJobPostingSchema } from "@/lib/structured-data"
+import { generateJobPostingSchema, toJsonLdScript } from "@/lib/structured-data"
+
+describe("toJsonLdScript", () => {
+  it("escapes </script> so untrusted strings cannot break out of the script tag", () => {
+    const malicious = {
+      title: '</script><script>alert(document.cookie)</script>',
+    }
+    const html = toJsonLdScript(malicious)
+
+    expect(html).not.toContain("</script>")
+    expect(JSON.parse(html.replace(/\\u003c/g, "<"))).toEqual(malicious)
+  })
+
+  it("produces valid JSON for normal data", () => {
+    const data = { "@type": "Thing", name: "テスト" }
+    expect(JSON.parse(toJsonLdScript(data))).toEqual(data)
+  })
+})
 
 describe("generateJobPostingSchema", () => {
   it("generates valid JSON-LD schema with all required fields", () => {
@@ -165,6 +182,132 @@ describe("generateJobPostingSchema", () => {
       "資格手当",
       "通勤手当",
     ])
+  })
+
+  it("salaryMax が null のときは value (単一値) を出力し、minValue/maxValue は出さない", () => {
+    // Search Console の警告対策: minValue 単独は schema.org 違反
+    const schema = generateJobPostingSchema({
+      id: "test-id",
+      title: "鳶職",
+      description: "高所作業を中心に、土木現場全般の業務を担当いただきます。",
+      category: "construction",
+      employmentType: "full_time",
+      salaryMin: 280000,
+      salaryMax: null,
+      salaryType: "monthly",
+      prefecture: "東京都",
+      city: null,
+      address: null,
+      publishedAt: null,
+      createdAt: new Date("2026-01-01"),
+      company: null,
+    })
+    const salary = schema.baseSalary as {
+      value: {
+        unitText: string
+        value?: number
+        minValue?: number
+        maxValue?: number
+      }
+    }
+    expect(salary.value.value).toBe(280000)
+    expect(salary.value.minValue).toBeUndefined()
+    expect(salary.value.maxValue).toBeUndefined()
+    expect(salary.value.unitText).toBe("MONTH")
+  })
+
+  it("salaryMin == salaryMax のときも value 単一値で扱う（無意味な範囲を作らない）", () => {
+    const schema = generateJobPostingSchema({
+      id: "test-id",
+      title: "技能職",
+      description: "建設現場での技能職を募集します。",
+      category: "construction",
+      employmentType: "full_time",
+      salaryMin: 250000,
+      salaryMax: 250000,
+      salaryType: "monthly",
+      prefecture: "東京都",
+      city: null,
+      address: null,
+      publishedAt: null,
+      createdAt: new Date("2026-01-01"),
+      company: null,
+    })
+    const salary = schema.baseSalary as {
+      value: { value?: number; minValue?: number; maxValue?: number }
+    }
+    expect(salary.value.value).toBe(250000)
+    expect(salary.value.minValue).toBeUndefined()
+    expect(salary.value.maxValue).toBeUndefined()
+  })
+
+  it("requiredExperience が無いときは experienceRequirements 自体を出力しない", () => {
+    // Search Console 警告対策: monthsOfExperience は正の値必須なので、
+    // 経験不問なら experienceRequirements プロパティを省略する。
+    const schema = generateJobPostingSchema({
+      id: "test-id",
+      title: "未経験OK 鳶職",
+      description: "未経験から始められる建設業の求人です。",
+      category: "construction",
+      employmentType: "full_time",
+      salaryMin: 250000,
+      salaryMax: 350000,
+      salaryType: "monthly",
+      prefecture: "東京都",
+      city: null,
+      address: null,
+      publishedAt: null,
+      createdAt: new Date("2026-01-01"),
+      company: null,
+    })
+    expect(schema.experienceRequirements).toBeUndefined()
+  })
+
+  it("requiredExperience='経験不問' のときも experienceRequirements を出さない", () => {
+    const schema = generateJobPostingSchema({
+      id: "test-id",
+      title: "鳶職",
+      description: "建設業の求人です。",
+      category: "construction",
+      employmentType: "full_time",
+      salaryMin: 250000,
+      salaryMax: 350000,
+      salaryType: "monthly",
+      prefecture: "東京都",
+      city: null,
+      address: null,
+      publishedAt: null,
+      createdAt: new Date("2026-01-01"),
+      requiredExperience: "経験不問",
+      company: null,
+    })
+    expect(schema.experienceRequirements).toBeUndefined()
+  })
+
+  it("requiredExperience='3年以上' なら正の monthsOfExperience を出力", () => {
+    const schema = generateJobPostingSchema({
+      id: "test-id",
+      title: "施工管理",
+      description: "建設業の求人です。",
+      category: "management",
+      employmentType: "full_time",
+      salaryMin: 350000,
+      salaryMax: 500000,
+      salaryType: "monthly",
+      prefecture: "東京都",
+      city: null,
+      address: null,
+      publishedAt: null,
+      createdAt: new Date("2026-01-01"),
+      requiredExperience: "3年以上",
+      company: null,
+    })
+    const exp = schema.experienceRequirements as {
+      "@type": string
+      monthsOfExperience: number
+    }
+    expect(exp["@type"]).toBe("OccupationalExperienceRequirements")
+    expect(exp.monthsOfExperience).toBe(36)
   })
 
   it("maps various employment types correctly", () => {

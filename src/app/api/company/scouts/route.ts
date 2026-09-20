@@ -28,6 +28,7 @@ import {
 import { sendScoutEmail } from "@/lib/email"
 import { parsePrefs } from "@/lib/notification-prefs"
 import { canSendScoutByPlan, isPlanActive } from "@/lib/plans"
+import { isScoutEnabled } from "@/lib/feature-flags"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -51,6 +52,14 @@ export async function POST(request: NextRequest) {
   const auth = await requireCompanyUser()
   if (!auth) {
     return NextResponse.json({ error: "認証が必要です" }, { status: 401 })
+  }
+
+  // スカウト機能は求職者 1 万人突破まで未解放
+  if (!(await isScoutEnabled())) {
+    return NextResponse.json(
+      { error: "スカウト機能は現在準備中です（近日公開予定）" },
+      { status: 403 }
+    )
   }
 
   let raw: unknown
@@ -125,16 +134,45 @@ export async function POST(request: NextRequest) {
       status: true,
       jobSearchStatus: true,
       notificationPrefs: true,
+      profilePublic: true,
     },
   })
   if (!user) {
     return NextResponse.json({ error: "求職者が見つかりません" }, { status: 404 })
   }
 
+  // プロフィール非公開の求職者にはスカウトを送れない
+  // (プロフィール編集画面で「企業公開をOFFにするとスカウトが届かなくなる」と案内している)
+  if (!user.profilePublic) {
+    return NextResponse.json(
+      { error: "この求職者はプロフィールを非公開に設定しているためスカウトを送信できません" },
+      { status: 400 },
+    )
+  }
+
   if (!canSendScout({ job, user })) {
     return NextResponse.json(
       { error: "送信対象が条件を満たしていません (求人 active / 求職者 active+searching/employed_open)" },
       { status: 400 },
+    )
+  }
+
+  // 事前チェック: 同一 (company, job, user) にアクティブなスカウトが既にないか
+  // (最終的な排他性は DB の partial unique index が保証するが、通常経路では
+  // ここで早期に 409 を返しユーザーへ分かりやすいエラーを出す)
+  const existingActive = await prisma.scoutMessage.findFirst({
+    where: {
+      companyId: auth.companyId,
+      jobId,
+      userId,
+      status: { notIn: ["expired", "declined"] },
+    },
+    select: { id: true },
+  })
+  if (existingActive) {
+    return NextResponse.json(
+      { error: "この求職者には既にアクティブなスカウトが送信済みです" },
+      { status: 409 },
     )
   }
 

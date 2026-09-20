@@ -25,7 +25,7 @@ export const maxDuration = 300
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -34,7 +34,8 @@ export async function GET(request: Request) {
 
   // ---------- Phase 1: SavedSearch ----------
   const searches = await prisma.savedSearch.findMany({
-    where: { alertEnabled: true },
+    // 退会済み(status!=active)ユーザーには通知しない
+    where: { alertEnabled: true, user: { status: "active" } },
     orderBy: { lastNotifiedAt: { sort: "asc", nulls: "first" } },
     take: 500,
   })
@@ -80,6 +81,8 @@ export async function GET(request: Request) {
 
   // ---------- Phase 2: CompanyFollow ----------
   const follows = await prisma.companyFollow.findMany({
+    // 退会済み(status!=active)ユーザーには通知しない
+    where: { user: { status: "active" } },
     orderBy: { lastNotifiedAt: { sort: "asc", nulls: "first" } },
     take: 500,
     select: {

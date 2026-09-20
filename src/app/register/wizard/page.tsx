@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { getProviders } from "next-auth/react"
 import { Mail, ArrowRight } from "lucide-react"
 import { LineLoginButton } from "@/components/auth/line-login-button"
+import { GoogleLoginButton } from "@/components/auth/google-login-button"
+import { LineInAppNotice } from "@/components/line-inapp-notice"
 import { loadAnswers, saveAnswers } from "@/lib/registration/wizard-state"
 
 /**
@@ -22,6 +25,8 @@ export default function WizardEntryPage() {
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [error, setError] = useState("")
   const [pending, setPending] = useState(false)
+  // Google プロバイダが本番で設定されている時だけボタンを出す（未設定でも壊さない）
+  const [googleEnabled, setGoogleEnabled] = useState(false)
 
   // セッションにメアドが残っていれば再開
   useEffect(() => {
@@ -31,6 +36,13 @@ export default function WizardEntryPage() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setEmail(a.email)
     }
+  }, [])
+
+  // 有効な認証プロバイダを確認し、Google が構成済みならボタンを表示
+  useEffect(() => {
+    getProviders()
+      .then((p) => setGoogleEnabled(!!p?.google))
+      .catch(() => {})
   }, [])
 
   const handleStart = (e: React.FormEvent) => {
@@ -55,6 +67,7 @@ export default function WizardEntryPage() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-10 sm:px-6 sm:py-14">
+      <LineInAppNotice />
       <header className="text-center mb-6">
         <p className="text-xs font-bold text-primary-600 tracking-wide">
           無料・約 1 分で完了
@@ -69,16 +82,25 @@ export default function WizardEntryPage() {
         </p>
       </header>
 
-      {/* LINE で 1 タップ登録 */}
-      <LineLoginButton
-        label="LINE で 1 タップ登録"
-        callbackUrl="/mypage"
-        fullWidth
-      />
+      {/* かんたん登録: LINE / Google を主導線として前面に */}
+      <div className="space-y-2.5">
+        <LineLoginButton
+          label="LINE で 1 タップ登録"
+          callbackUrl="/mypage"
+          size="lg"
+          fullWidth
+        />
+        {googleEnabled && (
+          <GoogleLoginButton label="Google で登録" callbackUrl="/mypage" size="lg" fullWidth />
+        )}
+      </div>
+      <p className="mt-2 text-center text-[11px] text-gray-500">
+        最速・確認不要ですぐに応募できます
+      </p>
 
       <div className="my-4 flex items-center gap-2 text-xs text-gray-400">
         <span className="flex-1 border-t border-gray-200" />
-        または メールアドレスで
+        または メールアドレスで登録
         <span className="flex-1 border-t border-gray-200" />
       </div>
 

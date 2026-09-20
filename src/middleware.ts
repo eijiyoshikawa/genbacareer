@@ -101,14 +101,16 @@ export function middleware(request: NextRequest) {
   // ホスト書き換えからは除外する（後段の noindex は引き続き付与）。
   const isInfraEndpoint =
     pathname.startsWith("/api/cron") || pathname.startsWith("/api/webhooks")
+  // 本番の正規ホストは www.genbacareer.jp に集約する。
+  //   - *.vercel.app（ブランチ/プレビュー以外で本番到達したもの）→ www
+  //   - apex genbacareer.jp → www（www/非www の重複・redirect_uri 不一致を解消）
+  const isApexHost = host === "genbacareer.jp"
   if (
     process.env.VERCEL_ENV === "production" &&
-    isVercelHost &&
-    !CANONICAL_HOSTS.has(host) &&
-    !isInfraEndpoint
+    !isInfraEndpoint &&
+    ((isVercelHost && !CANONICAL_HOSTS.has(host)) || isApexHost)
   ) {
     const canonicalUrl = new URL(request.nextUrl)
-    // www を canonical にしておくと apex→www の 301 を 1 ホップ省ける。
     canonicalUrl.host = "www.genbacareer.jp"
     canonicalUrl.protocol = "https:"
     canonicalUrl.port = ""
@@ -170,12 +172,16 @@ export function middleware(request: NextRequest) {
     "/company/candidates",
   ]
   const adminRoutes = ["/admin"]
+  // /api/admin/* は画面を経由せず直接叩けるため、IP allowlist は /admin と同様に適用する。
+  const adminApiRoutes = ["/api/admin"]
 
   const isSeekerRoute = seekerRoutes.some((r) => pathname.startsWith(r))
   const isCompanyRoute = companyRoutes.some((r) => pathname.startsWith(r))
   const isAdminRoute =
     adminRoutes.some((r) => pathname.startsWith(r)) && pathname !== "/admin/login"
-  const isAdminAnyRoute = adminRoutes.some((r) => pathname.startsWith(r))
+  const isAdminAnyRoute =
+    adminRoutes.some((r) => pathname.startsWith(r)) ||
+    adminApiRoutes.some((r) => pathname.startsWith(r))
 
   // /admin/* への IP allowlist 制御。ADMIN_IP_ALLOWLIST 未設定なら無制限。
   // 設定済みなら /admin/login 含めて全 /admin パスに適用 (ブルートフォース防御も兼ねる)。

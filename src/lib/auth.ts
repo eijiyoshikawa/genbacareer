@@ -1,10 +1,13 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google"
+import Line from "next-auth/providers/line"
 import type { Provider } from "next-auth/providers"
 import { compare } from "bcryptjs"
 import { prisma } from "./db"
 import { checkRateLimit } from "./rate-limit"
+import { bindLineUserToAccount } from "./line-link"
+import { ensureSchema } from "./ensure-schema"
 
 /**
  * ログイン試行レート制限。
@@ -52,27 +55,32 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   )
 }
 
-// LINE Login (optional) — uses generic OAuth provider
+// LINE Login (optional) — 公式プロバイダを使用。
+// 手書きの汎用 OIDC 設定だと LINE 必須の `state` パラメータが送られず
+// authorize が INVALID_REQUEST ("'state' is not specified.") で即エラーになる。
+// 公式プロバイダは checks:["state"] と id_token の HS256 検証を内蔵している。
+// 注: LINE Login の email scope は別途権限申請が必要なため、profile + openid のみ要求。
+// email が取れないケースに備え、profile() で LINE sub からプレースホルダ email を生成する。
 if (process.env.LINE_CLIENT_ID && process.env.LINE_CLIENT_SECRET) {
-  providers.push({
-    id: "line",
-    name: "LINE",
-    type: "oidc",
-    issuer: "https://access.line.me",
-    clientId: process.env.LINE_CLIENT_ID,
-    clientSecret: process.env.LINE_CLIENT_SECRET,
-    authorization: {
-      params: { scope: "profile openid email" },
-    },
-    profile(profile) {
-      return {
-        id: profile.sub,
-        name: profile.name,
-        email: profile.email,
-        image: profile.picture,
-      }
-    },
-  })
+  providers.push(
+    Line({
+      clientId: process.env.LINE_CLIENT_ID,
+      clientSecret: process.env.LINE_CLIENT_SECRET,
+      authorization: {
+        // bot_prompt=aggressive: チャネルに公式アカウントをリンクしておくと、
+        // ログイン時に友だち追加が促され、その後 Push 送信が可能になる。
+        params: { scope: "profile openid", bot_prompt: "aggressive" },
+      },
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email ?? `line_${profile.sub}@line.local`,
+          image: profile.picture,
+        }
+      },
+    }),
+  )
 }
 
 // Admin credentials
@@ -120,6 +128,11 @@ providers.push(
         assertAuthRateLimit(req, "seeker")
         if (!credentials?.email || !credentials?.password) return null
 
+        // API route のみを経由するためレイアウト側の ensureSchema (fire-and-forget)
+        // が間に合わないことがある。ここでは明示的に await して確実に反映させる
+        // (2 回目以降は inflight memoize により即解決)。
+        await ensureSchema()
+
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
         })
@@ -160,9 +173,23 @@ providers.push(
         assertAuthRateLimit(req, "company")
         if (!credentials?.email || !credentials?.password) return null
 
+        // 同上: API route のみのためレイアウト側の self-heal に頼れない
+        await ensureSchema()
+
         const companyUser = await prisma.companyUser.findUnique({
           where: { email: credentials.email as string },
-          include: { company: true },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            passwordHash: true,
+            role: true,
+            companyId: true,
+            mustChangePassword: true,
+            totpEnabled: true,
+            totpSecret: true,
+            totpRecoveryCodes: true,
+          },
         })
 
         if (!companyUser) return null
@@ -251,33 +278,105 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         account.provider !== "company-credentials" &&
         account.provider !== "admin-credentials"
       ) {
+        // 方法A: LINE ログインは、まず lineUserId で既存アカウントを検索する。
+        // Google / メールで登録し「LINE 連携」済みのアカウントがあれば、
+        // その同一アカウントにログインさせる（placeholder アカウントを新規作成しない）。
+        // これで「Google / メール / LINE のどのボタンからでも同じ 1 アカウント」に入れる。
+        if (account.provider === "line" && account.providerAccountId) {
+          // 検索に失敗しても LINE ログイン自体は壊さない（DB drift 等で
+          // 例外が出ると OAuth コールバック全体がエラーになりループするため）。
+          try {
+            const linked = await prisma.user.findFirst({
+              where: { lineUserId: account.providerAccountId },
+              select: { id: true, emailVerified: true, status: true },
+              orderBy: { createdAt: "asc" },
+            })
+            if (linked) {
+              // 凍結 / 退会済みは OAuth 経由でもログイン拒否
+              // （credentials ログインと同じ扱いに揃える）
+              if (linked.status === "suspended" || linked.status === "deleted") {
+                return false
+              }
+              if (!linked.emailVerified) {
+                await prisma.user
+                  .update({
+                    where: { id: linked.id },
+                    data: { emailVerified: new Date() },
+                  })
+                  .catch(() => {})
+              }
+              user.id = linked.id
+              ;(user as { role?: string }).role = "seeker"
+              return true
+            }
+          } catch (e) {
+            console.error(
+              "[auth.line] lineUserId lookup failed (fallback to email path):",
+              e instanceof Error ? e.message : e,
+            )
+          }
+        }
+
         if (user.email) {
-          const existing = await prisma.user.findUnique({
+          let existing = await prisma.user.findUnique({
             where: { email: user.email },
-            select: { id: true, emailVerified: true },
+            select: { id: true, emailVerified: true, status: true },
           })
           if (!existing) {
             // OAuth プロバイダ経由のメールは確認済みとみなす（Google/LINE が検証済みのため）
-            const created = await prisma.user.create({
-              data: {
-                email: user.email,
-                name: user.name ?? null,
-                authProvider: account.provider,
-                emailVerified: new Date(),
-              },
-            })
-            user.id = created.id
-            ;(user as { role?: string }).role = "seeker"
-          } else {
-            // 既存ユーザーが OAuth で初めてログインした場合も emailVerified を埋める
-            if (!existing.emailVerified) {
-              await prisma.user.update({
-                where: { id: existing.id },
-                data: { emailVerified: new Date() },
+            try {
+              const created = await prisma.user.create({
+                data: {
+                  email: user.email,
+                  name: user.name ?? null,
+                  authProvider: account.provider,
+                  emailVerified: new Date(),
+                  // スカウト受信の前提となる企業公開は既定で ON
+                  profilePublic: true,
+                },
               })
+              user.id = created.id
+              ;(user as { role?: string }).role = "seeker"
+            } catch {
+              // 二重クリック / 複数タブの同時ログインで create が競合 (P2002)
+              // した場合は、勝った方のレコードを引き直してそのままログインさせる
+              existing = await prisma.user.findUnique({
+                where: { email: user.email },
+                select: { id: true, emailVerified: true, status: true },
+              })
+              if (!existing) return false
+            }
+          }
+          if (existing) {
+            // 凍結 / 退会済みは OAuth 経由でもログイン拒否
+            // （credentials ログインと同じ扱いに揃える）
+            if (existing.status === "suspended" || existing.status === "deleted") {
+              return false
+            }
+            // 既存ユーザーが OAuth で初めてログインした場合も emailVerified を埋める
+            // （失敗してもログイン自体は通す — 非致命）
+            if (!existing.emailVerified) {
+              await prisma.user
+                .update({
+                  where: { id: existing.id },
+                  data: { emailVerified: new Date() },
+                })
+                .catch(() => {})
             }
             user.id = existing.id
             ;(user as { role?: string }).role = "seeker"
+          }
+
+          // LINE ログイン経由なら sub(=Messaging API userId) を User へ紐付け、
+          // 配信パイプライン(LineLead)にも反映する。これで LINE 登録ユーザーも
+          // 即「LINE 到達可能」になる。
+          if (account.provider === "line" && account.providerAccountId && user.id) {
+            await bindLineUserToAccount({
+              userId: user.id,
+              lineUserId: account.providerAccountId,
+              displayName: user.name ?? null,
+              email: user.email,
+            }).catch(() => {})
           }
         }
       }

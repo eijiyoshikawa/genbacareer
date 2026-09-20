@@ -9,6 +9,7 @@
 
 import { prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import {
   checkRateLimit,
   getClientIp,
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest) {
   const titleMatches = await prisma.job
     .findMany({
       where: { ...baseFilter, title: { contains: q, mode: "insensitive" } },
-      orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+      orderBy: buildPublicJobOrderBy("recommended"),
       take: 6,
       select: { id: true, title: true, prefecture: true },
     })

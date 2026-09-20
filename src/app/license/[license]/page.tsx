@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import type { Metadata } from "next"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
 import { Prisma } from "@prisma/client"
@@ -13,12 +14,14 @@ import {
   generateBreadcrumbSchema,
   generateCollectionPageSchema,
   generateItemListSchema,
+  toJsonLdScript,
 } from "@/lib/structured-data"
 import { Certificate, BookOpen } from "@phosphor-icons/react/dist/ssr"
 
-// ビルド時の SSG prerender は走らせない (description / requirements の
-// contains 検索が重く 60s タイムアウトする実績あり)。
-// 初回リクエスト時に生成 → ISR 6h でキャッシュする運用に切替。
+// ビルド時の SSG prerender は走らせない（generateStaticParams が空配列）。
+// 初回リクエストで生成 → ISR 6h でキャッシュ。
+// （共有ヘッダーをクライアント化し auth() をサーバーで読まなくしたため、
+//   ISR 再生成時の DYNAMIC_SERVER_USAGE 競合は解消済み）
 export const revalidate = 21600
 export const dynamicParams = true
 
@@ -69,7 +72,7 @@ export default async function LicenseLpPage({ params }: Props) {
         category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
         OR,
       },
-      orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+      orderBy: buildPublicJobOrderBy("recommended"),
       take: 30,
       select: {
         id: true,
@@ -114,15 +117,15 @@ export default async function LicenseLpPage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPage) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(collectionPage) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(itemList) }}
       />
 
       <header className="border-b bg-warm-50">

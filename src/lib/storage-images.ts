@@ -125,6 +125,58 @@ export async function uploadCompanyImage(
   return { url: data.publicUrl, path }
 }
 
+/**
+ * 求職者の顔写真（アバター）をアップロードする。
+ * 追加バケット運用を避けるため、公開設定済みの既存バケット
+ * `company-media` 内の `user-avatars/` プレフィックスに保存する。
+ * 検証（サイズ / MIME / magic bytes）は企業画像と同一。
+ */
+export async function uploadUserAvatar(
+  userId: string,
+  file: File,
+): Promise<{ url: string; path: string }> {
+  if (file.size < MIN_FILE_SIZE) {
+    throw new Error("ファイルが小さすぎます（壊れた画像 / 0 byte の可能性）")
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error("ファイルサイズは 5MB 以下にしてください")
+  }
+  if (!(ALLOWED_MIME as readonly string[]).includes(file.type)) {
+    throw new Error("JPEG / PNG / WebP のみアップロード可能です")
+  }
+  const actualMime = await detectImageMime(file)
+  if (!actualMime) {
+    throw new Error(
+      "ファイル形式を検出できません。JPEG / PNG / WebP のいずれかをアップロードしてください",
+    )
+  }
+  if (actualMime !== file.type) {
+    throw new Error(
+      `ファイル形式の不一致を検出しました（申告: ${file.type}, 実体: ${actualMime}）`,
+    )
+  }
+
+  const safeExt =
+    actualMime === "image/jpeg"
+      ? "jpg"
+      : actualMime === "image/png"
+        ? "png"
+        : "webp"
+  const filename = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${safeExt}`
+  const path = `user-avatars/${userId}/${filename}`
+
+  const supabase = getClient()
+  const { error } = await supabase.storage
+    .from(BUCKET_NAME)
+    .upload(path, file, { contentType: actualMime, upsert: false })
+  if (error) {
+    throw new Error(`アップロード失敗: ${error.message}`)
+  }
+
+  const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path)
+  return { url: data.publicUrl, path }
+}
+
 export async function deleteCompanyImage(path: string): Promise<void> {
   try {
     await getClient().storage.from(BUCKET_NAME).remove([path])

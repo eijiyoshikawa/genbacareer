@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { CandidateAvatar } from "@/components/company/candidate-avatar"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
@@ -70,6 +71,7 @@ export default async function ApplicationDetailPage({
           phone: true,
           prefecture: true,
           city: true,
+          avatarUrl: true,
         },
       },
     },
@@ -99,7 +101,9 @@ export default async function ApplicationDetailPage({
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="flex items-center gap-4">
+          <CandidateAvatar avatarUrl={app.user.avatarUrl} name={app.user.name} size="lg" />
+          <div>
           <h1 className="text-2xl font-bold text-gray-900">
             {app.user.name ?? "（名前未設定）"}
           </h1>
@@ -114,6 +118,7 @@ export default async function ApplicationDetailPage({
               {app.job.title}
             </Link>
           </p>
+          </div>
         </div>
         <span
           className={`inline-flex items-center px-3 py-1 text-sm font-bold ${status.classes}`}

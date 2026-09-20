@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og"
 import { prisma } from "@/lib/db"
 import { isValidUuid } from "@/lib/uuid"
+import { sanitizeOgText } from "@/lib/og-text"
 
 export const alt = "企業情報"
 export const size = { width: 1200, height: 630 }
@@ -28,8 +29,8 @@ export default async function OGImage({
         .catch(() => null)
     : null
 
-  const name = truncate(company?.name ?? "企業情報", 40)
-  const tagline = truncate(company?.tagline ?? "", 80)
+  const name = sanitizeOgText(truncate(company?.name ?? "企業情報", 40))
+  const tagline = sanitizeOgText(truncate(company?.tagline ?? "", 80))
   const meta = [company?.industry, company?.prefecture]
     .filter(Boolean)
     .join(" ・ ")

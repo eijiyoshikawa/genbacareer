@@ -148,6 +148,7 @@ async function ApplicationsList({
             email: true,
             phone: true,
             prefecture: true,
+            avatarUrl: true,
           },
         },
       },
