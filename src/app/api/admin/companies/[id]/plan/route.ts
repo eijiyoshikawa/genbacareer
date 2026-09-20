@@ -24,13 +24,37 @@ import { PLAN_TYPES, planTier } from "@/lib/plans"
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
 const schema = z.object({
   planType: z.enum(PLAN_TYPES),
-  planPaidUntil: z.iso.datetime().nullable().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable()),
-  planActivatedAt: z.iso.datetime().nullable().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable()),
+  planPaidUntil: z.iso.datetime().nullable().or(z.string().regex(DATE_ONLY_RE).nullable()),
+  planActivatedAt: z.iso.datetime().nullable().or(z.string().regex(DATE_ONLY_RE).nullable()),
   planPrepaidFull: z.boolean(),
   planNotes: z.string().max(500).nullable(),
 })
+
+/**
+ * admin UI の <input type="date"> は "YYYY-MM-DD" のみを送ってくる。
+ * `new Date("YYYY-MM-DD")` は UTC 深夜 0 時として解釈されるため、
+ * JST (UTC+9) では実質「前日 09:00」扱いになり、契約終了日の意図より
+ * 最大 15 時間早くプランが失効してしまう (expire-plans cron や isPlanActive の判定に影響)。
+ * 日付のみの入力は JST のその日の終わり (23:59:59.999) として解釈する。
+ */
+function parsePaidUntil(value: string): Date {
+  if (DATE_ONLY_RE.test(value)) {
+    return new Date(`${value}T23:59:59.999+09:00`)
+  }
+  return new Date(value)
+}
+
+/** 適用開始日は JST のその日の始まり (00:00:00) として解釈する。 */
+function parseActivatedAt(value: string): Date {
+  if (DATE_ONLY_RE.test(value)) {
+    return new Date(`${value}T00:00:00+09:00`)
+  }
+  return new Date(value)
+}
 
 async function requireAdmin() {
   const session = await auth()
@@ -105,7 +129,7 @@ export async function POST(
   }
 
   // planActivatedAt が未指定 + planType 変更時は now() を入れる
-  let activatedAt: Date | null = planActivatedAt ? new Date(planActivatedAt) : null
+  let activatedAt: Date | null = planActivatedAt ? parseActivatedAt(planActivatedAt) : null
   if (!activatedAt) {
     if (company.planType !== planType) {
       activatedAt = new Date()
@@ -118,7 +142,7 @@ export async function POST(
     where: { id },
     data: {
       planType,
-      planPaidUntil: planPaidUntil ? new Date(planPaidUntil) : null,
+      planPaidUntil: planPaidUntil ? parsePaidUntil(planPaidUntil) : null,
       planActivatedAt: activatedAt,
       planPrepaidFull,
       planNotes,

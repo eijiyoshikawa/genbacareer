@@ -11,9 +11,12 @@
  */
 
 import { prisma } from "@/lib/db"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
+import { headers } from "next/headers"
 import type { Metadata } from "next"
 import Image from "next/image"
+import { auth } from "@/lib/auth"
+import { getGuestAccessibleJobIds, isCrawlerUserAgent } from "@/lib/guest-job-access"
 import { getCategoryLabel } from "@/lib/categories"
 import { PrintTrigger } from "./print-trigger"
 
@@ -33,6 +36,20 @@ export default async function JobPrintPage({ params, searchParams }: Props) {
   const { id } = await params
   const sp = (await searchParams) ?? {}
   const auto = sp.auto === "1"
+
+  // /jobs/[id] と同じ未登録ゲスト向けゲート。
+  // このページは独立した URL のため、詳細ページのゲートを経由せず直接叩かれても
+  // 同じ制限（グローバル上位 GUEST_LIMIT 件のみ）がかかるようにする。
+  const session = await auth().catch(() => null)
+  if (!session?.user?.id) {
+    const ua = (await headers()).get("user-agent")
+    if (!isCrawlerUserAgent(ua)) {
+      const allowedIds = await getGuestAccessibleJobIds()
+      if (!allowedIds.includes(id)) {
+        redirect(`/login?callbackUrl=${encodeURIComponent(`/jobs/${id}`)}`)
+      }
+    }
+  }
 
   // 印刷ページで実際に使うカラムのみ select する。
   // rawData (Json 丸ごと格納) など印刷に不要な重カラムは含めない。
