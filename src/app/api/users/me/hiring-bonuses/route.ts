@@ -11,7 +11,7 @@ import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { HIRING_BONUS_AMOUNT } from "@/lib/hiring-bonus"
-import { isPlanEligibleForBonus } from "@/lib/plans"
+import { isPlanActive, isPlanEligibleForBonus } from "@/lib/plans"
 
 export const dynamic = "force-dynamic"
 
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     select: {
       id: true,
       companyId: true,
-      company: { select: { planType: true } },
+      company: { select: { planType: true, planPaidUntil: true } },
     },
   })
   if (!app) {
@@ -71,6 +71,22 @@ export async function POST(request: NextRequest) {
       {
         error:
           "この採用は採用ボーナスの対象外です (月額プラン または SNS 連携プラン企業の採用のみ対象)",
+      },
+      { status: 403 }
+    )
+  }
+  // プランが期限切れの場合も対象外 (expire-plans cron は監査目的で
+  // planType 自体は書き換えないため、planPaidUntil を併せて確認する)
+  if (
+    !isPlanActive({
+      planType: app.company?.planType,
+      planPaidUntil: app.company?.planPaidUntil,
+    })
+  ) {
+    return Response.json(
+      {
+        error:
+          "採用元企業のプランが期限切れのため、採用ボーナスの対象外です",
       },
       { status: 403 }
     )
