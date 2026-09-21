@@ -55,12 +55,25 @@ function formatSalary(job: {
 }
 
 export async function GET() {
+  const now = new Date()
   const jobs = await prisma.job.findMany({
     where: {
       status: "active",
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
       // 説明文が空の求人は Indeed の品質要件を満たさないので除外
       NOT: { description: null },
+      // /jobs.xml (src/app/jobs.xml/route.ts) と同じ配信ポリシー:
+      // HelloWork 取り込み・キャンペーン (¥0) 枠は対象外、有償プランかつ期限内のみ配信。
+      source: "direct",
+      company: {
+        OR: [
+          { planType: "success_fee" },
+          {
+            planType: { in: ["monthly_12", "monthly_24", "sns_client"] },
+            planPaidUntil: { gt: now },
+          },
+        ],
+      },
     },
     select: {
       id: true,
