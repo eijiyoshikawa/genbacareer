@@ -2,10 +2,14 @@
  * GET /api/jobs/feed?cursor=<lastJobId>
  *
  * 縦スワイプフィード (11.5) の追加読み込み用 API。
- * cursor は直前ページの末尾 jobId。それより rank が低い (or 同 rank なら publishedAt が古い) ものを返す。
+ * cursor は直前ページの末尾 jobId。一覧の並び順 (rankScore desc, publishedAt desc)
+ * における「その次」の行を返す複合カーソルで判定する。
  *
- * 簡略化のため、cursor は createdAt 降順で「指定 ID より古い」ものを返す
- * (rankScore のタイブレイクは厳密でなくても UX 上問題ない)。
+ * publishedAt だけで絞ると、rankScore が cursor より低いのに publishedAt が
+ * cursor より新しい求人が「除外」されてしまう（rankScore 降順が主ソートキーの
+ * ため）。例: cursor = (rank 90, Jan5) の次に (rank 50, Jan10) が来るはずだが
+ * `publishedAt < Jan5` だけでは Jan10 のこの求人が弾かれ、二度と取得できなくなる。
+ * そのため (rankScore, publishedAt) のタプル比較で「その次」を判定する。
  */
 
 import { type NextRequest } from "next/server"
@@ -27,22 +31,33 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const cursor = searchParams.get("cursor")
 
-  let cursorPublishedAt: Date | null = null
+  let cursorTuple: { rankScore: number; publishedAt: Date | null } | null =
+    null
   if (cursor) {
     const last = await prisma.job
       .findUnique({
         where: { id: cursor },
-        select: { publishedAt: true },
+        select: { rankScore: true, publishedAt: true },
       })
       .catch(() => null)
-    cursorPublishedAt = last?.publishedAt ?? null
+    if (last) cursorTuple = last
   }
 
   const jobs = await prisma.job.findMany({
     where: {
       status: "active",
-      ...(cursorPublishedAt
-        ? { publishedAt: { lt: cursorPublishedAt } }
+      ...(cursorTuple
+        ? {
+            OR: [
+              { rankScore: { lt: cursorTuple.rankScore } },
+              {
+                rankScore: cursorTuple.rankScore,
+                ...(cursorTuple.publishedAt
+                  ? { publishedAt: { lt: cursorTuple.publishedAt } }
+                  : { publishedAt: null }),
+              },
+            ],
+          }
         : {}),
     },
     orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
