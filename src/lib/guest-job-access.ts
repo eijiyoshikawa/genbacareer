@@ -33,6 +33,11 @@ export function isCrawlerUserAgent(ua: string | null | undefined): boolean {
  * 未登録ゲストが詳細を閲覧できる「グローバル上位 GUEST_LIMIT 件」の job ID を返す。
  * /jobs 一覧のデフォルト（フィルタ無し・recommended sort）と同じ並び順。
  *
+ * 並び順は src/app/jobs/page.tsx の buildOrderBy("recommended") と必ず一致させる
+ * こと。ここがずれると、/jobs のトップ 15 件に表示されている求人なのに詳細ページで
+ * ゲートに引っかかる（＝逆に、表示されていない求人が閲覧できてしまう）という
+ * 矛盾が発生する。
+ *
  * 高度に絞り込んだ検索結果からのクリックは未登録ゲートに引っかかるが、
  * これは仕様（無料体験は上位 15 件まで）として明示的に許容している。
  */
@@ -43,7 +48,8 @@ export async function getGuestAccessibleJobIds(): Promise<string[]> {
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
     },
     orderBy: [
-      { source: "asc" },
+      { company: { planTier: "desc" } },
+      { company: { rotationKey: "asc" } },
       { rankScore: "desc" },
       { publishedAt: "desc" },
     ],
