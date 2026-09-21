@@ -2,17 +2,8 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { sendApplicationStatusEmail } from "@/lib/application-notifications"
-import { notifyApplicationStatusChange } from "@/lib/notifications"
 import { syncApplicationToCalendar } from "@/lib/application-calendar-sync"
-
-const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
-  applied: ["reviewing", "rejected"],
-  reviewing: ["interview", "rejected"],
-  interview: ["offered", "rejected"],
-  offered: ["hired", "rejected"],
-  // hired と rejected は終端ステータス
-}
+import { applyApplicationStatusChange } from "@/lib/application-status"
 
 // 既存互換: { status } 単体更新
 const updateStatusSchema = z.object({
@@ -42,14 +33,6 @@ const updateNotesSchema = z.object({
     .max(5)
     .optional(),
 })
-
-type StatusHistoryEntry = {
-  from: string
-  to: string
-  at: string
-  by: string
-  note?: string
-}
 
 async function getCompanyCtx() {
   const session = await auth()
@@ -113,79 +96,18 @@ export async function PUT(
   }
 
   const newStatus = parsed.data.status
-  const currentStatus = application.status
 
-  const allowed = VALID_STATUS_TRANSITIONS[currentStatus]
-  if (!allowed || !allowed.includes(newStatus)) {
-    return Response.json(
-      { error: `「${currentStatus}」から「${newStatus}」への変更はできません` },
-      { status: 400 }
-    )
-  }
-
-  const history = Array.isArray(application.statusHistory)
-    ? (application.statusHistory as unknown as StatusHistoryEntry[])
-    : []
-  const entry: StatusHistoryEntry = {
-    from: currentStatus,
-    to: newStatus,
-    at: new Date().toISOString(),
-    by: ctx.userId,
-    ...(parsed.data.note ? { note: parsed.data.note } : {}),
-  }
-
-  const updated = await prisma.application.update({
-    where: { id },
-    data: {
-      status: newStatus,
-      statusHistory: [...history, entry],
-      // 採用確定時に hiredAt を打刻 (C3 戻入処理の経過月数計算の基準)
-      ...(newStatus === "hired" && !application.hiredAt
-        ? { hiredAt: new Date() }
-        : {}),
-    },
-  })
-
-  // 採用確定時の自動請求
-  if (newStatus === "hired") {
-    try {
-      const existingBilling = await prisma.billingEvent.findFirst({
-        where: { applicationId: id, eventType: "hired" },
-      })
-      if (!existingBilling) {
-        const { createHiringInvoice } = await import("@/lib/billing")
-        await createHiringInvoice(id)
-      } else {
-        console.info(`[billing] Skipped duplicate invoice for application ${id}`)
-      }
-    } catch (error) {
-      console.error(`[billing] Failed to create invoice for application ${id}:`, error)
-    }
-  }
-
-  // マイページ inbox 通知（fire-and-forget）
-  notifyApplicationStatusChange({
-    userId: application.userId,
-    applicationId: id,
+  const result = await applyApplicationStatusChange({
+    application: { id, ...application },
     newStatus,
-    jobTitle: application.job.title,
-  }).catch((e) => {
-    console.warn(`[notification] failed: ${e instanceof Error ? e.message : e}`)
+    note: parsed.data.note,
+    actorUserId: ctx.userId,
   })
-
-  // ステータス通知メール（fire-and-forget）
-  if (application.user.email) {
-    sendApplicationStatusEmail({
-      to: application.user.email,
-      candidateName: application.user.name ?? null,
-      companyName: application.company?.name ?? "—",
-      jobTitle: application.job.title,
-      newStatus,
-      note: parsed.data.note,
-    }).catch((e) => {
-      console.warn(`[application-notify] failed: ${e instanceof Error ? e.message : e}`)
-    })
+  if (!result.ok) {
+    return Response.json({ error: result.error }, { status: 400 })
   }
+
+  const updated = await prisma.application.findUnique({ where: { id } })
 
   return Response.json({ application: updated })
 }
