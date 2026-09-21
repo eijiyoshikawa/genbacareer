@@ -57,6 +57,14 @@ export async function GET(request: Request) {
       const qs = toSearchQueryString(s)
       const link = qs ? `/jobs?${qs}` : "/jobs"
 
+      // lastNotifiedAt を先に確定させてから通知を送る。逆順だと、通知作成後に
+      // このプロセスが (maxDuration 到達等で) 中断した場合 lastNotifiedAt が
+      // 更新されず、次回 cron 実行で同じ求人を重複通知してしまう。
+      await prisma.savedSearch.update({
+        where: { id: s.id },
+        data: { lastNotifiedAt: startedAt },
+      })
+
       await createNotification({
         userId: s.userId,
         type: "system",
@@ -66,11 +74,6 @@ export async function GET(request: Request) {
         linkUrl: link,
         linkLabel: "新着求人を見る",
         refId: s.id,
-      })
-
-      await prisma.savedSearch.update({
-        where: { id: s.id },
-        data: { lastNotifiedAt: startedAt },
       })
       searchNotified++
     } catch (e) {
@@ -137,6 +140,14 @@ export async function GET(request: Request) {
       const moreText =
         matches.length > 3 ? `\n... 他 ${matches.length - 3} 件` : ""
 
+      // lastNotifiedAt を先に確定させてから通知を送る (理由は Phase 1 と同様)。
+      await prisma.companyFollow.update({
+        where: {
+          userId_companyId: { userId: f.userId, companyId: f.companyId },
+        },
+        data: { lastNotifiedAt: startedAt },
+      })
+
       await createNotification({
         userId: f.userId,
         type: "system",
@@ -144,13 +155,6 @@ export async function GET(request: Request) {
         body: `フォロー中の企業に新しい求人が公開されました。\n\n${titleBody}${moreText}`,
         linkUrl: `/companies/${f.companyId}`,
         refId: f.companyId,
-      })
-
-      await prisma.companyFollow.update({
-        where: {
-          userId_companyId: { userId: f.userId, companyId: f.companyId },
-        },
-        data: { lastNotifiedAt: startedAt },
       })
       followNotified++
     } catch (e) {
