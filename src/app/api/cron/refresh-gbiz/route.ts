@@ -7,21 +7,26 @@ import { fetchSnapshot, isGbizConfigured } from "@/lib/gbizinfo"
  *
  * - corporate_number が設定された Company を対象に、最終取得から
  *   28 日以上経過したものを再フェッチする。
- * - GbizINFO API レート制限（1 秒 5 リクエスト）に合わせて 200ms 間隔で実行。
+ * - GbizINFO API レート制限（1 秒 5 リクエスト）に合わせて 250ms 間隔で実行。
  * - 1 回の Cron で最大 200 社まで処理（タイムアウト保護）。
  *
  * Vercel Cron Jobs 設定例 (vercel.json):
  *   { "path": "/api/cron/refresh-gbiz", "schedule": "0 3 1 * *" }
- *   → 毎月 1 日 03:00 JST に実行
+ *   → 毎月 1 日 03:00 UTC (= 12:00 JST) に実行
  *
  * Authorization: Bearer ${CRON_SECRET} で認証。
+ *
+ * 200 社処理すると sleep だけで 200 * 250ms = 50s かかり、実際の GbizINFO API
+ * 呼び出し分を足すと旧 maxDuration=60s を超えうる（想定件数を処理しきれず
+ * タイムアウトで打ち切られる）ため、他の重い cron (saved-search-alerts /
+ * search-console-sync) と同じ 300s に引き上げている。
  */
 
 const STALE_MS = 28 * 24 * 60 * 60 * 1000
 const RATE_INTERVAL_MS = 250
 const MAX_PER_RUN = 200
 
-export const maxDuration = 60 // Vercel function 最長 60s
+export const maxDuration = 300
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))

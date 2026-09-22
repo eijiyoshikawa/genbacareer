@@ -170,15 +170,20 @@ export function middleware(request: NextRequest) {
     "/company/candidates",
   ]
   const adminRoutes = ["/admin"]
+  // IP allowlist の対象は /admin/* ページに加え /api/admin/* の API ルートも含める。
+  // adminRoutes ("/admin") だけだと "/api/admin/..." は startsWith("/admin") が false になり
+  // allowlist が素通りしてしまう（各 API 側の role チェックはあるが、allowlist は
+  // それとは別レイヤーの防御なので API にも適用する）。
+  const adminIpGateRoutes = ["/admin", "/api/admin"]
 
   const isSeekerRoute = seekerRoutes.some((r) => pathname.startsWith(r))
   const isCompanyRoute = companyRoutes.some((r) => pathname.startsWith(r))
   const isAdminRoute =
     adminRoutes.some((r) => pathname.startsWith(r)) && pathname !== "/admin/login"
-  const isAdminAnyRoute = adminRoutes.some((r) => pathname.startsWith(r))
+  const isAdminAnyRoute = adminIpGateRoutes.some((r) => pathname.startsWith(r))
 
-  // /admin/* への IP allowlist 制御。ADMIN_IP_ALLOWLIST 未設定なら無制限。
-  // 設定済みなら /admin/login 含めて全 /admin パスに適用 (ブルートフォース防御も兼ねる)。
+  // /admin/* と /api/admin/* への IP allowlist 制御。ADMIN_IP_ALLOWLIST 未設定なら無制限。
+  // 設定済みなら /admin/login 含めて全パスに適用 (ブルートフォース防御も兼ねる)。
   if (isAdminAnyRoute) {
     const allowlist = parseAllowlist(process.env.ADMIN_IP_ALLOWLIST)
     if (allowlist.length > 0) {

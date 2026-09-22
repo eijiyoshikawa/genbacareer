@@ -65,6 +65,24 @@ describe("calculateMonthsAfterHire", () => {
     const day91 = new Date("2026-04-02T00:00:00Z")
     expect(calculateMonthsAfterHire(hire, day91)).toBe(4)
   })
+
+  it("uses JST calendar days, not raw ms diff, when hiredAt has a time-of-day component", () => {
+    // 入社操作が UTC 15:00 (= JST 翌日 00:00) に行われたケース。
+    // JST 表示上は 2026-01-02 入社 → 2026-04-02 退職で「ちょうど 3 ヶ月後」。
+    // 生の ms 差分だと 90.375 日になり切り上げで 4 ヶ月目 (0%) に誤判定されてしまう
+    // バグの回帰テスト。正しくは JST 暦日で 90 日ちょうど → 3 ヶ月 (20%)。
+    const hire = new Date("2026-01-01T15:00:00Z") // JST 2026-01-02 00:00
+    const resigned = new Date("2026-04-02T00:00:00Z") // <input type="date"> "2026-04-02"
+    expect(calculateMonthsAfterHire(hire, resigned)).toBe(3)
+  })
+
+  it("does not shift a same-JST-day-of-week hire time earlier than expected", () => {
+    // 入社が JST 早朝 (UTC 前日 20:00 = JST 05:00) のケースでも
+    // 暦日ベースで正しく 1 ヶ月と判定されること。
+    const hire = new Date("2026-01-01T20:00:00Z") // JST 2026-01-02 05:00
+    const resigned = new Date("2026-01-31T00:00:00Z") // JST 暦日で 29 日後
+    expect(calculateMonthsAfterHire(hire, resigned)).toBe(1)
+  })
 })
 
 describe("refundRateForMonths", () => {

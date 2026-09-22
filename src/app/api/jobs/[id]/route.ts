@@ -4,6 +4,11 @@ import {
   getClientIp,
   rateLimitResponse,
 } from "@/lib/rate-limit"
+import { auth } from "@/lib/auth"
+import {
+  getGuestAccessibleJobIds,
+  isCrawlerUserAgent,
+} from "@/lib/guest-job-access"
 import { type NextRequest } from "next/server"
 
 export async function GET(
@@ -19,6 +24,22 @@ export async function GET(
   if (!rl.allowed) return rateLimitResponse(rl)
 
   const { id } = await params
+
+  // 未登録ゲストは「グローバル上位 15 件」の詳細のみ閲覧可（/jobs/[id] ページと同じ仕様）。
+  // 検索エンジン等のクローラは除外する。
+  const session = await auth().catch(() => null)
+  if (!session?.user?.id) {
+    const ua = request.headers.get("user-agent")
+    if (!isCrawlerUserAgent(ua)) {
+      const allowedIds = await getGuestAccessibleJobIds()
+      if (!allowedIds.includes(id)) {
+        return Response.json(
+          { error: "この求人の閲覧にはログインが必要です" },
+          { status: 401 },
+        )
+      }
+    }
+  }
 
   const job = await prisma.job.findUnique({
     where: { id },

@@ -19,6 +19,25 @@
 /** 1 ヶ月 = 30 日として概算 (月末ズレを許容する運用上の単純化) */
 const MONTH_DAYS = 30
 const DAY_MS = 24 * 60 * 60 * 1000
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000
+
+/**
+ * 任意の Date を「JST 暦日の UTC 0 時」に正規化する。
+ *
+ * hiredAt は採用操作を行った瞬間の正確な UTC タイムスタンプ、resignedAt は
+ * <input type="date"> から送られる日付のみの文字列 (UTC 0 時としてパースされる)
+ * であり、時刻成分がある/ないが混在する。時刻成分を無視せず単純に日数差を
+ * 取ると、入社時刻によっては (JST 表示上は同じ日でも) 実際の差分に最大 ±1 日
+ * のズレが生じ、30/60/90 日の境界付近で月数の切り上げ結果が変わってしまう
+ * (例: 表示上ちょうど 3 ヶ月後の退職が 90.375 日と計算され 4 ヶ月目扱いになり
+ * 返金対象外に誤判定される)。JST の暦日だけを比較することでこれを避ける。
+ */
+function toJstCalendarDate(date: Date): Date {
+  const jst = new Date(date.getTime() + JST_OFFSET_MS)
+  return new Date(
+    Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate()),
+  )
+}
 
 /** 返金率の段階定義 (months_after_hire → refund_rate %) */
 export const REFUND_RATE_SCHEDULE: ReadonlyArray<{
@@ -38,7 +57,9 @@ export function calculateMonthsAfterHire(
   hiredAt: Date,
   resignedAt: Date,
 ): number {
-  const diffMs = resignedAt.getTime() - hiredAt.getTime()
+  const hiredDay = toJstCalendarDate(hiredAt)
+  const resignedDay = toJstCalendarDate(resignedAt)
+  const diffMs = resignedDay.getTime() - hiredDay.getTime()
   if (diffMs <= 0) return 0
   const days = diffMs / DAY_MS
   const months = days / MONTH_DAYS

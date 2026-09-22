@@ -14,6 +14,18 @@
 const MF_API_BASE = "https://invoice.moneyforward.com/api/v3"
 const MF_OAUTH_BASE = "https://api.biz.moneyforward.com"
 
+/**
+ * Date を JST の暦日で "YYYY-MM-DD" にフォーマットする。
+ *
+ * `date.toISOString().slice(0, 10)` は UTC の暦日を返すため、
+ * UTC 15:00〜23:59 (= JST 00:00〜08:59) に生成された請求書は
+ * 実際より 1 日前の日付が billing_date/due_date に入ってしまう。
+ * 本サービスは JST 運用のため請求書の日付も JST 基準にする。
+ */
+function toJstDateString(date: Date): string {
+  return date.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" })
+}
+
 let _accessToken: { value: string; expiresAt: number } | null = null
 
 async function getAccessToken(): Promise<string> {
@@ -149,8 +161,8 @@ export async function createMfBilling(args: {
         office_id: officeId,
         partner_id: args.partnerId,
         title: args.title,
-        billing_date: billingDate.toISOString().slice(0, 10),
-        due_date: dueDate.toISOString().slice(0, 10),
+        billing_date: toJstDateString(billingDate),
+        due_date: toJstDateString(dueDate),
         memo,
         items: [
           {
