@@ -7,8 +7,11 @@
  *   A. BillingEvent.status='pending' の件数 + 合計金額
  *   B. BillingEvent.status='invoiced' の件数 + 合計金額 (入金待ち)
  *   C. EarlyResignation.status='approved' の件数 + 合計返金額
+ *   D. BillingEvent.status='failed' の件数 + 合計金額 (MF 連携失敗、要リトライ)
  *
  * いずれかが > 0 の場合のみメール送信 (静かな日はスキップ)。
+ * failed は放置すると成果報酬が永久に請求されない (収益漏れ) ため、
+ * pending / refund が 0 件でも failed だけで送信対象になる。
  * 宛先は ADMIN_NOTIFY_EMAIL (info@let-inc.net) 固定。
  */
 
@@ -28,7 +31,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const [pending, invoiced, refunds, byCompany] = await Promise.all([
+  const [pending, invoiced, failedEvents, refunds, byCompany] = await Promise.all([
     prisma.billingEvent.aggregate({
       where: { status: "pending" },
       _count: true,
@@ -36,6 +39,11 @@ export async function GET(request: Request) {
     }),
     prisma.billingEvent.aggregate({
       where: { status: "invoiced" },
+      _count: true,
+      _sum: { amount: true },
+    }),
+    prisma.billingEvent.aggregate({
+      where: { status: "failed" },
       _count: true,
       _sum: { amount: true },
     }),
@@ -59,10 +67,12 @@ export async function GET(request: Request) {
   const pendingAmount = pending._sum.amount ?? 0
   const invoicedCount = invoiced._count ?? 0
   const invoicedAmount = invoiced._sum.amount ?? 0
+  const failedCount = failedEvents._count ?? 0
+  const failedAmount = failedEvents._sum.amount ?? 0
   const refundCount = refunds._count ?? 0
   const refundAmount = refunds._sum.refundAmount ?? 0
 
-  const totalTasks = pendingCount + refundCount
+  const totalTasks = pendingCount + refundCount + failedCount
 
   if (totalTasks === 0) {
     console.log("[cron/billing-todo-digest] no tasks, skipping email")
@@ -87,10 +97,16 @@ export async function GET(request: Request) {
     }))
 
   const todoUrl = `${baseUrl()}/admin/billing-todo`
+  const failedNotice = failedCount > 0 ? `、請求失敗 ${failedCount} 件 (要リトライ)` : ""
   const layout = {
-    preheader: `本日の請求書発行待ち ${pendingCount} 件 (¥${pendingAmount.toLocaleString()})、戻入 ${refundCount} 件`,
+    preheader: `本日の請求書発行待ち ${pendingCount} 件 (¥${pendingAmount.toLocaleString()})、戻入 ${refundCount} 件${failedNotice}`,
     paragraphs: [
       "ゲンバキャリア admin 日次サマリーです。本日時点で以下の対応待ちタスクがあります。",
+      ...(failedCount > 0
+        ? [
+            `⚠️ 請求書発行に失敗したまま ${failedCount} 件が未処理です。MoneyForward 連携エラー等が原因の可能性があります。/admin/billing?status=failed で確認し、原因解消後に再度ステータスを操作してください。`,
+          ]
+        : []),
     ],
     kvHeading: "対応待ちタスク",
     kv: [
@@ -105,6 +121,10 @@ export async function GET(request: Request) {
       {
         label: "C. 戻入 credit note 待ち",
         value: `${refundCount} 件 / ¥${refundAmount.toLocaleString()}`,
+      },
+      {
+        label: "D. 請求書発行失敗 (要リトライ)",
+        value: `${failedCount} 件 / ¥${failedAmount.toLocaleString()}`,
       },
     ],
     detailSection:
@@ -124,15 +144,17 @@ export async function GET(request: Request) {
     showAutoSendNotice: false,
   }
 
+  const subjectFailedSuffix = failedCount > 0 ? ` / 請求失敗 ${failedCount} 件` : ""
+
   await sendEmail({
     to: ADMIN_EMAIL,
-    subject: `[ゲンバキャリア admin] 請求書発行待ち ${pendingCount} 件 / ¥${pendingAmount.toLocaleString()} — 日次サマリー`,
+    subject: `[ゲンバキャリア admin] 請求書発行待ち ${pendingCount} 件 / ¥${pendingAmount.toLocaleString()}${subjectFailedSuffix} — 日次サマリー`,
     html: renderEmailLayout(layout),
     text: renderEmailText(layout),
   })
 
   console.log(
-    `[cron/billing-todo-digest] pendingCount=${pendingCount} pendingAmount=${pendingAmount} refundCount=${refundCount}`,
+    `[cron/billing-todo-digest] pendingCount=${pendingCount} pendingAmount=${pendingAmount} refundCount=${refundCount} failedCount=${failedCount}`,
   )
 
   return Response.json({
@@ -141,5 +163,7 @@ export async function GET(request: Request) {
     pendingAmount,
     invoicedCount,
     refundCount,
+    failedCount,
+    failedAmount,
   })
 }

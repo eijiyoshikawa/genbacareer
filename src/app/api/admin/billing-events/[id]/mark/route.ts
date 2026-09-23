@@ -6,11 +6,13 @@
  *     { action: "mark_invoiced", mfBillingId?: string, invoiceUrl?: string }
  *     { action: "mark_paid" }
  *     { action: "mark_failed", reason?: string }
+ *     { action: "retry" }
  *
  * 用途: MoneyForward 自動連携は未導入のため、admin が手動で
  *   - 請求書発行 (pending → invoiced) + MF 側 ID を保存
  *   - 入金確認 (invoiced → paid)
  *   - 失敗マーク (* → failed)
+ *   - リトライ (failed → pending。原因解消後に再度発行待ちキューへ戻す)
  * を打ち込んで運用する。
  */
 
@@ -42,6 +44,9 @@ const patchSchema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("mark_failed"),
+  }),
+  z.object({
+    action: z.literal("retry"),
   }),
 ])
 
@@ -111,6 +116,19 @@ export async function POST(
       await prisma.billingEvent.update({
         where: { id },
         data: { status: "failed" },
+      })
+      return Response.json({ ok: true })
+    }
+    case "retry": {
+      if (row.status !== "failed") {
+        return Response.json(
+          { error: `現在のステータス (${row.status}) はリトライ対象ではありません` },
+          { status: 409 },
+        )
+      }
+      await prisma.billingEvent.update({
+        where: { id },
+        data: { status: "pending" },
       })
       return Response.json({ ok: true })
     }
