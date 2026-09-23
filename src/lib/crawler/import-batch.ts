@@ -90,7 +90,8 @@ if (process.env.NODE_ENV !== "production") {
 function toJobRecord(
   job: HelloworkJobData,
   category: CategoryValue,
-  companyId: string | null
+  companyId: string | null,
+  existingPublishedAt?: Date | null
 ) {
   const title = cleanTitle(job.title, job.prefecture)
   const tags = extractTags(job.title, job.description, job.requirements)
@@ -100,10 +101,15 @@ function toJobRecord(
     type: job.salaryType,
   })
 
+  // 既存求人の再取り込み時は元の publishedAt を使う（無ければ新規扱いで now）。
+  // ここを毎回 new Date() にすると、再取り込みのたびに「新着加点」が
+  // 復活し続け、鮮度に基づくランキング減衰が永久に効かなくなる。
+  const effectivePublishedAt = existingPublishedAt ?? new Date()
+
   // 取り込み時のランキングスコアは company 情報を引かない簡易計算。
   // 求人レコード自体の充実度（給与情報の有無、各種詳細欄、雇用形態 等）と
   // 時間軸シグナル（新着 / 期限切れ間近）を評価して低品質求人を下位に押し下げる。
-  // 企業プロフィール保存時に再計算される。新着/期限の鮮度は日次 cron で再計算推奨。
+  // 企業プロフィール保存時に再計算される。
   const rankScore = computeRankScore(
     {
       description: job.description,
@@ -118,7 +124,7 @@ function toJobRecord(
       commuteAllowance: job.commuteAllowance,
       companyFeatures: job.companyFeatures,
       businessContent: job.businessContent,
-      publishedAt: new Date(),
+      publishedAt: effectivePublishedAt,
       expiresAt: job.validUntil,
     },
     null
@@ -142,7 +148,7 @@ function toJobRecord(
     tags,
     rankScore,
     status: "active" as const,
-    publishedAt: new Date(),
+    publishedAt: effectivePublishedAt,
     expiresAt: job.validUntil,
 
     // ハローワーク API 拡張フィールド
@@ -419,6 +425,21 @@ export async function importHelloworkJobs(
     `[import-batch] インポート開始: ${jobs.length} 件の求人を処理します`
   )
 
+  // 既存求人の publishedAt を一括取得（rankScore 再計算時に鮮度を正しく評価するため）。
+  // バッチ内で 1 件ずつ findUnique すると N+1 になるので、まとめて 1 クエリで引く。
+  const existingPublishedAtById = new Map<string, Date>()
+  if (!dryRun) {
+    const existingJobs = await prisma.job.findMany({
+      where: { helloworkId: { in: jobs.map((j) => j.helloworkId) } },
+      select: { helloworkId: true, publishedAt: true },
+    })
+    for (const j of existingJobs) {
+      if (j.helloworkId && j.publishedAt) {
+        existingPublishedAtById.set(j.helloworkId, j.publishedAt)
+      }
+    }
+  }
+
   // -------------------------------------------------------
   // Step 1: 各求人を upsert
   // -------------------------------------------------------
@@ -448,7 +469,12 @@ export async function importHelloworkJobs(
       }
 
       const companyId = await upsertHelloworkCompany(job, companyCache)
-      const data = toJobRecord(job, category, companyId)
+      const data = toJobRecord(
+        job,
+        category,
+        companyId,
+        existingPublishedAtById.get(job.helloworkId)
+      )
 
       const result = await prisma.job.upsert({
         where: { helloworkId: job.helloworkId },
