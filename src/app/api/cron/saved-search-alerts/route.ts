@@ -22,6 +22,15 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 export const maxDuration = 300
 
+/**
+ * 1 回の cron 実行で 1 ユーザー分の通知対象として取得する新着求人の上限。
+ * これを超えて未通知の求人が溜まっている場合は、lastNotifiedAt を
+ * 実行時刻まで進めず「取得できた最後の求人の publishedAt」までしか進めない
+ * ことで、取りこぼしを防ぎ次回実行で続きを拾う（詳細は各 Phase 内コメント参照）。
+ */
+const CATCH_UP_LIMIT = 50
+const PREVIEW_COUNT = 5
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
@@ -45,7 +54,8 @@ export async function GET(request: Request) {
   for (const s of searches) {
     searchProcessed++
     try {
-      const matches = await findNewMatchingJobs(s, 5)
+      // publishedAt 昇順（古い順）で最大 CATCH_UP_LIMIT 件取得。
+      const matches = await findNewMatchingJobs(s, CATCH_UP_LIMIT)
       if (matches.length === 0) {
         await prisma.savedSearch.update({
           where: { id: s.id },
@@ -56,21 +66,33 @@ export async function GET(request: Request) {
 
       const qs = toSearchQueryString(s)
       const link = qs ? `/jobs?${qs}` : "/jobs"
+      // 通知本文には新しい方から PREVIEW_COUNT 件だけ見せる（matches は昇順）。
+      const preview = matches.slice(-PREVIEW_COUNT).reverse()
+      const reachedCap = matches.length >= CATCH_UP_LIMIT
 
       await createNotification({
         userId: s.userId,
         type: "system",
-        title: `🆕 「${s.name}」に新着求人 ${matches.length} 件`,
+        title: `🆕 「${s.name}」に新着求人 ${matches.length}${reachedCap ? "+" : ""} 件`,
         body: `条件: ${formatSearchLabel(s)}`,
-        items: matches.map((m) => m.title),
+        items: preview.map((m) => m.title),
         linkUrl: link,
         linkLabel: "新着求人を見る",
         refId: s.id,
       })
 
+      // 上限まで取得した = まだ未通知の求人が残っている可能性があるため、
+      // 実行時刻まで進めず「取得できた最後の求人の publishedAt + 1ms」に留める。
+      // (+1ms は同じ求人を次回 gte 比較で再取得しないようにするため)
+      const lastPublishedAt = matches[matches.length - 1]?.publishedAt
+      const nextCursor =
+        reachedCap && lastPublishedAt
+          ? new Date(lastPublishedAt.getTime() + 1)
+          : startedAt
+
       await prisma.savedSearch.update({
         where: { id: s.id },
-        data: { lastNotifiedAt: startedAt },
+        data: { lastNotifiedAt: nextCursor },
       })
       searchNotified++
     } catch (e) {
@@ -109,6 +131,8 @@ export async function GET(request: Request) {
       }
 
       const since = f.lastNotifiedAt ?? f.createdAt
+      // publishedAt 昇順で最大 CATCH_UP_LIMIT 件取得（SavedSearch と同じ理由で
+      // 降順 top-N + cursor=startedAt にすると古い方の求人が永久にスキップされる）。
       const matches = await prisma.job
         .findMany({
           where: {
@@ -116,9 +140,9 @@ export async function GET(request: Request) {
             status: "active",
             publishedAt: { gte: since },
           },
-          orderBy: { publishedAt: "desc" },
-          take: 5,
-          select: { id: true, title: true },
+          orderBy: { publishedAt: "asc" },
+          take: CATCH_UP_LIMIT,
+          select: { id: true, title: true, publishedAt: true },
         })
         .catch(() => [])
 
@@ -132,7 +156,8 @@ export async function GET(request: Request) {
         continue
       }
 
-      const sample = matches.slice(0, 3)
+      const reachedCap = matches.length >= CATCH_UP_LIMIT
+      const sample = matches.slice(-3).reverse()
       const titleBody = sample.map((m) => `・${m.title}`).join("\n")
       const moreText =
         matches.length > 3 ? `\n... 他 ${matches.length - 3} 件` : ""
@@ -140,17 +165,23 @@ export async function GET(request: Request) {
       await createNotification({
         userId: f.userId,
         type: "system",
-        title: `🆕 ${f.company.name} の新着求人 ${matches.length} 件`,
+        title: `🆕 ${f.company.name} の新着求人 ${matches.length}${reachedCap ? "+" : ""} 件`,
         body: `フォロー中の企業に新しい求人が公開されました。\n\n${titleBody}${moreText}`,
         linkUrl: `/companies/${f.companyId}`,
         refId: f.companyId,
       })
 
+      const lastPublishedAt = matches[matches.length - 1]?.publishedAt
+      const nextCursor =
+        reachedCap && lastPublishedAt
+          ? new Date(lastPublishedAt.getTime() + 1)
+          : startedAt
+
       await prisma.companyFollow.update({
         where: {
           userId_companyId: { userId: f.userId, companyId: f.companyId },
         },
-        data: { lastNotifiedAt: startedAt },
+        data: { lastNotifiedAt: nextCursor },
       })
       followNotified++
     } catch (e) {

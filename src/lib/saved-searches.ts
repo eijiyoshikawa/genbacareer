@@ -125,6 +125,12 @@ export function formatSearchLabel(input: SavedSearchInput): string {
 
 /**
  * 1 件の SavedSearch について、最後の通知時刻以降に公開された新着求人を取得。
+ *
+ * publishedAt 昇順（古い方から）で返す: 呼び出し側が lastNotifiedAt を
+ * 「実際に取得できた求人の中で最も古いもの」を基準に進められるようにするため。
+ * ここを降順にして最新 N 件だけ返すと、1 日で limit 件を超える新着があった際に
+ * 古い方の求人が cursor 更新で永久にスキップされてしまう
+ * (呼び出し側で lastNotifiedAt = 実行時刻 にしてしまうため)。
  */
 export async function findNewMatchingJobs(
   search: {
@@ -155,7 +161,7 @@ export async function findNewMatchingJobs(
   return prisma.job
     .findMany({
       where,
-      orderBy: { publishedAt: "desc" },
+      orderBy: { publishedAt: "asc" },
       take: limit,
       select: { id: true, title: true, prefecture: true, publishedAt: true },
     })
