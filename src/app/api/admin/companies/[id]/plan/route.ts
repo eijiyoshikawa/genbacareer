@@ -32,6 +32,21 @@ const schema = z.object({
   planNotes: z.string().max(500).nullable(),
 })
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * 管理画面の <input type="date"> は "YYYY-MM-DD" を UTC 扱いさせると
+ * JST 09:00 になってしまう (例: expire-plans cron が 14:00 JST 実行のため
+ * 契約終了日当日の午後に降格してしまう)。日付のみの入力は JST の
+ * 該当時刻として解釈する。
+ */
+function parseAdminDate(value: string, endOfDay: boolean): Date {
+  if (DATE_ONLY_RE.test(value)) {
+    return new Date(`${value}T${endOfDay ? "23:59:59" : "00:00:00"}+09:00`)
+  }
+  return new Date(value)
+}
+
 async function requireAdmin() {
   const session = await auth()
   if (!session?.user) return null
@@ -105,7 +120,9 @@ export async function POST(
   }
 
   // planActivatedAt が未指定 + planType 変更時は now() を入れる
-  let activatedAt: Date | null = planActivatedAt ? new Date(planActivatedAt) : null
+  let activatedAt: Date | null = planActivatedAt
+    ? parseAdminDate(planActivatedAt, false)
+    : null
   if (!activatedAt) {
     if (company.planType !== planType) {
       activatedAt = new Date()
@@ -118,7 +135,7 @@ export async function POST(
     where: { id },
     data: {
       planType,
-      planPaidUntil: planPaidUntil ? new Date(planPaidUntil) : null,
+      planPaidUntil: planPaidUntil ? parseAdminDate(planPaidUntil, true) : null,
       planActivatedAt: activatedAt,
       planPrepaidFull,
       planNotes,
