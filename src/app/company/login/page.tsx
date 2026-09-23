@@ -38,16 +38,15 @@ export default function CompanyLoginPage() {
       });
 
       if (result?.error) {
-        // 2FA が有効な企業アカウントは "TOTP_REQUIRED" を throw する
-        if (
-          result.error.includes("TOTP_REQUIRED") ||
-          (!totp && result.error.toLowerCase().includes("totp"))
-        ) {
+        // 2FA が有効な企業アカウントは code="totp_required" を返す
+        // (Auth.js v5 は authorize 内の Error をラップして result.error を
+        // 汎用文字列にしてしまうため、判定には result.code を使う)
+        if (result.code === "totp_required") {
           setTotpRequired(true);
           setError("認証アプリの 6 桁コード（またはリカバリコード）を入力してください。");
           return;
         }
-        if (result.error.includes("TOTP_INVALID")) {
+        if (result.code === "totp_invalid") {
           setError("認証コードが正しくありません。もう一度お試しください。");
           return;
         }

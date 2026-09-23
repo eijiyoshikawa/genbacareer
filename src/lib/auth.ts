@@ -1,10 +1,36 @@
-import NextAuth from "next-auth"
+import NextAuth, { CredentialsSignin } from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google"
 import type { Provider } from "next-auth/providers"
 import { compare } from "bcryptjs"
 import { prisma } from "./db"
 import { checkRateLimit } from "./rate-limit"
+
+/**
+ * authorize() 内から任意の Error を throw すると、Auth.js v5 は
+ * それを CallbackRouteError にラップしてしまい、クライアントには
+ * 汎用の "Configuration" しか返らない（元のメッセージは握りつぶされる）。
+ * CredentialsSignin のサブクラスとして throw すれば type は
+ * "CredentialsSignin" のまま (クライアントに届く許可リストに含まれる) で、
+ * `code` にカスタム値を積んでクライアント側で判定できる。
+ * 参考: node_modules 内 @auth/core/lib/actions/callback/index.js の
+ * catch (e) { if (e instanceof AuthError) throw e; ... } 分岐。
+ */
+class RateLimitedSignin extends CredentialsSignin {
+  code = "rate_limited"
+}
+class AccountSuspendedSignin extends CredentialsSignin {
+  code = "account_suspended"
+}
+class AccountDeletedSignin extends CredentialsSignin {
+  code = "account_deleted"
+}
+class TotpRequiredSignin extends CredentialsSignin {
+  code = "totp_required"
+}
+class TotpInvalidSignin extends CredentialsSignin {
+  code = "totp_invalid"
+}
 
 /**
  * ログイン試行レート制限。
@@ -35,7 +61,7 @@ function assertAuthRateLimit(req: Request | undefined, scope: string) {
     windowMs: 15 * 60 * 1000,
   })
   if (!rl.allowed) {
-    throw new Error("RATE_LIMITED")
+    throw new RateLimitedSignin()
   }
 }
 
@@ -128,10 +154,10 @@ providers.push(
 
         // 凍結 / 退会済アカウントはログイン拒否
         if (user.status === "suspended") {
-          throw new Error("ACCOUNT_SUSPENDED")
+          throw new AccountSuspendedSignin()
         }
         if (user.status === "deleted") {
-          throw new Error("ACCOUNT_DELETED")
+          throw new AccountDeletedSignin()
         }
 
         const isValid = await compare(
@@ -178,7 +204,7 @@ providers.push(
           const code = (credentials.totp as string | undefined)?.trim()
           if (!code) {
             // フロント側で 2 段目フォームを表示するためのシグナル
-            throw new Error("TOTP_REQUIRED")
+            throw new TotpRequiredSignin()
           }
           const { verifyTotp, consumeRecoveryCode } = await import("@/lib/totp")
           const ok = verifyTotp(code, companyUser.totpSecret)
@@ -189,7 +215,7 @@ providers.push(
               companyUser.totpRecoveryCodes
             )
             if (!consumed) {
-              throw new Error("TOTP_INVALID")
+              throw new TotpInvalidSignin()
             }
             await prisma.companyUser
               .update({
