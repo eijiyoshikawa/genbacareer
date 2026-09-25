@@ -42,8 +42,11 @@ export async function getGuestAccessibleJobIds(): Promise<string[]> {
       status: "active",
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
     },
+    // /jobs のデフォルト (recommended) sort と完全に一致させること。
+    // buildOrderBy() (src/app/jobs/page.tsx) の "recommended" ケースと同一。
     orderBy: [
-      { source: "asc" },
+      { company: { planTier: "desc" } },
+      { company: { rotationKey: "asc" } },
       { rankScore: "desc" },
       { publishedAt: "desc" },
     ],

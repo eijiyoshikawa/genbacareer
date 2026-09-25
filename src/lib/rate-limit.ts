@@ -13,6 +13,8 @@
  *   if (!rl.allowed) return rateLimitResponse(rl)
  */
 
+import { extractClientIp } from "./admin-ip-allowlist"
+
 interface Bucket {
   count: number
   /** Unix epoch ms — 窓のリセット時刻 */
@@ -85,14 +87,11 @@ export function checkRateLimit(opts: RateLimitOptions): RateLimitResult {
 
 /**
  * リクエストヘッダから client IP を抽出する。
- * Vercel/Next.js 環境では x-forwarded-for に含まれる先頭値を使う。
+ * クライアントが偽装できない `x-vercel-forwarded-for` / `x-real-ip` を
+ * 優先する（詳細は admin-ip-allowlist.ts の extractClientIp 参照）。
  */
 export function getClientIp(request: Request): string {
-  const xff = request.headers.get("x-forwarded-for")
-  if (xff) return xff.split(",")[0]?.trim() || "unknown"
-  const real = request.headers.get("x-real-ip")
-  if (real) return real
-  return "unknown"
+  return extractClientIp(request.headers) ?? "unknown"
 }
 
 /**

@@ -29,17 +29,26 @@ describe("extractClientIp", () => {
     }
   }
 
-  it("returns first IP from x-forwarded-for", () => {
+  it("prefers x-vercel-forwarded-for over spoofable headers", () => {
+    const h = mockHeaders({
+      "x-vercel-forwarded-for": "9.9.9.9",
+      "x-real-ip": "5.6.7.8",
+      "x-forwarded-for": "1.2.3.4, 10.0.0.1",
+    })
+    expect(extractClientIp(h)).toBe("9.9.9.9")
+  })
+
+  it("falls back to x-real-ip when x-vercel-forwarded-for is absent", () => {
+    const h = mockHeaders({ "x-real-ip": "5.6.7.8", "x-forwarded-for": "1.2.3.4" })
+    expect(extractClientIp(h)).toBe("5.6.7.8")
+  })
+
+  it("falls back to x-forwarded-for only when no trusted header is present", () => {
     const h = mockHeaders({ "x-forwarded-for": "1.2.3.4, 10.0.0.1" })
     expect(extractClientIp(h)).toBe("1.2.3.4")
   })
 
-  it("falls back to x-real-ip", () => {
-    const h = mockHeaders({ "x-real-ip": "5.6.7.8" })
-    expect(extractClientIp(h)).toBe("5.6.7.8")
-  })
-
-  it("returns null when both headers missing", () => {
+  it("returns null when no headers present", () => {
     expect(extractClientIp(mockHeaders({}))).toBeNull()
   })
 })

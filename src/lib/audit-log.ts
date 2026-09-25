@@ -8,6 +8,7 @@
 import { prisma } from "@/lib/db"
 import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
+import { extractClientIp } from "@/lib/admin-ip-allowlist"
 
 export type AuditActorType = "admin" | "company_user" | "system" | "user"
 
@@ -31,8 +32,7 @@ export async function logAudit(event: AuditEvent): Promise<void> {
   let userAgent: string | null = null
   try {
     const h = await headers()
-    const fwd = h.get("x-forwarded-for")
-    ipAddress = fwd ? fwd.split(",")[0].trim() : null
+    ipAddress = extractClientIp(h)
     userAgent = h.get("user-agent")
   } catch {
     // server actions の外（cron 等）では headers() が使えないので無視
