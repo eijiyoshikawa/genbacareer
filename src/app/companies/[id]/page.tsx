@@ -8,7 +8,7 @@ import { JobCard } from "@/components/jobs/job-card"
 import { CompanyFollowButton } from "@/components/companies/follow-button"
 import { CompanyGbizSection } from "@/components/companies/gbiz-section"
 import { ReportButton } from "@/components/reports/report-button"
-import { generateLocalBusinessSchema } from "@/lib/structured-data"
+import { generateLocalBusinessSchema, jsonLdScript } from "@/lib/structured-data"
 import { CompanyBlockButton } from "@/components/companies/block-button"
 import { CompanyReviewForm } from "@/components/companies/review-form"
 import { isValidUuid } from "@/lib/uuid"
@@ -284,11 +284,11 @@ export default async function CompanyDetailPage({ params }: Props) {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(orgSchema) }}
       />
 
       <nav className="mb-4 text-sm text-gray-500">

@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest"
-import { isCrawlerUserAgent, GUEST_LIMIT } from "@/lib/guest-job-access"
+import {
+  isCrawlerUserAgent,
+  isValidPreviewToken,
+  GUEST_LIMIT,
+} from "@/lib/guest-job-access"
 
 describe("isCrawlerUserAgent", () => {
   it("returns true for major search engine bots", () => {
@@ -54,5 +58,32 @@ describe("isCrawlerUserAgent", () => {
 describe("GUEST_LIMIT", () => {
   it("is 15 (お試し検索 仕様)", () => {
     expect(GUEST_LIMIT).toBe(15)
+  })
+})
+
+describe("isValidPreviewToken", () => {
+  it("returns true when the provided token matches the stored token", () => {
+    expect(isValidPreviewToken("a".repeat(48), "a".repeat(48))).toBe(true)
+  })
+
+  it("returns false for a mismatched token of the same length", () => {
+    expect(isValidPreviewToken("a".repeat(48), "b".repeat(48))).toBe(false)
+  })
+
+  it("returns false for a mismatched length (no timingSafeEqual crash)", () => {
+    expect(isValidPreviewToken("short", "a".repeat(48))).toBe(false)
+  })
+
+  it("returns false for a bare truthy flag like '1' (guest-gate bypass regression)", () => {
+    // /jobs/[id]?preview=1 だけでは通さないこと（トークン未設定/不一致は拒否）
+    expect(isValidPreviewToken("1", "a".repeat(48))).toBe(false)
+    expect(isValidPreviewToken("1", null)).toBe(false)
+  })
+
+  it("returns false when either side is missing", () => {
+    expect(isValidPreviewToken(null, "a".repeat(48))).toBe(false)
+    expect(isValidPreviewToken(undefined, "a".repeat(48))).toBe(false)
+    expect(isValidPreviewToken("a".repeat(48), null)).toBe(false)
+    expect(isValidPreviewToken(null, null)).toBe(false)
   })
 })

@@ -9,7 +9,10 @@
  *
  * - IPv4 / IPv6 / CIDR 表記対応 (CIDR は単純なプレフィックスマッチ)
  * - 開発環境 (NODE_ENV !== "production") では loopback (127.0.0.1, ::1) を常に許可
- * - Vercel 経由の場合 `x-forwarded-for` 先頭がクライアント IP
+ * - `x-forwarded-for` はクライアントが任意の値を付与できるヘッダであり、Vercel の前段に
+ *   別のプロキシ/CDN を挟む構成では先頭要素が偽装され得る。Vercel のエッジが直接付与する
+ *   `x-vercel-forwarded-for` を優先し、`x-forwarded-for` はフォールバックとしてのみ使う。
+ *   (参考: https://vercel.com/docs/headers/request-headers)
  */
 
 const LOOPBACK_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"])
@@ -29,13 +32,20 @@ export function parseAllowlist(envValue: string | undefined): string[] {
 export function extractClientIp(headers: {
   get(name: string): string | null
 }): string | null {
+  // Vercel エッジが直接設定する値 (クライアント/中間プロキシから偽装不可)。
+  const xvff = headers.get("x-vercel-forwarded-for")
+  if (xvff) {
+    const first = xvff.split(",")[0]?.trim()
+    if (first) return first
+  }
+  const xri = headers.get("x-real-ip")
+  if (xri) return xri.trim()
+  // フォールバック: 標準ヘッダ。前段プロキシ構成では偽装され得るため最後の手段とする。
   const xff = headers.get("x-forwarded-for")
   if (xff) {
     const first = xff.split(",")[0]?.trim()
     if (first) return first
   }
-  const xri = headers.get("x-real-ip")
-  if (xri) return xri.trim()
   return null
 }
 

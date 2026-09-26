@@ -9,6 +9,7 @@ import {
 } from "@/lib/categories"
 import { buildPrefectureCategoryDescription } from "@/lib/seo-text"
 import { PREFECTURE_SLUG_TO_LABEL as PREFECTURES } from "@/lib/prefectures"
+import { jsonLdScript } from "@/lib/structured-data"
 import { auth } from "@/lib/auth"
 import { GUEST_LIMIT } from "@/lib/guest-job-access"
 import {
@@ -152,7 +153,7 @@ export default async function PrefectureCategoryPage({ params }: Props) {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumb) }}
       />
 
       <nav className="mb-4 text-sm text-gray-500">

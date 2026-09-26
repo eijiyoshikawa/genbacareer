@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto"
 import { prisma } from "./db"
 import { CONSTRUCTION_CATEGORY_VALUES } from "./categories"
 
@@ -51,4 +52,26 @@ export async function getGuestAccessibleJobIds(): Promise<string[]> {
     select: { id: true },
   })
   return rows.map((r) => r.id)
+}
+
+/**
+ * URL クエリの `previewToken` を Job.previewToken と照合する。
+ *
+ * `/jobs/preview/[token]` は正規のトークンを検証済みだが、その先で
+ * `/jobs/[id]` にリダイレクトする際は URL（クエリ文字列）しか状態を運べない。
+ * そのクエリ値は誰でも自由に付与・改変できるため、単なる真偽フラグ（例:
+ * `?preview=1`）にしてしまうとゲストゲート自体を誰でも回避できてしまう。
+ * 必ずトークン文字列そのものを受け取り、DB 上の値と再照合すること。
+ */
+export function isValidPreviewToken(
+  provided: string | null | undefined,
+  actual: string | null | undefined,
+): boolean {
+  if (!provided || !actual) return false
+  if (provided.length !== actual.length) return false
+  try {
+    return timingSafeEqual(Buffer.from(provided), Buffer.from(actual))
+  } catch {
+    return false
+  }
 }
