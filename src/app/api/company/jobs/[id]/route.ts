@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { canPostJob } from "@/lib/plans"
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -95,6 +96,31 @@ export async function PUT(
   }
 
   const { expectedUpdatedAt, ...data } = parsed.data
+
+  // 期限切れ月額プラン・未承認企業は求人を公開（active化）できない
+  // （下書き保存・非公開化・その他編集は引き続き許可）
+  if (data.status === "active") {
+    const company = await prisma.company.findUnique({
+      where: { id: ctx.companyId },
+      select: { status: true, planType: true, planPaidUntil: true },
+    })
+    if (
+      !company ||
+      !canPostJob({
+        status: company.status,
+        planType: company.planType,
+        planPaidUntil: company.planPaidUntil,
+      })
+    ) {
+      return Response.json(
+        {
+          error:
+            "現在のプランでは求人を公開できません。プランの状態をご確認いただくか、運営までお問い合わせください。",
+        },
+        { status: 403 }
+      )
+    }
+  }
 
   // 楽観ロック: クライアントが取得した時点から変わっていなければ更新を許可
   if (expectedUpdatedAt) {
