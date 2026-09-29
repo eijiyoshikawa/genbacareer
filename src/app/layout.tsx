@@ -11,6 +11,7 @@ import {
 } from "@/lib/structured-data";
 import { ensureSchema } from "@/lib/ensure-schema";
 import "./globals.css";
+import { safeJsonLd } from "@/lib/safe-json-ld"
 
 // Latin subset のみ。日本語本体はシステムフォント (Hiragino / Yu Gothic) が
 // 引き取るため、Noto Sans JP は ASCII (数字・英単語) 用の最小構成。
@@ -160,11 +161,11 @@ export default async function RootLayout({
         <GoogleAnalytics />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(orgSchema) }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteSchema) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(siteSchema) }}
         />
         {/* Skip link — Tab キー押下時のみ表示。
             キーボード/SR ユーザーが Header を飛ばして本文へ直接遷移できる */}

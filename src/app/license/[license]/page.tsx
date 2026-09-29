@@ -15,6 +15,7 @@ import {
   generateItemListSchema,
 } from "@/lib/structured-data"
 import { Certificate, BookOpen } from "@phosphor-icons/react/dist/ssr"
+import { safeJsonLd } from "@/lib/safe-json-ld"
 
 // ビルド時の SSG prerender は走らせない (description / requirements の
 // contains 検索が重く 60s タイムアウトする実績あり)。
@@ -114,15 +115,15 @@ export default async function LicenseLpPage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPage) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(collectionPage) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(itemList) }}
       />
 
       <header className="border-b bg-warm-50">

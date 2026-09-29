@@ -17,6 +17,7 @@ import {
   ArrowRight,
   CalendarBlank,
 } from "@phosphor-icons/react/dist/ssr"
+import { safeJsonLd } from "@/lib/safe-json-ld"
 
 // 著者数が少ない (3 人) ので全パスを SSG。新規追加時は ISR でも吸収可能。
 export const dynamicParams = false
@@ -104,16 +105,16 @@ export default async function AuthorPage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(personJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumb) }}
       />
       {itemList && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(itemList) }}
         />
       )}
 

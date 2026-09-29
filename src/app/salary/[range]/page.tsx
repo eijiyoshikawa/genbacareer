@@ -19,6 +19,7 @@ import {
   GuestSignupCta,
   GuestTrialBanner,
 } from "@/components/jobs/guest-signup-cta"
+import { safeJsonLd } from "@/lib/safe-json-ld"
 
 // auth() で cookie を読むため、自動的に dynamic レンダリングになる。
 export const dynamic = "force-dynamic"
@@ -119,15 +120,15 @@ export default async function SalaryRangePage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPage) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(collectionPage) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(itemList) }}
       />
 
       <header className="border-b bg-warm-50">

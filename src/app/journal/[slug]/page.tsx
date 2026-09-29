@@ -16,6 +16,7 @@ import {
   generateBreadcrumbSchema,
 } from "@/lib/structured-data"
 import { CATEGORY_LABELS } from "@/lib/article-categories"
+import { safeJsonLd } from "@/lib/safe-json-ld"
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
@@ -216,11 +217,11 @@ export default async function ArticlePage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(articleJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
 
       {/* Breadcrumb */}

@@ -8,6 +8,7 @@ import {
   ArrowRight,
 } from "@phosphor-icons/react/dist/ssr"
 import { generateBreadcrumbSchema } from "@/lib/structured-data"
+import { safeJsonLd } from "@/lib/safe-json-ld"
 
 export const metadata: Metadata = {
   title: "編集ポリシー",
@@ -26,7 +27,7 @@ export default function EditorialPolicyPage() {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumb) }}
       />
 
       <header className="border-b bg-warm-50">

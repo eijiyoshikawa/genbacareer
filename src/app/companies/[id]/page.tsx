@@ -23,6 +23,7 @@ import {
   PaperPlaneTilt,
   Heart,
 } from "@phosphor-icons/react/dist/ssr"
+import { safeJsonLd } from "@/lib/safe-json-ld"
 
 export const revalidate = 3600 // 1 hour ISR
 
@@ -284,11 +285,11 @@ export default async function CompanyDetailPage({ params }: Props) {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(orgSchema) }}
       />
 
       <nav className="mb-4 text-sm text-gray-500">
