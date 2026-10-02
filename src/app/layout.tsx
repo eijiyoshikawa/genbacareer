@@ -8,18 +8,20 @@ import { CookieConsentBanner } from "@/components/cookie-consent";
 import {
   generateOrganizationSchema,
   generateWebSiteSchema,
+  toJsonLdScript,
 } from "@/lib/structured-data";
 import { ensureSchema } from "@/lib/ensure-schema";
 import "./globals.css";
 
-// Latin subset のみ。日本語本体はシステムフォント (Hiragino / Yu Gothic) が
-// 引き取るため、Noto Sans JP は ASCII (数字・英単語) 用の最小構成。
-// 900 (font-black) は利用が少ないため除外し、700 で合成させる。
-const notoSansJP = Noto_Sans_JP({
+// ブランドフォント: Noto Sans JP（日本の求人サイトで定番。ニュートラルで高い可読性）。
+// 日本語ウェブフォントは大きいため preload:false で初期表示をブロックしない。
+// 取得前/失敗時はシステムゴシック (Hiragino / Yu Gothic) にフォールバック。
+const brandGothic = Noto_Sans_JP({
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: ["400", "500", "700", "900"],
   display: "swap",
-  variable: "--font-noto-jp",
+  preload: false,
+  variable: "--font-gothic",
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp";
@@ -64,9 +66,9 @@ export const metadata: Metadata = {
     url: siteUrl,
     images: [
       {
-        url: "/logo-demo.jpg",
-        width: 1200,
-        height: 630,
+        url: "/logo.png",
+        width: 1000,
+        height: 1000,
         alt: "ゲンバキャリア | 建設業界特化型求人サイト",
       },
     ],
@@ -79,9 +81,9 @@ export const metadata: Metadata = {
     description: "建築・土木・電気・内装の求人を網羅。LINE で気軽に応募。",
     images: [
       {
-        url: "/logo-demo.jpg",
-        width: 1200,
-        height: 630,
+        url: "/logo.png",
+        width: 1000,
+        height: 1000,
         alt: "ゲンバキャリア | 建設業界特化型求人サイト",
       },
     ],
@@ -106,14 +108,14 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "ゲンバキャリア",
   },
-  // /logo-demo.jpg を全アイコン用途に統一。
+  // /logo.png (1000x1000・透過) を全アイコン用途に統一。
   // - ブラウザタブ favicon (icon)
   // - iOS ホーム画面 (apple)
   // - 検索結果 / SNS の OG 画像は openGraph.images で指定済み
   icons: {
-    icon: [{ url: "/logo-demo.jpg", type: "image/jpeg" }],
-    apple: [{ url: "/logo-demo.jpg" }],
-    shortcut: ["/logo-demo.jpg"],
+    icon: [{ url: "/logo.png", type: "image/png" }],
+    apple: [{ url: "/logo.png" }],
+    shortcut: ["/logo.png"],
   },
 };
 
@@ -142,7 +144,7 @@ export default async function RootLayout({
   const siteSchema = generateWebSiteSchema()
 
   return (
-    <html lang="ja" className={`h-full antialiased ${notoSansJP.variable}`}>
+    <html lang="ja" className={`h-full antialiased ${brandGothic.variable}`}>
       <head>
         {/* 画像 CDN へ TLS ハンドシェイクを先回り。LCP 候補のヒーロー画像が
             初回ロードで 100〜300ms 早く到達する（視覚品質は変わらない） */}
@@ -160,11 +162,11 @@ export default async function RootLayout({
         <GoogleAnalytics />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+          dangerouslySetInnerHTML={{ __html: toJsonLdScript(orgSchema) }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteSchema) }}
+          dangerouslySetInnerHTML={{ __html: toJsonLdScript(siteSchema) }}
         />
         {/* Skip link — Tab キー押下時のみ表示。
             キーボード/SR ユーザーが Header を飛ばして本文へ直接遷移できる */}

@@ -36,7 +36,7 @@
   --color-warm-100: #f5f5f4;
   --color-warm-200: #e7e5e4;
   --color-accent: #2563eb;
-  --font-sans: var(--font-noto-jp), "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+  --font-sans: var(--font-gothic), "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
@@ -51,7 +51,7 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-noto-jp), -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+  font-family: var(--font-gothic), -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
   font-feature-settings: "palt";
   -webkit-font-smoothing: antialiased;
   letter-spacing: 0.01em;
@@ -158,13 +158,14 @@ body {
   background-color: rgba(255, 247, 237, 0.5); /* primary-50/50 */
 }
 
-/* === ボタン / リンクの「押してる」タップモーション ===================
-   角丸無し方針なので「沈み込み + 縮小 + 薄暗くなる」3 段で触り心地を担保。
-   release 時は cubic-bezier で軽くオーバーシュートさせて、硬さを軽減する。
+/* === ボタン / リンクの立体感 + 「押してる」タップモーション ===========
+   角丸無し方針なので、影 (elevation) だけで「押せるキー」のような奥行きを
+   出し、ホバーで浮かせ、押下で沈ませることで物理的な触り心地を担保する。
 
-   - press: transform + opacity を 80ms で即時下げ
-   - release: 220ms かけてバネっぽく戻す
-   - hover: 浮き上がり (translateY -1px) で「触れる前のお誘い」
+   - 通常: 軽い elevation で浮いて見せる
+   - hover: さらに浮き上がり + 影を深く (PC、触れる前のお誘い)
+   - press: キーを押し込むように沈める (translateY + 縮小 + 影を畳む + 薄暗く)
+   - release: 220ms かけて cubic-bezier でバネっぽく戻す
 */
 button,
 .press {
@@ -180,23 +181,43 @@ button,
   touch-action: manipulation;
   will-change: transform;
 }
-/* hover: 軽く浮き上がる (PC) */
+/* 通常時の elevation: 押せるキーのように軽く浮かせる */
+button:not(:disabled),
+.press {
+  box-shadow:
+    0 1px 1px rgba(17, 24, 39, 0.05),
+    0 2px 4px rgba(17, 24, 39, 0.1);
+}
+/* hover: さらに浮き上がり + 影を深く (PC) */
 @media (hover: hover) {
   button:not(:disabled):hover,
   .press:hover {
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow:
+      0 2px 4px rgba(17, 24, 39, 0.08),
+      0 8px 16px rgba(17, 24, 39, 0.16);
   }
 }
-/* press: 沈み込み + 縮小 + うっすら暗く */
+/* press: 沈み込み + 縮小 + 影を畳んで接地 + うっすら暗く */
 button:active:not(:disabled),
 .press:active {
-  transform: translateY(1px) scale(0.96);
-  filter: brightness(0.94);
+  transform: translateY(2px) scale(0.97);
+  filter: brightness(0.95);
   transition-duration: 80ms;
-  box-shadow: none !important;
+  box-shadow: 0 1px 1px rgba(17, 24, 39, 0.12) !important;
 }
 button:disabled {
   cursor: not-allowed;
+  box-shadow: none;
+}
+/* モーション抑制設定では浮き/沈みを止め、色変化のみ残す */
+@media (prefers-reduced-motion: reduce) {
+  button:not(:disabled):hover,
+  .press:hover,
+  button:active:not(:disabled),
+  .press:active {
+    transform: none;
+  }
 }
 
 /* === シャープなコーナーに「デザイン性」を付与 ==================
@@ -223,9 +244,89 @@ button:disabled {
   display: inline-block;
   width: 4px;
   height: 1.1em;
-  background: var(--color-primary-500);
+  background: var(--brand-gradient);
   margin-right: 8px;
   pointer-events: none;
+}
+
+/* お知らせマーキー（右→左に無限スクロール）。コンテンツを 2 周分並べ -50% 移動。 */
+@keyframes marquee-rtl {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation: marquee-rtl 36s linear infinite;
+}
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+}
+
+/* 適職診断: 設問切替のフェードイン＋選択肢のポップ */
+@keyframes shindan-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.shindan-in {
+  animation: shindan-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes shindan-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+.shindan-pop {
+  animation: shindan-pop 0.25s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shindan-in, .shindan-pop { animation: none; }
+}
+
+/* ブランドグラデーション（オレンジ→赤の力強いトーン）。
+   ベタ塗りの単色「AI 感」を避け、奥行きのある配色にする。 */
+:root {
+  --brand-gradient: linear-gradient(
+    135deg,
+    #fb923c 0%,
+    #f37524 38%,
+    #ea580c 68%,
+    #dc2626 100%
+  );
+  --brand-gradient-soft: linear-gradient(
+    135deg,
+    #fff7ed 0%,
+    #ffedd5 55%,
+    #fee2e2 100%
+  );
+}
+/* 背景に適用 */
+.bg-brand-gradient {
+  background-image: var(--brand-gradient);
+  color: #fff;
+}
+.bg-brand-gradient-soft {
+  background-image: var(--brand-gradient-soft);
+}
+/* 文字に適用（見出しのアクセント） */
+.text-brand-gradient {
+  background-image: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* ボタン: グラデ + ホバーで少し明るく */
+.btn-brand-gradient {
+  background-image: var(--brand-gradient);
+  color: #fff;
+  transition: filter 0.15s ease, transform 0.05s ease;
+}
+.btn-brand-gradient:hover {
+  filter: brightness(1.06) saturate(1.05);
+}
+.btn-brand-gradient:active {
+  transform: translateY(1px);
 }
 
 /* Article body styles */

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { HIRING_FEE_MIN, HIRING_FEE_MAX } from "@/lib/hiring-fee"
-import { HIRING_FEE_AMOUNT } from "@/lib/hiring-fee"
+
 
 /**
  * 求人別 成果報酬単価のインライン編集。
@@ -76,7 +76,7 @@ export function HiringFeeEditor({
           step={1000}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={HIRING_FEE_AMOUNT.toLocaleString()}
+          placeholder="例: 1,400,000（年収400万×35%）"
           className="w-28 border border-gray-300 px-2 py-1 text-sm tabular-nums focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
         />
       </div>

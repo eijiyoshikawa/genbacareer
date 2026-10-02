@@ -8,7 +8,7 @@
 
 /** プラン種別 (Company.planType の取りうる値) */
 export const PLAN_TYPES = [
-  "success_fee", // ① 成果報酬 ¥498k〜
+  "success_fee", // ① 成果報酬 年収35%
   "monthly_12", // ② 月額 12 ヶ月一括
   "monthly_24", // ③ 月額 24 ヶ月一括
   "campaign_free", // キャンペーン枠 ¥0 無期限
@@ -19,7 +19,7 @@ export type PlanType = (typeof PLAN_TYPES)[number]
 
 /** 表示ラベル (管理画面 / 企業ダッシュボード共通) */
 export const PLAN_LABELS: Record<PlanType, string> = {
-  success_fee: "成果報酬プラン (¥498,000〜 / 採用 1 件)",
+  success_fee: "成果報酬プラン (年収35% / 採用 1 件)",
   monthly_12: "月額プラン 12 ヶ月一括前払い",
   monthly_24: "月額プラン 24 ヶ月一括前払い",
   campaign_free: "キャンペーン枠 (¥0 無期限)",

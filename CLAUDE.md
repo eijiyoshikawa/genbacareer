@@ -28,3 +28,19 @@
 - `pnpm lint` — ESLint 実行
 - `pnpm prisma generate` — Prisma クライアント生成
 - `pnpm prisma db push` — スキーマをDBに反映
+
+## 【恒久ルール・厳守】デプロイ再トリガーに関する禁止事項
+
+> 背景: 空コミットを数時間おきに自動 push して Vercel のデプロイを再トリガーしたことが
+> GitHub の不正検知 (abuse detection) に抵触し、アカウントがフラグされた実績がある (2026-08)。
+
+1. **空コミット禁止**: `git commit --allow-empty` や、内容のないダミーコミット・コメントだけ変えた
+   再トリガー用コミットによるデプロイの再実行は絶対にしない。
+2. **自動コミット生成の禁止**: cron・スクリプト・ループ・Routine 等で、コミットや push を
+   定期的・自動的に生成する仕組みを作らない。
+3. **コミットは実変更があるときのみ**: 実際のコード・ドキュメント変更があるときのみコミットする。
+4. **デプロイの再実行が必要な場合は、必ず次のいずれかを使う**（GitHub を経由しない）:
+   - Vercel Deploy Hook（Settings → Git → Deploy Hooks で発行した URL に `curl -X POST`）
+   - Vercel ダッシュボードの Redeploy ボタン
+   - Vercel CLI（`vercel --prod`）
+5. このルールは他リポジトリ（slack_let / agents 等）でも同様に適用する。

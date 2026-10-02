@@ -143,6 +143,8 @@ interface MultiProps {
   max?: number
   label: string
   hint?: string
+  /** true で 1 枚目を「メイン画像」として扱い、各画像にメイン指定ボタンを表示 */
+  primarySelectable?: boolean
 }
 
 /**
@@ -155,6 +157,7 @@ export function MultiImageUploader({
   max = 12,
   label,
   hint,
+  primarySelectable = false,
 }: MultiProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -197,6 +200,15 @@ export function MultiImageUploader({
     onChange(values.filter((_, i) => i !== idx))
   }
 
+  /** 指定画像を先頭（メイン）へ移動する */
+  function makePrimary(idx: number) {
+    if (idx === 0) return
+    const next = [...values]
+    const [picked] = next.splice(idx, 1)
+    next.unshift(picked)
+    onChange(next)
+  }
+
   return (
     <div>
       <p className="text-sm font-bold text-gray-700">
@@ -208,7 +220,12 @@ export function MultiImageUploader({
 
       <div className="mt-2 grid grid-cols-3 sm:grid-cols-4 gap-2">
         {values.map((url, i) => (
-          <div key={i} className="relative aspect-square border bg-gray-50 overflow-hidden">
+          <div
+            key={i}
+            className={`relative aspect-square border bg-gray-50 overflow-hidden ${
+              primarySelectable && i === 0 ? "ring-2 ring-primary-500" : ""
+            }`}
+          >
             {url ? (
               <Image
                 src={url}
@@ -231,6 +248,21 @@ export function MultiImageUploader({
             >
               <X className="h-3 w-3" />
             </button>
+
+            {primarySelectable &&
+              (i === 0 ? (
+                <span className="absolute bottom-0 inset-x-0 bg-primary-600/90 py-0.5 text-center text-[10px] font-bold text-white">
+                  メイン画像
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => makePrimary(i)}
+                  className="absolute bottom-0 inset-x-0 bg-black/55 py-0.5 text-center text-[10px] font-bold text-white hover:bg-primary-600/90"
+                >
+                  メインにする
+                </button>
+              ))}
           </div>
         ))}
         {values.filter(Boolean).length < max && (

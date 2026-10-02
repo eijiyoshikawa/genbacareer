@@ -59,7 +59,9 @@ export default async function JobMapPage() {
         </h1>
         <p className="mt-1 text-sm text-gray-500">
           全国 {totalJobs.toLocaleString()} 件の求人を都道府県別に集計。
-          ピンをクリックすると該当地域の求人一覧へ移動します。
+          {apiKey
+            ? "ピンをクリックすると該当地域の求人一覧へ移動します。"
+            : "都道府県を選ぶと該当地域の求人一覧へ移動します。"}
         </p>
       </header>
 
@@ -71,7 +73,10 @@ export default async function JobMapPage() {
           zoom={JAPAN_ZOOM}
         />
       ) : (
-        <JobMapFallback points={points} />
+        <JobMapFallback
+          points={points}
+          showSetupNotice={process.env.NODE_ENV !== "production"}
+        />
       )}
     </div>
   )

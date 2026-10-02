@@ -31,6 +31,9 @@ export default async function JobPerformancePage({
       viewCount: true,
       rankScore: true,
       hiringFeeAmount: true,
+      salaryMin: true,
+      salaryMax: true,
+      salaryType: true,
     },
   })
   if (!job) notFound()
@@ -206,7 +209,7 @@ export default async function JobPerformancePage({
 
       <p className="text-xs text-gray-500 leading-relaxed">
         ※ 推定 CPA はこの求人の採用単価 ¥{hiringFeeJpy.toLocaleString()}
-        {job.hiringFeeAmount == null && "（既定値）"}
+        {job.hiringFeeAmount == null && "（理論年収×35%で自動計算）"}
         を基準に「応募 1 件あたりの想定コスト」を算出しています。
         実際の課金は採用決定時の成果報酬制で、BillingEvent ベースの実値表示は近日対応予定。
       </p>

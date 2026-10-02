@@ -60,6 +60,7 @@ export async function POST(
       expiresAt: null,
       viewCount: 0,
       rankScore: 0,
+      displayPriority: 1, // source='direct' のため必ず Tier 1
       // hellowork 拡張フィールドは複製対象外（参照系のため）
     },
   })

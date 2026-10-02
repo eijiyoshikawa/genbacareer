@@ -9,6 +9,7 @@ import {
   generateBreadcrumbSchema,
   generateCollectionPageSchema,
   generateItemListSchema,
+  toJsonLdScript,
 } from "@/lib/structured-data"
 
 export const revalidate = 21600 // 6 hours
@@ -88,15 +89,15 @@ export default async function TagPage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPage) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(collectionPage) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(itemList) }}
       />
 
       <header className="border-b bg-warm-50">

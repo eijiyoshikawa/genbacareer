@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PREFECTURES } from "@/lib/constants";
+import { PostalCodeInput } from "@/components/forms/postal-code-input";
 
 export default function CompanyRegisterPage() {
   const router = useRouter();
   const [form, setForm] = useState({
     companyName: "",
     industry: "",
+    postalCode: "",
     prefecture: "",
     contactEmail: "",
     password: "",
@@ -142,6 +144,12 @@ export default function CompanyRegisterPage() {
                 <option value="その他建設関連">その他建設関連</option>
               </select>
             </div>
+
+            <PostalCodeInput
+              value={form.postalCode}
+              onValueChange={(v) => updateField("postalCode", v)}
+              onResolved={(addr) => updateField("prefecture", addr.prefecture)}
+            />
 
             <div>
               <label

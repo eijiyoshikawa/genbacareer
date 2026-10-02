@@ -1,5 +1,18 @@
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
+/**
+ * JSON-LD を <script type="application/ld+json"> に dangerouslySetInnerHTML で
+ * 埋め込むための安全なシリアライズ。
+ *
+ * 求人タイトル/説明文等は企業ユーザーの自由入力であり、"</script>" を含む値を
+ * 送信されると JSON.stringify そのままの埋め込みではスクリプトタグが早期に閉じられ、
+ * 後続の文字列が新しい <script> として解釈・実行される(stored XSS)。
+ * "<" を Unicode エスケープして無害化する(JSON パース結果には影響しない)。
+ */
+export function toJsonLdScript(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, "\\u003c")
+}
+
 /** サイト全体の Organization 構造化データ。root layout で 1 回だけ埋め込む。 */
 export function generateOrganizationSchema(): Record<string, unknown> {
   return {
@@ -9,11 +22,8 @@ export function generateOrganizationSchema(): Record<string, unknown> {
     name: "ゲンバキャリア",
     alternateName: "Genba Career",
     url: BASE_URL,
-    logo: `${BASE_URL}/logo-demo.jpg`,
-    sameAs: [
-      "https://youtube.com/@let-kensetsu",
-      "https://instagram.com/let_kensetsu",
-    ],
+    logo: `${BASE_URL}/logo.png`,
+    sameAs: ["https://lin.ee/OwURD4q"],
     contactPoint: {
       "@type": "ContactPoint",
       contactType: "customer support",
@@ -262,16 +272,24 @@ export function generateJobPostingSchema(job: JobInput): Record<string, unknown>
   // Base salary
   // salaryMin が無い場合も Google 推奨: estimatedSalary を提供。
   // 求人カテゴリの相場 (建設業全体の概算) を埋めて欠落を解消する。
+  //
+  // schema.org QuantitativeValue の仕様:
+  //   - 範囲なら minValue + maxValue を「両方」セットする（片方だけは NG）
+  //   - 単一値なら value を使う（minValue 単独は不可）
+  // Search Console から「maxValue がありません」警告が出ていたのは、
+  // salaryMax=null のときに minValue だけ出力していたため。
   if (job.salaryMin != null) {
     const unitText =
       SALARY_UNIT_MAP[(job.salaryType ?? "monthly").toLowerCase()] ?? "MONTH"
+    const hasRange = job.salaryMax != null && job.salaryMax !== job.salaryMin
     schema.baseSalary = {
       "@type": "MonetaryAmount",
       currency: "JPY",
       value: {
         "@type": "QuantitativeValue",
-        minValue: job.salaryMin,
-        ...(job.salaryMax != null && { maxValue: job.salaryMax }),
+        ...(hasRange
+          ? { minValue: job.salaryMin, maxValue: job.salaryMax }
+          : { value: job.salaryMin }),
         unitText,
       },
     }
@@ -312,15 +330,12 @@ export function generateJobPostingSchema(job: JobInput): Record<string, unknown>
   }
   // experienceRequirements は Google for Jobs で OccupationalExperienceRequirements 型を要求。
   // 文字列だと「列挙値が無効」エラーになる。
+  // schema.org の monthsOfExperience は正の値必須なので、経験不問 (0 ヶ月) は
+  // プロパティ自体を出力しない（Search Console から「正の値が必要」警告対象）。
   if (job.requiredExperience) {
-    schema.experienceRequirements = parseExperienceToSchema(
-      job.requiredExperience
-    )
-  } else {
-    // 経験不問を明示 (Google 推奨: experienceInPlaceOfEducation も指定)
-    schema.experienceRequirements = {
-      "@type": "OccupationalExperienceRequirements",
-      monthsOfExperience: 0,
+    const exp = parseExperienceToSchema(job.requiredExperience)
+    if (exp) {
+      schema.experienceRequirements = exp
     }
   }
   // educationRequirements は EducationalOccupationalCredential 型を要求。
@@ -660,22 +675,25 @@ function extractJpPostalCode(address: string): string | null {
  * 経験要件の文字列を Google for Jobs の OccupationalExperienceRequirements に変換。
  * 例:
  *   "3年以上"        → { monthsOfExperience: 36 }
- *   "経験不問"       → { monthsOfExperience: 0 }
+ *   "経験不問"       → null（プロパティを出力しないことで Search Console 警告を回避）
  *   "1年程度"        → { monthsOfExperience: 12 }
  *   "実務経験 半年"  → { monthsOfExperience: 6 }
+ *
+ * schema.org の仕様で monthsOfExperience は正の値必須。
+ * 経験不問のケースは null を返し、呼び出し側でプロパティを省略する。
  */
-function parseExperienceToSchema(text: string): Record<string, unknown> {
-  // 「不問」「未経験」「なし」→ 0
+function parseExperienceToSchema(
+  text: string
+): { "@type": string; monthsOfExperience: number } | null {
+  // 「不問」「未経験」「なし」→ プロパティ自体を出さない
   if (/不問|未経験|なし|なくて|問わ/i.test(text)) {
-    return {
-      "@type": "OccupationalExperienceRequirements",
-      monthsOfExperience: 0,
-    }
+    return null
   }
   // "N年" のパターン
   const yearMatch = text.match(/(\d+)\s*年/)
   if (yearMatch) {
     const years = parseInt(yearMatch[1], 10)
+    if (years <= 0) return null
     return {
       "@type": "OccupationalExperienceRequirements",
       monthsOfExperience: years * 12,
@@ -684,9 +702,11 @@ function parseExperienceToSchema(text: string): Record<string, unknown> {
   // "Nヶ月" のパターン
   const monthMatch = text.match(/(\d+)\s*(?:ヶ月|か月|カ月)/)
   if (monthMatch) {
+    const months = parseInt(monthMatch[1], 10)
+    if (months <= 0) return null
     return {
       "@type": "OccupationalExperienceRequirements",
-      monthsOfExperience: parseInt(monthMatch[1], 10),
+      monthsOfExperience: months,
     }
   }
   // 半年
@@ -696,11 +716,8 @@ function parseExperienceToSchema(text: string): Record<string, unknown> {
       monthsOfExperience: 6,
     }
   }
-  // パース不能 → 0 (経験不問扱い)
-  return {
-    "@type": "OccupationalExperienceRequirements",
-    monthsOfExperience: 0,
-  }
+  // パース不能 → null（経験不問扱い、プロパティ自体を出さない）
+  return null
 }
 
 /**

@@ -29,6 +29,23 @@ const CATEGORY_LABELS: Record<string, string> = {
   interview: "体験談",
 }
 
+// imageUrl が無い記事用のカテゴリ別グラデーション。「画像が無い」のではなく
+// 「カテゴリのビジュアル」として成立させるための装飾。Tailwind の static class
+// として書き出す必要があるため、`bg-gradient-to-br from-... to-...` を文字列
+// リテラルで保持する。
+const CATEGORY_GRADIENT: Record<string, string> = {
+  career: "bg-gradient-to-br from-sky-500 to-blue-700",
+  salary: "bg-gradient-to-br from-amber-500 to-orange-700",
+  license: "bg-gradient-to-br from-emerald-500 to-teal-700",
+  "job-type": "bg-gradient-to-br from-violet-500 to-purple-700",
+  industry: "bg-gradient-to-br from-cyan-600 to-blue-800",
+  interview: "bg-gradient-to-br from-rose-500 to-pink-700",
+}
+
+function categoryGradient(category: string): string {
+  return CATEGORY_GRADIENT[category] ?? "bg-gradient-to-br from-gray-500 to-gray-700"
+}
+
 const PER_PAGE = 20
 
 type Props = {
@@ -125,8 +142,8 @@ export default async function JournalPage({ searchParams }: Props) {
           <div className="grid gap-4 sm:grid-cols-3 mb-8">
             {featured.map((a) => (
               <Link key={a.slug} href={`/journal/${a.slug}`} className="group overflow-hidden  border bg-white">
-                {a.imageUrl && (
-                  <div className="aspect-video relative overflow-hidden">
+                <div className={`aspect-video relative overflow-hidden ${a.imageUrl ? "" : categoryGradient(a.category)}`}>
+                  {a.imageUrl && (
                     <Image
                       src={a.imageUrl}
                       alt={a.title}
@@ -134,20 +151,14 @@ export default async function JournalPage({ searchParams }: Props) {
                       sizes="(max-width: 640px) 100vw, 33vw"
                       className="object-cover group-hover:scale-[1.02] transition duration-300"
                     />
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-3 pt-8">
-                      <span className="bg-primary-600 px-2 py-0.5 text-xs font-medium text-white">
-                        {CATEGORY_LABELS[a.category] ?? a.category}
-                      </span>
-                      <p className="mt-1 text-sm font-bold text-white line-clamp-2">{a.title}</p>
-                    </div>
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-8">
+                    <span className="bg-primary-600 px-2 py-0.5 text-xs font-medium text-white">
+                      {CATEGORY_LABELS[a.category] ?? a.category}
+                    </span>
+                    <p className="mt-1 text-sm font-bold text-white line-clamp-2">{a.title}</p>
                   </div>
-                )}
-                {!a.imageUrl && (
-                  <div className="p-4">
-                    <span className="text-xs font-medium text-primary-600">{CATEGORY_LABELS[a.category] ?? a.category}</span>
-                    <p className="mt-1 text-sm font-medium text-gray-900 group-hover:text-primary-600">{a.title}</p>
-                  </div>
-                )}
+                </div>
               </Link>
             ))}
           </div>
@@ -170,8 +181,8 @@ export default async function JournalPage({ searchParams }: Props) {
               <div className="space-y-3">
                 {articles.map((a) => (
                   <Link key={a.slug} href={`/journal/${a.slug}`} className="group flex gap-4  border bg-white p-3 hover:border-primary-200 transition">
-                    {a.imageUrl && (
-                      <div className="relative h-20 w-32 shrink-0 overflow-hidden sm:h-24 sm:w-40">
+                    <div className={`relative h-20 w-32 shrink-0 overflow-hidden sm:h-24 sm:w-40 ${a.imageUrl ? "" : categoryGradient(a.category)}`}>
+                      {a.imageUrl ? (
                         <Image
                           src={a.imageUrl}
                           alt={a.title}
@@ -179,8 +190,14 @@ export default async function JournalPage({ searchParams }: Props) {
                           sizes="(max-width: 640px) 128px, 160px"
                           className="object-cover"
                         />
-                      </div>
-                    )}
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center px-2 text-center">
+                          <span className="text-xs font-bold leading-tight tracking-wide text-white drop-shadow">
+                            {CATEGORY_LABELS[a.category] ?? a.category}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0 py-0.5">
                       <div className="flex items-center gap-2">
                         <span className="bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-600">

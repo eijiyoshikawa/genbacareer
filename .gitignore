@@ -44,3 +44,6 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# リポジトリ直下に置いた別プロジェクト（ai-interviewer 等）の混入防止
+/agents/

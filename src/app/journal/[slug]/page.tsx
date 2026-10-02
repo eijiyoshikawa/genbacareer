@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
 import { ChevronRight } from "lucide-react"
@@ -14,6 +15,7 @@ import { CATEGORIES } from "@/lib/categories"
 import {
   generateArticleSchema,
   generateBreadcrumbSchema,
+  toJsonLdScript,
 } from "@/lib/structured-data"
 import { CATEGORY_LABELS } from "@/lib/article-categories"
 
@@ -114,7 +116,7 @@ export default async function ArticlePage({ params }: Props) {
     ? await prisma.job
         .findMany({
           where: { status: "active", category: article.subcategory! },
-          orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+          orderBy: buildPublicJobOrderBy("recommended"),
           take: 3,
           select: {
             id: true,
@@ -216,11 +218,11 @@ export default async function ArticlePage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(articleJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumbJsonLd) }}
       />
 
       {/* Breadcrumb */}

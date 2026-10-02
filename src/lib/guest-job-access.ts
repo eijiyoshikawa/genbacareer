@@ -8,10 +8,19 @@ export const GUEST_LIMIT = 15
  * 検索エンジン・SNS 等のクローラ UA。
  * 詳細ページの構造化データ（Google for Jobs）を取得させるため、
  * 未登録ゲートの対象外とする。
+ *
+ * NOTE: Google は通常クロール (Googlebot) 以外にも以下の専用 UA を使う:
+ *   - Google-InspectionTool/1.0  ← リッチリザルトテスト / Search Console URL 検査
+ *   - GoogleOther                ← 一般的な Google プロダクト用
+ *   - Google-Extended            ← 生成 AI 学習用 (許可するかは別判断)
+ * Google-InspectionTool は "Googlebot" を含まないため、明示的に追加する。
+ * (これが無いと Rich Results Test が /login にリダイレクトされて noindex 判定される)
  */
 const CRAWLER_UA_PATTERNS: RegExp[] = [
   /googlebot/i,
+  /google-inspectiontool/i,
   /google-extended/i,
+  /googleother/i,
   /bingbot/i,
   /slurp/i,
   /duckduckbot/i,
@@ -43,6 +52,7 @@ export async function getGuestAccessibleJobIds(): Promise<string[]> {
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
     },
     orderBy: [
+      { displayPriority: "asc" },
       { source: "asc" },
       { rankScore: "desc" },
       { publishedAt: "desc" },

@@ -18,6 +18,7 @@
  */
 
 import { XMLParser } from "fast-xml-parser"
+import { parseSalaryText } from "./salary-parser"
 
 // ========================================
 // 型定義（import-batch.ts と互換維持）
@@ -361,11 +362,27 @@ function toHelloworkJobData(
     str(record.jgshjusho_n)
   const { prefecture, city } = splitPrefectureCity(locText)
 
-  const salaryMin = numericOrNull(record.chgnkeitai_kagen)
-  const salaryMax = numericOrNull(record.chgnkeitai_jgn)
-  const salaryType =
+  // 1) 構造化タグ (chgnkeitai_kagen / _jgn / chgnkeitai) を最優先
+  let salaryMin = numericOrNull(record.chgnkeitai_kagen)
+  let salaryMax = numericOrNull(record.chgnkeitai_jgn)
+  let salaryType: "monthly" | "hourly" | "annual" | "daily" | null =
     inferSalaryType(str(record.chgnkeitai)) ??
     inferSalaryTypeFromAmount(salaryMin ?? salaryMax)
+
+  // 2) 構造化タグが空なら baseSalary (khky) 文字列をパースしてフォールバック
+  //    例: "月給 250,000円〜300,000円" / "日給12,000円" / "月給25万円〜30万円"
+  if (salaryMin == null && salaryMax == null) {
+    const parsed = parseSalaryText(str(record.khky))
+    if (parsed.min != null) salaryMin = parsed.min
+    if (parsed.max != null) salaryMax = parsed.max
+    if (salaryType == null && parsed.type != null) salaryType = parsed.type
+  }
+
+  // 3) baseSalary が「300,000円〜350,000円」のように種別語を含まないケース対策。
+  //    金額レンジから monthly/hourly/daily/annual を最終推定する。
+  if (salaryType == null) {
+    salaryType = inferSalaryTypeFromAmount(salaryMin ?? salaryMax)
+  }
 
   const requirements = str(record.menkyo_skku3_n)
 

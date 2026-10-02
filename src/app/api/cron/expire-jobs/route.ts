@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -44,7 +44,9 @@ export async function GET(request: Request) {
     await prisma.job
       .update({
         where: { id: j.id },
-        data: { expiresAt: newExpiry, publishedAt: now },
+        // 自動再掲載では expiresAt のみ延長し、publishedAt（初回公開日）は保持する。
+        // publishedAt を now に更新するとランキングの「新着」ブーストを毎回受けてしまうため。
+        data: { expiresAt: newExpiry },
       })
       .then(() => {
         renewed++

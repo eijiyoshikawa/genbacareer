@@ -23,6 +23,7 @@ import {
   replyMessage,
   getUserProfile,
   isMessagingConfigured,
+  type FlexMessage,
 } from "@/lib/line-messaging"
 import { prisma } from "@/lib/db"
 import { generateAiReply, isAiReplyConfigured } from "@/lib/ai-reply"
@@ -55,6 +56,53 @@ const GREETING_TEXT = [
 ].join("\n")
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
+
+// 友だち追加直後に送る「適職診断」誘導カード（あいさつに続けて送信）。
+// ボタンタップで診断ページへ遷移（流入元は source=line_follow で計測）。
+const SHINDAN_FLEX: FlexMessage = {
+  type: "flex",
+  altText: "まずは無料の建設業 適職診断（約1分）はいかがですか？",
+  contents: {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "🧭 建設業 適職診断",
+          weight: "bold",
+          size: "lg",
+          color: "#14181b",
+        },
+        {
+          type: "text",
+          text: "かんたん8問・約1分。あなたに向いている職種がわかり、そのまま求人も探せます。",
+          wrap: true,
+          size: "sm",
+          color: "#57534e",
+          margin: "md",
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          color: "#f37524",
+          action: {
+            type: "uri",
+            label: "適職診断をはじめる（無料）",
+            uri: `${SITE_URL}/shindan?source=line_follow`,
+          },
+        },
+      ],
+    },
+  },
+}
 
 // 直近 14 日以内の lead と自動 bind する
 const AUTO_BIND_WINDOW_DAYS = 14
@@ -143,7 +191,89 @@ async function tryAutoBind(
   } catch {
     return null
   }
+  // 同一 userId のフォロワー専用レコードがあれば削除（応募 lead に bind できたので
+  // フォロワー record と二重になり、ブロードキャストで重複送信されるのを防ぐ）。
+  await prisma.lineLead
+    .deleteMany({
+      where: { lineUserId: userId, status: "follower", id: { not: lead.id } },
+    })
+    .catch(() => {})
   return { leadName: lead.name, jobTitle: lead.job?.title ?? null }
+}
+
+/**
+ * 友だち追加(follow)時に lineUserId を確実に捕捉する。
+ *
+ * 1. 既にこの lineUserId を持つ lead があれば displayName 更新のみ（冪等・重複作成回避）。
+ * 2. 直近 14 日の未 bind lead と「氏名の完全一致かつ候補がちょうど 1 件」のときだけ緩く bind。
+ *    ※ 確実な経路は message 内の電話/メールによる tryAutoBind。氏名一致は同名による誤 bind を
+ *      避けるため候補 1 件に限定する保守的なヒューリスティック。
+ * 3. いずれにも該当しなければ「フォロワー」レコードを作成して配信対象化する。
+ *    ブロードキャスト(/api/admin/segments/broadcast)は lineUserId + name のみで送れるため、
+ *    電話/メール未提供でも配信できる。
+ */
+async function captureFollowerOnFollow(
+  userId: string,
+  displayName: string | null
+): Promise<void> {
+  // 1. 既存 bind 済みなら displayName を更新するだけ
+  const existing = await prisma.lineLead
+    .findFirst({ where: { lineUserId: userId }, select: { id: true } })
+    .catch(() => null)
+  if (existing) {
+    await prisma.lineLead
+      .update({
+        where: { id: existing.id },
+        data: { lineDisplayName: displayName ?? undefined },
+      })
+      .catch(() => {})
+    return
+  }
+
+  const trimmed = displayName?.trim()
+
+  // 2. 氏名一致での緩い bind（候補がちょうど 1 件のときのみ）
+  if (trimmed) {
+    const since = new Date(Date.now() - AUTO_BIND_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+    const matches = await prisma.lineLead
+      .findMany({
+        where: { lineUserId: null, createdAt: { gte: since }, name: trimmed },
+        select: { id: true },
+        take: 2,
+      })
+      .catch(() => [] as { id: string }[])
+    if (matches.length === 1) {
+      await prisma.lineLead
+        .update({
+          where: { id: matches[0].id },
+          data: {
+            lineUserId: userId,
+            lineDisplayName: displayName,
+            status: "line_added",
+          },
+        })
+        .catch(() => {})
+      return
+    }
+  }
+
+  // 3. フォロワーレコードを作成（電話/メール未提供でも配信対象に）
+  await prisma.lineLead
+    .create({
+      data: {
+        name: trimmed && trimmed.length > 0 ? trimmed.slice(0, 100) : "LINE 友だち",
+        phone: "",
+        email: "",
+        lineUserId: userId,
+        lineDisplayName: displayName,
+        status: "follower",
+      },
+    })
+    .catch((e) =>
+      console.warn(
+        `[line.webhook] follower create failed: ${e instanceof Error ? e.message : e}`
+      )
+    )
 }
 
 function autoReplyText(input: string): string | null {
@@ -158,7 +288,7 @@ function autoReplyText(input: string): string | null {
       "",
       "💴 ご利用料金（企業様）",
       "・掲載料: 無料キャンペーン中",
-      "・成果報酬: 1 名 49.8 万円〜（職種による）",
+      "・成果報酬: 採用者の理論年収の 35% / 名",
       "",
       `詳しくは: ${SITE_URL}/for-employers`,
     ].join("\n")
@@ -211,26 +341,29 @@ async function handleEvent(ev: LineEvent): Promise<void> {
       const userId = ev.source?.userId
       const profile = userId ? await getUserProfile(userId).catch(() => null) : null
 
-      // プロフィール取得済みなら、過去 14 日の lead に displayName を伝播
-      if (userId && profile) {
-        await prisma.lineLead
-          .updateMany({
-            where: { lineUserId: userId },
-            data: { lineDisplayName: profile.displayName, status: "line_added" },
-          })
-          .catch(() => {})
+      // 友だち追加時点で lineUserId を確実に捕捉（配信対象化）
+      if (userId) {
+        await captureFollowerOnFollow(userId, profile?.displayName ?? null)
       }
 
       if (ev.replyToken) {
-        await replyMessage(ev.replyToken, [{ type: "text", text: GREETING_TEXT }])
+        // あいさつ → 続けて適職診断への誘導カードを送る
+        await replyMessage(ev.replyToken, [
+          { type: "text", text: GREETING_TEXT },
+          SHINDAN_FLEX,
+        ])
       }
       return
     }
 
     if (ev.type === "unfollow") {
       const userId = ev.source?.userId
-      // 友だち削除時は lineUserId をクリア（再追加時の混乱回避）
       if (userId) {
+        // フォロワー専用レコードは削除。応募 lead は lineUserId を外して温存
+        // （営業パイプライン上の情報を消さないため）。再追加時の混乱も回避。
+        await prisma.lineLead
+          .deleteMany({ where: { lineUserId: userId, status: "follower" } })
+          .catch(() => {})
         await prisma.lineLead
           .updateMany({
             where: { lineUserId: userId },

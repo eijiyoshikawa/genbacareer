@@ -15,6 +15,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:install": "playwright install --with-deps chromium",
     "check:env": "tsx scripts/check-env.ts",
+    "line:doctor": "tsx scripts/line-doctor.ts",
     "gen:secret": "tsx scripts/generate-secrets.ts",
     "preflight": "tsx scripts/preflight.ts",
     "smoke": "bash scripts/smoke.sh",

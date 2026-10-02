@@ -31,12 +31,18 @@ const navItems = [
 export function CompanySidebar({
   userName,
   role,
+  scoutEnabled = false,
 }: {
   companyId: string
   userName: string
   role: string
+  scoutEnabled?: boolean
 }) {
   const pathname = usePathname()
+  // スカウト未解放時は「スカウト送信履歴」を非表示
+  const items = scoutEnabled
+    ? navItems
+    : navItems.filter((n) => n.href !== "/company/scouts")
 
   return (
     <aside className="w-full shrink-0 lg:w-56">
@@ -60,7 +66,7 @@ export function CompanySidebar({
 
         {/* Navigation */}
         <nav className="p-2">
-          {navItems.map((item) => {
+          {items.map((item) => {
             const isActive = pathname.startsWith(item.href)
             const Icon = item.icon
             return (

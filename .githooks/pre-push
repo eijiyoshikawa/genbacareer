@@ -1,0 +1,23 @@
+#!/bin/sh
+# 空コミットの push をローカルでブロックする (CLAUDE.md 恒久ルール)。
+# 有効化: git config core.hooksPath .githooks  (pnpm install 時に自動設定)
+ZERO="0000000000000000000000000000000000000000"
+while read local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$ZERO" ] && continue  # ブランチ削除はスキップ
+  if [ "$remote_sha" = "$ZERO" ]; then
+    range="$local_sha --not --remotes=origin"
+  else
+    range="$remote_sha..$local_sha"
+  fi
+  for c in $(git rev-list --no-merges $range 2>/dev/null); do
+    if [ -z "$(git diff-tree --no-commit-id --name-only -r "$c")" ]; then
+      echo "" >&2
+      echo "✖ push を中止しました: 空コミットを検出 ($c)" >&2
+      echo "  $(git log -1 --format=%s "$c")" >&2
+      echo "  CLAUDE.md 恒久ルール: 空コミットによるデプロイ再トリガーは禁止です。" >&2
+      echo "  再デプロイが必要な場合は vercel --prod / Deploy Hook を使ってください。" >&2
+      exit 1
+    fi
+  done
+done
+exit 0

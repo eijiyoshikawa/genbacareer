@@ -31,7 +31,38 @@ export interface FeedJob {
   description: string | null
   companyName: string | null
   companyLogoUrl: string | null
-  companyPhoto: string | null
+  /**
+   * 背景写真。サーバー側で 求人画像 → 企業写真 → マガジン記事のカバー写真
+   * の順に解決済み。null は「公開記事に写真が 1 枚も無い」場合のみで、
+   * そのときだけ下の職種別デフォルト写真に落ちる。
+   */
+  image: string | null
+}
+
+// 最終フォールバック（マガジンに写真付き記事が無い場合のみ使用）。
+// 本番で表示実績のある Unsplash 建設系画像のみ使用。
+const CATEGORY_IMAGE: Record<string, string> = {
+  construction:
+    "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1000&q=70",
+  civil:
+    "https://images.unsplash.com/photo-1581094288338-2314dddb7ece?auto=format&fit=crop&w=1000&q=70",
+  electrical:
+    "https://images.unsplash.com/photo-1621905251918-48416bd8575a?auto=format&fit=crop&w=1000&q=70",
+  interior:
+    "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1000&q=70",
+  demolition:
+    "https://images.unsplash.com/photo-1574359411659-15573a27fd0c?auto=format&fit=crop&w=1000&q=70",
+  driver:
+    "https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=1000&q=70",
+  management:
+    "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1000&q=70",
+  survey:
+    "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1000&q=70",
+}
+const DEFAULT_FEED_IMAGE = CATEGORY_IMAGE.construction
+
+function feedBackground(job: FeedJob): string {
+  return job.image ?? CATEGORY_IMAGE[job.category] ?? DEFAULT_FEED_IMAGE
 }
 
 function formatSalary(j: FeedJob): string {
@@ -179,17 +210,15 @@ function FeedCard({
 }) {
   return (
     <article className="snap-start h-[calc(100dvh-4rem)] relative overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
-      {/* 背景画像 */}
-      {job.companyPhoto && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={job.companyPhoto}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover opacity-40"
-          loading="lazy"
-        />
-      )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+      {/* 背景画像: 求人/企業の写真が無ければ職種別のデフォルト写真を必ず表示 */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={feedBackground(job)}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover opacity-70"
+        loading="lazy"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/10" />
 
       {/* 本文 — 右側のアクション列 + iOS home indicator 分の余白を確保。
           右側アイコン列 (h-12/w-12, right-3) と確実に分離するため pr-24

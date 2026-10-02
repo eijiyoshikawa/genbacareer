@@ -10,10 +10,10 @@ import {
   fetchStatusCounts,
   rangeForDays,
   type FunnelStats,
-  type TimeSeriesPoint,
 } from "@/lib/analytics"
 import { LEAD_STATUS_META, type LeadStatus } from "@/lib/line-lead-status"
 import { getEventCounts } from "@/lib/track"
+import { TimeSeriesChart } from "./timeseries-chart"
 
 export const metadata: Metadata = {
   title: "分析ダッシュボード",
@@ -204,105 +204,6 @@ function FunnelCard({ funnel }: { funnel: FunnelStats }) {
         })}
       </ul>
     </section>
-  )
-}
-
-// ============================================================
-// 時系列 SVG チャート（自前実装、軽量）
-// ============================================================
-
-function TimeSeriesChart({ points }: { points: TimeSeriesPoint[] }) {
-  if (points.length === 0) {
-    return <p className="text-sm text-gray-400">データがありません。</p>
-  }
-  const W = 800
-  const H = 200
-  const padX = 40
-  const padY = 16
-
-  const maxValue = Math.max(
-    1,
-    ...points.flatMap((p) => [p.jobViews, p.applyClicks, p.leads])
-  )
-
-  function scaleY(v: number) {
-    return H - padY - ((H - padY * 2) * v) / maxValue
-  }
-  function scaleX(i: number) {
-    if (points.length === 1) return padX
-    return padX + ((W - padX * 2) * i) / (points.length - 1)
-  }
-
-  function pathFor(key: "jobViews" | "applyClicks" | "leads"): string {
-    return points
-      .map((p, i) => {
-        const x = scaleX(i)
-        const y = scaleY(p[key])
-        return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`
-      })
-      .join(" ")
-  }
-
-  // x 軸ラベルは max 8 個に間引き
-  const labelStep = Math.max(1, Math.ceil(points.length / 8))
-
-  return (
-    <div className="overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H + 40}`} className="w-full min-w-[640px]">
-        {/* グリッド */}
-        {[0, 0.25, 0.5, 0.75, 1].map((r) => {
-          const y = padY + (H - padY * 2) * r
-          return (
-            <line
-              key={r}
-              x1={padX}
-              x2={W - padX}
-              y1={y}
-              y2={y}
-              stroke="#e5e7eb"
-              strokeDasharray="2 4"
-            />
-          )
-        })}
-        {/* 3 系列 */}
-        <path d={pathFor("jobViews")} fill="none" stroke="#3b82f6" strokeWidth={2} />
-        <path d={pathFor("applyClicks")} fill="none" stroke="#06b6d4" strokeWidth={2} />
-        <path d={pathFor("leads")} fill="none" stroke="#f37524" strokeWidth={2.5} />
-        {/* x ラベル */}
-        {points.map((p, i) => {
-          if (i % labelStep !== 0 && i !== points.length - 1) return null
-          return (
-            <text
-              key={p.date}
-              x={scaleX(i)}
-              y={H + 14}
-              fontSize={10}
-              fill="#6b7280"
-              textAnchor="middle"
-            >
-              {p.date.slice(5)}
-            </text>
-          )
-        })}
-        {/* 凡例 */}
-        <g transform={`translate(${padX}, ${H + 28})`}>
-          <LegendItem color="#3b82f6" label="PV" x={0} />
-          <LegendItem color="#06b6d4" label="クリック" x={70} />
-          <LegendItem color="#f37524" label="lead" x={170} />
-        </g>
-      </svg>
-    </div>
-  )
-}
-
-function LegendItem({ color, label, x }: { color: string; label: string; x: number }) {
-  return (
-    <g transform={`translate(${x}, 0)`}>
-      <rect x={0} y={-8} width={10} height={3} fill={color} />
-      <text x={14} y={-3} fontSize={10} fill="#374151">
-        {label}
-      </text>
-    </g>
   )
 }
 

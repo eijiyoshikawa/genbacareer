@@ -14,6 +14,7 @@
  *   3. 審査通過後、Indeed が定期クロール
  */
 
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES, getCategoryLabel } from "@/lib/categories"
 
@@ -78,7 +79,7 @@ export async function GET() {
       updatedAt: true,
       company: { select: { name: true } },
     },
-    orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+    orderBy: buildPublicJobOrderBy("recommended"),
     take: 5000,
   }).catch(() => [])
 

@@ -8,7 +8,10 @@ import { JobCard } from "@/components/jobs/job-card"
 import { CompanyFollowButton } from "@/components/companies/follow-button"
 import { CompanyGbizSection } from "@/components/companies/gbiz-section"
 import { ReportButton } from "@/components/reports/report-button"
-import { generateLocalBusinessSchema } from "@/lib/structured-data"
+import {
+  generateLocalBusinessSchema,
+  toJsonLdScript,
+} from "@/lib/structured-data"
 import { CompanyBlockButton } from "@/components/companies/block-button"
 import { CompanyReviewForm } from "@/components/companies/review-form"
 import { isValidUuid } from "@/lib/uuid"
@@ -24,7 +27,11 @@ import {
   Heart,
 } from "@phosphor-icons/react/dist/ssr"
 
-export const revalidate = 3600 // 1 hour ISR
+// このページは本体で await auth() を使い、ログインユーザーのフォロー/ブロック状態を
+// 出し分ける（＝個人化＝動的）。ISR(revalidate)のままだと再生成時に
+// DYNAMIC_SERVER_USAGE で 500 になるため force-dynamic に統一する。
+export const dynamic = "force-dynamic"
+export const revalidate = 3600
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp"
 
@@ -267,6 +274,15 @@ export default async function CompanyDetailPage({ params }: Props) {
     company.youtubeUrl,
   ].filter((u): u is string => !!u)
 
+  // 承認済み口コミ（第三者評価）があれば AggregateRating を付与。
+  // self-serving ではない実ユーザー評価なので Google のリッチリザルト対象。
+  const reviewCount = reviewStats._count._all
+  const reviewAvg = reviewStats._avg.rating
+  const rating =
+    reviewCount > 0 && reviewAvg != null
+      ? { average: Math.round(reviewAvg * 10) / 10, count: reviewCount }
+      : undefined
+
   const orgSchema = generateLocalBusinessSchema({
     id: company.id,
     name: company.name,
@@ -278,17 +294,18 @@ export default async function CompanyDetailPage({ params }: Props) {
     city: company.city ?? null,
     address: company.address ?? null,
     sameAs: sameAsLinks,
+    rating,
   })
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(orgSchema) }}
       />
 
       <nav className="mb-4 text-sm text-gray-500">

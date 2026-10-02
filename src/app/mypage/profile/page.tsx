@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { ProfileForm } from "./profile-form"
+import { AvatarUploader } from "./avatar-uploader"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default async function ProfilePage() {
       desiredSalaryMin: true,
       profilePublic: true,
       jobSearchStatus: true,
+      avatarUrl: true,
     },
   })
 
@@ -33,7 +35,8 @@ export default async function ProfilePage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
       <h1 className="text-2xl font-bold text-gray-900">プロフィール編集</h1>
-      <div className="mt-6">
+      <div className="mt-6 space-y-6">
+        <AvatarUploader avatarUrl={user.avatarUrl} name={user.name ?? ""} />
         <ProfileForm
           initialData={{
             name: user.name ?? "",

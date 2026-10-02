@@ -9,6 +9,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
 export const dynamic = "force-dynamic"
@@ -58,9 +59,17 @@ export async function PATCH(
           suspendedReason: null,
         }
 
-  await prisma.user.update({ where: { id }, data: updates }).catch((e) => {
+  try {
+    await prisma.user.update({ where: { id }, data: updates })
+  } catch (e) {
     console.error("[admin/users/PATCH] failed:", e)
-  })
+    const notFound =
+      e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025"
+    return Response.json(
+      { error: notFound ? "ユーザーが見つかりません" : "ユーザーの更新に失敗しました" },
+      { status: notFound ? 404 : 500 }
+    )
+  }
 
   // 監査ログ
   await prisma.auditLog

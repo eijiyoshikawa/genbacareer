@@ -63,7 +63,12 @@ export async function POST(request: NextRequest) {
   const newHash = await bcrypt.hash(parsed.data.newPassword, 10)
   await prisma.companyUser.update({
     where: { id: userId },
-    data: { passwordHash: newHash, mustChangePassword: false },
+    data: {
+      passwordHash: newHash,
+      mustChangePassword: false,
+      // 本人がPWを変えたら admin 控え（平文）は破棄する
+      issuedLoginPassword: null,
+    },
   })
 
   return Response.json({ ok: true })

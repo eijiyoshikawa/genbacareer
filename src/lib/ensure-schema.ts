@@ -4,6 +4,37 @@ import { prisma } from "./db"
 // 起動時に冪等な ALTER TABLE / CREATE INDEX を発行する。
 // 通常運用では `prisma db push` 後すべて適用済みなので、
 // IF NOT EXISTS によりほぼ no-op で完了する。
+// セキュリティ上必須の自己修復 DDL。ENSURE_SCHEMA=false (TTFB最適化で
+// スキーマ修復を止める運用) でも、これだけは必ず実行される。
+// 背景: ENSURE_SCHEMA=false のままだと RLS 有効化が一度も走らず、
+// Supabase Security Advisor の CRITICAL (rls_disabled_in_public) が
+// 放置され続けた実績があるため、環境変数に依存させない。
+const SECURITY_STATEMENTS: ReadonlyArray<string> = [
+ // public スキーマの RLS 未設定テーブルに RLS を有効化（ポリシーは作らない
+ // = PostgREST の anon/authenticated から全行アクセス不可、Prisma(所有者接続)は無影響）。
+ // 未設定のテーブルだけを対象にするため、全て設定済みなら完全な no-op。
+ `DO $$
+  DECLARE r RECORD;
+  BEGIN
+    FOR r IN
+      SELECT c.relname FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT c.relrowsecurity
+    LOOP
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', r.relname);
+    END LOOP;
+  END $$`,
+ // マテリアライズドビューは RLS 不可のため anon/authenticated の SELECT を剥奪
+ `DO $$
+  DECLARE r RECORD;
+  BEGIN
+    FOR r IN SELECT matviewname FROM pg_matviews WHERE schemaname = 'public'
+    LOOP
+      EXECUTE format('REVOKE ALL ON public.%I FROM anon, authenticated', r.matviewname);
+    END LOOP;
+  END $$`,
+]
+
 const STATEMENTS: ReadonlyArray<string> = [
  // User 求職ステータス (2.6): searching / employed_open / hired
  `ALTER TABLE "users"
@@ -47,6 +78,9 @@ const STATEMENTS: ReadonlyArray<string> = [
  `ALTER TABLE "jobs"
    ADD COLUMN IF NOT EXISTS "dedupe_key" VARCHAR(64),
    ADD COLUMN IF NOT EXISTS "deduped_to" UUID`,
+ // 求人ごとの写真（先頭がヒーロー、以降はギャラリー）
+ `ALTER TABLE "jobs"
+   ADD COLUMN IF NOT EXISTS "image_urls" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`,
  `CREATE INDEX IF NOT EXISTS "idx_jobs_dedupe_key"
     ON "jobs" ("dedupe_key")`,
  // 採用決定ボーナス (15.6)
@@ -234,6 +268,45 @@ const STATEMENTS: ReadonlyArray<string> = [
     ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS "terms_accepted_at" TIMESTAMPTZ`,
  `CREATE INDEX IF NOT EXISTS "idx_users_status" ON "users" ("status")`,
+ // 成果報酬レンジ変更 (2026-07: 年収35%制へ移行。旧 498k〜2M → 100k〜5M)。
+ // 旧レンジの制約が残っていれば新レンジで貼り替える（冪等）。
+ `DO $$
+  BEGIN
+    IF EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'jobs_hiring_fee_amount_range'
+        AND pg_get_constraintdef(oid) NOT LIKE '%5000000%'
+    ) THEN
+      ALTER TABLE jobs DROP CONSTRAINT jobs_hiring_fee_amount_range;
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'jobs_hiring_fee_amount_range'
+    ) THEN
+      ALTER TABLE jobs ADD CONSTRAINT jobs_hiring_fee_amount_range
+        CHECK (hiring_fee_amount IS NULL OR (hiring_fee_amount BETWEEN 100000 AND 5000000));
+    END IF;
+  END $$`,
+ // プロフィール公開の既定値を ON に（スカウト受信の前提。新規登録時に適用）
+ `ALTER TABLE "users" ALTER COLUMN "profile_public" SET DEFAULT true`,
+ // admin発行アカウントの平文PW控え（企業一覧での確認用・PW変更でクリア）
+ `ALTER TABLE "company_users" ADD COLUMN IF NOT EXISTS "issued_login_password" VARCHAR(100)`,
+ // 求職者の顔写真（プロフィール画像）
+ `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" VARCHAR(500)`,
+ // 認証トークン列（パスワードリセット / メールアドレス確認）。
+ // schema.prisma 定義のみで ensureSchema 未収録だったため、db push 未適用の
+ // 本番で reset/verify フロー（forgot-password・signup 確認メール）が
+ // P2022「column does not exist」で 500 になっていた。冪等に補完する。
+ `ALTER TABLE "users"
+    ADD COLUMN IF NOT EXISTS "email_verified" TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS "verification_token" VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS "verification_token_expiry" TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS "reset_token" VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS "reset_token_expiry" TIMESTAMPTZ`,
+ // @unique 相当の一意 index（Prisma 既定名に合わせ db push と整合させる）
+ `CREATE UNIQUE INDEX IF NOT EXISTS "users_verification_token_key"
+    ON "users" ("verification_token")`,
+ `CREATE UNIQUE INDEX IF NOT EXISTS "users_reset_token_key"
+    ON "users" ("reset_token")`,
  // PR #88: 求人の自動再掲載期限
  `ALTER TABLE "jobs"
     ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ,
@@ -260,9 +333,12 @@ const STATEMENTS: ReadonlyArray<string> = [
  )`,
  `CREATE INDEX IF NOT EXISTS "idx_search_logs_time"
     ON "search_logs" ("created_at" DESC)`,
+ // 注意: ここは partial index (WHERE query IS NOT NULL) にしないこと。
+ // schema.prisma の @@index は partial を表現できず、`prisma db push` が
+ // この index を「未作成」と誤認して同名作成を試み "already exists" で失敗する
+ // (2026-06 の db push 障害の原因)。schema.prisma と定義を完全一致させる。
  `CREATE INDEX IF NOT EXISTS "idx_search_logs_query"
-    ON "search_logs" ("query", "created_at" DESC)
-    WHERE "query" IS NOT NULL`,
+    ON "search_logs" ("query", "created_at" DESC)`,
  // 通報・レポート (6.2)
  `CREATE TABLE IF NOT EXISTS "reports" (
    "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -351,9 +427,190 @@ const STATEMENTS: ReadonlyArray<string> = [
     ON "analytics_events" ("name", "created_at" DESC)`,
  `CREATE INDEX IF NOT EXISTS "idx_analytics_user_time"
     ON "analytics_events" ("user_id", "created_at" DESC)`,
+ // 記事 SEO 自動リライト: クールダウン管理カラム + 版履歴テーブル
+ `ALTER TABLE "articles"
+    ADD COLUMN IF NOT EXISTS "last_rewritten_at" TIMESTAMPTZ`,
+ `ALTER TABLE "articles"
+    ADD COLUMN IF NOT EXISTS "rewrite_count" INTEGER NOT NULL DEFAULT 0`,
+ `CREATE TABLE IF NOT EXISTS "article_revisions" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "article_id" UUID NOT NULL REFERENCES "articles"("id") ON DELETE CASCADE,
+   "title" VARCHAR(200) NOT NULL,
+   "body" TEXT NOT NULL,
+   "excerpt" VARCHAR(500),
+   "meta_description" VARCHAR(300),
+   "source" VARCHAR(30) NOT NULL DEFAULT 'auto-rewrite',
+   "reason" VARCHAR(500),
+   "model_name" VARCHAR(50),
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_article_revisions"
+    ON "article_revisions" ("article_id", "created_at" DESC)`,
+ // 会社概要: 資本金・設立
+ `ALTER TABLE "companies"
+   ADD COLUMN IF NOT EXISTS "capital" VARCHAR(100),
+   ADD COLUMN IF NOT EXISTS "founded_on" VARCHAR(100)`,
+ // 利用者の声（体験談）CMS
+ `CREATE TABLE IF NOT EXISTS "testimonials" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "quote" TEXT NOT NULL,
+   "who" VARCHAR(120) NOT NULL,
+   "published" BOOLEAN NOT NULL DEFAULT TRUE,
+   "sort_order" INTEGER NOT NULL DEFAULT 0,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_testimonials_pub_order"
+    ON "testimonials" ("published", "sort_order")`,
+ // LINE 連携: 求職者 User に Messaging API userId を保持（全登録経路を LINE 到達可能にする）
+ `ALTER TABLE "users"
+   ADD COLUMN IF NOT EXISTS "line_user_id" VARCHAR(50)`,
+ `CREATE INDEX IF NOT EXISTS "idx_users_line_user" ON "users" ("line_user_id")`,
+ // LINE ダイジェスト配信: 通知の LINE Push 済みマーク
+ `ALTER TABLE "notifications"
+   ADD COLUMN IF NOT EXISTS "line_pushed_at" TIMESTAMPTZ`,
+ // 未送信通知の絞り込み用（daily/weekly ダイジェスト cron）
+ `CREATE INDEX IF NOT EXISTS "idx_notifications_line_pending"
+    ON "notifications" ("created_at") WHERE "line_pushed_at" IS NULL`,
+ // ========================================
+ // ポイント制度 / 抽選 (2026-06 追加)
+ // ※ 既存 DB の index drift で `prisma db push` が止まるため、
+ //   ここで冪等 DDL を流して新規テーブルを確実に作成する。
+ // ========================================
+ // User 残高キャッシュ
+ `ALTER TABLE "users"
+   ADD COLUMN IF NOT EXISTS "point_balance" INTEGER NOT NULL DEFAULT 0`,
+ // ポイント台帳（追記専用）
+ `CREATE TABLE IF NOT EXISTS "point_ledgers" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "user_id" UUID NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE,
+   "delta" INTEGER NOT NULL,
+   "reason" VARCHAR(30) NOT NULL,
+   "dedupe_key" VARCHAR(120),
+   "ref_id" VARCHAR(64),
+   "balance" INTEGER NOT NULL,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ // (user_id, dedupe_key) 一意 → 同一求人の同日二重付与を DB レベルで防止
+ // (Postgres は NULL を distinct 扱いするため dedupe_key=NULL の消費系は衝突しない)
+ `CREATE UNIQUE INDEX IF NOT EXISTS "uq_point_ledger_user_dedupe"
+    ON "point_ledgers" ("user_id", "dedupe_key")`,
+ `CREATE INDEX IF NOT EXISTS "idx_point_ledger_user_time"
+    ON "point_ledgers" ("user_id", "created_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_point_ledger_reason_time"
+    ON "point_ledgers" ("reason", "created_at" DESC)`,
+ // キャリア面談
+ `CREATE TABLE IF NOT EXISTS "career_interviews" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "user_id" UUID NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE,
+   "coordinator" VARCHAR(100),
+   "status" VARCHAR(20) NOT NULL DEFAULT 'scheduled',
+   "scheduled_at" TIMESTAMPTZ,
+   "completed_at" TIMESTAMPTZ,
+   "points_awarded" BOOLEAN NOT NULL DEFAULT false,
+   "note" VARCHAR(1000),
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ // 面談相手の企業（同一企業での重複付与防止）
+ `ALTER TABLE "career_interviews"
+   ADD COLUMN IF NOT EXISTS "company_id" UUID,
+   ADD COLUMN IF NOT EXISTS "company_name" VARCHAR(200)`,
+ `CREATE INDEX IF NOT EXISTS "idx_career_interviews_user"
+    ON "career_interviews" ("user_id", "created_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_career_interviews_status"
+    ON "career_interviews" ("status", "created_at" DESC)`,
+ // 抽選景品マスタ
+ `CREATE TABLE IF NOT EXISTS "lottery_prizes" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "name" VARCHAR(100) NOT NULL,
+   "kind" VARCHAR(20) NOT NULL DEFAULT 'service_perk',
+   "value_jpy" INTEGER NOT NULL DEFAULT 0,
+   "weight" INTEGER NOT NULL DEFAULT 1,
+   "stock" INTEGER,
+   "active" BOOLEAN NOT NULL DEFAULT true,
+   "sort_order" INTEGER NOT NULL DEFAULT 0,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_lottery_prizes_active"
+    ON "lottery_prizes" ("active", "sort_order")`,
+ // 抽選結果
+ `CREATE TABLE IF NOT EXISTS "lottery_draws" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "user_id" UUID NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE,
+   "cost" INTEGER NOT NULL,
+   "prize_id" UUID REFERENCES "lottery_prizes" ("id") ON DELETE SET NULL,
+   "prize_name" VARCHAR(100) NOT NULL,
+   "is_win" BOOLEAN NOT NULL,
+   "fulfillment" VARCHAR(20) NOT NULL DEFAULT 'pending',
+   "fulfilled_at" TIMESTAMPTZ,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE INDEX IF NOT EXISTS "idx_lottery_draws_user"
+    ON "lottery_draws" ("user_id", "created_at" DESC)`,
+ `CREATE INDEX IF NOT EXISTS "idx_lottery_draws_fulfillment"
+    ON "lottery_draws" ("is_win", "fulfillment", "created_at" DESC)`,
+ // ギフトコード在庫プール（当選時に自動割り当て＋LINE自動送付）
+ `CREATE TABLE IF NOT EXISTS "gift_codes" (
+   "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+   "prize_id" UUID NOT NULL REFERENCES "lottery_prizes" ("id") ON DELETE CASCADE,
+   "code" VARCHAR(255) NOT NULL,
+   "status" VARCHAR(20) NOT NULL DEFAULT 'available',
+   "draw_id" UUID UNIQUE,
+   "assigned_user_id" UUID,
+   "assigned_at" TIMESTAMPTZ,
+   "delivered_via" VARCHAR(20),
+   "delivered_at" TIMESTAMPTZ,
+   "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ )`,
+ `CREATE UNIQUE INDEX IF NOT EXISTS "uq_gift_codes_prize_code"
+    ON "gift_codes" ("prize_id", "code")`,
+ `CREATE INDEX IF NOT EXISTS "idx_gift_codes_prize_status"
+    ON "gift_codes" ("prize_id", "status")`,
+ // scout_messages: CHECK 制約 / partial UNIQUE index (12.x)
+ // Prisma schema では表現できないため、本来は prisma/migrations/manual/scout_messages.sql
+ // を手動適用する運用だが、未適用の環境でも重複スカウトを防げるようここでも自己修復する。
+ `DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_status_check'
+    ) THEN
+      ALTER TABLE "scout_messages"
+        ADD CONSTRAINT scout_messages_status_check
+        CHECK (status IN ('sent','read','expired','declined'));
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_body_len_check'
+    ) THEN
+      ALTER TABLE "scout_messages"
+        ADD CONSTRAINT scout_messages_body_len_check
+        CHECK (char_length(body) BETWEEN 20 AND 2000);
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_subject_len_check'
+    ) THEN
+      ALTER TABLE "scout_messages"
+        ADD CONSTRAINT scout_messages_subject_len_check
+        CHECK (char_length(subject) BETWEEN 5 AND 120);
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'scout_messages_expiry_after_sent_check'
+    ) THEN
+      ALTER TABLE "scout_messages"
+        ADD CONSTRAINT scout_messages_expiry_after_sent_check
+        CHECK (expires_at > sent_at);
+    END IF;
+  END $$`,
+ `CREATE UNIQUE INDEX IF NOT EXISTS "scout_messages_active_unique"
+    ON "scout_messages" ("company_id", "job_id", "user_id")
+    WHERE status NOT IN ('expired','declined')`,
 ]
 
 let inflight: Promise<boolean> | null = null
+let securityInflight: Promise<boolean> | null = null
 
 // 一度だけ実行され、結果を Promise でキャッシュ。成功/失敗いずれも以後 await が即解決する。
 // 戻り値: 全 ALTER が成功したかどうか（失敗時は防御クエリへフォールバック判断に使う）。
@@ -373,26 +630,38 @@ export function ensureSchema(): Promise<boolean> {
  if (process.env.NEXT_PHASE === "phase-production-build") {
    return Promise.resolve(true)
  }
- // 本番安定後は env で完全スキップ可能 (TTFB 改善)
+ // 本番安定後は env でスキーマ修復をスキップ可能 (TTFB 改善)。
+ // ただしセキュリティDDL (RLS 有効化) だけは env に関係なく必ず実行する。
  if (process.env.ENSURE_SCHEMA === "false") {
-   return Promise.resolve(true)
+   if (!securityInflight) {
+     securityInflight = runStatements(SECURITY_STATEMENTS)
+   }
+   return securityInflight
  }
  if (!inflight) {
- inflight = (async () => {
- let allOk = true
- for (const sql of STATEMENTS) {
- try {
- await prisma.$executeRawUnsafe(sql)
- } catch (e) {
- allOk = false
- console.warn(
- "[ensureSchema] statement skipped:",
- e instanceof Error ? e.message : e
- )
- }
- }
- return allOk
- })()
+   inflight = (async () => {
+     const secOk = await runStatements(SECURITY_STATEMENTS)
+     const restOk = await runStatements(STATEMENTS)
+     return secOk && restOk
+   })()
  }
  return inflight
+}
+
+async function runStatements(
+  statements: ReadonlyArray<string>
+): Promise<boolean> {
+  let allOk = true
+  for (const sql of statements) {
+    try {
+      await prisma.$executeRawUnsafe(sql)
+    } catch (e) {
+      allOk = false
+      console.warn(
+        "[ensureSchema] statement skipped:",
+        e instanceof Error ? e.message : e
+      )
+    }
+  }
+  return allOk
 }

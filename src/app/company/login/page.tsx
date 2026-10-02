@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Shield, Loader2, Users, ArrowRight } from "lucide-react";
+import { PasswordInput } from "@/components/auth/password-input";
 
 /**
  * 企業向けログインページ。
@@ -155,13 +156,11 @@ export default function CompanyLoginPage() {
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                   パスワード
                 </label>
-                <input
+                <PasswordInput
                   id="password"
-                  type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1 block w-full border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                   placeholder="パスワードを入力"
                 />
               </div>

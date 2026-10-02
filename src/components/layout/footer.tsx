@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { CirclePlay, Camera } from "lucide-react"
+import { MessageCircle } from "lucide-react"
 import { BrandLogo } from "./brand-logo"
 import { LinkButton } from "@/components/ui/button"
 import { FooterSeoHub } from "./footer-seo-hub"
@@ -72,6 +72,7 @@ export function Footer() {
               <li><Link href="/about" prefetch={false} className="text-xs text-gray-400 hover:text-primary-300 transition">サイトについて</Link></li>
               <li><Link href="/terms" prefetch={false} className="text-xs text-gray-400 hover:text-primary-300 transition">利用規約</Link></li>
               <li><Link href="/privacy" prefetch={false} className="text-xs text-gray-400 hover:text-primary-300 transition">プライバシーポリシー</Link></li>
+              <li><Link href="/privacy/personal-info-management" prefetch={false} className="text-xs text-gray-400 hover:text-primary-300 transition">個人情報適正管理規程</Link></li>
               <li><Link href="/legal" prefetch={false} className="text-xs text-gray-400 hover:text-primary-300 transition">特定商取引法に基づく表記</Link></li>
             </ul>
           </div>
@@ -92,24 +93,15 @@ export function Footer() {
         <div className="mt-8 border-t border-stone-700 pt-6">
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-400">公式SNS</span>
+              <span className="text-xs font-medium text-gray-400">公式LINE</span>
               <a
-                href="https://youtube.com/@let-kensetsu"
+                href="https://lin.ee/OwURD4q"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex h-10 w-10 items-center justify-center bg-stone-700 text-gray-300 hover:bg-red-600 hover:text-white transition"
-                aria-label="YouTube"
+                className="flex h-10 w-10 items-center justify-center bg-stone-700 text-gray-300 hover:bg-[#06C755] hover:text-white transition"
+                aria-label="LINE 公式アカウント"
               >
-                <CirclePlay className="h-5 w-5" />
-              </a>
-              <a
-                href="https://instagram.com/let_kensetsu"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex h-10 w-10 items-center justify-center bg-stone-700 text-gray-300 hover:bg-pink-600 hover:text-white transition"
-                aria-label="Instagram"
-              >
-                <Camera className="h-5 w-5" />
+                <MessageCircle className="h-5 w-5" />
               </a>
             </div>
             <div className="text-center sm:text-right">

@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { CATEGORIES } from "@/lib/categories"
 import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
+import { revalidateAfterJobChange } from "@/lib/revalidate-public"
+import { computeDisplayPriority } from "@/lib/job-display-priority"
 
 const VALID_CATEGORIES = CATEGORIES.map((c) => c.value)
 
@@ -23,6 +25,7 @@ const jobSchema = z.object({
   benefits: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
   videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
+  imageUrls: z.array(z.string().url().max(500)).max(12).optional(),
   status: z.enum(["draft", "active", "closed"]).optional(),
 })
 
@@ -118,8 +121,25 @@ export async function POST(request: NextRequest) {
       benefits: data.benefits ?? [],
       tags: data.tags ?? [],
       videoUrls: data.videoUrls ?? [],
+      imageUrls: data.imageUrls ?? [],
       status: data.status ?? "draft",
       publishedAt: data.status === "active" ? new Date() : null,
+      displayPriority: computeDisplayPriority({
+        source: "direct",
+        salaryType: data.salaryType ?? null,
+        salaryMin: data.salaryMin ?? null,
+        salaryMax: data.salaryMax ?? null,
+        employmentType: data.employmentType ?? null,
+        workHours: null,
+        workHoursNotes: null,
+        holidays: null,
+        annualHolidays: null,
+        insurance: null,
+        smokingPolicy: null,
+        trialPeriod: null,
+        description: data.description ?? null,
+        prefecture: data.prefecture,
+      }), // source='direct' のため常に Tier 1 になるが、将来の優先度ロジック変更に追従できるよう関数経由でセット
     },
   })
 
@@ -136,6 +156,7 @@ export async function POST(request: NextRequest) {
         `[gbiz-reminder] job published without corporateNumber: companyId=${ctx.companyId} name=${company.name} jobId=${job.id}`
       )
     }
+    revalidateAfterJobChange({ companyId: ctx.companyId })
   }
 
   return Response.json({ job }, { status: 201 })

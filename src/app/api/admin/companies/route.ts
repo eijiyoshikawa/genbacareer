@@ -1,7 +1,9 @@
 import { type NextRequest } from "next/server"
 import { z } from "zod"
+import bcrypt from "bcryptjs"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { generateTemporaryPassword } from "@/lib/company-invitation"
 
 const companySchema = z.object({
   name: z.string().min(1).max(200),
@@ -14,6 +16,20 @@ const companySchema = z.object({
   logoUrl: z.string().url().max(500).nullable().optional().or(z.literal("")),
   websiteUrl: z.string().url().max(500).nullable().optional().or(z.literal("")),
   contactEmail: z.string().email().max(255).nullable().optional().or(z.literal("")),
+  // 担当者アカウントの同時発行（任意）。
+  // 自社で求人票を預かって代理掲載する運用向けに、メール認証なしで
+  // ID/PASS を即発行し、そのまま求人登録できる状態にする。
+  account: z
+    .object({
+      // 省略時は co-xxxxxxxx@agency.genbacareer.jp 形式で自動生成
+      email: z.string().email().max(255).optional(),
+      // 省略時は自動生成した仮パスワードを一度だけ返す
+      password: z.string().min(8).max(100).optional(),
+      name: z.string().max(100).optional(),
+      // 社内運用アカウントは既定で初回変更を強制しない
+      mustChangePassword: z.boolean().default(false),
+    })
+    .optional(),
 })
 
 async function requireAdmin() {
@@ -48,6 +64,42 @@ export async function POST(request: NextRequest) {
   const d = parsed.data
   const empty = (v: string | null | undefined) => (v && v.length > 0 ? v : null)
 
+  // ログインID: 指定があれば重複チェック、無ければ一意な ID を自動生成する。
+  // 自動生成ドメインは実在不要（認証メールは送らない・ログイン照合のみに使う）。
+  let accountEmail: string | null = null
+  if (d.account) {
+    if (d.account.email) {
+      const existing = await prisma.companyUser.findUnique({
+        where: { email: d.account.email },
+        select: { id: true },
+      })
+      if (existing) {
+        return Response.json(
+          { error: "このメールアドレスは既に企業アカウントとして登録されています" },
+          { status: 409 }
+        )
+      }
+      accountEmail = d.account.email
+    } else {
+      for (let i = 0; i < 5 && !accountEmail; i++) {
+        const candidate = `co-${Math.random().toString(36).slice(2, 10)}@agency.genbacareer.jp`
+        const dup = await prisma.companyUser.findUnique({
+          where: { email: candidate },
+          select: { id: true },
+        })
+        if (!dup) accountEmail = candidate
+      }
+      if (!accountEmail) {
+        return Response.json(
+          { error: "ログインIDの自動生成に失敗しました。再度お試しください" },
+          { status: 500 }
+        )
+      }
+    }
+  }
+
+  // admin が作成する企業は承認フローを経ずに即掲載可能（approved）にする。
+  // 求人投稿 API は status=approved の企業のみ許可しているため必須。
   const company = await prisma.company.create({
     data: {
       name: d.name,
@@ -60,8 +112,58 @@ export async function POST(request: NextRequest) {
       logoUrl: empty(d.logoUrl),
       websiteUrl: empty(d.websiteUrl),
       contactEmail: empty(d.contactEmail),
+      status: "approved",
+      approvedAt: new Date(),
     },
   })
 
-  return Response.json({ company }, { status: 201 })
+  if (!d.account) {
+    return Response.json({ company }, { status: 201 })
+  }
+
+  // 担当者アカウント発行（メール認証なし・即ログイン可）
+  const plainPassword = d.account.password ?? generateTemporaryPassword()
+  const passwordHash = await bcrypt.hash(plainPassword, 10)
+
+  try {
+    const companyUser = await prisma.companyUser.create({
+      data: {
+        companyId: company.id,
+        email: accountEmail!,
+        passwordHash,
+        name: d.account.name ?? null,
+        role: "admin",
+        mustChangePassword: d.account.mustChangePassword,
+        // 企業一覧からID/PASSを確認できるよう平文を控える（PW変更でクリア）
+        issuedLoginPassword: plainPassword,
+      },
+      select: { id: true, email: true },
+    })
+
+    // 平文PWは issuedLoginPassword にも控えており、企業一覧からいつでも確認できる
+    return Response.json(
+      {
+        company,
+        account: {
+          companyUserId: companyUser.id,
+          email: companyUser.email,
+          password: plainPassword,
+          mustChangePassword: d.account.mustChangePassword,
+          loginUrl: "/company/login",
+        },
+      },
+      { status: 201 }
+    )
+  } catch (e) {
+    // アカウント作成に失敗した場合も会社は作成済みなので、企業詳細から再発行できる旨を返す
+    console.error("[admin.companies] account issue failed:", e)
+    return Response.json(
+      {
+        company,
+        warning:
+          "企業は作成しましたが、アカウント発行に失敗しました。企業詳細ページから再発行してください。",
+      },
+      { status: 201 }
+    )
+  }
 }

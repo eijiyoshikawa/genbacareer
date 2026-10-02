@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import Link from "next/link"
+import { CredentialCell } from "./credential-cell"
 import type { Metadata } from "next"
 import { Pagination } from "@/components/pagination"
 
@@ -40,25 +41,52 @@ export default async function AdminCompaniesPage({
 
   // _count.applications はテーブルが大きく非常に重いため一覧では取得しない
   // (詳細ページで取得する)。求人数は使い回しのため残す。
+  const companyListSelect = {
+    id: true,
+    name: true,
+    industry: true,
+    prefecture: true,
+    contactEmail: true,
+    createdAt: true,
+    status: true,
+    _count: {
+      select: { jobs: true },
+    },
+  } as const
+
   const [companies, total, pendingCount] = await Promise.all([
-    prisma.company.findMany({
-      where,
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-      skip: (page - 1) * perPage,
-      take: perPage,
-      select: {
-        id: true,
-        name: true,
-        industry: true,
-        prefecture: true,
-        contactEmail: true,
-        createdAt: true,
-        status: true,
-        _count: {
-          select: { jobs: true },
+    prisma.company
+      .findMany({
+        where,
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        skip: (page - 1) * perPage,
+        take: perPage,
+        select: {
+          ...companyListSelect,
+          // admin発行アカウント（平文控えが残っているもののみ）
+          companyUsers: {
+            where: { issuedLoginPassword: { not: null } },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { email: true, issuedLoginPassword: true },
+          },
         },
-      },
-    }),
+      })
+      // issued_login_password 列が本番 DB に未反映 (ensureSchema 未実行) でも
+      // 企業一覧自体は表示できるよう、控え表示だけ諦めて空配列にフォールバックする。
+      .catch(async () => {
+        const rows = await prisma.company.findMany({
+          where,
+          orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+          skip: (page - 1) * perPage,
+          take: perPage,
+          select: companyListSelect,
+        })
+        return rows.map((c) => ({
+          ...c,
+          companyUsers: [] as { email: string; issuedLoginPassword: string | null }[],
+        }))
+      }),
     prisma.company.count({ where }),
     prisma.company.count({ where: { source: "direct", status: "pending" } }),
   ])
@@ -150,6 +178,7 @@ export default async function AdminCompaniesPage({
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">業種</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">地域</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">求人数</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">発行ID/PASS</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">登録日</th>
               </tr>
             </thead>
@@ -184,6 +213,16 @@ export default async function AdminCompaniesPage({
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {company._count.jobs}
+                    </td>
+                    <td className="px-4 py-3">
+                      {company.companyUsers[0]?.issuedLoginPassword ? (
+                        <CredentialCell
+                          email={company.companyUsers[0].email}
+                          password={company.companyUsers[0].issuedLoginPassword}
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
                       {company.createdAt.toLocaleDateString("ja-JP")}

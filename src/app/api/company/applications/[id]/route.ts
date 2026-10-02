@@ -5,14 +5,7 @@ import { prisma } from "@/lib/db"
 import { sendApplicationStatusEmail } from "@/lib/application-notifications"
 import { notifyApplicationStatusChange } from "@/lib/notifications"
 import { syncApplicationToCalendar } from "@/lib/application-calendar-sync"
-
-const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
-  applied: ["reviewing", "rejected"],
-  reviewing: ["interview", "rejected"],
-  interview: ["offered", "rejected"],
-  offered: ["hired", "rejected"],
-  // hired と rejected は終端ステータス
-}
+import { VALID_STATUS_TRANSITIONS } from "@/lib/application-status"
 
 // 既存互換: { status } 単体更新
 const updateStatusSchema = z.object({

@@ -90,10 +90,9 @@ export default function IdentityStepPage() {
         return
       }
 
-      // 成功 → セッション破棄 → 完了画面へ (メール送信状態を query で受け渡し)
+      // 成功 → セッション破棄 → 完了画面へ
       clearAnswers()
-      const emailSent = data.emailSent !== false
-      router.push(`/register/wizard/done?emailSent=${emailSent ? "1" : "0"}`)
+      router.push("/register/wizard/done")
     } catch {
       setError("通信エラーが発生しました。時間をおいてお試しください。")
       setSubmitting(false)

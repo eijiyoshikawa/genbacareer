@@ -19,7 +19,15 @@ export async function createHiringInvoice(applicationId: string) {
     where: { id: applicationId },
     include: {
       company: true,
-      job: { select: { title: true, hiringFeeAmount: true } },
+      job: {
+        select: {
+          title: true,
+          hiringFeeAmount: true,
+          salaryMin: true,
+          salaryMax: true,
+          salaryType: true,
+        },
+      },
       user: { select: { name: true } },
     },
   })
@@ -28,7 +36,7 @@ export async function createHiringInvoice(applicationId: string) {
     throw new Error(`Application ${applicationId} not found or has no company`)
   }
 
-  // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ定数フォールバック
+  // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ理論年収×35%で自動計算
   const feeAmount = resolveHiringFee(application.job)
 
   const billingEvent = await prisma.billingEvent.create({
@@ -69,7 +77,7 @@ type InvoiceArgs = {
   }
   jobTitle: string
   userName: string
-  /** Job 個別設定 or HIRING_FEE_AMOUNT 定数からの解決済み金額 */
+  /** Job 個別設定 or 理論年収×35% からの解決済み金額 */
   amount: number
 }
 
