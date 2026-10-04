@@ -65,7 +65,7 @@ export const options = {
     "Mozilla/5.0 (compatible; k6-loadtest/1.0; +https://www.genbacareer.jp/)",
 }
 
-export default function () {
+export default function loadTest() {
   const path = PATHS[Math.floor(Math.random() * PATHS.length)]
   const url = `${BASE_URL}${path}`
 
