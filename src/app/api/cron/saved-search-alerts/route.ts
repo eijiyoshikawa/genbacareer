@@ -11,6 +11,7 @@
  */
 
 import { prisma } from "@/lib/db"
+import { isCronAuthorized } from "@/lib/cron-auth"
 import { createNotification } from "@/lib/notifications"
 import {
   findNewMatchingJobs,
@@ -25,7 +26,7 @@ export const maxDuration = 300
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isCronAuthorized(cronSecret, authHeader)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

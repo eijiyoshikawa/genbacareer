@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { isCronAuthorized } from "@/lib/cron-auth"
 
 /**
  * 有効期限切れ求人のクローズ + 自動再掲載 (auto_renew) 求人の延長
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isCronAuthorized(cronSecret, authHeader)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
