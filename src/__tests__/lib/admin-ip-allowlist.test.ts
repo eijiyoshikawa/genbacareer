@@ -74,9 +74,11 @@ describe("ipMatches", () => {
     expect(ipMatches("1.2.3.4", "not-cidr/24")).toBe(false)
   })
 
-  it("matches IPv6 prefix loosely", () => {
+  it("matches IPv6 CIDR bitwise", () => {
     expect(ipMatches("2001:db8::1", "2001:db8::/32")).toBe(true)
     expect(ipMatches("2001:dead::1", "2001:db8::/32")).toBe(false)
+    expect(ipMatches("2001:db8:1::5", "2001:db8::/32")).toBe(true)
+    expect(ipMatches("2001:db80::1", "2001:db8::/32")).toBe(false)
   })
 })
 
