@@ -9,6 +9,7 @@
  * Vercel Cron 想定: 毎日 04:30 (JST 13:30)
  */
 
+import { isCronUnauthorized } from "@/lib/cron-auth"
 import { prisma } from "@/lib/db"
 import { querySearchAnalytics } from "@/lib/gsc"
 
@@ -24,7 +25,7 @@ function yyyymmdd(d: Date): string {
 async function handler(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (isCronUnauthorized(cronSecret, authHeader)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
