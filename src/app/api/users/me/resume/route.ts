@@ -27,6 +27,15 @@ export async function PUT(request: NextRequest) {
   } catch {
     return Response.json({ error: "リクエストの形式が正しくありません" }, { status: 400 })
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return Response.json({ error: "リクエストの形式が正しくありません" }, { status: 400 })
+  }
+  if (typeof body.birthDate === "string" && Number.isNaN(new Date(body.birthDate).getTime())) {
+    return Response.json({ error: "生年月日の形式が正しくありません" }, { status: 400 })
+  }
+  if (JSON.stringify(body).length > 200_000) {
+    return Response.json({ error: "データが大きすぎます" }, { status: 413 })
+  }
 
   const resume = await prisma.resume.upsert({
     where: { userId: session.user.id },
