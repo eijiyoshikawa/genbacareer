@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils"
 
 /**
- * 共通 Skeleton プリミティブ。背景は warm-50、Tailwind の animate-pulse で
- * ロード中の視覚的フィードバックを与える。
+ * 共通 Skeleton プリミティブ。warm-200 の下地に「光が流れる」シマー
+ * (.skeleton-shimmer) を重ねてロード中を示す。reduced-motion では静止。
  */
 export function Skeleton({
   className,
@@ -11,7 +11,7 @@ export function Skeleton({
   return (
     <div
       aria-hidden
-      className={cn("animate-pulse bg-warm-200/60", className)}
+      className={cn("skeleton-shimmer bg-warm-200/60", className)}
       {...props}
     />
   )

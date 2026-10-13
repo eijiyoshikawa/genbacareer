@@ -191,7 +191,7 @@ export function JobCard({
     return (
       <Link
         href={`/jobs/${job.id}`}
-        className="group flex flex-col overflow-hidden border border-gray-200 bg-white transition hover:border-primary-400 hover:shadow-md"
+        className="group flex flex-col overflow-hidden border border-gray-200 bg-white tap-press hover:border-primary-400 hover:shadow-md"
       >
         <div className="relative aspect-[16/10] w-full overflow-hidden bg-ink-900">
           {eyecatch ? (
@@ -229,7 +229,7 @@ export function JobCard({
   return (
     <Link
       href={`/jobs/${job.id}`}
-      className="group flex gap-3 border border-gray-200 bg-white p-4 transition hover:border-primary-400 hover:shadow-sm sm:gap-4"
+      className="group flex gap-3 border border-gray-200 bg-white p-4 tap-press hover:border-primary-400 hover:shadow-sm sm:gap-4"
     >
       <div className="min-w-0 flex-1">{body}</div>
 
