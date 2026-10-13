@@ -35,6 +35,16 @@ const SECURITY_STATEMENTS: ReadonlyArray<string> = [
   END $$`,
 ]
 
+// アプリのコア機能（認証・会員登録）が依存する必須カラムの自己修復 DDL。
+// これらが本番 DB に無いと prisma の findUnique が P2022 で落ち、ログインや
+// 登録フローが全面的に 500 になる。RLS と同様、ENSURE_SCHEMA=false でも必ず実行する。
+// 背景: users.avatar_url 欠落で /api/auth・/api/registration/wizard が
+// 本番で停止した実績があるため、環境変数に依存させない。
+const CRITICAL_STATEMENTS: ReadonlyArray<string> = [
+ // 求職者の顔写真（プロフィール画像）。欠落すると認証系が P2022 で全停止。
+ `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" VARCHAR(500)`,
+]
+
 const STATEMENTS: ReadonlyArray<string> = [
  // User 求職ステータス (2.6): searching / employed_open / hired
  `ALTER TABLE "users"
@@ -290,8 +300,7 @@ const STATEMENTS: ReadonlyArray<string> = [
  `ALTER TABLE "users" ALTER COLUMN "profile_public" SET DEFAULT true`,
  // admin発行アカウントの平文PW控え（企業一覧での確認用・PW変更でクリア）
  `ALTER TABLE "company_users" ADD COLUMN IF NOT EXISTS "issued_login_password" VARCHAR(100)`,
- // 求職者の顔写真（プロフィール画像）
- `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" VARCHAR(500)`,
+ // ※ users.avatar_url は CRITICAL_STATEMENTS へ移動（ENSURE_SCHEMA=false でも必ず適用）
  // 認証トークン列（パスワードリセット / メールアドレス確認）。
  // schema.prisma 定義のみで ensureSchema 未収録だったため、db push 未適用の
  // 本番で reset/verify フロー（forgot-password・signup 確認メール）が
@@ -631,18 +640,24 @@ export function ensureSchema(): Promise<boolean> {
    return Promise.resolve(true)
  }
  // 本番安定後は env でスキーマ修復をスキップ可能 (TTFB 改善)。
- // ただしセキュリティDDL (RLS 有効化) だけは env に関係なく必ず実行する。
+ // ただしセキュリティDDL (RLS 有効化) と、認証に必須のカラム (CRITICAL) は
+ // env に関係なく必ず実行する。
  if (process.env.ENSURE_SCHEMA === "false") {
    if (!securityInflight) {
-     securityInflight = runStatements(SECURITY_STATEMENTS)
+     securityInflight = (async () => {
+       const secOk = await runStatements(SECURITY_STATEMENTS)
+       const critOk = await runStatements(CRITICAL_STATEMENTS)
+       return secOk && critOk
+     })()
    }
    return securityInflight
  }
  if (!inflight) {
    inflight = (async () => {
      const secOk = await runStatements(SECURITY_STATEMENTS)
+     const critOk = await runStatements(CRITICAL_STATEMENTS)
      const restOk = await runStatements(STATEMENTS)
-     return secOk && restOk
+     return secOk && critOk && restOk
    })()
  }
  return inflight
