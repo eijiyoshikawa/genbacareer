@@ -19,6 +19,7 @@
  *                   ローテーション中は常に false にすべき。週次 fullSweep でのみ true 推奨）
  */
 
+import { isCronAuthorized } from "@/lib/cron-auth"
 import {
   fetchPagesFromDataId,
   getToken,
@@ -39,8 +40,7 @@ const DEFAULT_PAGES_PER_RUN = 2
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isCronAuthorized(authHeader)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

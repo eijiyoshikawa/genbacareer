@@ -15,6 +15,7 @@
  * パフォーマンス: 約 45,000 行の UPDATE で 1-2 秒程度を想定。
  */
 
+import { isCronAuthorized } from "@/lib/cron-auth"
 import { prisma } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
@@ -24,8 +25,7 @@ const MAX_ROTATION_KEY = 1_000_000
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isCronAuthorized(authHeader)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
