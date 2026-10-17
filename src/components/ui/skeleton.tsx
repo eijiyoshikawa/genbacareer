@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils"
 
 /**
- * 共通 Skeleton プリミティブ。背景は warm-50、Tailwind の animate-pulse で
- * ロード中の視覚的フィードバックを与える。
+ * 共通 Skeleton プリミティブ。warm-200 の下地に「光が流れる」シマー
+ * (.skeleton-shimmer) を重ねてロード中を示す。reduced-motion では静止。
  */
 export function Skeleton({
   className,
@@ -11,7 +11,7 @@ export function Skeleton({
   return (
     <div
       aria-hidden
-      className={cn("animate-pulse bg-warm-200/60", className)}
+      className={cn("skeleton-shimmer bg-warm-200/60", className)}
       {...props}
     />
   )
@@ -60,6 +60,56 @@ export function PageHeaderSkeleton() {
     <div className="space-y-3">
       <Skeleton className="h-7 w-1/3" />
       <Skeleton className="h-4 w-2/3" />
+    </div>
+  )
+}
+
+/**
+ * 公開の求人一覧 SEO ページ (都道府県 / カテゴリ / 雇用形態 / タグ / 給与) 共通の
+ * ローディング skeleton。見出し + 絞り込みチップ風 + 求人カードグリッド。
+ */
+export function JobListPageSkeleton({ count = 9 }: { count?: number }) {
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+      {/* 見出し */}
+      <div className="space-y-3">
+        <Skeleton className="h-7 w-2/3 sm:w-1/2" />
+        <Skeleton className="h-4 w-1/2 sm:w-1/3" />
+      </div>
+      {/* 絞り込みチップ風の行 */}
+      <div className="mt-5 flex flex-wrap gap-2">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-8 w-20" />
+        ))}
+      </div>
+      {/* 求人カードグリッド */}
+      <div className="mt-6">
+        <JobCardSkeletonGrid count={count} cols="sm:grid-cols-2 lg:grid-cols-3" />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 記事一覧 (マガジン / タグ archive 等) 共通のローディング skeleton。
+ * 見出し + アイキャッチ付きカードグリッド。
+ */
+export function ArticleListPageSkeleton({ count = 6 }: { count?: number }) {
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+      <Skeleton className="h-7 w-1/3" />
+      <Skeleton className="mt-2 h-4 w-2/3" />
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: count }).map((_, i) => (
+          <div key={i} className="border bg-white">
+            <Skeleton className="aspect-video w-full" />
+            <div className="p-4 space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
