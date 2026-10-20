@@ -65,6 +65,8 @@ export const options = {
     "Mozilla/5.0 (compatible; k6-loadtest/1.0; +https://www.genbacareer.jp/)",
 }
 
+// k6 はデフォルトエクスポートを要求する
+// eslint-disable-next-line import/no-anonymous-default-export
 export default function () {
   const path = PATHS[Math.floor(Math.random() * PATHS.length)]
   const url = `${BASE_URL}${path}`
