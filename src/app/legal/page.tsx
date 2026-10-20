@@ -18,7 +18,7 @@ const ROWS: Array<{
   },
   {
     label: "代表責任者",
-    value: "代表取締役 吉川 英二",
+    value: "代表取締役 吉川 英治",
   },
   {
     label: "所在地",
