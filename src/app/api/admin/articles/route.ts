@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server"
 import { z } from "zod"
+import { parseIntParam } from "@/lib/pagination"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = request.nextUrl
-  const page = Math.max(1, Number(searchParams.get("page")) || 1)
+  const page = parseIntParam(searchParams.get("page"), 1, 1)
   const perPage = 20
   const status = searchParams.get("status") ?? ""
   const category = searchParams.get("category") ?? ""
