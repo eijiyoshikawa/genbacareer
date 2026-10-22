@@ -62,6 +62,16 @@ function mapKind(type: string | null | undefined): FlexNotificationKind {
 }
 
 /**
+ * pushUserNotification の結果種別。
+ * - "sent": LINE API 呼び出しが成功した
+ * - "no_recipient": 友だち未連携 / 未設定など、そもそも送り先が無い（恒常的な状態）
+ * - "failed": 送り先はあったが LINE API 呼び出しが失敗した（一時的な障害の可能性）
+ * 呼び出し側（cron の再送判定など）が "no_recipient" と "failed" を区別できるよう
+ * boolean ではなく種別を返す。
+ */
+export type PushResult = "sent" | "no_recipient" | "failed"
+
+/**
  * 通知を Flex Message + テキストの 2 メッセージで送信。
  * link は省略可。kind を指定するとラベル・アクセント色を切り替え。
  */
@@ -73,11 +83,11 @@ export async function pushUserNotification(input: {
   linkLabel?: string
   linkUrl?: string | null
   kind?: FlexNotificationKind | string | null
-}): Promise<void> {
-  if (!isMessagingConfigured()) return
+}): Promise<PushResult> {
+  if (!isMessagingConfigured()) return "no_recipient"
 
   const lineUserId = await findLineUserId(input.userId)
-  if (!lineUserId) return
+  if (!lineUserId) return "no_recipient"
 
   const kind = mapKind(input.kind)
   const url = input.linkUrl
@@ -108,9 +118,11 @@ export async function pushUserNotification(input: {
 
   try {
     await pushMessage(lineUserId, [flex, { type: "text", text: textFallback }])
+    return "sent"
   } catch (e) {
     console.warn(
       `[line-push-notifier] failed: ${e instanceof Error ? e.message : e}`
     )
+    return "failed"
   }
 }

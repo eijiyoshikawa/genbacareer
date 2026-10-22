@@ -90,7 +90,7 @@ export async function GET(request: Request) {
       const label = mode === "weekly" ? "今週" : "今日"
 
       // 1 通のダイジェストとして LINE Push（友だち未連携なら内部で無送信）
-      await pushUserNotification({
+      const result = await pushUserNotification({
         userId,
         title: `📬 ${label}の新着のお知らせ ${total} 件`,
         body:
@@ -103,12 +103,21 @@ export async function GET(request: Request) {
         kind: "system",
       })
 
+      // LINE API 呼び出し自体が失敗した場合はマークせず次回実行へ持ち越す
+      // (linePushedAt が唯一の再送ガードのため、失敗を成功扱いにすると
+      // その通知は二度と送られなくなる)。友だち未連携 (no_recipient) は
+      // 恒常的な状態なので、無限リトライを避けるためマークする。
+      if (result === "failed") {
+        errors.push(`user:${userId}: line push failed`)
+        continue
+      }
+
       // 送信済みとしてマーク（cutoff 以前の未送信を一括）
       await prisma.notification.updateMany({
         where: { userId, linePushedAt: null, createdAt: { lte: startedAt } },
         data: { linePushedAt: startedAt },
       })
-      sent++
+      if (result === "sent") sent++
     } catch (e) {
       errors.push(`user:${userId}: ${e instanceof Error ? e.message : e}`)
     }

@@ -22,6 +22,7 @@ import {
 import { computeRankScore } from "@/lib/ranking"
 import { computeDisplayPriority } from "@/lib/job-display-priority"
 import { normalizeCompanyName } from "@/lib/company-name"
+import { matchBlocklist, type BlocklistEntry } from "@/lib/blocklist-match"
 import type { HelloworkJobData } from "./hellowork"
 
 // ========================================
@@ -38,6 +39,8 @@ export interface ImportStats {
   closed: number
   /** 建設業カテゴリにマッチせずスキップした件数 */
   skipped: number
+  /** admin 管理の Blocklist キーワードにマッチして除外した件数 */
+  blocked: number
   /** エラーが発生した件数 */
   errors: number
   /** 処理対象の総件数 */
@@ -631,6 +634,7 @@ export async function importHelloworkJobs(
   let updated = 0
   let closed = 0
   let skipped = 0
+  let blocked = 0
   let errors = 0
   const importErrors: ImportError[] = []
 
@@ -641,6 +645,24 @@ export async function importHelloworkJobs(
 
   // 同一バッチ内で同じ会社名が複数のジョブで登場する場合の Company upsert 重複を避けるキャッシュ。
   const companyCache = new Map<string, string>()
+
+  // admin が /admin/blocklists で管理する除外キーワード（8.1）。
+  // バッチ開始時に一度だけ読み込み、各ジョブの判定はメモリ上で行う。
+  // 読み込みに失敗しても取り込み自体は止めない（fail open）。
+  const blocklistEntries: BlocklistEntry[] = await prisma.blocklist
+    .findMany({
+      where: { enabled: true },
+      select: { id: true, keyword: true, scope: true },
+    })
+    .catch((e) => {
+      console.warn(
+        `[import-batch] Blocklist 読み込み失敗（フィルタなしで続行）: ${e instanceof Error ? e.message : e}`
+      )
+      return []
+    })
+  // ブロック該当件数を id ごとに集計し、バッチ終了後にまとめて hitCount へ反映する
+  // （ジョブごとに update すると大量バッチで DB 往復が増えるため）。
+  const blocklistHits = new Map<string, number>()
 
   console.info(
     `[import-batch] インポート開始: ${jobs.length} 件の求人を処理します`
@@ -659,6 +681,20 @@ export async function importHelloworkJobs(
       )
       if (category === null) {
         skipped++
+        continue
+      }
+
+      // admin 管理の除外キーワードにマッチしたジョブは取り込まない
+      const blockedBy = matchBlocklist(blocklistEntries, {
+        title: job.title,
+        description: job.description,
+        companyName: job.companyName,
+      })
+      if (blockedBy) {
+        blocked++
+        if (!dryRun) {
+          blocklistHits.set(blockedBy.id, (blocklistHits.get(blockedBy.id) ?? 0) + 1)
+        }
         continue
       }
 
@@ -756,6 +792,21 @@ export async function importHelloworkJobs(
     }
   }
 
+  // Blocklist の hitCount をまとめて反映（dry-run 時は反映しない）
+  if (blocklistHits.size > 0) {
+    await Promise.all(
+      Array.from(blocklistHits.entries()).map(([id, count]) =>
+        prisma.blocklist
+          .update({ where: { id }, data: { hitCount: { increment: count } } })
+          .catch((e) => {
+            console.warn(
+              `[import-batch] Blocklist hitCount 更新失敗 (id=${id}): ${e instanceof Error ? e.message : e}`
+            )
+          })
+      )
+    )
+  }
+
   // -------------------------------------------------------
   // Step 2: 孤立した HW 求人を closed にする
   // ハローワーク側で掲載終了した求人を検知して非公開にする
@@ -801,6 +852,7 @@ export async function importHelloworkJobs(
     updated,
     closed,
     skipped,
+    blocked,
     errors,
     totalProcessed: jobs.length,
     startedAt,
@@ -811,6 +863,7 @@ export async function importHelloworkJobs(
   console.info(`[import-batch] インポート完了:`)
   console.info(`  新規追加: ${stats.created} 件`)
   console.info(`  更新: ${stats.updated} 件`)
+  console.info(`  Blocklist 除外: ${stats.blocked} 件`)
   console.info(`  終了 (closed): ${stats.closed} 件`)
   console.info(`  スキップ (非建設業): ${stats.skipped} 件`)
   console.info(`  エラー: ${stats.errors} 件`)

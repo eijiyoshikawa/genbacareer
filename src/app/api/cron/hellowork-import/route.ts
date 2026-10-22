@@ -121,6 +121,7 @@ export async function GET(request: Request) {
       updated: stats.updated,
       closed: stats.closed,
       skipped: stats.skipped,
+      blocked: stats.blocked,
       errors: stats.errors,
       durationMs: Date.now() - t0,
       timestamp: new Date().toISOString(),

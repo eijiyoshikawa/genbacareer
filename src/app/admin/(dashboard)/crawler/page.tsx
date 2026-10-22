@@ -37,6 +37,7 @@ interface ImportResult {
     updated: number
     closed: number
     skipped?: number
+    blocked?: number
     errors: number
     totalProcessed: number
     durationMs: number
@@ -241,6 +242,12 @@ export default function AdminCrawlerPage() {
                     <dt className="text-amber-600">スキップ (非建設業)</dt>
                     <dd className="text-lg font-bold text-amber-800">
                       {result.stats.skipped ?? 0} 件
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-amber-600">Blocklist 除外</dt>
+                    <dd className="text-lg font-bold text-amber-800">
+                      {result.stats.blocked ?? 0} 件
                     </dd>
                   </div>
                   <div>

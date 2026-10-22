@@ -41,7 +41,10 @@ export function buildPublicJobOrderBy(
   const tail: Prisma.JobOrderByWithRelationInput[] = (() => {
     switch (sort) {
       case "salary_high":
-        return [{ salaryMin: "desc" }, { publishedAt: "desc" }]
+        return [
+          { salaryMin: { sort: "desc", nulls: "last" } },
+          { publishedAt: "desc" },
+        ]
       case "salary_low":
         return [{ salaryMin: "asc" }, { publishedAt: "desc" }]
       case "popular":
