@@ -1,3 +1,4 @@
+import { cache } from "react"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { buildPublicJobOrderBy } from "@/lib/job-sort"
@@ -28,22 +29,17 @@ type Props = {
   params: Promise<{ slug: string }>
 }
 
+// generateMetadata と本体コンポーネントが同じ記事を別々に fetch すると
+// リクエストごとに DB 接続を2倍消費する。React cache() で同一リクエスト内の
+// 呼び出しを1回の Prisma クエリに重複排除する（フル row を返すので
+// generateMetadata / 本体どちらの参照フィールドもカバーする）。
+const getArticle = cache((slug: string) =>
+  prisma.article.findFirst({ where: { slug, ...publishedArticleFilter() } })
+)
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const article = await prisma.article.findFirst({
-    where: { slug, ...publishedArticleFilter() },
-    select: {
-      title: true,
-      metaDescription: true,
-      excerpt: true,
-      authorName: true,
-      category: true,
-      tags: true,
-      imageUrl: true,
-      publishedAt: true,
-      updatedAt: true,
-    },
-  })
+  const article = await getArticle(slug)
   if (!article) return { title: "記事が見つかりません" }
 
   const description =
@@ -90,9 +86,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params
-  const article = await prisma.article.findFirst({
-    where: { slug, ...publishedArticleFilter() },
-  })
+  const article = await getArticle(slug)
 
   if (!article) notFound()
 
