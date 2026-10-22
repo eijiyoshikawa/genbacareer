@@ -133,8 +133,18 @@ providers.push(
         // (2 回目以降は inflight memoize により即解決)。
         await ensureSchema()
 
+        // 未反映カラム (ensureSchema が ENSURE_SCHEMA=false でスキップされている間) が
+        // 追加されるたびにログインが P2022/カラム不在エラーで壊れないよう、
+        // 認証に必要な列だけを明示 select する (company-credentials と同じ対策)。
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            passwordHash: true,
+            status: true,
+          },
         })
 
         if (!user || !user.passwordHash) return null

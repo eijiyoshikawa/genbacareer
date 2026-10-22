@@ -24,7 +24,7 @@ const PER_PAGE = 30
 
 export default async function AdminLineLeadsPage({ searchParams }: Props) {
   const params = await searchParams
-  const page = Math.max(1, Number(params.page ?? "1"))
+  const page = Math.max(1, Number(params.page ?? "1") || 1)
   const statusFilter = isLeadStatus(params.status) ? params.status : undefined
   const q = (params.q ?? "").trim()
 
