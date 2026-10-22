@@ -2,10 +2,11 @@
  * GET /api/jobs/feed?cursor=<lastJobId>
  *
  * 縦スワイプフィード (11.5) の追加読み込み用 API。
- * cursor は直前ページの末尾 jobId。それより rank が低い (or 同 rank なら publishedAt が古い) ものを返す。
- *
- * 簡略化のため、cursor は createdAt 降順で「指定 ID より古い」ものを返す
- * (rankScore のタイブレイクは厳密でなくても UX 上問題ない)。
+ * orderBy (displayPriority asc, rankScore desc, publishedAt desc) の全キーで
+ * keyset pagination する。publishedAt のみで cursor を切ると、上位ページで
+ * displayPriority/rankScore の高いタイに埋もれた行より後に publishedAt が新しい
+ * 低ランク求人が、以降のどのページでも二度と返らなくなるため
+ * (publishedAt だけの条件では displayPriority/rankScore の低さを考慮できない)。
  */
 
 import { type NextRequest } from "next/server"
@@ -29,15 +30,18 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const cursor = searchParams.get("cursor")
 
-  let cursorPublishedAt: Date | null = null
+  let cursorRow: {
+    displayPriority: number
+    rankScore: number
+    publishedAt: Date | null
+  } | null = null
   if (cursor) {
-    const last = await prisma.job
+    cursorRow = await prisma.job
       .findUnique({
         where: { id: cursor },
-        select: { publishedAt: true },
+        select: { displayPriority: true, rankScore: true, publishedAt: true },
       })
       .catch(() => null)
-    cursorPublishedAt = last?.publishedAt ?? null
   }
 
   // 写真の無い求人の背景にはマガジン記事のカバー写真を転用する
@@ -45,8 +49,24 @@ export async function GET(request: NextRequest) {
     prisma.job.findMany({
       where: {
         status: "active",
-        ...(cursorPublishedAt
-          ? { publishedAt: { lt: cursorPublishedAt } }
+        ...(cursor ? { id: { not: cursor } } : {}),
+        ...(cursorRow
+          ? {
+              OR: [
+                { displayPriority: { gt: cursorRow.displayPriority } },
+                {
+                  displayPriority: cursorRow.displayPriority,
+                  rankScore: { lt: cursorRow.rankScore },
+                },
+                {
+                  displayPriority: cursorRow.displayPriority,
+                  rankScore: cursorRow.rankScore,
+                  ...(cursorRow.publishedAt
+                    ? { publishedAt: { lt: cursorRow.publishedAt } }
+                    : {}),
+                },
+              ],
+            }
           : {}),
       },
       orderBy: buildPublicJobOrderBy("recommended"),
