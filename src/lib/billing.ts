@@ -17,8 +17,18 @@ import { resolveHiringFee } from "./hiring-fee"
 export async function createHiringInvoice(applicationId: string) {
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
-    include: {
-      company: true,
+    select: {
+      offerSalaryMin: true,
+      offerSalaryMax: true,
+      offerSalaryType: true,
+      company: {
+        select: {
+          id: true,
+          name: true,
+          contactEmail: true,
+          mfPartnerId: true,
+        },
+      },
       job: {
         select: {
           title: true,
@@ -36,8 +46,17 @@ export async function createHiringInvoice(applicationId: string) {
     throw new Error(`Application ${applicationId} not found or has no company`)
   }
 
-  // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ理論年収×35%で自動計算
-  const feeAmount = resolveHiringFee(application.job)
+  // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ理論年収×35%で自動計算。
+  // 給与情報は「offered」遷移時点の Application スナップショットを優先する
+  // (無ければ求人の現在値にフォールバック — スナップショット導入前の古い応募向け)。
+  // これは、企業が採用確定の直前に求人の給与を一時的に下げて成果報酬を圧縮し、
+  // 請求後に元へ戻すという操作を防ぐため。
+  const feeAmount = resolveHiringFee({
+    hiringFeeAmount: application.job.hiringFeeAmount,
+    salaryMin: application.offerSalaryMin ?? application.job.salaryMin,
+    salaryMax: application.offerSalaryMax ?? application.job.salaryMax,
+    salaryType: application.offerSalaryType ?? application.job.salaryType,
+  })
 
   const billingEvent = await prisma.billingEvent.create({
     data: {

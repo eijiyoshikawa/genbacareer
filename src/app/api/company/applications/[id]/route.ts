@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db"
 import { sendApplicationStatusEmail } from "@/lib/application-notifications"
 import { notifyApplicationStatusChange } from "@/lib/notifications"
 import { syncApplicationToCalendar } from "@/lib/application-calendar-sync"
-import { VALID_STATUS_TRANSITIONS } from "@/lib/application-status"
+import { VALID_STATUS_TRANSITIONS, buildOfferSalarySnapshotData } from "@/lib/application-status"
 
 // 既存互換: { status } 単体更新
 const updateStatusSchema = z.object({
@@ -77,6 +77,7 @@ export async function PUT(
     select: {
       companyId: true,
       userId: true,
+      jobId: true,
       status: true,
       statusHistory: true,
       hiredAt: true,
@@ -127,6 +128,8 @@ export async function PUT(
     ...(parsed.data.note ? { note: parsed.data.note } : {}),
   }
 
+  const offerSnapshot = await buildOfferSalarySnapshotData(newStatus, application.jobId)
+
   const updated = await prisma.application.update({
     where: { id },
     data: {
@@ -136,6 +139,7 @@ export async function PUT(
       ...(newStatus === "hired" && !application.hiredAt
         ? { hiredAt: new Date() }
         : {}),
+      ...(offerSnapshot ?? {}),
     },
   })
 

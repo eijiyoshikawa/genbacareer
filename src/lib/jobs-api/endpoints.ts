@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db"
-import type { Job } from "@prisma/client"
+import type { Prisma } from "@prisma/client"
 import { HwApiError } from "./errors"
 import type {
   HwEmployerJobsParams,
@@ -41,7 +41,26 @@ function employmentTypeFromJobType(jobType: string): string | null {
   }
 }
 
-function jobToHwJob(j: Job): HwJob {
+// HwJob への変換に必要な列のみを明示 select する。
+// スキーマ未反映カラム (ensure-schema.ts の ALTER 対象) を暗黙 select で巻き込むと
+// P2022 でこの一覧/詳細エンドポイント全体が落ちるため (定期バグ検査で確認)。
+const hwJobSelect = {
+  helloworkId: true,
+  title: true,
+  description: true,
+  employmentType: true,
+  prefecture: true,
+  address: true,
+  salaryMin: true,
+  salaryMax: true,
+  salaryType: true,
+  expiresAt: true,
+  receivedDate: true,
+} satisfies Prisma.JobSelect
+
+export type HwJobRow = Prisma.JobGetPayload<{ select: typeof hwJobSelect }>
+
+export function jobToHwJob(j: HwJobRow): HwJob {
   return {
     kjno: j.helloworkId ?? "",
     sourceDataId: "",
@@ -78,7 +97,7 @@ function jobToHwJob(j: Job): HwJob {
     benefits: { annualHolidays: null, insurance: null },
     contact: { name: null, role: null, tel: null, email: null },
     dates: {
-      receivedAt: null,
+      receivedAt: j.receivedDate?.toISOString() ?? null,
       validUntil: j.expiresAt?.toISOString() ?? null,
       applyBy: null,
     },
@@ -132,6 +151,7 @@ export async function listHwJobs(
       orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
       skip: offset,
       take: limit,
+      select: hwJobSelect,
     }),
     prisma.job.count({ where }),
     fetchLastSyncedAt(),
@@ -150,7 +170,10 @@ export async function listHwJobs(
 }
 
 export async function getHwJob(kjno: string): Promise<HwJobDetailResponse> {
-  const job = await prisma.job.findUnique({ where: { helloworkId: kjno } })
+  const job = await prisma.job.findUnique({
+    where: { helloworkId: kjno },
+    select: { ...hwJobSelect, source: true },
+  })
   if (!job || job.source !== "hellowork") {
     throw new HwApiError(404, "NOT_FOUND", "求人が見つかりません")
   }

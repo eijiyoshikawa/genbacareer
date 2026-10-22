@@ -16,7 +16,7 @@
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
-import { VALID_STATUS_TRANSITIONS } from "@/lib/application-status"
+import { VALID_STATUS_TRANSITIONS, buildOfferSalarySnapshotData } from "@/lib/application-status"
 
 const ALLOWED_STATUSES = [
   "applied",
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
 
   const applications = await prisma.application.findMany({
     where: { id: { in: ids }, companyId },
-    select: { id: true, status: true, statusHistory: true, hiredAt: true },
+    select: { id: true, jobId: true, status: true, statusHistory: true, hiredAt: true },
   })
 
   let updated = 0
@@ -90,6 +90,8 @@ export async function POST(request: Request) {
       by: actorId,
     }
 
+    const offerSnapshot = await buildOfferSalarySnapshotData(newStatus, application.jobId)
+
     await prisma.application.update({
       where: { id: application.id },
       data: {
@@ -99,6 +101,7 @@ export async function POST(request: Request) {
         ...(newStatus === "hired" && !application.hiredAt
           ? { hiredAt: new Date() }
           : {}),
+        ...(offerSnapshot ?? {}),
       },
     })
     updated++
