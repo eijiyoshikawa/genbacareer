@@ -77,6 +77,11 @@ describe("ipMatches", () => {
   it("matches IPv6 prefix loosely", () => {
     expect(ipMatches("2001:db8::1", "2001:db8::/32")).toBe(true)
     expect(ipMatches("2001:dead::1", "2001:db8::/32")).toBe(false)
+    // /32 配下の別サブネットも許可される (文字列前方一致では漏れていた)
+    expect(ipMatches("2001:db8:1234::5", "2001:db8::/32")).toBe(true)
+    expect(ipMatches("2001:db9::1", "2001:db8::/32")).toBe(false)
+    expect(ipMatches("2001:db8:1::1", "2001:db8::/48")).toBe(false)
+    expect(ipMatches("2001:db8::1", "bogus::zz/32")).toBe(false)
   })
 })
 

@@ -67,21 +67,69 @@ function ipv4MatchesCidr(ip: string, cidr: string): boolean {
   return (ipInt & maskBits) === (baseInt & maskBits)
 }
 
+/** IPv6 文字列を 8 個の 16-bit 値に展開。失敗時は null。 */
+function ipv6ToGroups(ip: string): number[] | null {
+  let s = ip.toLowerCase()
+  const zone = s.indexOf("%")
+  if (zone >= 0) s = s.slice(0, zone)
+  // 末尾の IPv4 表記 (::ffff:1.2.3.4) を 2 グループに変換
+  const lastColon = s.lastIndexOf(":")
+  if (lastColon >= 0 && s.slice(lastColon + 1).includes(".")) {
+    const v4 = ipv4ToInt(s.slice(lastColon + 1))
+    if (v4 === null) return null
+    s = `${s.slice(0, lastColon + 1)}${(v4 >>> 16).toString(16)}:${(v4 & 0xffff).toString(16)}`
+  }
+  const halves = s.split("::")
+  if (halves.length > 2) return null
+  const parse = (part: string): number[] | null => {
+    if (part === "") return []
+    const out: number[] = []
+    for (const g of part.split(":")) {
+      if (!/^[0-9a-f]{1,4}$/.test(g)) return null
+      out.push(parseInt(g, 16))
+    }
+    return out
+  }
+  const head = parse(halves[0])
+  const tail = halves.length === 2 ? parse(halves[1]) : []
+  if (!head || !tail) return null
+  if (halves.length === 1) return head.length === 8 ? head : null
+  const fill = 8 - head.length - tail.length
+  if (fill < 1) return null
+  return [...head, ...new Array<number>(fill).fill(0), ...tail]
+}
+
+/** IPv6 CIDR マッチ (例: "2001:db8::/32") */
+function ipv6MatchesCidr(ip: string, cidr: string): boolean {
+  const [base, maskStr] = cidr.split("/")
+  if (!base || !maskStr) return false
+  const mask = Number(maskStr)
+  if (!Number.isInteger(mask) || mask < 0 || mask > 128) return false
+  const a = ipv6ToGroups(ip)
+  const b = ipv6ToGroups(base)
+  if (!a || !b) return false
+  let remaining = mask
+  for (let i = 0; i < 8 && remaining > 0; i++) {
+    const bits = Math.min(16, remaining)
+    const m = (0xffff << (16 - bits)) & 0xffff
+    if ((a[i] & m) !== (b[i] & m)) return false
+    remaining -= bits
+  }
+  return true
+}
+
 /**
  * クライアント IP が allowlist にマッチするか。
  *
  * - 単一 IP: 完全一致
- * - CIDR: ipv4MatchesCidr のみサポート (IPv6 CIDR は文字列前方一致で簡易対応)
+ * - CIDR: ipv4MatchesCidr のみサポート (IPv6 CIDR もビット単位でマッチ)
  */
 export function ipMatches(clientIp: string, entry: string): boolean {
   if (entry === clientIp) return true
   if (entry.includes("/")) {
     // CIDR
     if (entry.includes(".")) return ipv4MatchesCidr(clientIp, entry)
-    // IPv6 CIDR は簡易対応: プレフィックス文字列マッチ
-    const [base] = entry.split("/")
-    if (!base) return false
-    return clientIp.toLowerCase().startsWith(base.toLowerCase())
+    return ipv6MatchesCidr(clientIp, entry)
   }
   return false
 }
