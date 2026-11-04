@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { safeJsonLd } from "@/lib/json-ld"
 import type { Metadata } from "next"
 import { AUTHORS } from "@/lib/authors"
 import { Buildings, Certificate, ArrowRight } from "@phosphor-icons/react/dist/ssr"
@@ -21,7 +22,7 @@ export default function AuthorsIndexPage() {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumb) }}
       />
 
       <header className="border-b bg-warm-50">

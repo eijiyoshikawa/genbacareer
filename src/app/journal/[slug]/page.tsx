@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import { safeJsonLd } from "@/lib/json-ld"
 import Link from "next/link"
 import { prisma } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
@@ -216,11 +217,11 @@ export default async function ArticlePage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(articleJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
 
       {/* Breadcrumb */}

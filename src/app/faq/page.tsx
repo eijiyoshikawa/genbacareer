@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { safeJsonLd } from "@/lib/json-ld"
 import type { Metadata } from "next"
 import { HelpCircle, MessageCircle, Search } from "lucide-react"
 
@@ -126,7 +127,7 @@ export default function FaqPage() {
     <div>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(schema) }}
       />
 
       {/* Hero */}

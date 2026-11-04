@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { safeJsonLd } from "@/lib/json-ld"
 import { Noto_Sans_JP } from "next/font/google";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -160,11 +161,11 @@ export default async function RootLayout({
         <GoogleAnalytics />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(orgSchema) }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteSchema) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(siteSchema) }}
         />
         {/* Skip link — Tab キー押下時のみ表示。
             キーボード/SR ユーザーが Header を飛ばして本文へ直接遷移できる */}

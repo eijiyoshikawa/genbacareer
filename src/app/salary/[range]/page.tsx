@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import { safeJsonLd } from "@/lib/json-ld"
 import Link from "next/link"
 import type { Metadata } from "next"
 import { prisma } from "@/lib/db"
@@ -119,15 +120,15 @@ export default async function SalaryRangePage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPage) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(collectionPage) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(itemList) }}
       />
 
       <header className="border-b bg-warm-50">
