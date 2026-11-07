@@ -9,13 +9,12 @@
  *   PageSpeed や初回訪問のユーザーが必ずホット lambda の応答を受けられるようにする。
  */
 
+import { isCronAuthorized } from "@/lib/cron-auth"
+
 const TARGETS = ["/", "/jobs", "/journal"] as const
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isCronAuthorized(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
