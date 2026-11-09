@@ -12,6 +12,7 @@
  * 宛先は ADMIN_NOTIFY_EMAIL (info@let-inc.net) 固定。
  */
 
+import { isCronAuthorized } from "@/lib/cron-auth"
 import { prisma } from "@/lib/db"
 import { sendEmail } from "@/lib/email"
 import { renderEmailLayout, renderEmailText, baseUrl } from "@/lib/email-template"
@@ -22,9 +23,7 @@ export const runtime = "nodejs"
 const ADMIN_EMAIL = "info@let-inc.net"
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isCronAuthorized(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

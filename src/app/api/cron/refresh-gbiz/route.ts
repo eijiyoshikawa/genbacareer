@@ -1,3 +1,4 @@
+import { isCronAuthorized } from "@/lib/cron-auth"
 import { prisma } from "@/lib/db"
 import { Prisma } from "@prisma/client"
 import { fetchSnapshot, isGbizConfigured } from "@/lib/gbizinfo"
@@ -28,9 +29,7 @@ async function sleep(ms: number): Promise<void> {
 }
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isCronAuthorized(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
