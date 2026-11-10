@@ -30,12 +30,17 @@ export async function GET(request: NextRequest) {
   const prefecture = searchParams.get("prefecture")
   const category = searchParams.get("category")
   const employmentType = searchParams.get("employment_type")
-  const salaryMin = searchParams.get("salary_min")
+  const salaryMinRaw = Number.parseInt(searchParams.get("salary_min") ?? "", 10)
+  const salaryMin = Number.isFinite(salaryMinRaw) ? salaryMinRaw : null
   const q = searchParams.get("q")
-  const rawPage = Math.max(1, Number(searchParams.get("page") ?? "1"))
+  // parseInt + || で NaN / 小数を排除 (take/skip に NaN が渡ると Prisma が 500)
+  const rawPage = Math.max(
+    1,
+    Number.parseInt(searchParams.get("page") ?? "1", 10) || 1,
+  )
   const rawLimit = Math.min(
     50,
-    Math.max(1, Number(searchParams.get("limit") ?? "20")),
+    Math.max(1, Number.parseInt(searchParams.get("limit") ?? "20", 10) || 20),
   )
   const page = loggedIn ? rawPage : 1
   const limit = loggedIn ? rawLimit : Math.min(rawLimit, GUEST_LIMIT)
@@ -53,7 +58,7 @@ export async function GET(request: NextRequest) {
     ...(prefecture && { prefecture }),
     ...categoryFilter,
     ...(employmentType && { employmentType }),
-    ...(salaryMin && { salaryMin: { gte: Number(salaryMin) } }),
+    ...(salaryMin && { salaryMin: { gte: salaryMin } }),
     ...(q && {
       OR: [
         { title: { contains: q, mode: "insensitive" as const } },

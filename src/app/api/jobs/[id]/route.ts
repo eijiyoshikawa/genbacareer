@@ -6,6 +6,9 @@ import {
 } from "@/lib/rate-limit"
 import { type NextRequest } from "next/server"
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -20,8 +23,23 @@ export async function GET(
 
   const { id } = await params
 
-  const job = await prisma.job.findUnique({
-    where: { id },
+  // 不正な id は Prisma の UUID 変換で 500 になるため先に弾く
+  if (!UUID_RE.test(id)) {
+    return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
+
+  // 公開 API なので掲載中 (active) のみ返し、社内向けフィールドは除外する
+  // (hiringFeeAmount = 個別成功報酬額, previewToken = 下書きプレビュー鍵 等)
+  const job = await prisma.job.findFirst({
+    where: { id, status: "active" },
+    omit: {
+      hiringFeeAmount: true,
+      previewToken: true,
+      rawData: true,
+      dedupeKey: true,
+      dedupedTo: true,
+      rankScore: true,
+    },
     include: {
       company: {
         select: {

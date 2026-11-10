@@ -15,7 +15,13 @@ const updateProfileSchema = z.object({
   phone: z.string().max(20).nullable().optional(),
   prefecture: z.string().max(10).nullable().optional(),
   city: z.string().max(50).nullable().optional(),
-  birthDate: z.string().nullable().optional(),
+  birthDate: z
+    .string()
+    .refine((v) => !Number.isNaN(new Date(v).getTime()), {
+      message: "生年月日の形式が正しくありません",
+    })
+    .nullable()
+    .optional(),
   desiredCategories: z.array(z.string()).optional(),
   desiredSalaryMin: z.number().int().min(0).nullable().optional(),
   profilePublic: z.boolean().optional(),
@@ -30,6 +36,7 @@ const updateProfileSchema = z.object({
       frequency: z.enum(["immediate", "daily", "weekly"]).optional(),
       quietHoursStart: z.number().int().min(0).max(23).nullable().optional(),
       quietHoursEnd: z.number().int().min(0).max(23).nullable().optional(),
+      scoutEnabled: z.boolean().optional(),
     })
     .optional(),
 })
@@ -91,6 +98,21 @@ export async function PUT(request: NextRequest) {
 
   const data = parsed.data
 
+  // notificationPrefs は部分更新を許容するため、保存済みの値にマージする
+  // (未指定のキーをデフォルト値で上書きしてしまわないように)。
+  let mergedPrefs: object | undefined
+  if (data.notificationPrefs !== undefined) {
+    const current = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { notificationPrefs: true },
+    })
+    const base = parsePrefs(current?.notificationPrefs)
+    const patch = Object.fromEntries(
+      Object.entries(data.notificationPrefs).filter(([, v]) => v !== undefined)
+    )
+    mergedPrefs = parsePrefs({ ...base, ...patch }) as unknown as object
+  }
+
   const user = await prisma.user.update({
     where: { id: session.user.id },
     data: {
@@ -119,13 +141,7 @@ export async function PUT(request: NextRequest) {
       ...(data.blockedKeywords !== undefined
         ? { blockedKeywords: data.blockedKeywords }
         : {}),
-      ...(data.notificationPrefs !== undefined
-        ? {
-            notificationPrefs: parsePrefs(
-              data.notificationPrefs
-            ) as unknown as object,
-          }
-        : {}),
+      ...(mergedPrefs !== undefined ? { notificationPrefs: mergedPrefs } : {}),
     },
     select: {
       id: true,

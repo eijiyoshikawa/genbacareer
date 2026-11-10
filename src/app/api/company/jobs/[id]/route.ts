@@ -96,6 +96,26 @@ export async function PUT(
 
   const { expectedUpdatedAt, ...data } = parsed.data
 
+  // 公開 (active) への切り替えは承認済み企業のみ。新規作成 / 複製 (POST) と
+  // 同じ条件にそろえる。未承認・否認済み企業が既存求人を再公開できていた。
+  if (data.status === "active" && existing.status !== "active") {
+    const company = await prisma.company.findUnique({
+      where: { id: ctx.companyId },
+      select: { status: true },
+    })
+    if (company?.status !== "approved") {
+      return Response.json(
+        {
+          error:
+            company?.status === "rejected"
+              ? "本アカウントでは求人を公開できません。詳細は運営までお問い合わせください。"
+              : "運営による承認完了後に求人を公開できます。",
+        },
+        { status: 403 }
+      )
+    }
+  }
+
   // 楽観ロック: クライアントが取得した時点から変わっていなければ更新を許可
   if (expectedUpdatedAt) {
     const expected = new Date(expectedUpdatedAt).getTime()

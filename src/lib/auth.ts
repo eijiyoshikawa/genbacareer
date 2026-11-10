@@ -254,8 +254,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (user.email) {
           const existing = await prisma.user.findUnique({
             where: { email: user.email },
-            select: { id: true, emailVerified: true },
+            select: { id: true, emailVerified: true, status: true },
           })
+          // 資格情報ログインと同様、停止・退会済みアカウントは OAuth でも拒否
+          if (
+            existing &&
+            (existing.status === "suspended" || existing.status === "deleted")
+          ) {
+            return false
+          }
           if (!existing) {
             // OAuth プロバイダ経由のメールは確認済みとみなす（Google/LINE が検証済みのため）
             const created = await prisma.user.create({

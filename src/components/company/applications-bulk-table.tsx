@@ -14,6 +14,11 @@ const STATUS_OPTIONS = [
   { value: "rejected", label: "不採用" },
 ] as const
 
+// 一括変更は「選考中」「不採用」のみ (採用等は請求・通知を伴うため個別変更)
+const BULK_STATUS_OPTIONS = STATUS_OPTIONS.filter(
+  (s) => s.value === "reviewing" || s.value === "rejected"
+)
+
 export type ApplicationRow = {
   id: string
   status: string
@@ -106,7 +111,7 @@ export function ApplicationsBulkTable({
             disabled={busy}
             className="border bg-white px-2 py-1 text-sm"
           >
-            {STATUS_OPTIONS.map((opt) => (
+            {BULK_STATUS_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}に変更
               </option>

@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = request.nextUrl
-  const page = Math.max(1, Number(searchParams.get("page")) || 1)
+  const page = Math.max(1, Number.parseInt(searchParams.get("page") ?? "", 10) || 1)
   const perPage = 20
   const status = searchParams.get("status") ?? ""
   const category = searchParams.get("category") ?? ""

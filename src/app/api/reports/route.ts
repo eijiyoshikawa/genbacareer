@@ -58,7 +58,14 @@ export async function POST(request: NextRequest) {
   }
 
   const session = await auth()
-  const reporterId = session?.user?.id ?? null
+  // Report.reporterId は User への FK。企業ユーザー (CompanyUser id) や
+  // 管理者 ("admin") の id を入れると FK / UUID 違反で 500 になるため、
+  // 求職者セッションのときだけ紐付ける (それ以外は匿名扱い + IP で追跡)。
+  const role = (session?.user as { role?: string } | undefined)?.role
+  const reporterId =
+    session?.user?.id && (role === "seeker" || role === undefined)
+      ? session.user.id
+      : null
 
   await prisma.report.create({
     data: {
