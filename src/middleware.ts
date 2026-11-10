@@ -128,7 +128,11 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/api/webhooks") ||
     pathname.startsWith("/api/cron") ||
     pathname.startsWith("/api/health") ||
-    pathname.startsWith("/api/auth")
+    pathname.startsWith("/api/auth") ||
+    // 求人アグリゲータ (Indeed / 求人ボックス / スタンバイ等) 向け XML フィード。
+    // 取得クローラは Java / python 等の非ブラウザ UA を使うことがあるため、
+    // UA ブロックで配信が止まらないよう除外する（公開前提のデータのみ）。
+    pathname === "/jobs.xml"
   if (!isExempt && isBlockedUA(ua)) {
     return new NextResponse("Forbidden", {
       status: 403,
