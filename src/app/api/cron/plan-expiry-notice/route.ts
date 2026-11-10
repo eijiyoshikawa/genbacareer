@@ -19,6 +19,7 @@ import { prisma } from "@/lib/db"
 import { sendEmail } from "@/lib/email"
 import { renderEmailLayout, renderEmailText, baseUrl } from "@/lib/email-template"
 import { PLAN_LABELS, type PlanType } from "@/lib/plans"
+import { verifyCronAuth } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -26,11 +27,8 @@ export const runtime = "nodejs"
 const SOON_THRESHOLD_DAYS = 30
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const authError = verifyCronAuth(request)
+  if (authError) return authError
 
   const now = new Date()
   const threshold = new Date(now.getTime() + SOON_THRESHOLD_DAYS * 24 * 60 * 60 * 1000)
