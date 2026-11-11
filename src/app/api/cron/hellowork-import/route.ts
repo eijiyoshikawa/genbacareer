@@ -21,13 +21,16 @@
 
 import {
   fetchPagesFromDataId,
+  fetchKyujinByDataId,
   getToken,
   delToken,
 } from "@/lib/crawler/hellowork"
 import { importHelloworkJobs } from "@/lib/crawler/import-batch"
 import {
+  isHelloworkQuietHour,
   planNextRotation,
   recordBatchResult,
+  recordRunWithoutProgress,
 } from "@/lib/crawler/rotation-planner"
 import { prisma } from "@/lib/db"
 
@@ -54,6 +57,15 @@ export async function GET(request: Request) {
 
   const t0 = Date.now()
 
+  // 手動で dataId/page を明示した場合は窓に関係なく実行する（運用者の判断を優先）
+  if (!(dataIdParam && pageParam) && isHelloworkQuietHour()) {
+    return Response.json({
+      success: true,
+      skipped: "hellowork-api-quiet-hours",
+      timestamp: new Date().toISOString(),
+    })
+  }
+
   try {
     // ---- 1. 取り込み計画を決定 ----
     let dataId: string
@@ -76,6 +88,7 @@ export async function GET(request: Request) {
     }
     const token = await getToken(credentials)
     let fetchResult
+    let apiUnavailable = false
     try {
       fetchResult = await fetchPagesFromDataId(
         token,
@@ -83,6 +96,13 @@ export async function GET(request: Request) {
         startPage,
         pagesPerRun
       )
+      // 途中ページから 1 件も取れなかった場合、本当に末尾なのか API が
+      // 一時的にデータを返していないだけなのかを page 1 で確認する。
+      // page 1 まで空なら API 側の一時不調とみなし、進捗を進めない。
+      if (fetchResult.jobs.length === 0 && startPage > 1) {
+        const probe = await fetchKyujinByDataId(token, dataId, 1)
+        if (probe.length === 0) apiUnavailable = true
+      }
     } finally {
       try {
         await delToken(token)
@@ -93,6 +113,23 @@ export async function GET(request: Request) {
           }`
         )
       }
+    }
+
+    if (apiUnavailable) {
+      // exhausted を立てず lastRunAt だけ更新して次の dataId へ回す。
+      // 進捗 (lastPage) は保持されるため、次の巡回で同じページから再開する。
+      await recordRunWithoutProgress(prisma, dataId)
+      console.warn(
+        `[cron/hellowork-import] API がデータを返さないため進捗を保留: dataId=${dataId} page=${startPage}`
+      )
+      return Response.json({
+        success: true,
+        skipped: "hellowork-api-empty",
+        dataId,
+        startPage,
+        durationMs: Date.now() - t0,
+        timestamp: new Date().toISOString(),
+      })
     }
 
     // ---- 3. DB に upsert ----
