@@ -41,21 +41,49 @@ const SECURITY_STATEMENTS: ReadonlyArray<string> = [
 // 背景: users.avatar_url 欠落で /api/auth・/api/registration/wizard が
 // 本番で停止した実績があるため、環境変数に依存させない。
 const CRITICAL_STATEMENTS: ReadonlyArray<string> = [
- // 求職者の顔写真（プロフィール画像）。欠落すると認証系が P2022 で全停止。
- `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" VARCHAR(500)`,
+ // users テーブルの全カラム（schema.prisma の User model と 1:1）。
+ // prisma.user.findUnique は全カラムを SELECT するため、1 列でも欠けると
+ // ログイン・会員登録が P2022 で全停止する。avatar_url (#309) に続き
+ // point_balance 欠落で /api/registration/wizard が 500 になった実績があるため、
+ // User のカラム追加は個別に STATEMENTS へ置かず、必ずここへまとめる。
+ // (src/__tests__/lib/ensure-schema.test.ts で schema.prisma との網羅性を検証)
+ `ALTER TABLE "users"
+   ADD COLUMN IF NOT EXISTS "password_hash" VARCHAR(255),
+   ADD COLUMN IF NOT EXISTS "name" VARCHAR(100),
+   ADD COLUMN IF NOT EXISTS "phone" VARCHAR(20),
+   ADD COLUMN IF NOT EXISTS "prefecture" VARCHAR(10),
+   ADD COLUMN IF NOT EXISTS "city" VARCHAR(50),
+   ADD COLUMN IF NOT EXISTS "birth_date" DATE,
+   ADD COLUMN IF NOT EXISTS "desired_categories" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+   ADD COLUMN IF NOT EXISTS "desired_salary_min" INTEGER,
+   ADD COLUMN IF NOT EXISTS "blocked_company_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+   ADD COLUMN IF NOT EXISTS "blocked_keywords" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+   ADD COLUMN IF NOT EXISTS "notification_prefs" JSONB NOT NULL DEFAULT '{}'::jsonb,
+   ADD COLUMN IF NOT EXISTS "resume_url" VARCHAR(500),
+   ADD COLUMN IF NOT EXISTS "avatar_url" VARCHAR(500),
+   ADD COLUMN IF NOT EXISTS "profile_public" BOOLEAN NOT NULL DEFAULT true,
+   ADD COLUMN IF NOT EXISTS "auth_provider" VARCHAR(20) NOT NULL DEFAULT 'email',
+   ADD COLUMN IF NOT EXISTS "line_user_id" VARCHAR(50),
+   ADD COLUMN IF NOT EXISTS "email_verified" TIMESTAMPTZ,
+   ADD COLUMN IF NOT EXISTS "verification_token" VARCHAR(64),
+   ADD COLUMN IF NOT EXISTS "verification_token_expiry" TIMESTAMPTZ,
+   ADD COLUMN IF NOT EXISTS "reset_token" VARCHAR(64),
+   ADD COLUMN IF NOT EXISTS "reset_token_expiry" TIMESTAMPTZ,
+   ADD COLUMN IF NOT EXISTS "status" VARCHAR(20) NOT NULL DEFAULT 'active',
+   ADD COLUMN IF NOT EXISTS "job_search_status" VARCHAR(20) NOT NULL DEFAULT 'searching',
+   ADD COLUMN IF NOT EXISTS "suspended_at" TIMESTAMPTZ,
+   ADD COLUMN IF NOT EXISTS "suspended_reason" VARCHAR(500),
+   ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMPTZ,
+   ADD COLUMN IF NOT EXISTS "terms_accepted_at" TIMESTAMPTZ,
+   ADD COLUMN IF NOT EXISTS "point_balance" INTEGER NOT NULL DEFAULT 0,
+   ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
 ]
 
+// テスト用に公開（schema.prisma との網羅性チェック）
+export const __CRITICAL_STATEMENTS_FOR_TEST = CRITICAL_STATEMENTS
+
 const STATEMENTS: ReadonlyArray<string> = [
- // User 求職ステータス (2.6): searching / employed_open / hired
- `ALTER TABLE "users"
-   ADD COLUMN IF NOT EXISTS "job_search_status" VARCHAR(20) NOT NULL DEFAULT 'searching'`,
- // User ブロック企業 / NG キーワード (17.3)
- `ALTER TABLE "users"
-   ADD COLUMN IF NOT EXISTS "blocked_company_ids" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-   ADD COLUMN IF NOT EXISTS "blocked_keywords" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`,
- // User 通知頻度・時間帯設定 (3.4)
- `ALTER TABLE "users"
-   ADD COLUMN IF NOT EXISTS "notification_prefs" JSONB NOT NULL DEFAULT '{}'::jsonb`,
  // Application オンライン面接 URL (14.5)
  `ALTER TABLE "applications"
    ADD COLUMN IF NOT EXISTS "interview_url" VARCHAR(500)`,
@@ -271,12 +299,6 @@ const STATEMENTS: ReadonlyArray<string> = [
  `CREATE INDEX IF NOT EXISTS "idx_jobs_description_trgm" ON "jobs" USING GIN (description gin_trgm_ops)`,
  `CREATE INDEX IF NOT EXISTS "idx_companies_name_trgm" ON "companies" USING GIN (name gin_trgm_ops)`,
  // PR #88: User BAN / 退会 / 規約同意
- `ALTER TABLE "users"
-    ADD COLUMN IF NOT EXISTS "status" VARCHAR(20) NOT NULL DEFAULT 'active',
-    ADD COLUMN IF NOT EXISTS "suspended_at" TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS "suspended_reason" VARCHAR(500),
-    ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS "terms_accepted_at" TIMESTAMPTZ`,
  `CREATE INDEX IF NOT EXISTS "idx_users_status" ON "users" ("status")`,
  // 成果報酬レンジ変更 (2026-07: 年収35%制へ移行。旧 498k〜2M → 100k〜5M)。
  // 旧レンジの制約が残っていれば新レンジで貼り替える（冪等）。
@@ -300,17 +322,11 @@ const STATEMENTS: ReadonlyArray<string> = [
  `ALTER TABLE "users" ALTER COLUMN "profile_public" SET DEFAULT true`,
  // admin発行アカウントの平文PW控え（企業一覧での確認用・PW変更でクリア）
  `ALTER TABLE "company_users" ADD COLUMN IF NOT EXISTS "issued_login_password" VARCHAR(100)`,
- // ※ users.avatar_url は CRITICAL_STATEMENTS へ移動（ENSURE_SCHEMA=false でも必ず適用）
+ // ※ users の全カラム追加は CRITICAL_STATEMENTS へ集約（ENSURE_SCHEMA=false でも必ず適用）
  // 認証トークン列（パスワードリセット / メールアドレス確認）。
  // schema.prisma 定義のみで ensureSchema 未収録だったため、db push 未適用の
  // 本番で reset/verify フロー（forgot-password・signup 確認メール）が
  // P2022「column does not exist」で 500 になっていた。冪等に補完する。
- `ALTER TABLE "users"
-    ADD COLUMN IF NOT EXISTS "email_verified" TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS "verification_token" VARCHAR(64),
-    ADD COLUMN IF NOT EXISTS "verification_token_expiry" TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS "reset_token" VARCHAR(64),
-    ADD COLUMN IF NOT EXISTS "reset_token_expiry" TIMESTAMPTZ`,
  // @unique 相当の一意 index（Prisma 既定名に合わせ db push と整合させる）
  `CREATE UNIQUE INDEX IF NOT EXISTS "users_verification_token_key"
     ON "users" ("verification_token")`,
@@ -471,8 +487,6 @@ const STATEMENTS: ReadonlyArray<string> = [
  `CREATE INDEX IF NOT EXISTS "idx_testimonials_pub_order"
     ON "testimonials" ("published", "sort_order")`,
  // LINE 連携: 求職者 User に Messaging API userId を保持（全登録経路を LINE 到達可能にする）
- `ALTER TABLE "users"
-   ADD COLUMN IF NOT EXISTS "line_user_id" VARCHAR(50)`,
  `CREATE INDEX IF NOT EXISTS "idx_users_line_user" ON "users" ("line_user_id")`,
  // LINE ダイジェスト配信: 通知の LINE Push 済みマーク
  `ALTER TABLE "notifications"
@@ -486,8 +500,6 @@ const STATEMENTS: ReadonlyArray<string> = [
  //   ここで冪等 DDL を流して新規テーブルを確実に作成する。
  // ========================================
  // User 残高キャッシュ
- `ALTER TABLE "users"
-   ADD COLUMN IF NOT EXISTS "point_balance" INTEGER NOT NULL DEFAULT 0`,
  // ポイント台帳（追記専用）
  `CREATE TABLE IF NOT EXISTS "point_ledgers" (
    "id" UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
