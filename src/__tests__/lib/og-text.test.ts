@@ -19,4 +19,10 @@ describe("sanitizeOgText", () => {
     const s = "【正社員】施工管理（東京都）月給30万円〜／賞与あり！"
     expect(sanitizeOgText(s)).toBe(s)
   })
+
+  it("罫線・Dingbats・絵文字・孤立サロゲートも置換する", () => {
+    expect(sanitizeOgText("土木作業員│◇日給1.5万")).toBe("土木作業員・日給1.5万")
+    expect(sanitizeOgText("✨未経験歓迎✔寮あり🏠")).toBe("未経験歓迎・寮あり")
+    expect(sanitizeOgText("重機オペレーター\ud83c")).toBe("重機オペレーター")
+  })
 })

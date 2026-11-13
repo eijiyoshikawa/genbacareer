@@ -13,9 +13,14 @@ const OG_TEXT_REPLACEMENTS: Record<string, string> = {
   "≫": "》",
 }
 
-// U+2200–22FF Mathematical Operators / U+25A0–25FF Geometric Shapes /
-// U+2600–26FF Miscellaneous Symbols (★☆♪ 等) / U+2B00–2BFF Misc Symbols and Arrows
-const UNSUPPORTED_SYMBOLS = /[∀-⋿■-◿☀-⛿⬀-⯿]/g
+// U+2200–22FF Mathematical Operators / U+2500–257F Box Drawing (│ 等) /
+// U+2580–259F Block Elements / U+25A0–25FF Geometric Shapes /
+// U+2600–26FF Miscellaneous Symbols (★☆♪ 等) / U+2700–27BF Dingbats (✨✔ 等) /
+// U+2B00–2BFF Misc Symbols and Arrows / 絵文字 (Extended_Pictographic) と
+// 異体字セレクタ・ZWJ。いずれも Noto Sans JP に無く動的フォント取得が 400 になる。
+// 末尾の \ud800-\udfff は truncate() で絵文字が分断されて残った孤立サロゲート。
+const UNSUPPORTED_SYMBOLS =
+  /[\u2200-\u22ff\u2500-\u27bf\u2b00-\u2bff\ufe0e\ufe0f\u200d\ud800-\udfff]|\p{Extended_Pictographic}/gu
 
 export function sanitizeOgText(text: string): string {
   return text
