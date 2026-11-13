@@ -19,6 +19,7 @@ import {
   REPORT_TARGET_TYPES,
 } from "@/lib/report-reasons"
 import { trackEvent } from "@/lib/track"
+import { isValidUuid } from "@/lib/uuid"
 
 const REASON_VALUES = REPORT_REASONS.map((r) => r.value) as [string, ...string[]]
 const TARGET_TYPE_VALUES = [...REPORT_TARGET_TYPES] as [string, ...string[]]
@@ -58,7 +59,11 @@ export async function POST(request: NextRequest) {
   }
 
   const session = await auth()
-  const reporterId = session?.user?.id ?? null
+  // reporterId は users への FK。企業ユーザー / 管理者 (id="admin") の
+  // セッションでは FK・UUID 違反で 500 になるため、求職者のときだけ紐付ける。
+  const role = (session?.user as { role?: string } | undefined)?.role
+  const reporterId =
+    role === "seeker" && isValidUuid(session?.user?.id) ? session.user.id : null
 
   await prisma.report.create({
     data: {

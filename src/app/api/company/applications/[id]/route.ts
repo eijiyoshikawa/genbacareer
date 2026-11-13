@@ -1,5 +1,7 @@
 import { type NextRequest } from "next/server"
 import { z } from "zod"
+import type { Prisma } from "@prisma/client"
+import { isValidUuid } from "@/lib/uuid"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { sendApplicationStatusEmail } from "@/lib/application-notifications"
@@ -71,6 +73,9 @@ export async function PUT(
   }
 
   const { id } = await params
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "応募が見つかりません" }, { status: 404 })
+  }
 
   const application = await prisma.application.findUnique({
     where: { id },
@@ -127,17 +132,31 @@ export async function PUT(
     ...(parsed.data.note ? { note: parsed.data.note } : {}),
   }
 
-  const updated = await prisma.application.update({
-    where: { id },
+  // 遷移チェックと更新を原子的にする: 読み取り後に別リクエストがステータスを
+  // 変えていた場合 (採用と不採用の同時押下など) は 0 件更新になり 409 を返す。
+  // これが無いと「不採用なのに成果報酬の請求だけ残る」状態が起こり得る。
+  const { count } = await prisma.application.updateMany({
+    where: { id, companyId: ctx.companyId, status: currentStatus },
     data: {
       status: newStatus,
-      statusHistory: [...history, entry],
+      statusHistory: [...history, entry] as unknown as Prisma.InputJsonValue,
       // 採用確定時に hiredAt を打刻 (C3 戻入処理の経過月数計算の基準)
       ...(newStatus === "hired" && !application.hiredAt
         ? { hiredAt: new Date() }
         : {}),
     },
   })
+  if (count === 0) {
+    return Response.json(
+      {
+        error:
+          "他の操作でステータスが変更されています。画面を再読み込みしてからやり直してください",
+        code: "STALE_STATUS",
+      },
+      { status: 409 }
+    )
+  }
+  const updated = await prisma.application.findUniqueOrThrow({ where: { id } })
 
   // 採用確定時の自動請求
   if (newStatus === "hired") {
@@ -193,6 +212,9 @@ export async function PATCH(
   }
 
   const { id } = await params
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "応募が見つかりません" }, { status: 404 })
+  }
 
   const application = await prisma.application.findUnique({
     where: { id },

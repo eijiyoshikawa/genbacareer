@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { JOB_SEARCH_STATUSES } from "@/lib/job-search-status"
 import { parsePrefs } from "@/lib/notification-prefs"
+import { isValidUuid } from "@/lib/uuid"
 
 const JOB_SEARCH_STATUS_VALUES = JOB_SEARCH_STATUSES.map((s) => s.value) as [
   string,
@@ -15,7 +16,13 @@ const updateProfileSchema = z.object({
   phone: z.string().max(20).nullable().optional(),
   prefecture: z.string().max(10).nullable().optional(),
   city: z.string().max(50).nullable().optional(),
-  birthDate: z.string().nullable().optional(),
+  birthDate: z
+    .string()
+    .refine((v) => !Number.isNaN(new Date(v).getTime()), {
+      message: "生年月日の形式が正しくありません",
+    })
+    .nullable()
+    .optional(),
   desiredCategories: z.array(z.string()).optional(),
   desiredSalaryMin: z.number().int().min(0).nullable().optional(),
   profilePublic: z.boolean().optional(),
@@ -30,6 +37,7 @@ const updateProfileSchema = z.object({
       frequency: z.enum(["immediate", "daily", "weekly"]).optional(),
       quietHoursStart: z.number().int().min(0).max(23).nullable().optional(),
       quietHoursEnd: z.number().int().min(0).max(23).nullable().optional(),
+      scoutEnabled: z.boolean().optional(),
     })
     .optional(),
 })
@@ -38,6 +46,10 @@ export async function GET() {
   const session = await auth()
   if (!session?.user?.id) {
     return Response.json({ error: "ログインが必要です" }, { status: 401 })
+  }
+
+  if (!isValidUuid(session.user.id)) {
+    return Response.json({ error: "ユーザーが見つかりません" }, { status: 404 })
   }
 
   const user = await prisma.user.findUnique({
@@ -91,6 +103,28 @@ export async function PUT(request: NextRequest) {
 
   const data = parsed.data
 
+  // 管理者セッション (id="admin") など求職者以外は users に行が無い
+  if (!isValidUuid(session.user.id)) {
+    return Response.json({ error: "ユーザーが見つかりません" }, { status: 404 })
+  }
+
+  // 通知設定は部分更新を許容する: 送られてこなかった項目を既定値で
+  // 上書きしないよう、保存済みの値へマージしてから正規化する。
+  let mergedPrefs: object | undefined
+  if (data.notificationPrefs !== undefined) {
+    const current = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { notificationPrefs: true },
+    })
+    if (!current) {
+      return Response.json({ error: "ユーザーが見つかりません" }, { status: 404 })
+    }
+    mergedPrefs = parsePrefs({
+      ...parsePrefs(current.notificationPrefs),
+      ...data.notificationPrefs,
+    }) as unknown as object
+  }
+
   const user = await prisma.user.update({
     where: { id: session.user.id },
     data: {
@@ -119,13 +153,7 @@ export async function PUT(request: NextRequest) {
       ...(data.blockedKeywords !== undefined
         ? { blockedKeywords: data.blockedKeywords }
         : {}),
-      ...(data.notificationPrefs !== undefined
-        ? {
-            notificationPrefs: parsePrefs(
-              data.notificationPrefs
-            ) as unknown as object,
-          }
-        : {}),
+      ...(mergedPrefs !== undefined ? { notificationPrefs: mergedPrefs } : {}),
     },
     select: {
       id: true,

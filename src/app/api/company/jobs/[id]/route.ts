@@ -4,6 +4,10 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { revalidateAfterJobChange } from "@/lib/revalidate-public"
 import { computeDisplayPriority } from "@/lib/job-display-priority"
+import { CATEGORIES } from "@/lib/categories"
+import { isValidUuid } from "@/lib/uuid"
+
+const VALID_CATEGORIES = CATEGORIES.map((c) => c.value) as readonly string[]
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -54,6 +58,9 @@ export async function GET(
   }
 
   const { id } = await params
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
 
   const job = await prisma.job.findUnique({ where: { id } })
   if (!job || job.companyId !== ctx.companyId) {
@@ -73,6 +80,9 @@ export async function PUT(
   }
 
   const { id } = await params
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
 
   const existing = await prisma.job.findUnique({
     where: { id },
@@ -117,6 +127,30 @@ export async function PUT(
   }
 
   const { expectedUpdatedAt, ...data } = parsed.data
+
+  // POST と同じカテゴリ制約 (建設業 9 カテゴリ固定)。PUT だけ素通しだと
+  // 無効カテゴリが保存され、公開一覧から黙って消える。
+  if (data.category !== undefined && !VALID_CATEGORIES.includes(data.category)) {
+    return Response.json(
+      { error: `無効なカテゴリです。有効な値: ${VALID_CATEGORIES.join(", ")}` },
+      { status: 400 }
+    )
+  }
+
+  // 公開 (active 化) は承認済み企業のみ。POST / 複製と同条件にし、
+  // 審査中・否認済み企業が既存の下書きを PUT で公開できないようにする。
+  if (data.status === "active" && existing.status !== "active") {
+    const company = await prisma.company.findUnique({
+      where: { id: ctx.companyId },
+      select: { status: true },
+    })
+    if (company?.status !== "approved") {
+      return Response.json(
+        { error: "企業アカウントの審査が完了するまで求人を公開できません" },
+        { status: 403 }
+      )
+    }
+  }
 
   // 楽観ロック: クライアントが取得した時点から変わっていなければ更新を許可
   if (expectedUpdatedAt) {
@@ -204,6 +238,9 @@ export async function DELETE(
   }
 
   const { id } = await params
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
 
   const existing = await prisma.job.findUnique({
     where: { id },
@@ -211,6 +248,21 @@ export async function DELETE(
   })
   if (!existing || existing.companyId !== ctx.companyId) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
+
+  // 応募が付いた求人を物理削除すると Application → BillingEvent まで cascade で
+  // 消え、成果報酬の請求記録と応募者の履歴が失われる。応募がある場合は
+  // 削除を拒否し、掲載終了 (closed) への変更を案内する。
+  const applicationCount = await prisma.application.count({ where: { jobId: id } })
+  if (applicationCount > 0) {
+    return Response.json(
+      {
+        error:
+          "応募のある求人は削除できません。掲載を止める場合はステータスを「掲載終了」に変更してください",
+        code: "HAS_APPLICATIONS",
+      },
+      { status: 409 }
+    )
   }
 
   await prisma.job.delete({ where: { id } })

@@ -152,7 +152,12 @@ const SALARY_UNIT_MAP: Record<string, string> = {
 
 /** datePosted から +90 日後を validThrough 既定値とする（Google 推奨）。 */
 function defaultValidThrough(posted: Date): string {
-  return new Date(posted.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString()
+  const DAY = 24 * 60 * 60 * 1000
+  const byPosted = posted.getTime() + 90 * DAY
+  // 掲載期限が未設定で公開から 90 日以上経った求人は、そのままだと validThrough が
+  // 過去日になり Google for Jobs で期限切れ扱いになる。掲載中である限り 30 日先を返す。
+  const floor = Date.now() + 30 * DAY
+  return new Date(Math.max(byPosted, floor)).toISOString()
 }
 
 const CATEGORY_TO_INDUSTRY: Record<string, string> = {

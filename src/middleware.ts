@@ -130,7 +130,12 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/api/webhooks") ||
     pathname.startsWith("/api/cron") ||
     pathname.startsWith("/api/health") ||
-    pathname.startsWith("/api/auth")
+    pathname.startsWith("/api/auth") ||
+    // 求人アグリゲータ / RSS リーダーは Java・python・okhttp 等の UA で取得する。
+    // 公開前提の XML フィードを 403 にすると外部配信が止まるため除外する。
+    pathname === "/jobs.xml" ||
+    pathname.startsWith("/feed/") ||
+    pathname.endsWith("/rss.xml")
   if (!isExempt && isBlockedUA(ua)) {
     return new NextResponse("Forbidden", {
       status: 403,

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { buildPublicJobOrderBy } from "@/lib/job-sort"
-import { prisma } from "@/lib/db"
+import { prisma, withDbRetry } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
 import { ChevronRight } from "lucide-react"
 import { Buildings, Clock, ArrowLeft, ArrowRight, Tag } from "@phosphor-icons/react/dist/ssr"
@@ -30,20 +30,23 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const article = await prisma.article.findFirst({
-    where: { slug, ...publishedArticleFilter() },
-    select: {
-      title: true,
-      metaDescription: true,
-      excerpt: true,
-      authorName: true,
-      category: true,
-      tags: true,
-      imageUrl: true,
-      publishedAt: true,
-      updatedAt: true,
-    },
-  })
+  const article = await withDbRetry(() =>
+    prisma.article.findFirst({
+      where: { slug, ...publishedArticleFilter() },
+      select: {
+        title: true,
+        metaDescription: true,
+        excerpt: true,
+        authorName: true,
+        category: true,
+        tags: true,
+        imageUrl: true,
+        publishedAt: true,
+        updatedAt: true,
+      },
+    })
+  ).catch(() => undefined)
+  if (article === undefined) return { title: "ゲンバキャリア マガジン" }
   if (!article) return { title: "記事が見つかりません" }
 
   const description =
@@ -90,9 +93,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params
-  const article = await prisma.article.findFirst({
-    where: { slug, ...publishedArticleFilter() },
-  })
+  const article = await withDbRetry(() =>
+    prisma.article.findFirst({
+      where: { slug, ...publishedArticleFilter() },
+    })
+  )
 
   if (!article) notFound()
 
@@ -146,7 +151,7 @@ export default async function ArticlePage({ params }: Props) {
     select: { slug: true, title: true, publishedAt: true },
     orderBy: { publishedAt: "desc" },
     take: 5,
-  })
+  }).catch(() => [])
 
   // 前後の記事 (publishedAt 順、同カテゴリ内)
   const [prevArticle, nextArticle] = await Promise.all([

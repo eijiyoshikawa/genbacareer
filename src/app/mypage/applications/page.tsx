@@ -57,7 +57,8 @@ export default async function ApplicationsPage({ searchParams }: Props) {
   if (!session?.user?.id) redirect("/login")
 
   const params = await searchParams
-  const page = Math.max(1, Number(params.page ?? "1"))
+  const parsedPage = Number.parseInt(params.page ?? "", 10)
+  const page = Number.isFinite(parsedPage) ? Math.min(10000, Math.max(1, parsedPage)) : 1
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">

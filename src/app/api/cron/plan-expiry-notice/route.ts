@@ -81,19 +81,29 @@ export async function GET(request: Request) {
       ],
     }
 
+    // メール送信に失敗した企業は通知済みにしない (翌日の cron で再送する)
+    let mailFailed = false
     if (c.contactEmail) {
       try {
-        await sendEmail({
+        const result = await sendEmail({
           to: c.contactEmail,
           subject: `【期限通知】ご契約プランの満了日が近づいています (${expiryStr}) — ゲンバキャリア`,
           html: renderEmailLayout(layout),
           text: renderEmailText(layout),
         })
+        if (result && result.success === false) {
+          mailFailed = true
+          mailFailures += 1
+          console.error(`[cron/plan-expiry-notice] mail not sent for ${c.id}`)
+        }
       } catch (err) {
+        mailFailed = true
         mailFailures += 1
         console.error(`[cron/plan-expiry-notice] mail failed for ${c.id}:`, err)
       }
     }
+
+    if (mailFailed) continue
 
     // 企業ユーザー全員にサイト内通知
     if (c.companyUsers.length > 0) {

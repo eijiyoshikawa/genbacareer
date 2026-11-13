@@ -92,8 +92,17 @@ export async function GET(request: NextRequest) {
     })
     .catch((err) => {
       console.error("[indeed-feed] query failed:", err)
-      return []
+      return null
     })
+
+  // DB 障害時に「空のフィード」を 200 + CDN キャッシュで返すと、配信先の
+  // アグリゲータが全求人を削除扱いにしてしまう。503 でリトライさせる。
+  if (!rows) {
+    return new Response("Service Unavailable", {
+      status: 503,
+      headers: { "Cache-Control": "no-store", "Retry-After": "300" },
+    })
+  }
 
   const jobs: IndeedFeedJob[] = rows.map((j) => ({
     id: j.id,
