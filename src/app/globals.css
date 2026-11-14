@@ -220,6 +220,57 @@ button:disabled {
   }
 }
 
+/* === 軽量タップフィードバック (.tap-press) ======================
+   カードなど「浮かせたくないフラット要素」にタップ時の沈み込みだけ付与。
+   .press と違い resting/hover の elevation 影を足さないのでフラット感を維持。
+   モバイルのタップに触覚的な手応えを与える（hover は PC のみ）。 */
+.tap-press {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter 160ms ease,
+    border-color 150ms ease,
+    box-shadow 200ms ease;
+}
+.tap-press:active {
+  transform: scale(0.985);
+  filter: brightness(0.975);
+  transition-duration: 80ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tap-press:active {
+    transform: none;
+  }
+}
+
+/* === スケルトンのシマー (読み込み体感の向上) ====================
+   animate-pulse(点滅) より情報量のある「光が流れる」ローディング。
+   .skeleton-shimmer を当てた要素に左→右へハイライトを走らせる。
+   reduced-motion ではシマーを止め、静かな淡色のままにする。 */
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.65) 40%,
+    rgba(255, 255, 255, 0.65) 60%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+    background-image: none;
+  }
+}
+
 /* === シャープなコーナーに「デザイン性」を付与 ==================
    角丸をなくしたカードに左 3px / 上 3px の brand カラーアクセント。
    フラット感を保ちつつ単調にしないための装飾。 */
