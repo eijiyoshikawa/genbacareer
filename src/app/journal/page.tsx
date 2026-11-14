@@ -1,7 +1,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import type { Metadata } from "next"
-import { prisma } from "@/lib/db"
+import { prisma, withDbRetry } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
 import { Newspaper, Search, ChevronRight } from "lucide-react"
 import { Pagination } from "@/components/pagination"
@@ -54,7 +54,8 @@ type Props = {
 
 export default async function JournalPage({ searchParams }: Props) {
   const params = await searchParams
-  const page = Math.max(1, Number(params.page ?? "1"))
+  const parsedPage = Number.parseInt(params.page ?? "", 10)
+  const page = Number.isFinite(parsedPage) ? Math.min(10000, Math.max(1, parsedPage)) : 1
   const categoryFilter = params.category ?? ""
 
   const where = {
@@ -63,14 +64,16 @@ export default async function JournalPage({ searchParams }: Props) {
   }
 
   const [articles, total, featured, categories, popular] = await Promise.all([
-    prisma.article.findMany({
-      where,
-      orderBy: { publishedAt: "desc" },
-      skip: (page - 1) * PER_PAGE,
-      take: PER_PAGE,
-      select: { slug: true, title: true, excerpt: true, category: true, imageUrl: true, publishedAt: true, featured: true },
-    }),
-    prisma.article.count({ where }),
+    withDbRetry(() =>
+      prisma.article.findMany({
+        where,
+        orderBy: { publishedAt: "desc" },
+        skip: (page - 1) * PER_PAGE,
+        take: PER_PAGE,
+        select: { slug: true, title: true, excerpt: true, category: true, imageUrl: true, publishedAt: true, featured: true },
+      })
+    ),
+    withDbRetry(() => prisma.article.count({ where })),
     page === 1 && !categoryFilter
       ? prisma.article.findMany({
           where: { ...publishedArticleFilter(), featured: true },

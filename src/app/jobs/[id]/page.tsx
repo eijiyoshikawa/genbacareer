@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db"
+import { prisma, withDbRetry } from "@/lib/db"
 import { notFound, redirect, permanentRedirect } from "next/navigation"
 import { headers } from "next/headers"
 import Link from "next/link"
@@ -57,16 +57,20 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   if (!isValidUuid(id)) return { title: "求人が見つかりません" }
-  const job = await prisma.job.findUnique({
-    where: { id },
-    select: {
-      title: true,
-      prefecture: true,
-      category: true,
-      status: true,
-      dedupedTo: true,
-    },
-  })
+  // metadata の取得失敗でページ全体を落とさない (本体側で改めて取得・判定する)
+  const job = await withDbRetry(() =>
+    prisma.job.findUnique({
+      where: { id },
+      select: {
+        title: true,
+        prefecture: true,
+        category: true,
+        status: true,
+        dedupedTo: true,
+      },
+    })
+  ).catch(() => undefined)
+  if (job === undefined) return { title: "求人詳細" }
   if (!job) return { title: "求人が見つかりません" }
 
   // 重複求人: canonical を正規ページに向ける（ページ本体で 301 リダイレクトもする）
@@ -88,6 +92,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     }
   }
 
+  // 下書きなど掲載中以外はインデックスさせない
+  if (job.status !== "active") {
+    return { title: job.title, robots: { index: false, follow: false } }
+  }
+
   return {
     title: job.title,
     description: `${job.prefecture}の${job.title}の求人詳細。ゲンバキャリアで建設業界の最新求人をチェック。`,
@@ -101,14 +110,14 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   // Prisma に渡す前に弾いて 404 を返す。
   if (!isValidUuid(id)) notFound()
   const sp = (await searchParams) ?? {}
-  const isPreview = sp.preview === "1"
+  const previewParam = typeof sp.preview === "string" ? sp.preview : ""
   // 閲覧記録はクライアント beacon (<JobViewBeacon />) 経由で行う。
   // SSR 中に DB 書き込みを行わないことで、TTFB と将来の ISR 化を可能にする。
 
   // 詳細ページで実際に使うカラムだけを select する。
   // rawData (Hellowork 由来の Json 丸ごと格納) や dedupeKey 等は不要なので含めない。
   // viewCount は別途 increment で update するだけなので select 不要。
-  const job = await prisma.job.findUnique({
+  const job = await withDbRetry(() => prisma.job.findUnique({
     where: { id },
     select: {
       id: true,
@@ -186,9 +195,19 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
         },
       },
     },
-  })
+  }))
 
   if (!job) notFound()
+
+  // プレビューは発行済みトークンと一致したときだけ有効。以前は ?preview=1 を
+  // 付けるだけで誰でもログインゲートを回避でき、下書きも閲覧できた。
+  let isPreview = false
+  if (previewParam.length >= 16 && previewParam.length <= 64) {
+    const tokenRow = await prisma.job
+      .findUnique({ where: { id }, select: { previewToken: true } })
+      .catch(() => null)
+    isPreview = !!tokenRow?.previewToken && tokenRow.previewToken === previewParam
+  }
 
   // 重複求人として close された場合: 正規ページへ 301 リダイレクト。
   // これがないと Google が「user-declared canonical と Google's choice が違う」と
@@ -200,6 +219,14 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   // 未登録ゲストは「グローバル上位 15 件（recommended sort / フィルタ無し）」の詳細のみ閲覧可。
   // 検索エンジン等のクローラは Google for Jobs SEO 維持のため除外する。
   const session = await auth().catch(() => null)
+
+  // 下書きは「プレビュートークン保持者 / 掲載企業 / 管理者」以外には存在を見せない
+  if (job.status === "draft" && !isPreview) {
+    const su = session?.user as { role?: string; companyId?: string } | undefined
+    const isOwner = !!su?.companyId && su.companyId === job.company?.id
+    if (!isOwner && su?.role !== "admin") notFound()
+  }
+
   if (!session?.user?.id && !isPreview) {
     const hdrs = await headers()
     const ua = hdrs.get("user-agent")
@@ -369,10 +396,13 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   return (
     <div className="bg-gray-50 min-h-screen pb-24 sm:pb-28">
       <JobViewBeacon jobId={job.id} enabled={!isPreview} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: toJsonLdScript(jsonLd) }}
-      />
+      {/* 募集終了・下書きには JobPosting を出さない (Google for Jobs の期限切れ求人掲載を防ぐ) */}
+      {job.status === "active" && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: toJsonLdScript(jsonLd) }}
+        />
+      )}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumb) }}

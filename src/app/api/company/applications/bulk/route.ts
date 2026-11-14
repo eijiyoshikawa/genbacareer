@@ -14,6 +14,7 @@
  */
 
 import { prisma } from "@/lib/db"
+import type { Prisma } from "@prisma/client"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
 import { VALID_STATUS_TRANSITIONS } from "@/lib/application-status"
@@ -90,17 +91,22 @@ export async function POST(request: Request) {
       by: actorId,
     }
 
-    await prisma.application.update({
-      where: { id: application.id },
+    // 単体更新と同じく、読み取り時のステータスを条件に原子的に更新する
+    const { count } = await prisma.application.updateMany({
+      where: { id: application.id, companyId, status: application.status },
       data: {
         status: newStatus,
-        statusHistory: [...history, entry],
+        statusHistory: [...history, entry] as unknown as Prisma.InputJsonValue,
         // 採用確定時に hiredAt を打刻 (C3 戻入処理の経過月数計算の基準)
         ...(newStatus === "hired" && !application.hiredAt
           ? { hiredAt: new Date() }
           : {}),
       },
     })
+    if (count === 0) {
+      skipped++
+      continue
+    }
     updated++
 
     // 採用確定時の自動請求 (単体更新と同じロジック)

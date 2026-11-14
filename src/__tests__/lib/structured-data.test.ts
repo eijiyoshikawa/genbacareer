@@ -108,8 +108,29 @@ describe("generateJobPostingSchema", () => {
     expect(schema.validThrough).toBe(expiresAt.toISOString())
   })
 
+  it("never returns a past validThrough for an old job without expiry", () => {
+    const schema = generateJobPostingSchema({
+      id: "test-id",
+      title: "求人",
+      description: "建設現場の施工管理業務を行う正社員ポジションです。",
+      category: "construction",
+      employmentType: null,
+      salaryMin: null,
+      salaryMax: null,
+      salaryType: null,
+      prefecture: "東京都",
+      city: null,
+      address: null,
+      publishedAt: new Date("2020-01-01T00:00:00.000Z"),
+      createdAt: new Date("2020-01-01T00:00:00.000Z"),
+      company: null,
+    })
+    expect(new Date(schema.validThrough as string).getTime()).toBeGreaterThan(Date.now())
+  })
+
   it("falls back to datePosted + 90 days when no expiry given", () => {
-    const datePosted = new Date("2026-01-01T00:00:00.000Z")
+    // 公開直後の求人 (90 日後がまだ未来) を想定
+    const datePosted = new Date(Date.now() - 24 * 60 * 60 * 1000)
     const schema = generateJobPostingSchema({
       id: "test-id",
       title: "求人",

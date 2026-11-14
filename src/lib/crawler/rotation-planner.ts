@@ -101,6 +101,33 @@ export async function recordBatchResult(
   })
 }
 
+// HelloWork API は深夜帯 (JST 01:00〜05:59) にデータを返さない。
+// 本番ログで毎晩 16:00〜20:00 UTC の 5 回が「0 件」で完了しているのを確認
+// (2026-11-10, 11-11)。空レスポンスを「dataId の末尾到達」と誤認して
+// exhausted=true を立ててしまい、毎晩 5 dataId 分の残りページが
+// そのサイクル中まるごと取り込まれなくなっていた。窓の間は API を叩かない。
+const API_UNAVAILABLE_JST_HOURS: ReadonlySet<number> = new Set([1, 2, 3, 4, 5])
+
+export function isHelloworkQuietHour(now: Date = new Date()): boolean {
+  const jstHour = (now.getUTCHours() + 9) % 24
+  return API_UNAVAILABLE_JST_HOURS.has(jstHour)
+}
+
+/**
+ * API がデータを返さなかった（一時不調）バッチを記録する。
+ * lastPage / exhausted は変更せず lastRunAt のみ更新し、次の dataId へ回す。
+ * 次の巡回で同じページから再開される。
+ */
+export async function recordRunWithoutProgress(
+  prisma: PrismaClient,
+  dataId: string
+): Promise<void> {
+  await prisma.importProgress.update({
+    where: { source_dataId: { source: SOURCE, dataId } },
+    data: { lastRunAt: new Date() },
+  })
+}
+
 /**
  * dataId 一覧を API から取得し、`import_progress` に未登録のものを INSERT する。
  * 既存行の lastPage / exhausted は変更しない（毎日呼ばれても進捗を壊さない）。

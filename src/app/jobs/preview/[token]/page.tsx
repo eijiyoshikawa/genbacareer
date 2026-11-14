@@ -35,5 +35,5 @@ export default async function JobPreviewPage({
   }
 
   // 既存の求人詳細ページに転送（status を問わず描画される現行仕様を活用）
-  redirect(`/jobs/${job.id}?preview=1`)
+  redirect(`/jobs/${job.id}?preview=${encodeURIComponent(token)}`)
 }

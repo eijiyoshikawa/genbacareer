@@ -50,6 +50,18 @@ export async function createHiringInvoice(applicationId: string) {
     },
   })
 
+  // MoneyForward 自動連携は未導入 (RELEASE_TODO.md: 請求書は /admin/billing-todo から
+  // 手動発行する運用)。MF_* が未設定の環境で API を呼ぶと必ず失敗し、以前は
+  // BillingEvent が即 failed になって「発行待ち」一覧 (status=pending) と日次
+  // サマリーの両方から消え、請求漏れになっていた。未設定なら pending のまま返す。
+  const mfConfigured =
+    !!process.env.MF_CLIENT_ID &&
+    !!process.env.MF_CLIENT_SECRET &&
+    !!process.env.MF_OFFICE_ID
+  if (!mfConfigured) {
+    return { billingEvent, invoiceId: null, provider: "manual" as const }
+  }
+
   try {
     return await invoiceViaMoneyForward({
       billingEventId: billingEvent.id,
@@ -59,11 +71,13 @@ export async function createHiringInvoice(applicationId: string) {
       amount: feeAmount,
     })
   } catch (error) {
-    await prisma.billingEvent.update({
-      where: { id: billingEvent.id },
-      data: { status: "failed" },
-    })
-    throw error
+    // 自動発行に失敗しても pending のまま残し、admin が手動発行できるようにする
+    // (failed にすると発行待ち一覧から消えて請求漏れになる)。
+    console.error(
+      `[billing] MoneyForward invoice failed for billingEvent ${billingEvent.id}; left pending for manual issue:`,
+      error
+    )
+    return { billingEvent, invoiceId: null, provider: "manual" as const }
   }
 }
 

@@ -124,6 +124,13 @@ export async function POST(request: Request) {
       message: "登録が完了しました。さっそく求人を探して応募できます。",
     })
   } catch (err) {
+    // 同時送信 (ダブルクリック等) で email の一意制約に当たった場合は 409
+    if ((err as { code?: string } | null)?.code === "P2002") {
+      return NextResponse.json(
+        { error: "このメールアドレスは既に登録されています。ログインしてください。" },
+        { status: 409 },
+      )
+    }
     console.error("[wizard-register] failed:", err)
     return NextResponse.json(
       { error: "登録に失敗しました。時間をおいてお試しください。" },

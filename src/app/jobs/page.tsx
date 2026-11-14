@@ -139,7 +139,8 @@ export default async function JobsPage({ searchParams }: Props) {
 
   // 未登録ユーザーには「お試し検索」として上位 GUEST_LIMIT 件のみ。
   // ページネーションも無効化し、`page` パラメータは無視する。
-  const rawPage = Math.max(1, Number(params.page ?? "1"))
+  const parsedPage = Number.parseInt(params.page ?? "", 10)
+  const rawPage = Number.isFinite(parsedPage) ? Math.min(10000, Math.max(1, parsedPage)) : 1
   const page = loggedIn ? rawPage : 1
   const limit = loggedIn ? 20 : GUEST_LIMIT
 

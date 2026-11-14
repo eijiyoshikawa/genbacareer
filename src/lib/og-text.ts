@@ -27,6 +27,9 @@ export function sanitizeOgText(text: string): string {
   return text
     .replace(/[≪≫]/g, (ch) => OG_TEXT_REPLACEMENTS[ch] ?? ch)
     .replace(OG_DROP_RANGES, "")
+    // truncate() が絵文字 (サロゲートペア) の途中で切ると孤立サロゲートが残り、
+    // 動的フォント取得が 400 になる。u フラグ下ではペアになっていないものだけに一致する。
+    .replace(/[\ud800-\udfff]/gu, "")
     .replace(/\s{2,}/g, " ")
     .trim()
 }

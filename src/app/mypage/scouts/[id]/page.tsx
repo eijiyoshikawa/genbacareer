@@ -7,6 +7,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isValidUuid } from "@/lib/uuid"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Building2, MapPin, Briefcase, Clock } from "lucide-react"
@@ -29,6 +30,7 @@ export default async function ScoutDetailPage({ params }: Props) {
   if (!session?.user) redirect("/login")
   const userId = (session.user as { id?: string }).id
   if (!userId) redirect("/login")
+  if (!isValidUuid(id)) notFound()
 
   const scout = await prisma.scoutMessage.findUnique({
     where: { id },

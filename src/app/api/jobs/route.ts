@@ -36,11 +36,15 @@ export async function GET(request: NextRequest) {
   const employmentType = searchParams.get("employment_type")
   const salaryMin = searchParams.get("salary_min")
   const q = searchParams.get("q")
-  const rawPage = Math.max(1, Number(searchParams.get("page") ?? "1"))
-  const rawLimit = Math.min(
-    50,
-    Math.max(1, Number(searchParams.get("limit") ?? "20")),
-  )
+  // 数値以外 / 小数が来ると take・skip が NaN になり Prisma が 500 を返すため
+  // 整数化して既定値へフォールバックする。
+  const toInt = (v: string | null, fallback: number) => {
+    const n = Number.parseInt(v ?? "", 10)
+    return Number.isFinite(n) ? n : fallback
+  }
+  const rawPage = Math.min(10000, Math.max(1, toInt(searchParams.get("page"), 1)))
+  const rawLimit = Math.min(50, Math.max(1, toInt(searchParams.get("limit"), 20)))
+  const salaryMinNum = Number.parseInt(salaryMin ?? "", 10)
   const page = loggedIn ? rawPage : 1
   const limit = loggedIn ? rawLimit : Math.min(rawLimit, GUEST_LIMIT)
   const sort = searchParams.get("sort") ?? "published_at"
@@ -57,7 +61,9 @@ export async function GET(request: NextRequest) {
     ...(prefecture && { prefecture }),
     ...categoryFilter,
     ...(employmentType && { employmentType }),
-    ...(salaryMin && { salaryMin: { gte: Number(salaryMin) } }),
+    ...(Number.isFinite(salaryMinNum) &&
+      salaryMinNum > 0 &&
+      salaryMinNum <= 2_000_000_000 && { salaryMin: { gte: salaryMinNum } }),
     ...(q && {
       OR: [
         { title: { contains: q, mode: "insensitive" as const } },

@@ -5,6 +5,7 @@ import {
   rateLimitResponse,
 } from "@/lib/rate-limit"
 import { type NextRequest } from "next/server"
+import { isValidUuid } from "@/lib/uuid"
 
 export async function GET(
   request: NextRequest,
@@ -20,8 +21,17 @@ export async function GET(
 
   const { id } = await params
 
-  const job = await prisma.job.findUnique({
-    where: { id },
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
+
+  // 公開 API なので掲載中 (active) のみ返し、社内項目は除外する。
+  const job = await prisma.job.findFirst({
+    where: { id, status: "active" },
+    omit: {
+      previewToken: true,
+      hiringFeeAmount: true,
+    },
     include: {
       company: {
         select: {
