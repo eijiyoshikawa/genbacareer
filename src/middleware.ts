@@ -9,6 +9,47 @@ import {
 const SESSION_COOKIE_NAME = "gc_sid"
 const SESSION_MAX_AGE = 365 * 24 * 60 * 60
 
+// ============================================================
+// 同一 IP の過剰アクセス(スクレイパー/暴走bot)を 429 で抑制する軽量レート制限。
+// Edge の isolate ごとにメモリ上でスライディングウィンドウを持つ。外部ストア
+// (KV/Upstash) 不要。地理分散した攻撃は完全には防げないが、「単一IPの高速連打」
+// を“ページ関数が走る前に”遮断でき、Function Invocations と DB 負荷を削減する。
+//
+// 誤爆防止:
+//  - 閾値を十分緩く設定(20 req/s/IP)。通常ユーザーや Googlebot(自己制御された
+//    巡回で毎秒1〜2程度)は到達しない。スクレイパーの毎秒数十〜数百のみ 429。
+//  - ログイン済み(セッションCookie保持)ユーザーは対象外。
+//  - GET のみ対象(フォーム送信などの POST は巻き込まない)。
+// ============================================================
+const RL_WINDOW_MS = 10_000 // 10 秒窓
+const RL_MAX_HITS = 200 // 1 IP あたり 10 秒で 200 (= 20 req/s) まで許容
+const RL_MAX_ENTRIES = 20_000 // メモリ肥大ガード
+const rlHits = new Map<string, number[]>()
+
+/** 同一 IP が直近 RL_WINDOW_MS 内に RL_MAX_HITS 以上叩いていれば true。 */
+function isRateLimited(ip: string): boolean {
+  const now = Date.now()
+  const windowStart = now - RL_WINDOW_MS
+  const arr = rlHits.get(ip)
+  if (!arr) {
+    rlHits.set(ip, [now])
+    // メモリ上限を超えたら、窓外になった IP を掃除
+    if (rlHits.size > RL_MAX_ENTRIES) {
+      for (const [k, v] of rlHits) {
+        if (v.length === 0 || v[v.length - 1] < windowStart) rlHits.delete(k)
+      }
+    }
+    return false
+  }
+  // 窓外のタイムスタンプを捨てる
+  let i = 0
+  while (i < arr.length && arr[i] < windowStart) i++
+  if (i > 0) arr.splice(0, i)
+  if (arr.length >= RL_MAX_HITS) return true
+  arr.push(now)
+  return false
+}
+
 /**
  * スクレイピング防止: 明らかにブラウザを偽装していない UA を 403 で弾く。
  *
@@ -139,6 +180,28 @@ export function middleware(request: NextRequest) {
         "Cache-Control": "no-store",
       },
     })
+  }
+
+  // ============================================================
+  // 0b) レート制限: 匿名 GET への単一 IP 高速連打を 429 で遮断。
+  //     ページ関数が走る前に返すため、スクレイパー由来の Function Invocations /
+  //     DB アクセスを未然に削減する。ログイン済み・POST・インフラ経路は対象外。
+  // ============================================================
+  const hasSession =
+    !!request.cookies.get("authjs.session-token")?.value ||
+    !!request.cookies.get("__Secure-authjs.session-token")?.value
+  if (!isExempt && request.method === "GET" && !hasSession) {
+    const rlIp = extractClientIp(request.headers)
+    if (rlIp && isRateLimited(rlIp)) {
+      return new NextResponse("Too Many Requests", {
+        status: 429,
+        headers: {
+          "Retry-After": "10",
+          "X-Robots-Tag": "noindex, nofollow",
+          "Cache-Control": "no-store",
+        },
+      })
+    }
   }
 
   // ============================================================
