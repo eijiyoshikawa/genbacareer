@@ -36,10 +36,10 @@ export async function GET(request: NextRequest) {
   const employmentType = searchParams.get("employment_type")
   const salaryMin = searchParams.get("salary_min")
   const q = searchParams.get("q")
-  const rawPage = Math.max(1, Number(searchParams.get("page") ?? "1"))
+  const rawPage = Math.max(1, Number(searchParams.get("page") ?? "1") || 1)
   const rawLimit = Math.min(
     50,
-    Math.max(1, Number(searchParams.get("limit") ?? "20")),
+    Math.max(1, Number(searchParams.get("limit") ?? "20") || 20),
   )
   const page = loggedIn ? rawPage : 1
   const limit = loggedIn ? rawLimit : Math.min(rawLimit, GUEST_LIMIT)

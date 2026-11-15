@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   }
 
   const url = new URL(request.url)
-  const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") ?? "20")))
+  const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") ?? "20") || 20))
 
   const applications = await prisma.application.findMany({
     where: { userId: session.user.id },

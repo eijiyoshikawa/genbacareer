@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hashSync } from "bcryptjs";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ensureSchema } from "@/lib/ensure-schema";
 import { PREFECTURES } from "@/lib/constants";
@@ -74,7 +75,10 @@ export async function POST(request: Request) {
     // 新規カラム未反映のまま prisma.user.* を叩いて P2022 になることがある。
     await ensureSchema();
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
     if (existing) {
       return NextResponse.json(
         { error: "このメールアドレスは既に登録されています。" },
@@ -129,6 +133,16 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     console.error("Registration error:", error);
+    // 二重クリック / 複数タブの同時送信で create が競合 (P2002)
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "このメールアドレスは既に登録されています。" },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: "サーバーエラーが発生しました。" },
       { status: 500 }

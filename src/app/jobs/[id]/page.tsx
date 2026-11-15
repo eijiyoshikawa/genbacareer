@@ -101,7 +101,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   // Prisma に渡す前に弾いて 404 を返す。
   if (!isValidUuid(id)) notFound()
   const sp = (await searchParams) ?? {}
-  const isPreview = sp.preview === "1"
+  const previewTokenParam = sp.previewToken
   // 閲覧記録はクライアント beacon (<JobViewBeacon />) 経由で行う。
   // SSR 中に DB 書き込みを行わないことで、TTFB と将来の ISR 化を可能にする。
 
@@ -112,6 +112,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
     where: { id },
     select: {
       id: true,
+      previewToken: true,
       title: true,
       description: true,
       requirements: true,
@@ -196,6 +197,12 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
   if (job.dedupedTo) {
     permanentRedirect(`/jobs/${job.dedupedTo}`)
   }
+
+  // preview は URL の "見た目" フラグではなく、Job.previewToken との一致でのみ成立させる。
+  // でなければ誰でも ?preview=1 を付けるだけでゲスト閲覧制限をすり抜けられてしまう。
+  const isPreview = Boolean(
+    job.previewToken && previewTokenParam && previewTokenParam === job.previewToken
+  )
 
   // 未登録ゲストは「グローバル上位 15 件（recommended sort / フィルタ無し）」の詳細のみ閲覧可。
   // 検索エンジン等のクローラは Google for Jobs SEO 維持のため除外する。

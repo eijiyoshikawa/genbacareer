@@ -54,7 +54,7 @@ type Props = {
 
 export default async function JournalPage({ searchParams }: Props) {
   const params = await searchParams
-  const page = Math.max(1, Number(params.page ?? "1"))
+  const page = Math.max(1, Number(params.page ?? "1") || 1)
   const categoryFilter = params.category ?? ""
 
   const where = {
