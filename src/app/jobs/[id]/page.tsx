@@ -121,6 +121,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
     where: { id },
     select: {
       id: true,
+      previewToken: true,
       title: true,
       description: true,
       requirements: true,
@@ -199,15 +200,13 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
 
   if (!job) notFound()
 
-  // プレビューは発行済みトークンと一致したときだけ有効。以前は ?preview=1 を
-  // 付けるだけで誰でもログインゲートを回避でき、下書きも閲覧できた。
-  let isPreview = false
-  if (previewParam.length >= 16 && previewParam.length <= 64) {
-    const tokenRow = await prisma.job
-      .findUnique({ where: { id }, select: { previewToken: true } })
-      .catch(() => null)
-    isPreview = !!tokenRow?.previewToken && tokenRow.previewToken === previewParam
-  }
+  // プレビューは発行済みトークン (Job.previewToken) と一致したときだけ有効。
+  // 以前は ?preview=1 を付けるだけで誰でもログインゲートを回避でき、下書きも閲覧できた。
+  const isPreview =
+    previewParam.length >= 16 &&
+    previewParam.length <= 64 &&
+    !!job.previewToken &&
+    job.previewToken === previewParam
 
   // 重複求人として close された場合: 正規ページへ 301 リダイレクト。
   // これがないと Google が「user-declared canonical と Google's choice が違う」と

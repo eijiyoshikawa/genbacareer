@@ -133,8 +133,18 @@ providers.push(
         // (2 回目以降は inflight memoize により即解決)。
         await ensureSchema()
 
+        // 未反映カラム (ensureSchema が ENSURE_SCHEMA=false でスキップされている間) が
+        // 追加されるたびにログインが P2022/カラム不在エラーで壊れないよう、
+        // 認証に必要な列だけを明示 select する (company-credentials と同じ対策)。
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            passwordHash: true,
+            status: true,
+          },
         })
 
         if (!user || !user.passwordHash) return null
@@ -218,12 +228,20 @@ providers.push(
             if (!consumed) {
               throw new Error("TOTP_INVALID")
             }
-            await prisma.companyUser
-              .update({
-                where: { id: companyUser.id },
-                data: { totpRecoveryCodes: consumed.remaining },
-              })
-              .catch(() => {})
+            // CAS: 読み取り時点の一覧と一致する場合のみ書き込む。
+            // 同一コードでの並行ログインが両方とも検証を通過してしまい、
+            // 使い切りのはずのリカバリコードで複数セッションを認証できて
+            // しまうレースを防ぐ（後勝ちの update だと片方が黙って上書きされる）。
+            const cas = await prisma.companyUser.updateMany({
+              where: {
+                id: companyUser.id,
+                totpRecoveryCodes: { equals: companyUser.totpRecoveryCodes },
+              },
+              data: { totpRecoveryCodes: consumed.remaining },
+            })
+            if (cas.count === 0) {
+              throw new Error("TOTP_INVALID")
+            }
           }
         }
 

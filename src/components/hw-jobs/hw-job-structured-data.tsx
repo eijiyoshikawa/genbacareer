@@ -99,15 +99,20 @@ function buildJobLocation(job: HwJob) {
   }
 }
 
-function buildBaseSalary(job: HwJob) {
-  if (job.salary.min === null && job.salary.max === null) return null
+export function buildBaseSalary(job: HwJob) {
+  // schema.org QuantitativeValue: 範囲なら minValue + maxValue を両方セットする
+  // (片方だけは NG)。単一値なら value を使う。min/max どちらも無ければ null。
+  // (structured-data.ts の同種修正と同じ理由 — Search Console の
+  // 「maxValue がありません」警告を避けるため)
+  const { min, max } = job.salary
+  if (min === null && max === null) return null
+  const hasRange = min !== null && max !== null && min !== max
   return {
     "@type": "MonetaryAmount",
     currency: "JPY",
     value: {
       "@type": "QuantitativeValue",
-      ...(job.salary.min !== null ? { minValue: job.salary.min } : {}),
-      ...(job.salary.max !== null ? { maxValue: job.salary.max } : {}),
+      ...(hasRange ? { minValue: min, maxValue: max } : { value: min ?? max }),
       unitText: mapUnit(job.salary.type),
     },
   }

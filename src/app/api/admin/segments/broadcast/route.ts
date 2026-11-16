@@ -18,6 +18,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { toActorUuid } from "@/lib/actor-id"
 import { isMessagingConfigured, pushMessage, type LineMessage } from "@/lib/line-messaging"
 import { buildJobRecommendationFlex } from "@/lib/line-flex-builders"
 import { resolveSegment, type Segment } from "@/lib/segment"
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
   }
 
   // ログ保存
-  const userId = (session.user as { id?: string } | undefined)?.id ?? null
+  const userId = toActorUuid((session.user as { id?: string } | undefined)?.id)
   await prisma.broadcastLog
     .create({
       data: {

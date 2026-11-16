@@ -26,7 +26,7 @@ export default async function JobPreviewPage({
   const job = await prisma.job
     .findUnique({
       where: { previewToken: token },
-      select: { id: true },
+      select: { id: true, previewToken: true },
     })
     .catch(() => null)
 

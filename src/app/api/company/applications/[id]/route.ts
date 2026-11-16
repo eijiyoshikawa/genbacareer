@@ -4,10 +4,11 @@ import type { Prisma } from "@prisma/client"
 import { isValidUuid } from "@/lib/uuid"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { ensureSchema } from "@/lib/ensure-schema"
 import { sendApplicationStatusEmail } from "@/lib/application-notifications"
 import { notifyApplicationStatusChange } from "@/lib/notifications"
 import { syncApplicationToCalendar } from "@/lib/application-calendar-sync"
-import { VALID_STATUS_TRANSITIONS } from "@/lib/application-status"
+import { VALID_STATUS_TRANSITIONS, buildOfferSalarySnapshotData } from "@/lib/application-status"
 
 // 既存互換: { status } 単体更新
 const updateStatusSchema = z.object({
@@ -82,6 +83,7 @@ export async function PUT(
     select: {
       companyId: true,
       userId: true,
+      jobId: true,
       status: true,
       statusHistory: true,
       hiredAt: true,
@@ -132,6 +134,12 @@ export async function PUT(
     ...(parsed.data.note ? { note: parsed.data.note } : {}),
   }
 
+  // offer_salary_* など後付けカラムが本番 DB に無い状態で書き込むと P2022 になる。
+  // 結果はプロセス内でキャッシュされるため 2 回目以降のコストはほぼ無い。
+  await ensureSchema()
+
+  const offerSnapshot = await buildOfferSalarySnapshotData(newStatus, application.jobId)
+
   // 遷移チェックと更新を原子的にする: 読み取り後に別リクエストがステータスを
   // 変えていた場合 (採用と不採用の同時押下など) は 0 件更新になり 409 を返す。
   // これが無いと「不採用なのに成果報酬の請求だけ残る」状態が起こり得る。
@@ -144,6 +152,7 @@ export async function PUT(
       ...(newStatus === "hired" && !application.hiredAt
         ? { hiredAt: new Date() }
         : {}),
+      ...(offerSnapshot ?? {}),
     },
   })
   if (count === 0) {

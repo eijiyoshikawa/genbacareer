@@ -31,9 +31,9 @@ export default async function OGImage({
 
   const name = sanitizeOgText(truncate(company?.name ?? "企業情報", 40))
   const tagline = sanitizeOgText(truncate(company?.tagline ?? "", 80))
-  const meta = [company?.industry, company?.prefecture]
-    .filter(Boolean)
-    .join(" ・ ")
+  const meta = sanitizeOgText(
+    [company?.industry, company?.prefecture].filter(Boolean).join(" ・ ")
+  )
 
   return new ImageResponse(
     (

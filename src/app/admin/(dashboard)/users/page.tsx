@@ -25,7 +25,7 @@ export default async function AdminUsersPage({
   const sp = await searchParams
   const status = sp.status ?? "all"
   const q = sp.q?.trim() ?? ""
-  const page = Math.max(1, Number(sp.page ?? "1"))
+  const page = Math.max(1, Number(sp.page ?? "1") || 1)
 
   const where = {
     ...(status === "active"

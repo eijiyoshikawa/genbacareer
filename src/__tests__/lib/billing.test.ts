@@ -10,60 +10,72 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     application: { findUnique },
     billingEvent: { create, update },
-    company: { update: vi.fn() },
   },
 }))
 
 import { createHiringInvoice } from "@/lib/billing"
+import { resolveHiringFee } from "@/lib/hiring-fee"
 
 describe("createHiringInvoice", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.unstubAllEnvs()
-    findUnique.mockResolvedValue({
-      company: { id: "c1", name: "テスト建設", contactEmail: null, mfPartnerId: null },
-      job: {
-        title: "型枠大工",
-        hiringFeeAmount: 300000,
-        salaryMin: null,
-        salaryMax: null,
-        salaryType: null,
-      },
-      user: { name: "山田" },
-    })
     create.mockResolvedValue({ id: "be1", status: "pending" })
   })
 
-  it("MoneyForward 未設定なら pending のまま残す (failed にしない)", async () => {
-    vi.stubEnv("MF_CLIENT_ID", "")
-    vi.stubEnv("MF_CLIENT_SECRET", "")
-    vi.stubEnv("MF_OFFICE_ID", "")
+  it("pending の BillingEvent を作るだけで、failed にも invoiced にもしない", async () => {
+    findUnique.mockResolvedValue({
+      offerSalaryMin: null,
+      offerSalaryMax: null,
+      offerSalaryType: null,
+      company: { id: "c1" },
+      job: { hiringFeeAmount: 300000, salaryMin: null, salaryMax: null, salaryType: null },
+    })
 
+    const fetchSpy = vi.fn()
+    vi.stubGlobal("fetch", fetchSpy)
     const result = await createHiringInvoice("a1")
+    vi.unstubAllGlobals()
 
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: "pending", amount: 300000 }),
+        data: expect.objectContaining({
+          companyId: "c1",
+          applicationId: "a1",
+          status: "pending",
+          amount: 300000,
+        }),
       })
     )
+    // 外部 API (MoneyForward) は呼ばない。発行は /admin/billing-todo から手動
+    expect(fetchSpy).not.toHaveBeenCalled()
     expect(update).not.toHaveBeenCalled()
-    expect(result.provider).toBe("manual")
+    expect(result.status).toBe("pending")
   })
 
-  it("MoneyForward 連携が失敗しても failed に落とさない", async () => {
-    vi.stubEnv("MF_CLIENT_ID", "id")
-    vi.stubEnv("MF_CLIENT_SECRET", "secret")
-    vi.stubEnv("MF_OFFICE_ID", "office")
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response("boom", { status: 500 }))
-    )
-    vi.spyOn(console, "error").mockImplementation(() => {})
+  it("内定時点の給与スナップショットを求人の現在値より優先する", async () => {
+    findUnique.mockResolvedValue({
+      offerSalaryMin: 400000,
+      offerSalaryMax: 500000,
+      offerSalaryType: "monthly",
+      company: { id: "c1" },
+      // 採用確定の直前に求人の給与を下げても、請求額は内定時点の給与で決まる
+      job: { hiringFeeAmount: null, salaryMin: 100000, salaryMax: 100000, salaryType: "monthly" },
+    })
 
-    const result = await createHiringInvoice("a1")
+    await createHiringInvoice("a1")
 
-    expect(update).not.toHaveBeenCalled()
-    expect(result.provider).toBe("manual")
-    vi.unstubAllGlobals()
+    const expected = resolveHiringFee({
+      hiringFeeAmount: null,
+      salaryMin: 400000,
+      salaryMax: 500000,
+      salaryType: "monthly",
+    })
+    expect(create.mock.calls[0][0].data.amount).toBe(expected)
+  })
+
+  it("応募が見つからなければ例外を投げる", async () => {
+    findUnique.mockResolvedValue(null)
+    await expect(createHiringInvoice("missing")).rejects.toThrow()
+    expect(create).not.toHaveBeenCalled()
   })
 })

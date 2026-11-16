@@ -6,6 +6,7 @@ import { revalidateAfterJobChange } from "@/lib/revalidate-public"
 import { computeDisplayPriority } from "@/lib/job-display-priority"
 import { CATEGORIES } from "@/lib/categories"
 import { isValidUuid } from "@/lib/uuid"
+import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
 
 const VALID_CATEGORIES = CATEGORIES.map((c) => c.value) as readonly string[]
 
@@ -62,7 +63,32 @@ export async function GET(
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
   }
 
-  const job = await prisma.job.findUnique({ where: { id } })
+  const job = await prisma.job.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      companyId: true,
+      title: true,
+      category: true,
+      subcategory: true,
+      employmentType: true,
+      description: true,
+      requirements: true,
+      salaryMin: true,
+      salaryMax: true,
+      salaryType: true,
+      prefecture: true,
+      city: true,
+      address: true,
+      benefits: true,
+      tags: true,
+      videoUrls: true,
+      imageUrls: true,
+      status: true,
+      previewToken: true,
+      updatedAt: true,
+    },
+  })
   if (!job || job.companyId !== ctx.companyId) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
   }
@@ -74,9 +100,12 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const ctx = await getCompanySession()
-  if (!ctx) {
-    return Response.json({ error: "企業アカウントでログインしてください" }, { status: 401 })
+  // 求人更新（公開への遷移を含む）は POST（新規投稿）と同様、status=approved の
+  // 企業のみ許可する。以前は getCompanySession() のみで承認状態を見ておらず、
+  // 却下/承認待ちに転落した企業でも既存求人を編集・再公開できてしまっていた。
+  const ctx = await requireCompanyAuth({ requireApproved: true })
+  if (isCompanyAuthError(ctx)) {
+    return Response.json({ error: ctx.error }, { status: ctx.status })
   }
 
   const { id } = await params
@@ -232,9 +261,9 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const ctx = await getCompanySession()
-  if (!ctx) {
-    return Response.json({ error: "企業アカウントでログインしてください" }, { status: 401 })
+  const ctx = await requireCompanyAuth({ requireApproved: true })
+  if (isCompanyAuthError(ctx)) {
+    return Response.json({ error: ctx.error }, { status: ctx.status })
   }
 
   const { id } = await params
