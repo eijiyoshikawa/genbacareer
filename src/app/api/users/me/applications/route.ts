@@ -28,6 +28,16 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * limit,
       take: limit,
+      // 企業側の内部メモ・選考履歴メモ・成果報酬算定用スナップショットは
+      // 求職者に返さない (include のみだと全カラムが暗黙に返る)。
+      omit: {
+        internalNotes: true,
+        statusHistory: true,
+        googleCalendarEventId: true,
+        offerSalaryMin: true,
+        offerSalaryMax: true,
+        offerSalaryType: true,
+      },
       include: {
         job: {
           select: {

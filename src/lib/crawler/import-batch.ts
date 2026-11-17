@@ -757,6 +757,32 @@ export async function importHelloworkJobs(
   }
 
   // -------------------------------------------------------
+  // Step 1.5: 重複排除済みの求人を再公開しない
+  // 上の upsert は既存行を一律 status="active" に戻すため、job-dedupe が
+  // closed + dedupedTo=<代表> にした重複求人が毎回の取り込みで復活し、
+  // 一覧・フィードに重複掲載されていた (詳細ページは代表へ 301)。
+  // -------------------------------------------------------
+  if (!dryRun && processedIds.size > 0) {
+    try {
+      await prisma.job.updateMany({
+        where: {
+          source: "hellowork",
+          status: "active",
+          dedupedTo: { not: null },
+          helloworkId: { in: Array.from(processedIds) },
+        },
+        data: { status: "closed" },
+      })
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error)
+      console.error(
+        `[import-batch] 重複排除済み求人の再 close でエラー: ${message}`
+      )
+    }
+  }
+
+  // -------------------------------------------------------
   // Step 2: 孤立した HW 求人を closed にする
   // ハローワーク側で掲載終了した求人を検知して非公開にする
   // -------------------------------------------------------

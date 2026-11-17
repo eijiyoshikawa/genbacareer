@@ -76,6 +76,10 @@ export async function POST(request: Request) {
           city: null,
           birthDate: null,
           resumeUrl: null,
+          avatarUrl: null,
+          // LINE 連携を外す。残すと再登録後の LINE ログインが
+          // この退会済み行に当たって拒否され続ける。
+          lineUserId: null,
           profilePublic: false,
           passwordHash: null,
           verificationToken: null,

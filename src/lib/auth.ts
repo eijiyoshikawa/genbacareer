@@ -307,7 +307,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             const linked = await prisma.user.findFirst({
               where: { lineUserId: account.providerAccountId },
               select: { id: true, emailVerified: true, status: true },
-              orderBy: { createdAt: "asc" },
+              // 退会済みの行が残っていても、再登録・再連携した有効なアカウントを
+              // 優先する ("active" < "deleted" < "suspended" の昇順)。
+              orderBy: [{ status: "asc" }, { createdAt: "asc" }],
             })
             if (linked) {
               // 凍結 / 退会済みは OAuth 経由でもログイン拒否

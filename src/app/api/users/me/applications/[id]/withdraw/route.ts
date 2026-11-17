@@ -75,8 +75,10 @@ export async function POST(
   }
 
   const history = Array.isArray(app.statusHistory) ? app.statusHistory : []
-  await prisma.application.update({
-    where: { id },
+  // 読み取り後に企業側がステータスを進めていた場合に上書きしないよう、
+  // 読み取った時点のステータスを条件にした原子的な更新にする。
+  const updated = await prisma.application.updateMany({
+    where: { id, userId, status: app.status },
     data: {
       status: "withdrawn",
       statusHistory: [
@@ -90,6 +92,15 @@ export async function POST(
       ],
     },
   })
+
+  if (updated.count === 0) {
+    return Response.json(
+      {
+        error: "選考状況が更新されたため取り消しできませんでした。画面を再読み込みしてご確認ください。",
+      },
+      { status: 409 }
+    )
+  }
 
   return Response.json({ ok: true })
 }

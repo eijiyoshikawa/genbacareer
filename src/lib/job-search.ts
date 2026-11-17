@@ -52,6 +52,12 @@ function buildFuzzyWhere(input: FuzzySearchInput): {
     whereClauses.push(`AND prefecture = $${++n}`)
     params.push(input.prefecture)
   }
+  // 市区町村。未適用だと「八王子市」で絞っているのに都道府県全体の
+  // 結果・件数が返り、並び順を変えると (Prisma 経路) 結果が変わっていた。
+  if (input.city) {
+    whereClauses.push(`AND city = $${++n}`)
+    params.push(input.city)
+  }
   if (input.employmentType) {
     whereClauses.push(`AND employment_type = $${++n}`)
     params.push(input.employmentType)

@@ -170,6 +170,16 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // lead を保存できなかった場合は成功扱いにしない。LIFF フォームには
+  // LINE トークへ続く導線が無く、「受け付けました」と表示すると応募が
+  // 記録されないまま失われる。フォームは入力を保持したまま再送できる。
+  if (!leadId) {
+    return Response.json(
+      { error: "送信に失敗しました。時間をおいてもう一度お試しください。" },
+      { status: 503 }
+    )
+  }
+
   // おすすめ求人を 3 件
   const recommendedJobs = await findRelatedJobs(job.id, 3).catch(() => [])
 

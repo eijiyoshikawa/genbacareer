@@ -58,6 +58,9 @@ async function aggregateBy(
         AND category = ANY($1)
         AND salary_min IS NOT NULL
         AND salary_min > 0
+        -- 月給ベースのみ集計する。時給 1,200 円と年収 400 万円を同じ列で
+        -- 平均すると意味のない数値になる (/salary/[range] と同じ基準)。
+        AND (salary_type = 'monthly' OR salary_type IS NULL)
       GROUP BY ${field}
       HAVING COUNT(*) >= 3
       ORDER BY AVG(salary_min) DESC
