@@ -50,8 +50,17 @@ function formatSalary(job: {
   const min = job.salaryMin ?? job.salaryMax ?? 0
   const max = job.salaryMax ?? job.salaryMin ?? 0
   // 月給/時給は Indeed 仕様で yearly に換算
-  const yearlyMin = job.salaryType === "hourly" ? min * 8 * 250 : job.salaryType === "monthly" ? min * 12 : min
-  const yearlyMax = job.salaryType === "hourly" ? max * 8 * 250 : job.salaryType === "monthly" ? max * 12 : max
+  // 日給 (HelloWork 由来) は年 250 日換算。未換算だと日給 15,000 円が年収 15,000 円と表示される。
+  const factor =
+    job.salaryType === "hourly"
+      ? 8 * 250
+      : job.salaryType === "daily"
+        ? 250
+        : job.salaryType === "monthly"
+          ? 12
+          : 1
+  const yearlyMin = min * factor
+  const yearlyMax = max * factor
   return `<salary>${yearlyMin}〜${yearlyMax} JPY/${unit}</salary>`
 }
 
@@ -81,7 +90,18 @@ export async function GET() {
     },
     orderBy: buildPublicJobOrderBy("recommended"),
     take: 5000,
-  }).catch(() => [])
+  }).catch((err) => {
+    console.error("[feed/indeed.xml] query failed:", err)
+    return null
+  })
+
+  // DB 障害時に空フィードを 200 で返すと全求人が削除扱いになるため 503 を返す
+  if (!jobs) {
+    return new Response("Service Unavailable", {
+      status: 503,
+      headers: { "Cache-Control": "no-store", "Retry-After": "300" },
+    })
+  }
 
   const items = jobs
     .map((j) => {

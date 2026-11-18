@@ -12,6 +12,7 @@
  */
 
 import { NextResponse } from "next/server"
+import { isValidUuid } from "@/lib/uuid"
 import type { NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
@@ -42,6 +43,9 @@ export async function GET(
   }
 
   const { id } = await params
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "スカウトが見つかりません" }, { status: 404 })
+  }
 
   const scout = await prisma.scoutMessage.findUnique({
     where: { id },
@@ -91,6 +95,9 @@ export async function PATCH(
   }
 
   const { id } = await params
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "スカウトが見つかりません" }, { status: 404 })
+  }
 
   let raw: unknown
   try {

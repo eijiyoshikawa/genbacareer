@@ -1,4 +1,5 @@
 import { prisma } from "./db"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { CONSTRUCTION_CATEGORY_VALUES } from "./categories"
 
 /** 未登録ユーザーが /jobs 一覧で閲覧できる最大件数。詳細閲覧可能セットの大きさでもある。 */
@@ -51,12 +52,10 @@ export async function getGuestAccessibleJobIds(): Promise<string[]> {
       status: "active",
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
     },
-    orderBy: [
-      { displayPriority: "asc" },
-      { source: "asc" },
-      { rankScore: "desc" },
-      { publishedAt: "desc" },
-    ],
+    // /jobs 一覧のデフォルト表示と同一の並び順を使う。別定義にしていたため、
+    // 一覧の上位 15 件 (企業プラン/ローテーション込み) とゲートが許可する
+    // 15 件がずれ、一覧に見えている求人を押すとログインへ飛ばされていた。
+    orderBy: buildPublicJobOrderBy("recommended", { includeCompanyTier: true }),
     take: GUEST_LIMIT,
     select: { id: true },
   })

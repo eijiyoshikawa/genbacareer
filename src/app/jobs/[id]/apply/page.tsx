@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { isValidUuid } from "@/lib/uuid"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Building2, MessageCircle, MapPin } from "lucide-react"
@@ -13,16 +14,20 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  const job = await prisma.job.findUnique({
-    where: { id },
-    select: { title: true },
-  })
+  if (!isValidUuid(id)) return { title: "求人が見つかりません" }
+  const job = await prisma.job
+    .findUnique({
+      where: { id },
+      select: { title: true },
+    })
+    .catch(() => null)
   if (!job) return { title: "求人が見つかりません" }
   return { title: `${job.title} に応募` }
 }
 
 export default async function ApplyPage({ params }: Props) {
   const { id } = await params
+  if (!isValidUuid(id)) notFound()
   const job = await prisma.job.findUnique({
     where: { id },
     select: {

@@ -572,6 +572,12 @@ model Application {
   // 採用確定日 (status='hired' へ遷移したタイミング)。C3 戻入処理の経過月数計算の基準。
   // hiredAt は「入社日」として扱う (運用上もこの日を入社日と見做す)。
   hiredAt   DateTime? @map("hired_at") @db.Timestamptz()
+  // 「offered」遷移時点での求人給与のスナップショット。成果報酬(理論年収×35%)の
+  // 算定に使う。採用確定の直前に求人の給与を編集して報酬額を圧縮する操作を防ぐため、
+  // 請求時は求人の現在値ではなくこのスナップショットを優先する。
+  offerSalaryMin  Int?    @map("offer_salary_min")
+  offerSalaryMax  Int?    @map("offer_salary_max")
+  offerSalaryType String? @map("offer_salary_type") @db.VarChar(20)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 

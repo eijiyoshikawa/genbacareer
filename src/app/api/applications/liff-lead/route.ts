@@ -61,7 +61,11 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // LIFF access token の verify（なりすまし防止）
+  // LIFF access token の verify（なりすまし防止）。
+  // verify API 自体はトークンの持ち主を返さないため、確認済み userId
+  // (v2/profile 由来) が取れた場合はそれを信頼し、クライアント送信の
+  // lineUserId が別人になりすましていないか照合する。
+  let verifiedLineUserId: string | null = null
   if (isLiffServerConfigured()) {
     const v = await verifyLiffAccessToken(parsed.accessToken)
     if (!v.ok) {
@@ -70,7 +74,15 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+    if (v.userId && v.userId !== parsed.lineUserId) {
+      return Response.json(
+        { error: "line_user_id_mismatch" },
+        { status: 401 }
+      )
+    }
+    verifiedLineUserId = v.userId ?? null
   }
+  const lineUserId = verifiedLineUserId ?? parsed.lineUserId
 
   // 対象求人
   const job = await prisma.job.findUnique({
@@ -110,7 +122,7 @@ export async function POST(request: NextRequest) {
         utmMedium: utm.medium,
         utmCampaign: utm.campaign,
         referer: referer?.slice(0, 500) ?? null,
-        lineUserId: parsed.lineUserId,
+        lineUserId,
         lineDisplayName: parsed.lineDisplayName ?? null,
         status: "line_added",
       },
@@ -150,11 +162,21 @@ export async function POST(request: NextRequest) {
         "",
         "担当より 1 営業日以内にこちらの LINE トークでご連絡いたします。",
       ].join("\n")
-      void pushMessage(parsed.lineUserId, [{ type: "text", text: ack }]).catch(() => {})
+      void pushMessage(lineUserId, [{ type: "text", text: ack }]).catch(() => {})
     }
   } catch (e) {
     console.error(
       `[liff-lead] DB insert failed: ${e instanceof Error ? e.message : e}`
+    )
+  }
+
+  // lead を保存できなかった場合は成功扱いにしない。LIFF フォームには
+  // LINE トークへ続く導線が無く、「受け付けました」と表示すると応募が
+  // 記録されないまま失われる。フォームは入力を保持したまま再送できる。
+  if (!leadId) {
+    return Response.json(
+      { error: "送信に失敗しました。時間をおいてもう一度お試しください。" },
+      { status: 503 }
     )
   }
 

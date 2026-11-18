@@ -63,6 +63,12 @@ describe("formatSalaryForIndeed", () => {
     ).toBe("¥500,000 以下 / 月")
   })
 
+  it("handles annual (DB 上の実際の値)", () => {
+    expect(
+      formatSalaryForIndeed({ min: 4000000, max: null, type: "annual" }),
+    ).toBe("¥4,000,000 以上 / 年")
+  })
+
   it("handles yearly", () => {
     expect(
       formatSalaryForIndeed({ min: 4000000, max: 6000000, type: "yearly" }),

@@ -72,6 +72,9 @@ export function formatSalaryForIndeed(args: {
     switch (type) {
       case "monthly":
         return "月"
+      // DB / Zod 上の値は "annual"。"yearly" のみだと年収求人が default の
+      // 「月」に落ち、年収 400 万円が「月 400 万円」として配信されていた。
+      case "annual":
       case "yearly":
         return "年"
       case "daily":

@@ -3,6 +3,7 @@ import { z } from "zod"
 import bcrypt from "bcryptjs"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { toActorUuid } from "@/lib/actor-id"
 import {
   generateInvitationToken,
   generateTemporaryPassword,
@@ -83,7 +84,7 @@ export async function POST(
     )
   }
 
-  const adminUserId = (session.user as { id?: string }).id ?? null
+  const adminUserId = toActorUuid((session.user as { id?: string }).id)
 
   if (d.method === "email") {
     // 既存の未受領招待があれば再利用ではなく取り消して新規発行（運用シンプル化）

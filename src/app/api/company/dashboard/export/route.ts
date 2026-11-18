@@ -7,6 +7,7 @@
 
 import { type NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
+import { csvEscape } from "@/lib/csv"
 import {
   computeCompanyFunnel,
   computeJobPerformance,
@@ -15,15 +16,6 @@ import {
 } from "@/lib/company-funnel"
 
 export const dynamic = "force-dynamic"
-
-function csvEscape(value: string | number | null | undefined): string {
-  if (value === null || value === undefined) return ""
-  const s = String(value)
-  if (/[",\r\n]/.test(s)) {
-    return `"${s.replace(/"/g, '""')}"`
-  }
-  return s
-}
 
 export async function GET(request: NextRequest) {
   const session = await auth()

@@ -36,12 +36,23 @@ export async function GET(request: NextRequest) {
   }
 
   const url = new URL(request.url)
-  const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") ?? "20")))
+  const parsedLimit = Number.parseInt(url.searchParams.get("limit") ?? "", 10)
+  const limit = Math.min(50, Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 20))
 
   const applications = await prisma.application.findMany({
     where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
     take: limit,
+    // 企業側の内部メモ・選考履歴メモ・成果報酬算定用スナップショットは
+    // 求職者に返さない (include のみだと全カラムが暗黙に返る)。
+    omit: {
+      internalNotes: true,
+      statusHistory: true,
+      googleCalendarEventId: true,
+      offerSalaryMin: true,
+      offerSalaryMax: true,
+      offerSalaryType: true,
+    },
     include: {
       job: {
         select: {

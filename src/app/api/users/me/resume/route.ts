@@ -23,40 +23,67 @@ export async function PUT(request: NextRequest) {
 
   let body: Record<string, unknown>
   try {
-    body = await request.json()
+    const raw: unknown = await request.json()
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      return Response.json({ error: "リクエストの形式が正しくありません" }, { status: 400 })
+    }
+    body = raw as Record<string, unknown>
   } catch {
     return Response.json({ error: "リクエストの形式が正しくありません" }, { status: 400 })
   }
 
-  const resume = await prisma.resume.upsert({
-    where: { userId: session.user.id },
-    create: {
-      userId: session.user.id,
-      ...sanitizeResumeData(body),
-    },
-    update: sanitizeResumeData(body),
-  })
+  const data = sanitizeResumeData(body)
+  try {
+    const resume = await prisma.resume.upsert({
+      where: { userId: session.user.id },
+      create: { userId: session.user.id, ...data },
+      update: data,
+    })
+    return Response.json({ resume })
+  } catch (e) {
+    console.error("[resume] save failed:", e instanceof Error ? e.message : e)
+    return Response.json(
+      { error: "保存に失敗しました。入力内容をご確認ください。" },
+      { status: 400 }
+    )
+  }
+}
 
-  return Response.json({ resume })
+// 生年月日: 未入力 ("") は null (クリア)、不正な日付は無視する。
+// new Date("") は Invalid Date になり Prisma が例外を投げて 500 になっていた。
+function parseBirthDate(value: unknown): Date | null | undefined {
+  if (value === null || value === "") return null
+  if (typeof value !== "string") return undefined
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return undefined
+  const year = d.getUTCFullYear()
+  if (year < 1900 || year > 2100) return undefined
+  return d
+}
+
+// Json カラムに生の null / プリミティブが渡ると Prisma が例外を投げるため、
+// 配列・オブジェクト以外は無視する。
+function jsonOrUndefined(value: unknown): object | undefined {
+  return value !== null && typeof value === "object" ? value : undefined
 }
 
 function sanitizeResumeData(body: Record<string, unknown>) {
   return {
     fullName: typeof body.fullName === "string" ? body.fullName : undefined,
     furigana: typeof body.furigana === "string" ? body.furigana : undefined,
-    birthDate: typeof body.birthDate === "string" ? new Date(body.birthDate) : undefined,
+    birthDate: parseBirthDate(body.birthDate),
     gender: typeof body.gender === "string" ? body.gender : undefined,
     postalCode: typeof body.postalCode === "string" ? body.postalCode : undefined,
     address: typeof body.address === "string" ? body.address : undefined,
     phone: typeof body.phone === "string" ? body.phone : undefined,
     email: typeof body.email === "string" ? body.email : undefined,
-    educationHistory: body.educationHistory !== undefined ? body.educationHistory as object : undefined,
-    workHistory: body.workHistory !== undefined ? body.workHistory as object : undefined,
-    licenses: body.licenses !== undefined ? body.licenses as object : undefined,
+    educationHistory: jsonOrUndefined(body.educationHistory),
+    workHistory: jsonOrUndefined(body.workHistory),
+    licenses: jsonOrUndefined(body.licenses),
     motivation: typeof body.motivation === "string" ? body.motivation : undefined,
     selfPr: typeof body.selfPr === "string" ? body.selfPr : undefined,
     careerSummary: typeof body.careerSummary === "string" ? body.careerSummary : undefined,
-    careerDetails: body.careerDetails !== undefined ? body.careerDetails as object : undefined,
+    careerDetails: jsonOrUndefined(body.careerDetails),
     skills: Array.isArray(body.skills) ? body.skills.filter((s): s is string => typeof s === "string") : undefined,
     qualifications: Array.isArray(body.qualifications) ? body.qualifications.filter((s): s is string => typeof s === "string") : undefined,
   }

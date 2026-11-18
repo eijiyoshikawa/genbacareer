@@ -84,9 +84,8 @@ export default async function CompanyBillingPage({
   const totalPaid =
     summaryData.find((s) => s.status === "paid")?._sum.amount ?? 0
   const totalPending =
-    summaryData.find((s) => s.status === "pending")?._sum.amount ??
-    0 +
-      (summaryData.find((s) => s.status === "invoiced")?._sum.amount ?? 0)
+    (summaryData.find((s) => s.status === "pending")?._sum.amount ?? 0) +
+    (summaryData.find((s) => s.status === "invoiced")?._sum.amount ?? 0)
   const totalHired = summaryData.reduce((sum, s) => sum + s._count, 0)
 
   const planLabel = company

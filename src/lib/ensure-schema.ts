@@ -40,10 +40,71 @@ const SECURITY_STATEMENTS: ReadonlyArray<string> = [
 // 登録フローが全面的に 500 になる。RLS と同様、ENSURE_SCHEMA=false でも必ず実行する。
 // 背景: users.avatar_url 欠落で /api/auth・/api/registration/wizard が
 // 本番で停止した実績があるため、環境変数に依存させない。
-const CRITICAL_STATEMENTS: ReadonlyArray<string> = [
- // 求職者の顔写真（プロフィール画像）。欠落すると認証系が P2022 で全停止。
- `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" VARCHAR(500)`,
+//
+// 2026-11: avatar_url を直した後も users.point_balance 欠落で
+// /api/registration/wizard が P2022 で失敗し続けていた（本番ログで確認）。
+// Prisma は findUnique で User/CompanyUser の全カラムを暗黙 select するため、
+// 1 列でも欠けると認証・登録が止まる。列単位の後追いではなく、User と
+// CompanyUser の後付けカラムをすべてここで保証する。
+// information_schema で欠落を確認してから ALTER するため、全列が揃っている
+// 本番では ACCESS EXCLUSIVE ロックを取らず、SELECT 1 回で終わる。
+const CRITICAL_COLUMNS: ReadonlyArray<readonly [string, string, string]> = [
+ // users
+ ["users", "avatar_url", "VARCHAR(500)"],
+ ["users", "point_balance", "INTEGER NOT NULL DEFAULT 0"],
+ ["users", "line_user_id", "VARCHAR(50)"],
+ ["users", "job_search_status", "VARCHAR(20) NOT NULL DEFAULT 'searching'"],
+ ["users", "blocked_company_ids", "TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]"],
+ ["users", "blocked_keywords", "TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]"],
+ ["users", "notification_prefs", "JSONB NOT NULL DEFAULT '{}'::jsonb"],
+ ["users", "status", "VARCHAR(20) NOT NULL DEFAULT 'active'"],
+ ["users", "suspended_at", "TIMESTAMPTZ"],
+ ["users", "suspended_reason", "VARCHAR(500)"],
+ ["users", "deleted_at", "TIMESTAMPTZ"],
+ ["users", "terms_accepted_at", "TIMESTAMPTZ"],
+ ["users", "email_verified", "TIMESTAMPTZ"],
+ ["users", "verification_token", "VARCHAR(64)"],
+ ["users", "verification_token_expiry", "TIMESTAMPTZ"],
+ ["users", "reset_token", "VARCHAR(64)"],
+ ["users", "reset_token_expiry", "TIMESTAMPTZ"],
+ // company_users（企業ログインの authorize / 招待承認で全列 select される）
+ ["company_users", "totp_secret", "VARCHAR(64)"],
+ ["company_users", "totp_enabled", "BOOLEAN NOT NULL DEFAULT false"],
+ ["company_users", "totp_enabled_at", "TIMESTAMPTZ"],
+ ["company_users", "totp_recovery_codes", "TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]"],
+ ["company_users", "must_change_password", "BOOLEAN NOT NULL DEFAULT false"],
+ ["company_users", "issued_login_password", "VARCHAR(100)"],
+ // applications: 「offered」遷移時点の給与スナップショット (成果報酬の圧縮防止)。
+ // 欠落すると prisma.application の暗黙 full-row select (応募作成・一覧・
+ // ステータス更新) が P2022 で停止するため、ENSURE_SCHEMA=false でも保証する。
+ ["applications", "offer_salary_min", "INTEGER"],
+ ["applications", "offer_salary_max", "INTEGER"],
+ ["applications", "offer_salary_type", "VARCHAR(20)"],
 ]
+
+export function buildCriticalColumnsDdl(): string {
+ const sqlLit = (s: string) => `'${s.replace(/'/g, "''")}'`
+ const rows = CRITICAL_COLUMNS.map(
+   ([t, c, d]) => `ARRAY[${sqlLit(t)}, ${sqlLit(c)}, ${sqlLit(d)}]`
+ ).join(",\n      ")
+ return `DO $$
+  DECLARE r TEXT[];
+  BEGIN
+    FOREACH r SLICE 1 IN ARRAY ARRAY[
+      ${rows}
+    ]
+    LOOP
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = r[1] AND column_name = r[2]
+      ) THEN
+        EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS %I ', r[1], r[2]) || r[3];
+      END IF;
+    END LOOP;
+  END $$`
+}
+
+const CRITICAL_STATEMENTS: ReadonlyArray<string> = [buildCriticalColumnsDdl()]
 
 const STATEMENTS: ReadonlyArray<string> = [
  // User 求職ステータス (2.6): searching / employed_open / hired
@@ -621,7 +682,19 @@ const STATEMENTS: ReadonlyArray<string> = [
 let inflight: Promise<boolean> | null = null
 let securityInflight: Promise<boolean> | null = null
 
-// 一度だけ実行され、結果を Promise でキャッシュ。成功/失敗いずれも以後 await が即解決する。
+// DB 接続そのものが確立できなかった場合のエラー(プールタイムアウト等)。
+// これらは「文が恒久的に失敗した」のではなく「今回は DB に触れなかった」だけなので、
+// inflight にキャッシュせず次回呼び出しで再試行する。pg_trgm 権限不足のような
+// 恒久的な失敗は引き続きキャッシュし、無駄なリトライで DB 負荷を増やさない。
+const CONNECTION_ERROR_PATTERN =
+  /P1001|P2024|ECHECKOUTTIMEOUT|Can't reach database server|Timed out fetching a new connection/i
+
+function isConnectionError(e: unknown): boolean {
+  const message = e instanceof Error ? e.message : String(e)
+  return CONNECTION_ERROR_PATTERN.test(message)
+}
+
+// 一度だけ実行され、結果を Promise でキャッシュする（DB 接続断による失敗を除く）。
 // 戻り値: 全 ALTER が成功したかどうか（失敗時は防御クエリへフォールバック判断に使う）。
 //
 // pg_trgm のように権限不足で失敗しうる文があるため、各 SQL は個別 try/catch。
@@ -645,19 +718,31 @@ export function ensureSchema(): Promise<boolean> {
  if (process.env.ENSURE_SCHEMA === "false") {
    if (!securityInflight) {
      securityInflight = (async () => {
-       const secOk = await runStatements(SECURITY_STATEMENTS)
-       const critOk = await runStatements(CRITICAL_STATEMENTS)
-       return secOk && critOk
+        const sec = await runStatements(SECURITY_STATEMENTS)
+        const crit = await runStatements(CRITICAL_STATEMENTS)
+        // 接続断で失敗した場合は、次回呼び出しで最初から再試行できるよう
+        // このウォーム状態のインスタンスに結果をキャッシュしない。
+        if (sec.hadConnectionError || crit.hadConnectionError) {
+          securityInflight = null
+        }
+        return sec.ok && crit.ok
      })()
    }
    return securityInflight
  }
  if (!inflight) {
    inflight = (async () => {
-     const secOk = await runStatements(SECURITY_STATEMENTS)
-     const critOk = await runStatements(CRITICAL_STATEMENTS)
-     const restOk = await runStatements(STATEMENTS)
-     return secOk && critOk && restOk
+      const sec = await runStatements(SECURITY_STATEMENTS)
+      const crit = await runStatements(CRITICAL_STATEMENTS)
+      const rest = await runStatements(STATEMENTS)
+      if (
+        sec.hadConnectionError ||
+        crit.hadConnectionError ||
+        rest.hadConnectionError
+      ) {
+        inflight = null
+      }
+      return sec.ok && crit.ok && rest.ok
    })()
  }
  return inflight
@@ -665,18 +750,20 @@ export function ensureSchema(): Promise<boolean> {
 
 async function runStatements(
   statements: ReadonlyArray<string>
-): Promise<boolean> {
+): Promise<{ ok: boolean; hadConnectionError: boolean }> {
   let allOk = true
+  let hadConnectionError = false
   for (const sql of statements) {
     try {
       await prisma.$executeRawUnsafe(sql)
     } catch (e) {
       allOk = false
+      if (isConnectionError(e)) hadConnectionError = true
       console.warn(
         "[ensureSchema] statement skipped:",
         e instanceof Error ? e.message : e
       )
     }
   }
-  return allOk
+  return { ok: allOk, hadConnectionError }
 }
