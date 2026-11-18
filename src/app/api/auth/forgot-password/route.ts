@@ -33,8 +33,9 @@ export async function POST(request: NextRequest) {
   const { email } = parsed.data
 
   // Always return success to prevent email enumeration
-  const user = await prisma.user.findUnique({
-    where: { email },
+  // 登録は小文字正規化で保存するため、入力の大文字小文字違いも拾う
+  const user = await prisma.user.findFirst({
+    where: { email: { in: [email, email.trim().toLowerCase()] } },
     select: { id: true },
   })
 

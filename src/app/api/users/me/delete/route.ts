@@ -15,6 +15,8 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { deleteFileByUrl } from "@/lib/storage"
+import { deleteCompanyImage, extractPathFromUrl } from "@/lib/storage-images"
 import {
   checkRateLimit,
   getClientIp,
@@ -58,6 +60,17 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   }
+
+  // 匿名化で URL が消える前に、ストレージ上の実ファイル (顔写真・履歴書) を
+  // 控えておく。DB の参照だけ消すと公開 URL のまま残り続けていた。
+  const [beforeUser, uploadedFiles] = await Promise.all([
+    prisma.user
+      .findUnique({ where: { id: userId }, select: { avatarUrl: true } })
+      .catch(() => null),
+    prisma.uploadedFile
+      .findMany({ where: { userId }, select: { fileUrl: true } })
+      .catch(() => []),
+  ])
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -105,6 +118,7 @@ export async function POST(request: Request) {
           userId
         ).catch(() => null),
         tx.resume.deleteMany({ where: { userId } }).catch(() => null),
+        tx.uploadedFile.deleteMany({ where: { userId } }).catch(() => null),
       ])
     })
   } catch (e) {
@@ -113,6 +127,19 @@ export async function POST(request: Request) {
       { error: "退会処理に失敗しました。時間を置いて再度お試しください。" },
       { status: 500 }
     )
+  }
+
+  // ストレージの実体を削除 (失敗しても退会自体は成立させる)
+  try {
+    const avatarPath = beforeUser?.avatarUrl
+      ? extractPathFromUrl(beforeUser.avatarUrl)
+      : null
+    await Promise.all([
+      avatarPath ? deleteCompanyImage(avatarPath) : null,
+      ...uploadedFiles.map((f) => deleteFileByUrl(f.fileUrl)),
+    ])
+  } catch (e) {
+    console.warn("[delete-account] storage cleanup failed:", e)
   }
 
   // NextAuth セッション Cookie をクリア（クライアント側 signOut で確実に）

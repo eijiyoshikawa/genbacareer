@@ -61,3 +61,19 @@ export async function deleteFile(path: string): Promise<void> {
     console.error(`[storage] Failed to delete ${path}:`, error)
   }
 }
+
+/**
+ * uploadFile() が返した公開 URL からオブジェクトを削除する (退会時の後始末用)。
+ * 別バケット・別形式の URL は何もしない。失敗しても throw しない。
+ */
+export async function deleteFileByUrl(url: string): Promise<void> {
+  const m = url.match(/\/storage\/v1\/object\/public\/documents\/(.+)$/)
+  if (!m) return
+  try {
+    await deleteFile(decodeURIComponent(m[1]))
+  } catch (e) {
+    console.warn(
+      `[storage] deleteFileByUrl failed: ${e instanceof Error ? e.message : e}`,
+    )
+  }
+}

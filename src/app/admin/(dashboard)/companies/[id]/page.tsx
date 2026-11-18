@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import Link from "next/link"
@@ -25,6 +26,7 @@ export default async function AdminCompanyDetailPage({
   params: Promise<{ id: string }>
   searchParams?: Promise<Record<string, string | undefined>>
 }) {
+  await requireAdminPage()
   const { id } = await params
   const sp = (await searchParams) ?? {}
   const justCreated = sp.created === "1"

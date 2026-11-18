@@ -53,7 +53,7 @@ export default async function CompareJobsPage({ searchParams }: Props) {
 
   const jobs = await prisma.job
     .findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, status: "active" },
       include: { company: { select: { name: true, logoUrl: true } } },
     })
     .catch(() => [])

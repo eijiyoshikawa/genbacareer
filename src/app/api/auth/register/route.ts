@@ -13,7 +13,7 @@ import { awardSignupBonus } from "@/lib/points";
 
 const registerSchema = z.object({
   name: z.string().min(1, "氏名は必須です。"),
-  email: z.string().email("有効なメールアドレスを入力してください。"),
+  email: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください。"),
   password: z.string().min(8, "パスワードは8文字以上で入力してください。"),
   prefecture: z.enum(PREFECTURES, "有効な都道府県を選択してください。"),
   birthDate: z

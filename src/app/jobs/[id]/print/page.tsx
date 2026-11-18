@@ -37,8 +37,9 @@ export default async function JobPrintPage({ params, searchParams }: Props) {
   // 印刷ページで実際に使うカラムのみ select する。
   // rawData (Json 丸ごと格納) など印刷に不要な重カラムは含めない。
   const job = await prisma.job
-    .findUnique({
-      where: { id },
+    .findFirst({
+      // 掲載中のみ。下書き・終了求人を ID 直打ちで閲覧できないようにする。
+      where: { id, status: "active" },
       select: {
         id: true,
         title: true,

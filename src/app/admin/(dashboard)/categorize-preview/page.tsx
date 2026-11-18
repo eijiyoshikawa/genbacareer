@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 /**
  * 8.2 カテゴリ判定テスト・プレビュー。
  *
@@ -19,6 +20,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic"
 
 export default async function CategorizePreviewPage() {
+  await requireAdminPage()
   // 分類済み / 未分類カウント
   const [classifiedCount, totalActive] = await Promise.all([
     prisma.jobCategoryClassification.count().catch(() => 0),

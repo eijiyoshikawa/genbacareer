@@ -54,6 +54,9 @@ async function aggregateRanking(opts: {
   const companies = await prisma.company.findMany({
     where: {
       status: "approved",
+      // 詳細ページ (/companies/[id]) は直接掲載企業のみ公開。HelloWork 由来の
+      // 企業を混ぜるとリンク先が 404 になり、take の対象も不定になる。
+      source: "direct",
       ...(opts.industry ? { industry: opts.industry } : {}),
       ...(opts.prefecture ? { prefecture: opts.prefecture } : {}),
     },

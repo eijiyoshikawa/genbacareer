@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 /**
  * 15.6 採用決定ボーナス admin 管理画面。
  * 申請 → 承認 → 支払済 のワークフロー進行。
@@ -39,6 +40,7 @@ type SearchParams = Promise<{ status?: string }>
 export default async function AdminHiringBonusesPage(props: {
   searchParams: SearchParams
 }) {
+  await requireAdminPage()
   const { status } = await props.searchParams
   const filter =
     status === "approved" || status === "paid" || status === "rejected"

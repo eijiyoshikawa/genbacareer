@@ -33,7 +33,10 @@ type SalaryFields = {
  * 給与情報が無い場合は null。
  */
 export function estimateAnnualIncome(job: SalaryFields): number | null {
-  const base = job.salaryMin ?? job.salaryMax
+  // 下限が 0 (未入力を 0 で保存) のときは上限を使う。`??` だと 0 が採用されて
+  // 上限があるのに給与情報なし扱いになっていた。
+  const base =
+    job.salaryMin != null && job.salaryMin > 0 ? job.salaryMin : job.salaryMax
   if (base == null || base <= 0) return null
   switch (job.salaryType) {
     case "annual":

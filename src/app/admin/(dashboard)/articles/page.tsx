@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import { prisma } from "@/lib/db"
 import Link from "next/link"
 import type { Metadata } from "next"
@@ -20,6 +21,7 @@ export default async function AdminArticlesPage({
 }: {
   searchParams: Promise<SP>
 }) {
+  await requireAdminPage()
   const params = await searchParams
   const page = Math.max(1, Number(params.page) || 1)
   const query = params.q ?? ""

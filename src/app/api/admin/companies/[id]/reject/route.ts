@@ -6,6 +6,7 @@
  * - status を pending/approved → rejected に変更
  * - 担当メールへ却下通知メールを送信
  */
+import { revalidateAfterJobChange } from "@/lib/revalidate-public"
 import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
@@ -75,6 +76,19 @@ export async function POST(
     },
   })
 
+  // 承認済みだった企業を却下した場合、掲載中の求人が公開されたまま応募を
+  // 集め続けていた (公開側は job.status しか見ない)。あわせて掲載終了にする。
+  const closedJobs = await prisma.job
+    .updateMany({
+      where: { companyId: id, status: "active" },
+      data: { status: "closed" },
+    })
+    .catch((e) => {
+      console.error("[admin/companies/reject] closing jobs failed:", e)
+      return { count: 0 }
+    })
+  if (closedJobs.count > 0) revalidateAfterJobChange({ companyId: id })
+
   const actor = await buildActorFromSession()
   void logAudit({
     ...actor,
@@ -82,7 +96,12 @@ export async function POST(
     resourceId: id,
     action: "reject",
     summary: `企業「${company.name}」を却下`,
-    diff: { previousStatus: company.status, newStatus: "rejected", reason },
+    diff: {
+      previousStatus: company.status,
+      newStatus: "rejected",
+      reason,
+      closedJobs: closedJobs.count,
+    },
   })
 
   if (company.contactEmail) {

@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import { prisma } from "@/lib/db"
 import Link from "next/link"
 import { CloseJobButton } from "./close-button"
@@ -20,6 +21,7 @@ const BUCKETS = [
 ]
 
 export default async function JobQualityPage() {
+  await requireAdminPage()
   // バケット別カウント
   const bucketCounts = await Promise.all(
     BUCKETS.map(async (b) => {

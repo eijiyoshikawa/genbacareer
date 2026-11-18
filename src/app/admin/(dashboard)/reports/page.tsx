@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import { prisma } from "@/lib/db"
 import type { Metadata } from "next"
 import { getReportReasonLabel } from "@/lib/report-reasons"
@@ -31,6 +32,7 @@ type SearchParams = Promise<{ status?: string }>
 export default async function AdminReportsPage(props: {
   searchParams: SearchParams
 }) {
+  await requireAdminPage()
   const { status } = await props.searchParams
   const filter = status === "resolved" || status === "dismissed" ? status : "open"
 

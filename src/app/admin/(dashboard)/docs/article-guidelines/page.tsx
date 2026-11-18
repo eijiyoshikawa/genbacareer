@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import Link from "next/link"
 import type { Metadata } from "next"
 import {
@@ -21,7 +22,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-export default function ArticleGuidelinesPage() {
+export default async function ArticleGuidelinesPage() {
+  await requireAdminPage()
   return (
     <article className="prose prose-sm max-w-none text-gray-800">
       <Link

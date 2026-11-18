@@ -8,6 +8,16 @@ import { prisma } from "./db"
 import { checkRateLimit } from "./rate-limit"
 import { bindLineUserToAccount } from "./line-link"
 import { ensureSchema } from "./ensure-schema"
+import { createHash } from "node:crypto"
+
+/** 求職者セッションを DB と突き合わせ直す間隔 */
+const SEEKER_RECHECK_MS = 5 * 60 * 1000
+
+/** passwordHash の変更検知用の短い指紋 (ハッシュ自体は JWT に入れない) */
+function passwordFingerprint(hash: string | null): string {
+  if (!hash) return "none"
+  return createHash("sha256").update(hash).digest("hex").slice(0, 16)
+}
 
 /**
  * ログイン試行レート制限。
@@ -136,16 +146,26 @@ providers.push(
         // 未反映カラム (ensureSchema が ENSURE_SCHEMA=false でスキップされている間) が
         // 追加されるたびにログインが P2022/カラム不在エラーで壊れないよう、
         // 認証に必要な列だけを明示 select する (company-credentials と同じ対策)。
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            passwordHash: true,
-            status: true,
-          },
+        const seekerSelect = {
+          id: true,
+          email: true,
+          name: true,
+          passwordHash: true,
+          status: true,
+        } as const
+        const rawEmail = (credentials.email as string).trim()
+        let user = await prisma.user.findUnique({
+          where: { email: rawEmail },
+          select: seekerSelect,
         })
+        // 登録時は小文字に正規化して保存する。入力の大文字小文字違い
+        // (スマホの自動大文字化など) でログインできなくなるのを防ぐ。
+        if (!user && rawEmail !== rawEmail.toLowerCase()) {
+          user = await prisma.user.findUnique({
+            where: { email: rawEmail.toLowerCase() },
+            select: seekerSelect,
+          })
+        }
 
         if (!user || !user.passwordHash) return null
 
@@ -410,9 +430,54 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.mustChangePassword =
           (user as { mustChangePassword?: boolean }).mustChangePassword ?? false
       }
-      // PW 変更後の update() 呼び出しでフラグを下げる
+      // PW 変更後の update() 呼び出しでフラグを下げる。
+      // クライアントから update() を呼ぶだけで初回 PW 変更の強制を外せないよう、
+      // 企業ユーザーは DB の実フラグを読み直す (読めなければ現状維持)。
       if (trigger === "update") {
-        token.mustChangePassword = false
+        if (token.role === "seeker" || token.role === "admin") {
+          token.mustChangePassword = false
+        } else if (typeof token.id === "string") {
+          const cu = await prisma.companyUser
+            .findUnique({
+              where: { id: token.id },
+              select: { mustChangePassword: true },
+            })
+            .catch(() => undefined)
+          if (cu === null) return null
+          if (cu) token.mustChangePassword = cu.mustChangePassword
+        }
+      }
+
+      // 求職者セッションの定期再検証。JWT は既定で 30 日有効なため、
+      // 凍結・退会・パスワード再設定の後も古い端末のセッションが生き続けていた。
+      // 5 分に 1 回だけ DB を見て、無効なら null を返してセッションを破棄する。
+      // DB 障害時はログイン状態を維持する (fail-open)。
+      if (token.role === "seeker" && typeof token.id === "string") {
+        const now = Date.now()
+        const checkedAt =
+          typeof token.checkedAt === "number" ? token.checkedAt : 0
+        if (user || now - checkedAt > SEEKER_RECHECK_MS) {
+          const row = await prisma.user
+            .findUnique({
+              where: { id: token.id },
+              select: { status: true, passwordHash: true },
+            })
+            .catch(() => undefined)
+          if (row === null) return null
+          if (row) {
+            if (row.status === "suspended" || row.status === "deleted") {
+              return null
+            }
+            const fp = passwordFingerprint(row.passwordHash)
+            // 発行時と passwordHash が変わっていれば (再設定・変更) 破棄。
+            // 指紋を持たない旧トークンは初回に記録するだけで破棄しない。
+            if (!user && typeof token.pwf === "string" && token.pwf !== fp) {
+              return null
+            }
+            token.pwf = fp
+            token.checkedAt = now
+          }
+        }
       }
       return token
     },

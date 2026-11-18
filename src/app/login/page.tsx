@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Building2, ArrowRight } from "lucide-react";
@@ -14,7 +14,28 @@ import { PasswordInput } from "@/components/auth/password-input";
  * 企業ログインは /company/login に分離してある。
  * 企業の方は本ページ下部の「企業の方はこちら」リンクから遷移する。
  */
+
+/**
+ * ?callbackUrl= を同一オリジンの相対パスに限定して受け取る (open redirect 防止)。
+ * ゲスト閲覧制限やお気に入りボタンから飛ばされたユーザーを元のページへ戻す。
+ */
+function safeCallbackUrl(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) {
+    return "/mypage";
+  }
+  if (raw.startsWith("/login") || raw.startsWith("/api/")) return "/mypage";
+  return raw;
+}
+
 export default function LoginPage() {
+  const [callbackUrl, setCallbackUrl] = useState("/mypage");
+  useEffect(() => {
+    setCallbackUrl(
+      safeCallbackUrl(
+        new URLSearchParams(window.location.search).get("callbackUrl"),
+      ),
+    );
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -35,7 +56,7 @@ export default function LoginPage() {
       if (result?.error) {
         setError("メールアドレスまたはパスワードが正しくありません。");
       } else if (result?.ok) {
-        window.location.href = "/mypage";
+        window.location.href = callbackUrl;
       }
     } catch {
       setError("ログイン中にエラーが発生しました。もう一度お試しください。");
@@ -63,7 +84,7 @@ export default function LoginPage() {
           )}
 
           {/* === LINE 1 タップログイン (主導線) === */}
-          <LineLoginButton label="LINE でログイン" callbackUrl="/mypage" fullWidth />
+          <LineLoginButton label="LINE でログイン" callbackUrl={callbackUrl} fullWidth />
 
           <div className="my-4 flex items-center gap-2 text-xs text-gray-400">
             <span className="flex-1 border-t border-gray-200" />

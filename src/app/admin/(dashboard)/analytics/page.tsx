@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import Link from "next/link"
 import { BarChart3, MapPin, Tag, Globe2 } from "lucide-react"
 import type { Metadata } from "next"
@@ -28,6 +29,7 @@ type Props = {
 }
 
 export default async function AnalyticsPage({ searchParams }: Props) {
+  await requireAdminPage()
   const params = await searchParams
   const days = parseDays(params.days)
   const range = rangeForDays(days)

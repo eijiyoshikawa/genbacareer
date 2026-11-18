@@ -118,7 +118,7 @@ export async function POST(
     where: { id },
     data: {
       planType,
-      planPaidUntil: planPaidUntil ? new Date(planPaidUntil) : null,
+      planPaidUntil: parsePaidUntil(planPaidUntil),
       planActivatedAt: activatedAt,
       planPrepaidFull,
       planNotes,
@@ -128,4 +128,17 @@ export async function POST(
   })
 
   return Response.json({ ok: true })
+}
+
+/**
+ * 契約終了日。フォームは YYYY-MM-DD を送るため、そのまま new Date() すると
+ * UTC 0 時 (= JST 9 時) になり、最終日の朝 9 時にプランが失効していた。
+ * 日付のみの入力は JST のその日の終わりとして扱う。
+ */
+function parsePaidUntil(value: string | null | undefined): Date | null {
+  if (!value) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T23:59:59.999+09:00`)
+  }
+  return new Date(value)
 }

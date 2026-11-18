@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 /**
  * 9.6 Search Console スナップショット可視化。
  *
@@ -20,6 +21,7 @@ function startOfUtcDay(d: Date): Date {
 }
 
 export default async function SearchConsolePage() {
+  await requireAdminPage()
   const now = new Date()
   const since = startOfUtcDay(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000))
 

@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { prisma } from "@/lib/db"
@@ -19,6 +20,7 @@ export default async function AdminArticleEditPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  await requireAdminPage()
   const { id } = await params
   const article = await prisma.article.findUnique({ where: { id } })
   if (!article) notFound()

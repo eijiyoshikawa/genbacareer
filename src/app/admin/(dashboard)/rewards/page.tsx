@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import { prisma } from "@/lib/db"
 import { POINT_RULES } from "@/lib/points"
 import {
@@ -28,6 +29,7 @@ function fmt(d: Date): string {
 }
 
 export default async function AdminRewardsPage() {
+  await requireAdminPage()
   const [prizes, pendingDraws, stats, codeAvail, codeTotal] = await Promise.all([
     prisma.lotteryPrize.findMany({ orderBy: [{ active: "desc" }, { sortOrder: "asc" }] }),
     prisma.lotteryDraw.findMany({

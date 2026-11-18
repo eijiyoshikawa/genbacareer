@@ -96,7 +96,7 @@ const MAN_YEN = 10_000
 export async function generateMetadata({
   searchParams,
 }: Props): Promise<Metadata> {
-  const params = await searchParams
+  const params = firstValues(await searchParams)
   const parts: string[] = []
   if (params.prefecture) parts.push(params.prefecture)
   if (params.city) parts.push(params.city)
@@ -119,7 +119,9 @@ export async function generateMetadata({
 }
 
 export default async function JobsPage({ searchParams }: Props) {
-  const params = await searchParams
+  // ?q=a&q=b のように同じキーが重複すると値が配列で届き、Prisma の where に
+  // そのまま渡って 500 になる。先頭の値だけを採用する。
+  const params = firstValues(await searchParams)
 
   // 保存検索ボタン用にログイン状態だけ拾う（fail-safe）
   const session = await auth().catch(() => null)
@@ -834,4 +836,14 @@ function salaryRangeLabel(min: string | undefined, max: string | undefined): str
   if (min) return `月給 ${min}万円〜`
   if (max) return `月給 〜${max}万円`
   return "月給"
+}
+
+function firstValues(
+  raw: Record<string, string | string[] | undefined>,
+): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {}
+  for (const [k, v] of Object.entries(raw)) {
+    out[k] = Array.isArray(v) ? v[0] : v
+  }
+  return out
 }

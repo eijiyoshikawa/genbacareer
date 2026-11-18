@@ -157,9 +157,12 @@ async function tryAutoBind(
         createdAt: { gte: since },
         OR: [
           ...(phoneLast8s.length > 0
-            ? phoneLast8s.map((tail) => ({
-                phone: { endsWith: tail },
-              }))
+            ? // 応募フォームは "090-1234-5678" 形式でも保存されるため、
+              // 数字のみの末尾 8 桁に加えてハイフン入りの末尾も照合する。
+              phoneLast8s.flatMap((tail) => [
+                { phone: { endsWith: tail } },
+                { phone: { endsWith: `${tail.slice(0, 4)}-${tail.slice(4)}` } },
+              ])
             : []),
           ...(emailCandidates.length > 0
             ? [{ email: { in: emailCandidates } }]

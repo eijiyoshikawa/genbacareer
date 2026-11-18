@@ -90,3 +90,14 @@ describe("isValidHiringFee", () => {
     expect(isValidHiringFee(1_400_000.5)).toBe(false)
   })
 })
+
+describe("estimateAnnualIncome — 下限 0 の扱い", () => {
+  it("salaryMin が 0 のときは salaryMax を基準にする", () => {
+    expect(
+      estimateAnnualIncome({ salaryMin: 0, salaryMax: 300_000, salaryType: "monthly" }),
+    ).toBe(3_600_000)
+  })
+  it("下限も上限も無ければ null", () => {
+    expect(estimateAnnualIncome({ salaryMin: 0, salaryMax: null })).toBeNull()
+  })
+})

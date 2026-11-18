@@ -55,7 +55,9 @@ export const metadata: Metadata = {
   applicationName: "ゲンバキャリア",
   category: "建設業界 求人",
   formatDetection: { telephone: false, address: false, email: false },
-  alternates: { canonical: "/" },
+  // canonical はここに置かない。Next の metadata は子ページが alternates を
+  // 定義しないと親の値を継承するため、"/" を置くと canonical 未指定の全ページが
+  // 「正規 URL = トップページ」を宣言してしまう (トップは page.tsx 側で指定)。
   openGraph: {
     type: "website",
     locale: "ja_JP",

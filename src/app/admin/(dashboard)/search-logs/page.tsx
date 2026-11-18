@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import { prisma } from "@/lib/db"
 
 /**
@@ -10,6 +11,7 @@ import { prisma } from "@/lib/db"
 export const dynamic = "force-dynamic"
 
 export default async function SearchLogsPage() {
+  await requireAdminPage()
   const now = new Date()
   const d1 = new Date(now.getTime() - 24 * 60 * 60 * 1000)
   const d7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)

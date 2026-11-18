@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import { prisma } from "@/lib/db"
 import { Users, ShieldAlert, ShieldCheck } from "lucide-react"
 import type { Metadata } from "next"
@@ -22,6 +23,7 @@ export default async function AdminUsersPage({
 }: {
   searchParams: SearchParams
 }) {
+  await requireAdminPage()
   const sp = await searchParams
   const status = sp.status ?? "all"
   const q = sp.q?.trim() ?? ""

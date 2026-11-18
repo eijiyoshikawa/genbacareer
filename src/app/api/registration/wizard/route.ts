@@ -22,17 +22,21 @@ import { normalizePhone, isMobilePhone } from "@/lib/registration/phone"
  */
 
 const wizardSchema = z.object({
-  email: z.string().email("メールアドレスの形式が正しくありません"),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("メールアドレスの形式が正しくありません"),
   password: z.string().min(8, "パスワードは 8 文字以上で入力してください"),
   answers: z.object({
-    prefecture: z.string().optional(),
-    city: z.string().optional(),
+    prefecture: z.string().max(10).optional(),
+    city: z.string().max(50).optional(),
     experiencedCategories: z.array(z.string()).optional(),
     experiencedSubcategories: z.array(z.string()).optional(),
     experienceYears: z.string().optional(),
     companyCount: z.string().optional(),
     desiredPrefectures: z.array(z.string()).optional(),
-    desiredSalaryMin: z.number().optional(),
+    desiredSalaryMin: z.number().int().min(0).max(100_000_000).optional(),
     desiredTransferTiming: z.string().optional(),
     nameLast: z.string().min(1, "姓を入力してください"),
     nameFirst: z.string().min(1, "名を入力してください"),

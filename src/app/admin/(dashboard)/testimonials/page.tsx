@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import { prisma } from "@/lib/db"
 import type { Metadata } from "next"
 import { TestimonialsManager } from "./testimonials-manager"
@@ -7,6 +8,7 @@ export const metadata: Metadata = {
 }
 
 export default async function AdminTestimonialsPage() {
+  await requireAdminPage()
   const rows = await prisma.testimonial.findMany({
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
     select: {

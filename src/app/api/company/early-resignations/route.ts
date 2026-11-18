@@ -86,6 +86,17 @@ export async function POST(request: Request) {
 
   const { applicationId, resignedAt: resignedAtStr, companyNote } = parsed.data
   const resignedAt = new Date(resignedAtStr)
+  if (Number.isNaN(resignedAt.getTime())) {
+    return Response.json({ error: "退職日の形式が不正です" }, { status: 400 })
+  }
+  // 未来日の退職は申請不可 (採用直後に翌日付で申請すると、退職の事実が無いまま
+  // 80% の戻入申請が作れてしまう)。タイムゾーン差を見て 1 日の猶予を持たせる。
+  if (resignedAt.getTime() > Date.now() + 24 * 60 * 60 * 1000) {
+    return Response.json(
+      { error: "退職日に未来の日付は指定できません" },
+      { status: 400 },
+    )
+  }
 
   const app = await prisma.application.findUnique({
     where: { id: applicationId },

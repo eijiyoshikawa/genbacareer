@@ -36,12 +36,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const ip = getClientIp(request)
-  const rl = checkRateLimit({
-    key: `review:${ip}`,
-    limit: 1,
-    windowMs: 24 * 60 * 60 * 1000,
-  })
-  if (!rl.allowed) return rateLimitResponse(rl)
 
   const { id: companyId } = await params
   if (!/^[0-9a-f-]{36}$/i.test(companyId)) {
@@ -69,12 +63,27 @@ export async function POST(
     return Response.json({ error: "企業が見つかりません" }, { status: 404 })
   }
 
+  // レート制限は検証後に消費する。入力エラーや 404 で 1 日 1 件の枠を
+  // 使い切ると、同じ IP (キャリア NAT 等) から 24 時間投稿できなくなる。
+  const rl = checkRateLimit({
+    key: `review:${ip}`,
+    limit: 1,
+    windowMs: 24 * 60 * 60 * 1000,
+  })
+  if (!rl.allowed) return rateLimitResponse(rl)
+
   const session = await auth().catch(() => null)
+  // admin セッションの id は固定文字列 "admin" で UUID カラムに入らない
+  const sessionUserId = session?.user?.id
+  const reviewerId =
+    sessionUserId && /^[0-9a-f-]{36}$/i.test(sessionUserId)
+      ? sessionUserId
+      : null
 
   await prisma.companyReview.create({
     data: {
       companyId,
-      userId: session?.user?.id ?? null,
+      userId: reviewerId,
       employmentStatus: parsed.data.employmentStatus,
       rating: parsed.data.rating,
       ratingSalary: parsed.data.ratingSalary ?? null,
