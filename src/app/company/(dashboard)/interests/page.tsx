@@ -117,7 +117,7 @@ export default async function CompanyInterestsPage() {
                 </div>
                 <div className="flex flex-col items-end gap-2 text-right shrink-0">
                   <p className="text-xs text-gray-400">
-                    {i.createdAt.toLocaleString("ja-JP")}
+                    {i.createdAt.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </p>
                   <Link
                     href={`/company/scouts/new?userId=${i.user.id}&jobId=${i.job.id}`}

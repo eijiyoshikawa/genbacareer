@@ -87,7 +87,7 @@ export async function PUT(
       status: true,
       statusHistory: true,
       hiredAt: true,
-      user: { select: { email: true, name: true } },
+      user: { select: { email: true, name: true, status: true } },
       job: { select: { title: true } },
       company: { select: { name: true } },
     },
@@ -182,6 +182,12 @@ export async function PUT(
     } catch (error) {
       console.error(`[billing] Failed to create invoice for application ${id}:`, error)
     }
+  }
+
+  // 退会・凍結済みの求職者には通知しない (退会時にメールは deleted+<id>@deleted.local へ
+  // 書き換えられており、送ってもバウンスして送信ドメインの評価を下げるだけ)
+  if (application.user.status !== "active") {
+    return Response.json({ application: updated })
   }
 
   // マイページ inbox 通知（fire-and-forget）

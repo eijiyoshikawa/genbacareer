@@ -90,7 +90,13 @@ export async function POST(
 
   const company = await prisma.company.findUnique({
     where: { id },
-    select: { id: true, planType: true, planActivatedAt: true, source: true },
+    select: {
+      id: true,
+      planType: true,
+      planActivatedAt: true,
+      planPaidUntil: true,
+      source: true,
+    },
   })
   if (!company) {
     return Response.json({ error: "企業が見つかりません" }, { status: 404 })
@@ -114,16 +120,23 @@ export async function POST(
     }
   }
 
+  // 期限通知の再送フラグは、プラン種別か終了日が変わったときだけ戻す。
+  // メモだけの保存でも毎回戻していたため、翌日に同じ期限通知メールが再送されていた。
+  const nextPaidUntil = parsePaidUntil(planPaidUntil)
+  const planChanged =
+    company.planType !== planType ||
+    (company.planPaidUntil?.getTime() ?? null) !== (nextPaidUntil?.getTime() ?? null)
+
   await prisma.company.update({
     where: { id },
     data: {
       planType,
-      planPaidUntil: parsePaidUntil(planPaidUntil),
+      planPaidUntil: nextPaidUntil,
       planActivatedAt: activatedAt,
       planPrepaidFull,
       planNotes,
       planTier: planTier({ planType, source: company.source }),
-      planExpiryNotifiedAt: null,
+      ...(planChanged ? { planExpiryNotifiedAt: null } : {}),
     },
   })
 

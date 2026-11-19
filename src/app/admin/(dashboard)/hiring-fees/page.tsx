@@ -32,7 +32,7 @@ export default async function HiringFeesAdminPage({
 
   const params = await searchParams
   const companyFilter = params.company?.trim() || ""
-  const page = Math.max(1, Number(params.page) || 1)
+  const page = Math.min(10_000, Math.max(1, Math.trunc(Number(params.page)) || 1))
   const perPage = 50
 
   const where = {

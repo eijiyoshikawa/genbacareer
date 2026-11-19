@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = request.nextUrl
-  const page = Math.max(1, Number(searchParams.get("page")) || 1)
+  const page = Math.min(10_000, Math.max(1, Math.trunc(Number(searchParams.get("page"))) || 1))
   const perPage = 20
   const status = searchParams.get("status")
 

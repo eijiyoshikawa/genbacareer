@@ -123,7 +123,6 @@ export async function GET(request: Request) {
           take: 5,
           select: { id: true, title: true },
         })
-        .catch(() => [])
 
       if (matches.length === 0) {
         await prisma.companyFollow.update({

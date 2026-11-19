@@ -38,8 +38,9 @@ const wizardSchema = z.object({
     desiredPrefectures: z.array(z.string()).optional(),
     desiredSalaryMin: z.number().int().min(0).max(100_000_000).optional(),
     desiredTransferTiming: z.string().optional(),
-    nameLast: z.string().min(1, "姓を入力してください"),
-    nameFirst: z.string().min(1, "名を入力してください"),
+    // users.name は VARCHAR(100)。"姓 名" で保存するため各 49 文字まで
+    nameLast: z.string().min(1, "姓を入力してください").max(49, "姓が長すぎます"),
+    nameFirst: z.string().min(1, "名を入力してください").max(49, "名が長すぎます"),
     nameLastKana: z.string().min(1, "セイを入力してください"),
     nameFirstKana: z.string().min(1, "メイを入力してください"),
     // 全角・ハイフン混入を許容しつつサーバ側で正規化 + 070/080/090 のみ受理

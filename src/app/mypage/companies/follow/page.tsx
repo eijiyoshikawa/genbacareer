@@ -128,7 +128,7 @@ async function FollowedCompaniesList({ userId }: { userId: string }) {
               </p>
               <p className="mt-0.5 text-xs text-gray-400">
                 募集中 {c._count.jobs} 件・フォロー開始{" "}
-                {f.createdAt.toLocaleDateString("ja-JP")}
+                {f.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
               </p>
             </div>
             <CompanyFollowButton

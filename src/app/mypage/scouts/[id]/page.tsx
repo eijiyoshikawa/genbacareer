@@ -182,8 +182,12 @@ export default async function ScoutDetailPage({ params }: Props) {
 }
 
 function formatDate(d: Date): string {
-  const y = d.getFullYear()
-  const m = (d.getMonth() + 1).toString().padStart(2, "0")
-  const day = d.getDate().toString().padStart(2, "0")
-  return `${y}/${m}/${day}`
+  // サーバー (UTC) でレンダリングされるため JST を明示する。指定しないと
+  // 0:00〜8:59 JST の日時が前日の日付で表示される。
+  return d.toLocaleDateString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
 }

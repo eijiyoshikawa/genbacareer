@@ -428,6 +428,17 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
           />
         ))}
 
+      {job.status === "closed" && !isPreview && (
+        <div className="bg-gray-800">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 text-sm font-bold text-white">
+            この求人は募集を終了しました。
+            <Link href="/jobs" className="ml-2 underline">
+              募集中の求人を探す
+            </Link>
+          </div>
+        </div>
+      )}
+
       {isPreview && (
         <div className="bg-amber-100 border-b border-amber-300">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-2 flex items-center gap-2 text-xs font-bold text-amber-900">
@@ -834,8 +845,8 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
         </div>
       </div>
 
-      {/* Bottom sticky action bar */}
-      <StickyActionBar
+      {/* Bottom sticky action bar (募集終了の求人には応募導線を出さない) */}
+      {job.status !== "closed" && <StickyActionBar
         jobId={job.id}
         title={job.title}
         companyName={job.company?.name ?? null}
@@ -846,7 +857,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
         }
         initialInterested={isInterested}
         loggedIn={!!loggedInUserId}
-      />
+      />}
     </div>
   )
 }

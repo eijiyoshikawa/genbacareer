@@ -96,7 +96,6 @@ export default async function EmploymentTypeLpPage({ params }: Props) {
   const breadcrumb = generateBreadcrumbSchema([
     { name: "トップ", url: "/" },
     { name: "求人検索", url: "/jobs" },
-    { name: "雇用形態から探す", url: "/employment-type" },
     { name: lp.label, url: `/employment-type/${type}` },
   ])
 

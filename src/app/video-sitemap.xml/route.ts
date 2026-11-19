@@ -21,6 +21,8 @@ const BASE_URL =
 
 function escapeXml(str: string): string {
   return str
+    // XML 1.0 で不正な制御文字を除去 (1 文字でも残ると sitemap 全体が無効になる)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")

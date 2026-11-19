@@ -200,8 +200,12 @@ export default async function ScoutsInboxPage() {
 }
 
 function formatDate(d: Date): string {
-  return `${d.getFullYear()}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d
-    .getDate()
-    .toString()
-    .padStart(2, "0")}`
+  // サーバー (UTC) でレンダリングされるため JST を明示する。指定しないと
+  // 0:00〜8:59 JST の日時が前日の日付で表示される。
+  return d.toLocaleDateString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
 }

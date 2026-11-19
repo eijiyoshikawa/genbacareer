@@ -107,7 +107,7 @@ export default async function MyPage({
           <div>
             <dt className="text-xs text-gray-500">登録日</dt>
             <dd className="text-sm text-gray-900">
-              {user.createdAt.toLocaleDateString("ja-JP")}
+              {user.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
             </dd>
           </div>
         </dl>

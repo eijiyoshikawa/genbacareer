@@ -73,7 +73,7 @@ export default async function JobPrintPage({ params, searchParams }: Props) {
   if (!job) notFound()
 
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryType)
-  const generatedAt = new Date().toLocaleString("ja-JP")
+  const generatedAt = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
 
   return (
     <html lang="ja">

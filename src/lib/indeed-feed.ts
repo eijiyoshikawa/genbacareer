@@ -45,7 +45,9 @@ export interface IndeedFeedJob {
 
 /** XML 特殊文字をエスケープ (CDATA 内では `]]>` のみケア) */
 function escapeCdata(s: string): string {
-  return s.replace(/]]>/g, "]]]]><![CDATA[>")
+  // XML 1.0 で不正な制御文字 (Excel / PDF からの貼り付けで混入する) を除去する。
+  // 1 文字でも残るとフィード全体がパースエラーになり、全求人が取り込まれなくなる。
+  return s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "").replace(/]]>/g, "]]]]><![CDATA[>")
 }
 
 /** CDATA でラップ */

@@ -12,9 +12,9 @@ import { trackEvent } from "@/lib/track";
 import { awardSignupBonus } from "@/lib/points";
 
 const registerSchema = z.object({
-  name: z.string().min(1, "氏名は必須です。"),
+  name: z.string().trim().min(1, "氏名は必須です。").max(100, "氏名は100文字以内で入力してください。"),
   email: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください。"),
-  password: z.string().min(8, "パスワードは8文字以上で入力してください。"),
+  password: z.string().min(8, "パスワードは8文字以上で入力してください。").max(200, "パスワードが長すぎます。"),
   prefecture: z.enum(PREFECTURES, "有効な都道府県を選択してください。"),
   birthDate: z
     .string()

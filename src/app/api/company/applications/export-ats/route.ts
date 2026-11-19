@@ -12,6 +12,7 @@
  * 既存の applications/export と同じ status / jobId / date フィルタを受け付ける。
  */
 
+import { isValidUuid } from "@/lib/uuid"
 import { type NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
@@ -97,7 +98,8 @@ export async function GET(request: NextRequest) {
     ...(status && (VALID_STATUSES as readonly string[]).includes(status)
       ? { status }
       : {}),
-    ...(jobId ? { jobId } : {}),
+    // UUID でない値を @db.Uuid 列に渡すと Prisma が P2023 で 500 になる
+    ...(jobId && isValidUuid(jobId) ? { jobId } : {}),
     ...(from || to
       ? {
           createdAt: {

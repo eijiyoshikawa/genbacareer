@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   }
 
   const searchParams = request.nextUrl.searchParams
-  const page = Math.max(1, Math.trunc(Number(searchParams.get("page") ?? "1")) || 1)
+  const page = Math.min(10_000, Math.max(1, Math.trunc(Number(searchParams.get("page") ?? "1")) || 1))
   const limit = Math.min(50, Math.max(1, Math.trunc(Number(searchParams.get("limit") ?? "20")) || 20))
 
   const where = { userId: session.user.id }

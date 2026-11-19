@@ -135,9 +135,11 @@ export async function POST(request: NextRequest) {
       jobSearchStatus: true,
       notificationPrefs: true,
       profilePublic: true,
+      blockedCompanyIds: true,
     },
   })
-  if (!user) {
+  // 求職者がこの企業をブロックしている場合は、ブロックの事実を伝えず「見つからない」扱いにする
+  if (!user || user.blockedCompanyIds.includes(auth.companyId)) {
     return NextResponse.json({ error: "求職者が見つかりません" }, { status: 404 })
   }
 

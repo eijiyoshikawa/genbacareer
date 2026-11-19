@@ -27,7 +27,7 @@ export default async function CompanyBillingPage({
   if (!companyId) redirect("/login")
 
   const params = await searchParams
-  const page = Math.max(1, Number(params.page) || 1)
+  const page = Math.min(10_000, Math.max(1, Math.trunc(Number(params.page)) || 1))
   const perPage = 20
 
   const [events, total, summaryData, companyJobs, company] = await Promise.all([
@@ -234,7 +234,7 @@ export default async function CompanyBillingPage({
                     <BillingStatusBadge status={event.status} />
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                    {event.createdAt.toLocaleDateString("ja-JP")}
+                    {event.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </td>
                 </tr>
               ))}

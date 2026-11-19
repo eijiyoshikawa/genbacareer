@@ -56,7 +56,9 @@ export default async function JournalPage({ searchParams }: Props) {
   const params = await searchParams
   const parsedPage = Number.parseInt(params.page ?? "", 10)
   const page = Number.isFinite(parsedPage) ? Math.min(10000, Math.max(1, parsedPage)) : 1
-  const categoryFilter = params.category ?? ""
+  // ?category=a&category=b は配列で届く。そのまま Prisma に渡すと 500 になる
+  const rawCategory: unknown = params.category
+  const categoryFilter = typeof rawCategory === "string" ? rawCategory : ""
 
   const where = {
     ...publishedArticleFilter(),

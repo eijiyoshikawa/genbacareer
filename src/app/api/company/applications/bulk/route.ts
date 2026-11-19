@@ -13,11 +13,14 @@
  * の一発変更) はスキップし、他の対象だけ更新する。
  */
 
+import { after } from "next/server"
 import { prisma } from "@/lib/db"
 import { ensureSchema } from "@/lib/ensure-schema"
 import type { Prisma } from "@prisma/client"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
+import { sendApplicationStatusEmail } from "@/lib/application-notifications"
+import { notifyApplicationStatusChange } from "@/lib/notifications"
 import { VALID_STATUS_TRANSITIONS, buildOfferSalarySnapshotData } from "@/lib/application-status"
 
 const ALLOWED_STATUSES = [
@@ -40,6 +43,8 @@ const schema = z.object({
   ids: z.array(z.string().uuid()).min(1).max(200),
   status: z.enum(ALLOWED_STATUSES),
 })
+
+export const maxDuration = 60
 
 export async function POST(request: Request) {
   const session = await auth()
@@ -73,11 +78,29 @@ export async function POST(request: Request) {
 
   const applications = await prisma.application.findMany({
     where: { id: { in: ids }, companyId },
-    select: { id: true, jobId: true, status: true, statusHistory: true, hiredAt: true },
+    select: {
+      id: true,
+      userId: true,
+      jobId: true,
+      status: true,
+      statusHistory: true,
+      hiredAt: true,
+      user: { select: { email: true, name: true, status: true } },
+      job: { select: { title: true } },
+      company: { select: { name: true } },
+    },
   })
 
   let updated = 0
   let skipped = 0
+  const toNotify: Array<{
+    userId: string
+    applicationId: string
+    email: string | null
+    name: string | null
+    jobTitle: string
+    companyName: string
+  }> = []
 
   for (const application of applications) {
     const allowed = VALID_STATUS_TRANSITIONS[application.status]
@@ -117,6 +140,19 @@ export async function POST(request: Request) {
     }
     updated++
 
+    // 単体更新と同じく求職者へ通知する (一括変更だけ無通知だと、不採用・選考進行が
+    // 本人に伝わらない)。退会・凍結済みには送らない。
+    if (application.user.status === "active") {
+      toNotify.push({
+        userId: application.userId,
+        applicationId: application.id,
+        email: application.user.email,
+        name: application.user.name ?? null,
+        jobTitle: application.job.title,
+        companyName: application.company?.name ?? "—",
+      })
+    }
+
     // 採用確定時の自動請求 (単体更新と同じロジック)
     if (newStatus === "hired") {
       try {
@@ -138,6 +174,37 @@ export async function POST(request: Request) {
         )
       }
     }
+  }
+
+  // 通知はレスポンス返却後に送る (最大 200 件のメール送信で応答を待たせない)。
+  // 送信失敗は更新結果に影響させない。
+  if (toNotify.length > 0) {
+    after(async () => {
+      const CHUNK = 10
+      for (let i = 0; i < toNotify.length; i += CHUNK) {
+        await Promise.allSettled(
+          toNotify.slice(i, i + CHUNK).flatMap((n) => [
+            notifyApplicationStatusChange({
+              userId: n.userId,
+              applicationId: n.applicationId,
+              newStatus,
+              jobTitle: n.jobTitle,
+            }),
+            ...(n.email
+              ? [
+                  sendApplicationStatusEmail({
+                    to: n.email,
+                    candidateName: n.name,
+                    companyName: n.companyName,
+                    jobTitle: n.jobTitle,
+                    newStatus,
+                  }),
+                ]
+              : []),
+          ])
+        )
+      }
+    })
   }
 
   return Response.json({ ok: true, updated, skipped })

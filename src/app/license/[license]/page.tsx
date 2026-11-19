@@ -94,7 +94,6 @@ export default async function LicenseLpPage({ params }: Props) {
   const breadcrumb = generateBreadcrumbSchema([
     { name: "トップ", url: "/" },
     { name: "求人検索", url: "/jobs" },
-    { name: "資格から探す", url: "/license" },
     { name: lp.label, url: `/license/${license}` },
   ])
 

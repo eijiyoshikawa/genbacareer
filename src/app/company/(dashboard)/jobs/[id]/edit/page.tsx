@@ -1,3 +1,4 @@
+import { isValidUuid } from "@/lib/uuid"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect, notFound } from "next/navigation"
@@ -22,6 +23,8 @@ export default async function EditJobPage({
   if (!companyId) redirect("/login")
 
   const { id } = await params
+  // UUID でない ID を Prisma に渡すと P2023 で 500 になるため 404 にする
+  if (!isValidUuid(id)) notFound()
 
   const job = await prisma.job.findUnique({
     where: { id },

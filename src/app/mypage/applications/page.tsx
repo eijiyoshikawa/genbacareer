@@ -186,7 +186,7 @@ async function ApplicationsList({
 
                 <div className="mt-3 flex items-center justify-between gap-2">
                   <p className="text-xs text-gray-400">
-                    応募日: {app.createdAt.toLocaleDateString("ja-JP")}
+                    応募日: {app.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </p>
                   <div className="flex items-center gap-2">
                     {app.status === "hired" &&

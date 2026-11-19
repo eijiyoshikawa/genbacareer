@@ -206,9 +206,8 @@ providers.push(
         // 同上: API route のみのためレイアウト側の self-heal に頼れない
         await ensureSchema()
 
-        const companyUser = await prisma.companyUser.findUnique({
-          where: { email: credentials.email as string },
-          select: {
+        const companyRawEmail = (credentials.email as string).trim()
+        const companySelect = {
             id: true,
             email: true,
             name: true,
@@ -219,8 +218,19 @@ providers.push(
             totpEnabled: true,
             totpSecret: true,
             totpRecoveryCodes: true,
-          },
+          } as const
+        let companyUser = await prisma.companyUser.findUnique({
+          where: { email: companyRawEmail },
+          select: companySelect,
         })
+        // 登録時は小文字に正規化して保存する。大文字小文字違いの入力でも
+        // ログインできるようにする (求職者ログインと同じ扱い)。
+        if (!companyUser && companyRawEmail !== companyRawEmail.toLowerCase()) {
+          companyUser = await prisma.companyUser.findUnique({
+            where: { email: companyRawEmail.toLowerCase() },
+            select: companySelect,
+          })
+        }
 
         if (!companyUser) return null
 

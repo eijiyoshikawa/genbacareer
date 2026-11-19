@@ -28,7 +28,7 @@ export function FeaturedCompanyLogos({ companies }: { companies: FeaturedCompany
             注目企業ピックアップ
           </h2>
           <Link
-            href="/companies"
+            href="/companies/ranking"
             className="text-xs font-bold text-primary-600 hover:text-primary-700"
           >
             すべて見る →

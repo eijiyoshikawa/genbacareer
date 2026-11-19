@@ -1,3 +1,4 @@
+import { isValidUuid } from "@/lib/uuid"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { CandidateAvatar } from "@/components/company/candidate-avatar"
@@ -43,6 +44,8 @@ export default async function ApplicationDetailPage({
   if (!companyId) redirect("/login")
 
   const { id } = await params
+  // UUID でない ID を Prisma に渡すと P2023 で 500 になるため 404 にする
+  if (!isValidUuid(id)) notFound()
 
   const app = await prisma.application.findUnique({
     where: { id },
@@ -167,7 +170,7 @@ export default async function ApplicationDetailPage({
               <div>
                 <dt className="text-xs font-bold text-gray-500">応募日時</dt>
                 <dd className="mt-0.5 text-gray-900">
-                  {app.createdAt.toLocaleString("ja-JP")}
+                  {app.createdAt.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
                 </dd>
               </div>
             </dl>
@@ -198,7 +201,7 @@ export default async function ApplicationDetailPage({
                     <li key={`${h.at}-${i}`} className="relative">
                       <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-primary-500" />
                       <p className="text-xs text-gray-500">
-                        {new Date(h.at).toLocaleString("ja-JP")}
+                        {new Date(h.at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
                       </p>
                       <p className="mt-0.5 text-sm">
                         <span className="font-bold text-gray-700">

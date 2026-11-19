@@ -681,9 +681,17 @@ export async function importHelloworkJobs(
       const companyId = await upsertHelloworkCompany(job, companyCache)
       const data = toJobRecord(job, category, companyId)
 
+      // 有効期限を過ぎた求人は公開状態にしない。以前は一律 active に戻していたため、
+      // expire-jobs cron が closed にした期限切れ求人が次の取り込み (毎時) で復活し、
+      // 期限切れの validThrough を持ったまま掲載され続けていた。
+      const importStatus =
+        data.expiresAt && data.expiresAt.getTime() <= Date.now()
+          ? ("closed" as const)
+          : ("active" as const)
+
       const result = await prisma.job.upsert({
         where: { helloworkId: job.helloworkId },
-        create: data,
+        create: { ...data, status: importStatus },
         update: {
           title: data.title,
           category: data.category,
@@ -700,7 +708,7 @@ export async function importHelloworkJobs(
           address: data.address,
           tags: data.tags,
           rankScore: data.rankScore,
-          status: "active",
+          status: importStatus,
           expiresAt: data.expiresAt,
           // ハローワーク API 拡張フィールド
           occupationTitle: data.occupationTitle,

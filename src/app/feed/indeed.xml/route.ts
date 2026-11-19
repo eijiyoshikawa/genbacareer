@@ -25,6 +25,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp
 
 function escapeXml(s: string): string {
   return s
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -34,7 +35,7 @@ function escapeXml(s: string): string {
 
 function cdata(s: string): string {
   // CDATA で囲む。`]]>` は分割エスケープ
-  return `<![CDATA[${s.replace(/]]>/g, "]]]]><![CDATA[>")}]]>`
+  return `<![CDATA[${s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "").replace(/]]>/g, "]]]]><![CDATA[>")}]]>`
 }
 
 function formatSalary(job: {
@@ -56,9 +57,9 @@ function formatSalary(job: {
       ? 8 * 250
       : job.salaryType === "daily"
         ? 250
-        : job.salaryType === "monthly"
-          ? 12
-          : 1
+        : job.salaryType === "annual" || job.salaryType === "yearly"
+          ? 1
+          : 12 // monthly / 未設定は月給扱い (未設定を年収扱いにすると月給 25 万円が年収 25 万円になる)
   const yearlyMin = min * factor
   const yearlyMax = max * factor
   return `<salary>${yearlyMin}〜${yearlyMax} JPY/${unit}</salary>`

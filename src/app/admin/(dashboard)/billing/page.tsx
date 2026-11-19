@@ -14,7 +14,7 @@ export default async function AdminBillingPage({
 }) {
   await requireAdminPage()
   const params = await searchParams
-  const page = Math.max(1, Number(params.page) || 1)
+  const page = Math.min(10_000, Math.max(1, Math.trunc(Number(params.page)) || 1))
   const statusFilter = params.status || "all"
   const perPage = 20
 

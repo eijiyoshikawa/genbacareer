@@ -354,8 +354,8 @@ export default async function JobsPage({ searchParams }: Props) {
       query: params.q ?? null,
       prefecture: params.prefecture ?? null,
       category: params.category ?? null,
-      employmentType: params.employmentType ?? null,
-      salaryMin: params.salaryMin ?? null,
+      employmentType: params.employment_type ?? null,
+      salaryMin: params.salary_min ?? null,
       resultCount: total,
     },
   })
@@ -419,7 +419,7 @@ export default async function JobsPage({ searchParams }: Props) {
             <form action="/jobs">
               {/* Preserve keyword if set */}
               {params.q && <input type="hidden" name="q" value={params.q} />}
-              {params.sort && params.sort !== "newest" && (
+              {params.sort && params.sort !== "recommended" && (
                 <input type="hidden" name="sort" value={params.sort} />
               )}
 
@@ -684,7 +684,8 @@ function buildOrderBy(sort: string) {
 function parseManYenToYen(raw: string | undefined): number | null {
   if (!raw) return null
   const n = Number(raw)
-  if (!Number.isFinite(n) || n <= 0) return null
+  // 上限なしだと ×10,000 で INT4 を超え、Prisma が拒否して 500 になる (例: salary_min=999999999)
+  if (!Number.isFinite(n) || n <= 0 || n > 100_000) return null
   return Math.floor(n * MAN_YEN)
 }
 
@@ -771,7 +772,9 @@ function SortLink({
       if (k === "sort" || k === "page") continue
       if (v) sp.set(k, v)
     }
-    if (next !== "newest") sp.set("sort", next)
+    // 既定は「おすすめ順」。既定以外を選んだときだけ sort を付ける
+    // (以前は newest を省略していたため「新着順」を選んでもおすすめ順に戻っていた)
+    if (next !== "recommended") sp.set("sort", next)
     return sp.toString() ? `/jobs?${sp.toString()}` : "/jobs"
   }
   return (

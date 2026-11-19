@@ -23,7 +23,7 @@ export default async function CompanyJobsPage({
   if (!companyId) redirect("/login")
 
   const params = await searchParams
-  const page = Math.max(1, Number(params.page) || 1)
+  const page = Math.min(10_000, Math.max(1, Math.trunc(Number(params.page)) || 1))
   const statusFilter = params.status || "all"
   const perPage = 20
 
@@ -143,7 +143,7 @@ export default async function CompanyJobsPage({
                     {job.viewCount}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                    {job.createdAt.toLocaleDateString("ja-JP")}
+                    {job.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-4">
