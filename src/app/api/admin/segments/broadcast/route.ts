@@ -107,8 +107,18 @@ export async function POST(request: NextRequest) {
   let failure = 0
   let skipped = 0
 
-  for (let i = 0; i < leads.length; i += CONCURRENCY) {
-    const batch = leads.slice(i, i + CONCURRENCY)
+  // LineLead は応募ごとに 1 行。同じ人が複数の求人に応募していると同じ配信が
+  // 人数分ではなく応募件数分届いていたため、lineUserId で 1 人 1 通にまとめる。
+  const seenLineUsers = new Set<string>()
+  const targets = leads.filter((lead) => {
+    if (!lead.lineUserId) return true // 下の skipped 集計に回す
+    if (seenLineUsers.has(lead.lineUserId)) return false
+    seenLineUsers.add(lead.lineUserId)
+    return true
+  })
+
+  for (let i = 0; i < targets.length; i += CONCURRENCY) {
+    const batch = targets.slice(i, i + CONCURRENCY)
     await Promise.all(
       batch.map(async (lead) => {
         if (!lead.lineUserId) {
@@ -139,7 +149,7 @@ export async function POST(request: NextRequest) {
         segment: JSON.parse(JSON.stringify(body.segment)),
         jobIds: body.jobIds,
         freeText: body.freeText ?? null,
-        targetCount: leads.length,
+        targetCount: targets.length,
         successCount: success,
         failureCount: failure,
         skippedCount: skipped,

@@ -74,7 +74,12 @@ export function ArticleForm({ mode, articleId, initialValues }: Props) {
       status: form.status,
       featured: form.featured,
       publishedAt: form.publishedAt
-        ? new Date(form.publishedAt).toISOString()
+        ? // 入力欄は日本時間 (編集ページが JST で初期値を入れる)
+          new Date(
+            /T\d{2}:\d{2}$/.test(form.publishedAt)
+              ? `${form.publishedAt}:00+09:00`
+              : form.publishedAt
+          ).toISOString()
         : null,
     }
   }

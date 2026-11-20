@@ -111,6 +111,13 @@ export async function PUT(
   ) {
     nextPublishedAt = new Date()
   }
+  // 公開状態なのに publishedAt が空になる保存を防ぐ。編集フォームは日時欄が空だと
+  // 常に null を送るため、下書きを「公開」に切り替えて保存すると
+  // status=published / publishedAt=NULL になり、管理画面では公開済みなのに
+  // サイト上は 404・一覧 / sitemap / RSS にも出ない記事になっていた。
+  if (nextStatus === "published" && nextPublishedAt === null) {
+    nextPublishedAt = existing.publishedAt ?? new Date()
+  }
 
   const article = await prisma.article.update({
     where: { id },

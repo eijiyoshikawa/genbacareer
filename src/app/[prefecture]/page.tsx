@@ -50,7 +50,9 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { prefecture } = await params
-  const prefLabel = PREFECTURES[prefecture]
+  const prefLabel = Object.hasOwn(PREFECTURES, prefecture)
+    ? PREFECTURES[prefecture]
+    : undefined
 
   if (!prefLabel) {
     return { title: "ページが見つかりません" }
@@ -69,7 +71,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PrefecturePage({ params }: Props) {
   const { prefecture } = await params
-  const prefLabel = PREFECTURES[prefecture]
+  const prefLabel = Object.hasOwn(PREFECTURES, prefecture)
+    ? PREFECTURES[prefecture]
+    : undefined
 
   if (!prefLabel) {
     notFound()

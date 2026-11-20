@@ -7,6 +7,10 @@
  */
 
 import { prisma } from "@/lib/db"
+import { headers } from "next/headers"
+import { auth } from "@/lib/auth"
+import { getGuestJobIdLimit } from "@/lib/guest-job-access"
+import { isValidUuid } from "@/lib/uuid"
 import Link from "next/link"
 import { ArrowLeft, X, MapPin, Money, Buildings } from "@phosphor-icons/react/dist/ssr"
 import { getCategoryLabel } from "@/lib/categories"
@@ -22,16 +26,26 @@ export const metadata: Metadata = {
 }
 
 type Props = {
-  searchParams: Promise<{ ids?: string }>
+  searchParams: Promise<{ ids?: string | string[] }>
 }
 
 export default async function CompareJobsPage({ searchParams }: Props) {
   const params = await searchParams
-  const ids = (params.ids ?? "")
+  // ?ids=a&ids=b (配列) や UUID でない値で 500 にならないよう正規化する
+  const rawIds = Array.isArray(params.ids) ? params.ids.join(",") : params.ids ?? ""
+  let ids = rawIds
     .split(",")
     .map((s) => s.trim())
-    .filter(Boolean)
+    .filter((s) => isValidUuid(s))
     .slice(0, MAX_COMPARE)
+
+  // 求人詳細と同じ未登録ゲート: 未ログインは上位 15 件の求人だけ比較できる
+  const session = await auth().catch(() => null)
+  const guestLimit = await getGuestJobIdLimit({
+    loggedIn: !!session?.user?.id,
+    userAgent: (await headers()).get("user-agent"),
+  })
+  if (guestLimit) ids = ids.filter((id) => guestLimit.has(id))
 
   if (ids.length === 0) {
     return (

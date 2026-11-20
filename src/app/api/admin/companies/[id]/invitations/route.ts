@@ -14,12 +14,12 @@ import {
 const bodySchema = z.discriminatedUnion("method", [
   z.object({
     method: z.literal("email"),
-    email: z.string().email().max(255),
+    email: z.string().email().max(255).toLowerCase(),
     role: z.enum(["admin", "member"]).default("admin"),
   }),
   z.object({
     method: z.literal("direct"),
-    email: z.string().email().max(255),
+    email: z.string().email().max(255).toLowerCase(),
     role: z.enum(["admin", "member"]).default("admin"),
     name: z.string().max(100).optional(),
   }),

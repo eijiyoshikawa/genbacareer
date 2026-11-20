@@ -61,3 +61,20 @@ export async function getGuestAccessibleJobIds(): Promise<string[]> {
   })
   return rows.map((r) => r.id)
 }
+
+/**
+ * 未ログインのリクエストが閲覧できる求人 ID の集合を返す。
+ * 制限なし (ログイン済み / クローラ) の場合は null。
+ *
+ * 求人詳細 (/jobs/[id]) と同じ判定を、印刷・比較・API など詳細の内容を返す
+ * 他の経路でも使うための共通化。これらはゲートが無く、ID さえ分かれば未登録でも
+ * 全求人の詳細を読めていた。
+ */
+export async function getGuestJobIdLimit(args: {
+  loggedIn: boolean
+  userAgent: string | null | undefined
+}): Promise<Set<string> | null> {
+  if (args.loggedIn) return null
+  if (isCrawlerUserAgent(args.userAgent)) return null
+  return new Set(await getGuestAccessibleJobIds())
+}

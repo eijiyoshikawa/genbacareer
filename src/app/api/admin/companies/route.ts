@@ -23,7 +23,8 @@ const companySchema = z.object({
   account: z
     .object({
       // 省略時は co-xxxxxxxx@agency.genbacareer.jp 形式で自動生成
-      email: z.string().email().max(255).optional(),
+      // ログインは小文字で照合するため、小文字に正規化して保存する
+      email: z.string().email().max(255).toLowerCase().optional(),
       // 省略時は自動生成した仮パスワードを一度だけ返す
       password: z.string().min(8).max(100).optional(),
       name: z.string().max(100).optional(),

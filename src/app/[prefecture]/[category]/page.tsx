@@ -49,7 +49,9 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { prefecture, category } = await params
-  const prefLabel = PREFECTURES[prefecture]
+  const prefLabel = Object.hasOwn(PREFECTURES, prefecture)
+    ? PREFECTURES[prefecture]
+    : undefined
   const catLabel = CATEGORIES[category]
 
   if (!prefLabel || !catLabel) {
@@ -71,7 +73,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PrefectureCategoryPage({ params }: Props) {
   const { prefecture, category } = await params
-  const prefLabel = PREFECTURES[prefecture]
+  const prefLabel = Object.hasOwn(PREFECTURES, prefecture)
+    ? PREFECTURES[prefecture]
+    : undefined
   const catLabel = CATEGORIES[category]
 
   if (!prefLabel || !catLabel) {

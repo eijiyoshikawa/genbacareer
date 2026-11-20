@@ -55,10 +55,9 @@ function toErrorResponse(err: unknown): NextResponse {
       err.message,
     )
   }
-  const message =
-    err instanceof Error ? err.message : "Unexpected error in jobs-api proxy"
+  // 生のエラーメッセージ (Prisma のクエリ・接続先など) は外部に返さない
   console.error("[hw-jobs-proxy] unexpected error", err)
-  return errorResponse(500, "INTERNAL_ERROR", message)
+  return errorResponse(500, "INTERNAL_ERROR", "Internal server error")
 }
 
 function errorResponse(

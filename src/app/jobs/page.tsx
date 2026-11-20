@@ -209,7 +209,12 @@ export default async function JobsPage({ searchParams }: Props) {
     ...(blockedKeywords.length > 0 && {
       AND: blockedKeywords.map((kw) => ({
         title: { not: { contains: kw, mode: "insensitive" as const } },
-        description: { not: { contains: kw, mode: "insensitive" as const } },
+        // description が NULL の求人は `NOT LIKE` が NULL になり除外されてしまうため、
+        // NULL を明示的に許可する
+        OR: [
+          { description: null },
+          { description: { not: { contains: kw, mode: "insensitive" as const } } },
+        ],
       })),
     }),
   }
@@ -218,8 +223,15 @@ export default async function JobsPage({ searchParams }: Props) {
 
   // 検索クエリがあり、デフォルトの「おすすめ順」の場合は pg_trgm で類似度順に並べる
   // こだわり条件選択時は fuzzy を使わず Prisma where で正確に絞る
+  // ブロック企業 / NG キーワードを設定している求職者も fuzzy を使わない: fuzzy の
+  // SQL はこれらの除外条件を持たず、キーワード検索した時だけブロックした企業の
+  // 求人が表示されていた。
   const useFuzzy =
-    !!params.q && sort === "recommended" && conditionList.length === 0
+    !!params.q &&
+    sort === "recommended" &&
+    conditionList.length === 0 &&
+    blockedCompanyIds.length === 0 &&
+    blockedKeywords.length === 0
   let fuzzyIds: string[] | null = null
   let fuzzyTotal: number | null = null
   if (useFuzzy) {
@@ -846,7 +858,9 @@ function firstValues(
 ): Record<string, string | undefined> {
   const out: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(raw)) {
-    out[k] = Array.isArray(v) ? v[0] : v
+    const first = Array.isArray(v) ? v[0] : v
+    // NUL 文字 (%00) は Postgres が拒否して 500 になるため取り除く
+    out[k] = first?.replace(/\u0000/g, "")
   }
   return out
 }

@@ -67,7 +67,9 @@ const nextConfig: NextConfig = {
       // 許可が無いと connect-src 違反で "Failed to fetch" になり LINE 応募が開始できない。
       // GA4: 計測ビーコンは *.google-analytics.com / *.analytics.google.com にも送られる。
       "connect-src 'self' https://*.supabase.co https://*.sentry.io https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://va.vercel-scripts.com wss://*.supabase.co https://info.gbiz.go.jp https://maps.googleapis.com https://maps.gstatic.com https://api.line.me https://access.line.me https://liff.line.me https://liffsdk.line-scdn.net",
-      "frame-src 'self' https://www.youtube.com https://player.vimeo.com https://www.tiktok.com https://www.instagram.com",
+      // Google マップ: 求人詳細の勤務地マップ (MapEmbed) は maps.google.com の iframe
+      // (www.google.com へリダイレクトされる)。許可が無いと地図が空のグレー枠になる。
+      "frame-src 'self' https://maps.google.com https://www.google.com https://www.youtube.com https://player.vimeo.com https://www.tiktok.com https://www.instagram.com",
       "frame-ancestors 'none'",
       "form-action 'self'",
       "base-uri 'self'",
