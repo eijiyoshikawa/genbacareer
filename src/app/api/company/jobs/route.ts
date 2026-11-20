@@ -16,8 +16,8 @@ const jobSchema = z.object({
   employmentType: z.enum(["full_time", "part_time", "contract"]).nullable().optional(),
   description: z.string().nullable().optional(),
   requirements: z.string().nullable().optional(),
-  salaryMin: z.number().int().min(0).nullable().optional(),
-  salaryMax: z.number().int().min(0).nullable().optional(),
+  salaryMin: z.number().int().min(0).max(100_000_000).nullable().optional(),
+  salaryMax: z.number().int().min(0).max(100_000_000).nullable().optional(),
   salaryType: z.enum(["monthly", "hourly", "annual"]).nullable().optional(),
   prefecture: z.string().min(1).max(10),
   city: z.string().max(50).nullable().optional(),
@@ -98,6 +98,18 @@ export async function POST(request: NextRequest) {
   if (!(VALID_CATEGORIES as readonly string[]).includes(data.category)) {
     return Response.json(
       { error: `無効なカテゴリです。有効な値: ${VALID_CATEGORIES.join(", ")}` },
+      { status: 400 }
+    )
+  }
+
+  if (
+    data.salaryMin != null &&
+    data.salaryMax != null &&
+    data.salaryMax > 0 &&
+    data.salaryMin > data.salaryMax
+  ) {
+    return Response.json(
+      { error: "給与の下限は上限以下で入力してください" },
       { status: 400 }
     )
   }

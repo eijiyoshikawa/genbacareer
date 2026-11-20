@@ -24,7 +24,8 @@ export default async function CompanyJobsPage({
 
   const params = await searchParams
   const page = Math.min(10_000, Math.max(1, Math.trunc(Number(params.page)) || 1))
-  const statusFilter = params.status || "all"
+  const statusFilter =
+    (typeof params.status === "string" && params.status) || "all"
   const perPage = 20
 
   const where = {

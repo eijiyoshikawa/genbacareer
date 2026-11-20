@@ -17,8 +17,8 @@ const updateJobSchema = z.object({
   employmentType: z.enum(["full_time", "part_time", "contract"]).nullable().optional(),
   description: z.string().nullable().optional(),
   requirements: z.string().nullable().optional(),
-  salaryMin: z.number().int().min(0).nullable().optional(),
-  salaryMax: z.number().int().min(0).nullable().optional(),
+  salaryMin: z.number().int().min(0).max(100_000_000).nullable().optional(),
+  salaryMax: z.number().int().min(0).max(100_000_000).nullable().optional(),
   salaryType: z.enum(["monthly", "hourly", "annual"]).nullable().optional(),
   prefecture: z.string().min(1).max(10).optional(),
   city: z.string().max(50).nullable().optional(),
@@ -222,6 +222,17 @@ export async function PUT(
     description: data.description !== undefined ? data.description : existing.description,
     prefecture: data.prefecture !== undefined ? data.prefecture : existing.prefecture,
   }
+  if (
+    merged.salaryMin != null &&
+    merged.salaryMax != null &&
+    merged.salaryMax > 0 &&
+    merged.salaryMin > merged.salaryMax
+  ) {
+    return Response.json(
+      { error: "給与の下限は上限以下で入力してください" },
+      { status: 400 }
+    )
+  }
   const displayPriority = computeDisplayPriority(merged)
 
   const job = await prisma.job.update({
@@ -249,8 +260,10 @@ export async function PUT(
 
   // 公開中の求人に変更があった、または初回公開された場合のみ public ページを再生成。
   // draft 編集の度に revalidate する必要は無いので、active なケースに限定する。
-  const isNowActive = data.status === "active" || (!data.status && existing.status === "active")
-  if (isNowActive || publishedAt) {
+  // 公開中 → 下書き / 募集終了 に変えたときも対象 (以前は対象外で、トップや企業ページに
+  // 404 になる求人へのリンクが ISR の期限まで残っていた)。
+  const touchesPublic = existing.status === "active" || data.status === "active"
+  if (touchesPublic || publishedAt) {
     revalidateAfterJobChange({ companyId: existing.companyId })
   }
 

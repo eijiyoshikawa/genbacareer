@@ -75,6 +75,15 @@ describe("resolveHiringFee (年収35%モデル)", () => {
     expect(resolveHiringFee({})).toBe(HIRING_FEE_FALLBACK)
     expect(resolveHiringFee(null)).toBe(HIRING_FEE_FALLBACK)
   })
+  it("桁違いの給与入力で下限未満になる推定は暫定額にする (¥0 請求を作らない)", () => {
+    // 「25」(万円のつもり) → 年収 300 円 × 35% = ¥0
+    expect(resolveHiringFee({ salaryMin: 25, salaryType: "monthly" })).toBe(
+      HIRING_FEE_FALLBACK,
+    )
+    expect(resolveHiringFee({ salaryMin: 1, salaryType: "annual" })).toBe(
+      HIRING_FEE_FALLBACK,
+    )
+  })
   it("率は 35%", () => {
     expect(HIRING_FEE_RATE).toBe(0.35)
   })

@@ -27,7 +27,11 @@ export default async function CompanyInterestsPage() {
   if (!companyId) redirect("/login")
 
   const interests = await prisma.jobInterest.findMany({
-    where: { job: { companyId } },
+    // この企業をブロックした求職者・退会済みは候補に出さない (候補者一覧と同条件)
+    where: {
+      job: { companyId },
+      user: { status: "active", NOT: { blockedCompanyIds: { has: companyId } } },
+    },
     orderBy: { createdAt: "desc" },
     take: 100,
     select: {

@@ -27,7 +27,7 @@ describe("createHiringInvoice", () => {
       offerSalaryMin: null,
       offerSalaryMax: null,
       offerSalaryType: null,
-      company: { id: "c1" },
+      company: { id: "c1", planType: "success_fee" },
       job: { hiringFeeAmount: 300000, salaryMin: null, salaryMax: null, salaryType: null },
     })
 
@@ -49,7 +49,7 @@ describe("createHiringInvoice", () => {
     // 外部 API (MoneyForward) は呼ばない。発行は /admin/billing-todo から手動
     expect(fetchSpy).not.toHaveBeenCalled()
     expect(update).not.toHaveBeenCalled()
-    expect(result.status).toBe("pending")
+    expect(result?.status).toBe("pending")
   })
 
   it("内定時点の給与スナップショットを求人の現在値より優先する", async () => {
@@ -57,7 +57,7 @@ describe("createHiringInvoice", () => {
       offerSalaryMin: 400000,
       offerSalaryMax: 500000,
       offerSalaryType: "monthly",
-      company: { id: "c1" },
+      company: { id: "c1", planType: "success_fee" },
       // 採用確定の直前に求人の給与を下げても、請求額は内定時点の給与で決まる
       job: { hiringFeeAmount: null, salaryMin: 100000, salaryMax: 100000, salaryType: "monthly" },
     })
@@ -72,6 +72,22 @@ describe("createHiringInvoice", () => {
     })
     expect(create.mock.calls[0][0].data.amount).toBe(expected)
   })
+
+  it.each(["monthly_12", "monthly_24", "campaign_free", "sns_client"])(
+    "成果報酬プラン以外 (%s) では請求を作らない",
+    async (planType) => {
+      findUnique.mockResolvedValue({
+        offerSalaryMin: 400000,
+        offerSalaryMax: 500000,
+        offerSalaryType: "monthly",
+        company: { id: "c1", planType },
+        job: { hiringFeeAmount: null, salaryMin: 400000, salaryMax: 500000, salaryType: "monthly" },
+      })
+      const result = await createHiringInvoice("a1")
+      expect(result).toBeNull()
+      expect(create).not.toHaveBeenCalled()
+    }
+  )
 
   it("応募が見つからなければ例外を投げる", async () => {
     findUnique.mockResolvedValue(null)

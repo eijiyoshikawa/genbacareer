@@ -1,4 +1,4 @@
-import { type NextRequest } from "next/server"
+import { type NextRequest, after } from "next/server"
 import { z } from "zod"
 import type { Prisma } from "@prisma/client"
 import { isValidUuid } from "@/lib/uuid"
@@ -190,29 +190,44 @@ export async function PUT(
     return Response.json({ application: updated })
   }
 
-  // マイページ inbox 通知（fire-and-forget）
-  notifyApplicationStatusChange({
-    userId: application.userId,
-    applicationId: id,
-    newStatus,
-    jobTitle: application.job.title,
-  }).catch((e) => {
-    console.warn(`[notification] failed: ${e instanceof Error ? e.message : e}`)
-  })
-
-  // ステータス通知メール（fire-and-forget）
-  if (application.user.email) {
-    sendApplicationStatusEmail({
-      to: application.user.email,
-      candidateName: application.user.name ?? null,
-      companyName: application.company?.name ?? "—",
-      jobTitle: application.job.title,
-      newStatus,
-      note: parsed.data.note,
-    }).catch((e) => {
-      console.warn(`[application-notify] failed: ${e instanceof Error ? e.message : e}`)
-    })
+  // 通知とメールはレスポンス返却後に after() で送る。await も after() も無い
+  // fire-and-forget だと、Vercel ではレスポンス返却と同時に関数が凍結され、
+  // 送信が落ちる / 次のリクエストまで遅延することがある (一括変更は after() 済み)。
+  const notifyUser = {
+    id: application.userId,
+    email: application.user.email,
+    name: application.user.name ?? null,
   }
+  const jobTitle = application.job.title
+  const companyName = application.company?.name ?? "—"
+  after(async () => {
+    const results = await Promise.allSettled([
+      notifyApplicationStatusChange({
+        userId: notifyUser.id,
+        applicationId: id,
+        newStatus,
+        jobTitle,
+      }),
+      // note は社内向けの変更理由メモ (入力欄にも「求職者には届きません」と表示)。
+      // 以前はここで渡していたため、不採用理由などがそのまま本人へメールされていた。
+      notifyUser.email
+        ? sendApplicationStatusEmail({
+            to: notifyUser.email,
+            candidateName: notifyUser.name,
+            companyName,
+            jobTitle,
+            newStatus,
+          })
+        : Promise.resolve(),
+    ])
+    for (const r of results) {
+      if (r.status === "rejected") {
+        console.warn(
+          `[application-notify] failed: ${r.reason instanceof Error ? r.reason.message : r.reason}`
+        )
+      }
+    }
+  })
 
   return Response.json({ application: updated })
 }
@@ -282,11 +297,13 @@ export async function PATCH(
     data.interviewVenue !== undefined ||
     data.interviewUrl !== undefined
   ) {
-    syncApplicationToCalendar(id).catch((e) => {
-      console.warn(
-        `[calendar-sync] failed: ${e instanceof Error ? e.message : e}`
-      )
-    })
+    after(() =>
+      syncApplicationToCalendar(id).catch((e) => {
+        console.warn(
+          `[calendar-sync] failed: ${e instanceof Error ? e.message : e}`
+        )
+      })
+    )
   }
 
   return Response.json({ application: updated })

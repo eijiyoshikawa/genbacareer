@@ -10,6 +10,7 @@
  */
 
 import { auth } from "@/lib/auth"
+import { isValidUuid } from "@/lib/uuid"
 import { prisma } from "@/lib/db"
 import { CandidateAvatar } from "@/components/company/candidate-avatar"
 import { redirect } from "next/navigation"
@@ -58,8 +59,15 @@ export default async function ScoutNewPage({ searchParams }: Props) {
   }
 
   const params = await searchParams
-  const userId = params.userId
-  const jobId = params.jobId
+  // 配列 (?userId=a&userId=b) や UUID でない値は Prisma が P2023 で落ちて 500 になる
+  const userId =
+    typeof params.userId === "string" && isValidUuid(params.userId)
+      ? params.userId
+      : undefined
+  const jobId =
+    typeof params.jobId === "string" && isValidUuid(params.jobId)
+      ? params.jobId
+      : undefined
 
   if (!userId || !jobId) {
     return (
@@ -85,8 +93,16 @@ export default async function ScoutNewPage({ searchParams }: Props) {
         company: { select: { name: true } },
       },
     }),
-    prisma.user.findUnique({
-      where: { id: userId },
+    // 送信 API (/api/company/scouts) と同じ条件: 非公開プロフィール・この企業を
+    // ブロックした求職者・退会済みは表示しない (URL の userId を差し替えるだけで
+    // 氏名・アバター・転職意向が見えていた)。
+    prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: "active",
+        profilePublic: true,
+        NOT: { blockedCompanyIds: { has: companyId } },
+      },
       select: {
         id: true,
         name: true,

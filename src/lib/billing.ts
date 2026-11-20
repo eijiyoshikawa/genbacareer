@@ -22,7 +22,7 @@ export async function createHiringInvoice(applicationId: string) {
       offerSalaryMin: true,
       offerSalaryMax: true,
       offerSalaryType: true,
-      company: { select: { id: true } },
+      company: { select: { id: true, planType: true } },
       job: {
         select: {
           hiringFeeAmount: true,
@@ -36,6 +36,17 @@ export async function createHiringInvoice(applicationId: string) {
 
   if (!application || !application.company) {
     throw new Error(`Application ${applicationId} not found or has no company`)
+  }
+
+  // 採用 1 件ごとの成果報酬が発生するのは ① 成果報酬プランのみ。
+  // 月額プラン (monthly_12 / monthly_24) は月額料金、キャンペーン枠・SNS 枠は ¥0 で、
+  // 採用確定で請求してはいけない (以前は全プランで pending の請求が作られ、
+  // 企業の請求画面に「未払い」、admin の発行待ちリストに請求対象として出ていた)。
+  if (application.company.planType !== "success_fee") {
+    console.info(
+      `[billing] Skipped hiring fee for application ${applicationId}: plan=${application.company.planType}`
+    )
+    return null
   }
 
   // Job 個別設定 (hiringFeeAmount) があればそれを使い、無ければ理論年収×35%で自動計算。
