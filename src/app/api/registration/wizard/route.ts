@@ -9,6 +9,7 @@ import {
   rateLimitResponse,
 } from "@/lib/rate-limit"
 import { trackEvent } from "@/lib/track"
+import { awardSignupBonus } from "@/lib/points"
 import { normalizePhone, isMobilePhone } from "@/lib/registration/phone"
 
 /**
@@ -110,6 +111,14 @@ export async function POST(request: Request) {
         termsAcceptedAt: new Date(),
         // 18 歳以上は規約同意で担保 (Wizard では生年月日を取らない)
       },
+    })
+
+    // 初回登録ボーナス (+10pt)。特典ページで案内しているのに、現行の登録経路
+    // (ウィザード / OAuth) では一度も付与されていなかった。失敗しても登録は成功扱い。
+    await awardSignupBonus(user.id).catch((e) => {
+      console.warn(
+        `[points] signup bonus failed: ${e instanceof Error ? e.message : e}`
+      )
     })
 
     // イベント計測

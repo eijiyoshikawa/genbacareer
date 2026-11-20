@@ -56,6 +56,11 @@ export function HwJobStructuredData({ job }: { job: HwJob }) {
 /** 日本語雇用形態文字列を Google for Jobs vocab にマッピング */
 function mapEmploymentType(value: string | null | undefined): string {
   if (!value) return "OTHER"
+  // DB の値 (full_time / part_time / contract) がそのまま渡ってくる。日本語だけを
+  // 見ていたため、全ての HW 求人が OTHER で出力されていた。
+  if (value === "full_time") return "FULL_TIME"
+  if (value === "part_time") return "PART_TIME"
+  if (value === "contract") return "CONTRACTOR"
   if (/正社員|フルタイム/i.test(value)) return "FULL_TIME"
   if (/パート|アルバイト/i.test(value)) return "PART_TIME"
   if (/契約|嘱託/i.test(value)) return "CONTRACTOR"
@@ -120,6 +125,11 @@ export function buildBaseSalary(job: HwJob) {
 
 function mapUnit(type: string | null): string {
   if (!type) return "MONTH"
+  // DB の値 (hourly / daily / annual / monthly)。日本語だけを見ていたため、
+  // 時給 1,200 円の求人が「月 1,200 円」として出力されていた。
+  if (type === "hourly") return "HOUR"
+  if (type === "daily") return "DAY"
+  if (type === "annual") return "YEAR"
   if (type.includes("時給")) return "HOUR"
   if (type.includes("日給")) return "DAY"
   if (type.includes("年俸")) return "YEAR"

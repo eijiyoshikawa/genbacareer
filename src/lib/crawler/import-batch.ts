@@ -92,7 +92,9 @@ if (process.env.NODE_ENV !== "production") {
 function toJobRecord(
   job: HelloworkJobData,
   category: CategoryValue,
-  companyId: string | null
+  companyId: string | null,
+  /** 既存行の実際の公開日 / 閲覧数 (再取り込み時)。新規は未指定 */
+  existing?: { publishedAt: Date | null; viewCount: number | null }
 ) {
   const title = cleanTitle(job.title, job.prefecture)
   const tags = extractTags(job.title, job.description, job.requirements)
@@ -120,7 +122,11 @@ function toJobRecord(
       commuteAllowance: job.commuteAllowance,
       companyFeatures: job.companyFeatures,
       businessContent: job.businessContent,
-      publishedAt: new Date(),
+      // 再取り込みでは実際の公開日を使う。毎回「今」で計算すると、公開から
+      // 何週間も経った求人が取り込みの度に新着ボーナスを得て、本当の新着より
+      // 上に並び続けていた。
+      publishedAt: existing?.publishedAt ?? new Date(),
+      viewCount: existing?.viewCount ?? undefined,
       expiresAt: job.validUntil,
     },
     null
@@ -649,6 +655,30 @@ export async function importHelloworkJobs(
   // -------------------------------------------------------
   // Step 1: 各求人を upsert
   // -------------------------------------------------------
+  // 既存行の公開日・閲覧数 (rankScore の鮮度計算用) をまとめて取得
+  const existingByHwId = new Map<
+    string,
+    { publishedAt: Date | null; viewCount: number | null }
+  >()
+  if (!dryRun && jobs.length > 0) {
+    try {
+      const rows = await prisma.job.findMany({
+        where: { helloworkId: { in: jobs.map((j) => j.helloworkId) } },
+        select: { helloworkId: true, publishedAt: true, viewCount: true },
+      })
+      for (const r of rows) {
+        if (r.helloworkId) {
+          existingByHwId.set(r.helloworkId, {
+            publishedAt: r.publishedAt,
+            viewCount: r.viewCount,
+          })
+        }
+      }
+    } catch {
+      // 取得できなくても取り込みは続ける (従来どおり「今」で計算)
+    }
+  }
+
   for (const job of jobs) {
     try {
       // 建設業 9 カテゴリのいずれにも該当しないジョブは取り込まない
@@ -679,7 +709,12 @@ export async function importHelloworkJobs(
       }
 
       const companyId = await upsertHelloworkCompany(job, companyCache)
-      const data = toJobRecord(job, category, companyId)
+      const data = toJobRecord(
+        job,
+        category,
+        companyId,
+        existingByHwId.get(job.helloworkId)
+      )
 
       // 有効期限を過ぎた求人は公開状態にしない。以前は一律 active に戻していたため、
       // expire-jobs cron が closed にした期限切れ求人が次の取り込み (毎時) で復活し、
@@ -786,6 +821,42 @@ export async function importHelloworkJobs(
         error instanceof Error ? error.message : String(error)
       console.error(
         `[import-batch] 重複排除済み求人の再 close でエラー: ${message}`
+      )
+    }
+  }
+
+  // -------------------------------------------------------
+  // Step 1.6: 管理者が手動で掲載終了にした求人を再公開しない
+  // /admin/job-quality の「掲載終了」は status を closed にするだけなので、
+  // 上の upsert が次の取り込み (毎時) で active に戻していた。掲載終了の操作は
+  // 監査ログ (resourceType=job, action=admin_close) に残しており、それを印にする。
+  // -------------------------------------------------------
+  if (!dryRun && processedIds.size > 0) {
+    try {
+      const closedLogs = await prisma.auditLog.findMany({
+        where: { resourceType: "job", action: "admin_close" },
+        select: { resourceId: true },
+        distinct: ["resourceId"],
+        take: 5000,
+      })
+      const closedIds = closedLogs
+        .map((l) => l.resourceId)
+        .filter((v): v is string => !!v)
+      if (closedIds.length > 0) {
+        await prisma.job.updateMany({
+          where: {
+            id: { in: closedIds },
+            source: "hellowork",
+            status: "active",
+          },
+          data: { status: "closed" },
+        })
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error)
+      console.error(
+        `[import-batch] 管理者が掲載終了にした求人の再 close でエラー: ${message}`
       )
     }
   }

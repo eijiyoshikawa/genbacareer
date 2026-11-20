@@ -19,7 +19,7 @@ import {
   getClientIp,
   rateLimitResponse,
 } from "@/lib/rate-limit"
-import type { NextRequest } from "next/server"
+import { after, type NextRequest } from "next/server"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -77,10 +77,13 @@ export async function POST(
   //  - ログインボーナス（1 日 1 回）はその日の最初のアクセスで付与
   //  - 閲覧ポイントは 10 秒以上滞在した dwell シグナル時のみ付与（同一求人は 1 日 1 回・上限あり）
   if (userId) {
-    void awardDailyLoginBonus(userId).catch(() => {})
-    if (body.dwell === true) {
-      void awardJobViewPoints(userId, id).catch(() => {})
-    }
+    // レスポンス返却後に確実に走らせる (void のままだと Vercel では関数が凍結され、
+    // 付与が落ちる / トランザクションが開いたまま残ることがある)
+    const dwell = body.dwell === true
+    after(async () => {
+      await awardDailyLoginBonus(userId).catch(() => {})
+      if (dwell) await awardJobViewPoints(userId, id).catch(() => {})
+    })
   }
 
   // 13.4 独自イベントトラッキング (AnalyticsEvent への記録)

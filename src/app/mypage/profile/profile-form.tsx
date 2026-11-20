@@ -53,7 +53,8 @@ export function ProfileForm({ initialData }: { initialData: ProfileFormData }) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: form.name || null,
+          // 空のまま送ると API (min(1)) が 400 を返し、他の項目も保存されない
+          name: form.name.trim() || undefined,
           phone: form.phone || null,
           prefecture: form.prefecture || null,
           city: form.city || null,

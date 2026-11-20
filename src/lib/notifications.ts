@@ -83,7 +83,10 @@ export async function createNotification(input: {
   // 実際には届いていないのに送信済み扱いにして黙って通知を失わないよう、
   // 成功したときだけマークする）。
   if (prefs.frequency === "immediate" && prefs.lineEnabled) {
-    void pushUserNotification({
+    // await する: void のままだと呼び出し元 (cron / API) がレスポンスを返した時点で
+    // 関数が凍結され、最後の数件の LINE 通知が送られないことがある。即時配信の
+    // 通知は digest の再送対象にもならないため、落ちると届かないままになる。
+    await pushUserNotification({
       userId: input.userId,
       title: input.title,
       body: input.body,

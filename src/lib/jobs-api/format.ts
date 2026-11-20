@@ -45,10 +45,12 @@ export function formatLastSynced(isoDatetime: string | null | undefined): string
   if (!isoDatetime) return null
   const date = new Date(isoDatetime)
   if (Number.isNaN(date.getTime())) return null
-  const y = date.getFullYear()
-  const mo = String(date.getMonth() + 1).padStart(2, "0")
-  const d = String(date.getDate()).padStart(2, "0")
-  const h = String(date.getHours()).padStart(2, "0")
-  const mi = String(date.getMinutes()).padStart(2, "0")
+  // サーバー (UTC) でも日本時間で表示する。getHours() 等だと 9 時間ずれる。
+  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000)
+  const y = jst.getUTCFullYear()
+  const mo = String(jst.getUTCMonth() + 1).padStart(2, "0")
+  const d = String(jst.getUTCDate()).padStart(2, "0")
+  const h = String(jst.getUTCHours()).padStart(2, "0")
+  const mi = String(jst.getUTCMinutes()).padStart(2, "0")
   return `${y}-${mo}-${d} ${h}:${mi}`
 }

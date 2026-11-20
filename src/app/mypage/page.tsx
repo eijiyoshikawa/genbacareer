@@ -57,6 +57,8 @@ export default async function MyPage({
       desiredCategories: true,
       desiredSalaryMin: true,
       resumeUrl: true,
+      resume: { select: { id: true } },
+      _count: { select: { uploadedFiles: true } },
       emailVerified: true,
       lineUserId: true,
       createdAt: true,
@@ -65,7 +67,14 @@ export default async function MyPage({
 
   if (!user) redirect("/login")
 
-  const completion = calcProfileCompletion(user)
+  // User.resumeUrl はどこからも書き込まれないため、これだけで判定すると履歴書を
+  // 作成 / アップロード済みでも完了率が 65% から上がらなかった。実データで判定する。
+  const completion = calcProfileCompletion({
+    ...user,
+    resumeUrl:
+      user.resumeUrl ??
+      (user.resume || user._count.uploadedFiles > 0 ? "registered" : null),
+  })
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">

@@ -172,9 +172,12 @@ export async function listHwJobs(
 export async function getHwJob(kjno: string): Promise<HwJobDetailResponse> {
   const job = await prisma.job.findUnique({
     where: { helloworkId: kjno },
-    select: { ...hwJobSelect, source: true },
+    select: { ...hwJobSelect, source: true, status: true },
   })
-  if (!job || job.source !== "hellowork") {
+  // 掲載終了 (期限切れ・HW 側で取り下げ・管理者が終了) した求人は出さない。
+  // 以前は status を見ておらず、終了済みの求人が応募導線と JobPosting 構造化データ
+  // 付きで表示され続けていた。
+  if (!job || job.source !== "hellowork" || job.status !== "active") {
     throw new HwApiError(404, "NOT_FOUND", "求人が見つかりません")
   }
   return { job: jobToHwJob(job) }

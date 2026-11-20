@@ -395,6 +395,10 @@ export async function drawLottery(
       )
     }
 
+    // ユーザー行をロックしてから回数を数える。ロック無しだと並列リクエストが
+    // 全て同じ回数を読んで上限チェックを通過し、1 日の上限を超えて抽選できた。
+    await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`
+
     // 1 日の抽選回数上限
     const todayDraws = await tx.lotteryDraw.count({
       where: { userId, createdAt: { gte: jstStartOfDayUtc(now) } },

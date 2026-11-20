@@ -1,5 +1,6 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
+import { awardSignupBonus } from "./points"
 import Google from "next-auth/providers/google"
 import Line from "next-auth/providers/line"
 import type { Provider } from "next-auth/providers"
@@ -370,7 +371,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (user.email) {
           let existing = await prisma.user.findUnique({
             where: { email: user.email },
-            select: { id: true, emailVerified: true, status: true },
+            select: {
+              id: true,
+              emailVerified: true,
+              status: true,
+              authProvider: true,
+              passwordHash: true,
+            },
           })
           if (!existing) {
             // OAuth プロバイダ経由のメールは確認済みとみなす（Google/LINE が検証済みのため）
@@ -387,12 +394,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               })
               user.id = created.id
               ;(user as { role?: string }).role = "seeker"
+              // 初回登録ボーナス (dedupeKey で 1 回のみ)。失敗してもログインは通す
+              await awardSignupBonus(created.id).catch(() => {})
             } catch {
               // 二重クリック / 複数タブの同時ログインで create が競合 (P2002)
               // した場合は、勝った方のレコードを引き直してそのままログインさせる
               existing = await prisma.user.findUnique({
                 where: { email: user.email },
-                select: { id: true, emailVerified: true, status: true },
+                select: {
+              id: true,
+              emailVerified: true,
+              status: true,
+              authProvider: true,
+              passwordHash: true,
+            },
               })
               if (!existing) return false
             }
@@ -403,13 +418,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             if (existing.status === "suspended" || existing.status === "deleted") {
               return false
             }
-            // 既存ユーザーが OAuth で初めてログインした場合も emailVerified を埋める
-            // （失敗してもログイン自体は通す — 非致命）
-            if (!existing.emailVerified) {
+            // アカウント先取り (pre-hijack) 対策:
+            // メール登録はアドレスの所有確認なしで作成できる (ウィザードは登録時に
+            // 確認済み扱い)。第三者が他人のアドレス + 自分のパスワードで先に登録して
+            // おくと、本人が後から Google / LINE でログインした時に同じ行へ合流し、
+            // 第三者のパスワードが有効なまま履歴書・応募内容を読まれる。
+            // プロバイダが所有を証明した最初の OAuth ログイン時に、メール登録時の
+            // パスワードを無効化する (本人が使っていた場合は「パスワードを忘れた」から
+            // 再設定できる)。passwordHash の変更で既存セッションは 5 分以内に失効する。
+            const takeover =
+              existing.authProvider === "email" && !!existing.passwordHash
+            if (takeover || !existing.emailVerified) {
+              // 既存ユーザーが OAuth で初めてログインした場合も emailVerified を埋める
+              // （失敗してもログイン自体は通す — 非致命）
               await prisma.user
                 .update({
                   where: { id: existing.id },
-                  data: { emailVerified: new Date() },
+                  data: {
+                    ...(existing.emailVerified ? {} : { emailVerified: new Date() }),
+                    ...(takeover
+                      ? { passwordHash: null, authProvider: account.provider }
+                      : {}),
+                  },
                 })
                 .catch(() => {})
             }
