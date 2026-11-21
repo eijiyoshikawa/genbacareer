@@ -174,7 +174,9 @@ export default async function ArticlePage({ params }: Props) {
             where: {
               ...publishedArticleFilter(),
               category: article.category,
-              publishedAt: { gt: article.publishedAt },
+              // publishedArticleFilter() の「公開日時が現在以前」を上書きしないよう両方指定する
+              // (予約投稿の記事タイトルが「次の記事」に先出しされ、リンク先は 404 だった)
+              publishedAt: { gt: article.publishedAt, lte: new Date() },
             },
             orderBy: { publishedAt: "asc" },
             select: { slug: true, title: true },

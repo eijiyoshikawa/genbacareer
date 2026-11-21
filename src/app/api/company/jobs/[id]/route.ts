@@ -4,11 +4,11 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { revalidateAfterJobChange } from "@/lib/revalidate-public"
 import { computeDisplayPriority } from "@/lib/job-display-priority"
-import { CATEGORIES } from "@/lib/categories"
+import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { isValidUuid } from "@/lib/uuid"
 import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
 
-const VALID_CATEGORIES = CATEGORIES.map((c) => c.value) as readonly string[]
+const VALID_CATEGORIES: readonly string[] = CONSTRUCTION_CATEGORY_VALUES
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -178,6 +178,24 @@ export async function PUT(
         { error: "企業アカウントの審査が完了するまで求人を公開できません" },
         { status: 403 }
       )
+    }
+    // 運営が掲載終了にした求人は、企業側の操作では再公開させない。
+    // (掲載終了の印は監査ログ。admin/jobs/[id]/close と action 名を揃えること)
+    if (existing.status === "closed") {
+      const adminClosed = await prisma.auditLog.findFirst({
+        where: { resourceType: "job", resourceId: id, action: "admin_close" },
+        select: { id: true },
+      })
+      if (adminClosed) {
+        return Response.json(
+          {
+            error:
+              "この求人は運営により掲載終了となっています。再公開をご希望の場合はお問い合わせください",
+            code: "CLOSED_BY_ADMIN",
+          },
+          { status: 403 }
+        )
+      }
     }
   }
 

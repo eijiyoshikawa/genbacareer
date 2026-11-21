@@ -130,7 +130,7 @@ export default async function ResumePage() {
                   <div>
                     <p className="text-sm font-medium text-gray-900">{f.fileName}</p>
                     <p className="text-xs text-gray-400">
-                      {f.fileType === "resume" ? "履歴書" : f.fileType === "cv" ? "職務経歴書" : "その他"} ・ {(f.fileSize / 1024).toFixed(0)}KB ・ {f.createdAt.toLocaleDateString("ja-JP")}
+                      {f.fileType === "resume" ? "履歴書" : f.fileType === "cv" ? "職務経歴書" : "その他"} ・ {(f.fileSize / 1024).toFixed(0)}KB ・ {f.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                     </p>
                   </div>
                 </div>

@@ -83,6 +83,16 @@ export async function bindLineUserToAccount(input: {
 
   // 1. User 本体へ保存（raw: Prisma Client 未再生成の環境でも動くよう updateMany 経由でなく
   //    型付き update を使う。lineUserId は schema に追加済み）
+  //    同じ LINE が別のユーザー行 (初回 LINE ログインで出来た仮アカウント等) に残っていると、
+  //    LINE ログインが常に古い方の行へ入ってしまうため、先に他の行から外す。
+  await prisma.user
+    .updateMany({
+      where: { lineUserId, id: { not: userId } },
+      data: { lineUserId: null },
+    })
+    .catch((e) =>
+      console.warn(`[line-link] unlink others failed: ${e instanceof Error ? e.message : e}`)
+    )
   await prisma.user
     .update({ where: { id: userId }, data: { lineUserId } })
     .catch((e) =>

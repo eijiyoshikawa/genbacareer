@@ -338,6 +338,22 @@ describe("inferCategory", () => {
       ).toBe("electrical")
     })
 
+    it("does not classify non-construction jobs from generic words in the description", () => {
+      // 本文の一般的な言い回しに含まれる部分文字列で建設カテゴリに入れない
+      expect(inferCategory("一般事務", "ライフスタイルに合わせて働けます")).toBe(null)
+      expect(inferCategory("経理事務", "基礎から丁寧に教えます")).toBe(null)
+      expect(inferCategory("機械オペレーター補助", "自動車部品の設計部門のサポート")).toBe(null)
+      expect(inferCategory("製造スタッフ", "道路沿いの工場です")).toBe(null)
+      expect(inferCategory("受付", "人生設計に合わせた働き方ができます")).toBe(null)
+      // タイトルは職種なので従来どおり広い語で判定する
+      expect(inferCategory("タイル工", null)).toBe("interior")
+      expect(inferCategory("基礎工事スタッフ", null)).toBe("construction")
+      expect(inferCategory("設計補助", null)).toBe("survey")
+      // タイトルが曖昧でも本文に建設の複合語があれば取り込む
+      expect(inferCategory("現場作業員", "道路工事・舗装の作業です")).toBe("civil")
+      expect(inferCategory("作業スタッフ", "建設現場での軽作業")).toBe("construction")
+    })
+
     it("excludes insurance/finance sales even when description mentions construction", () => {
       // タイトルで遮断
       expect(inferCategory("保険営業（法人担当）", "建設業のお客様への保険提案")).toBe(null)

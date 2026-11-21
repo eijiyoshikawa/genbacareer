@@ -23,6 +23,9 @@ function safeCallbackUrl(raw: string | null): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) {
     return "/mypage";
   }
+  // LINE 連携の開始だけは /api/ 配下でも戻り先として許可する (セッション切れで
+  // 「LINE 連携」を押した人が、ログイン後にそのまま連携へ進めるように)
+  if (raw === "/api/line/link/start") return raw;
   if (raw.startsWith("/login") || raw.startsWith("/api/")) return "/mypage";
   return raw;
 }

@@ -66,6 +66,7 @@ export async function GET(request: Request) {
     })
   }
 
+  let failedDataId: string | null = null
   try {
     // ---- 1. 取り込み計画を決定 ----
     let dataId: string
@@ -80,6 +81,8 @@ export async function GET(request: Request) {
       dataId = plan.dataId
       startPage = plan.startPage
     }
+
+    failedDataId = dataId
 
     // ---- 2. API から N ページ分取得 ----
     const credentials = {
@@ -165,6 +168,12 @@ export async function GET(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error"
     console.error(`[cron/hellowork-import] failed: ${message}`)
+    // 失敗しても lastRunAt だけは進める。進めないと次回も同じ dataId (最も古い
+    // lastRunAt) が選ばれ続け、特定ページの不調で巡回全体が止まってしまう。
+    // lastPage は変えないので、一巡後に同じページから再開する。
+    if (failedDataId) {
+      await recordRunWithoutProgress(prisma, failedDataId).catch(() => {})
+    }
     return Response.json(
       { success: false, error: message, durationMs: Date.now() - t0 },
       { status: 500 }

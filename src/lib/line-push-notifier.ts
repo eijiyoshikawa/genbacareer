@@ -20,28 +20,15 @@ const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp
 
 async function findLineUserId(userId: string): Promise<string | null> {
   const user = await prisma.user
-    .findUnique({ where: { id: userId }, select: { email: true, lineUserId: true } })
+    .findUnique({ where: { id: userId }, select: { lineUserId: true } })
     .catch(() => null)
   if (!user) return null
 
-  // 1. LINE 連携済みなら User 本体の lineUserId を最優先（全登録経路で到達可能に）
-  if (user.lineUserId) return user.lineUserId
-
-  // 2. 後方互換: email→LineLead 突き合わせ（応募リード経由で bind されたケース）
-  if (!user.email) return null
-  const lead = await prisma.lineLead
-    .findFirst({
-      where: {
-        email: { equals: user.email, mode: "insensitive" },
-        lineUserId: { not: null },
-        optedOut: false,
-      },
-      orderBy: { createdAt: "desc" },
-      select: { lineUserId: true },
-    })
-    .catch(() => null)
-
-  return lead?.lineUserId ?? null
+  // 送信先は本人が LINE ログイン / LINE 連携で確認済みの User.lineUserId のみ。
+  // 以前は email が一致する LineLead にもフォールバックしていたが、LineLead の email は
+  // 公開の応募フォームに自由入力された未確認の値で、他人のアドレスを入れて応募すれば
+  // その人宛の通知 (選考結果・スカウト等) を自分の LINE で受け取れてしまっていた。
+  return user.lineUserId ?? null
 }
 
 /**

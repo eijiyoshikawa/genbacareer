@@ -17,7 +17,7 @@ const createSchema = z.object({
   city: z.string().max(100).nullable().optional(),
   category: z.string().max(50).nullable().optional(),
   employmentType: z.string().max(20).nullable().optional(),
-  salaryMin: z.number().int().min(0).nullable().optional(),
+  salaryMin: z.number().int().min(0).max(100_000_000).nullable().optional(),
   source: z.enum(["direct", "hellowork"]).nullable().optional(),
   tags: z.array(z.string().min(1).max(50)).max(20).optional(),
   excludeKeywords: z.array(z.string().min(1).max(50)).max(20).optional(),

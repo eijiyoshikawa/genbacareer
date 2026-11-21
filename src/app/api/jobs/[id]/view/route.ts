@@ -10,6 +10,7 @@
  */
 
 import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/db"
 import { getSessionIdIfExists } from "@/lib/session-id"
 import { recordJobView, extractUtmFromUrl } from "@/lib/tracking"
 import { trackEvent } from "@/lib/track"
@@ -82,7 +83,14 @@ export async function POST(
     const dwell = body.dwell === true
     after(async () => {
       await awardDailyLoginBonus(userId).catch(() => {})
-      if (dwell) await awardJobViewPoints(userId, id).catch(() => {})
+      if (!dwell) return
+      // 実在する公開中の求人だけを対象にする (適当な UUID を並べて叩くだけで
+      // 閲覧ポイントを稼げないように)
+      const job = await prisma.job
+        .findUnique({ where: { id }, select: { status: true } })
+        .catch(() => null)
+      if (job?.status !== "active") return
+      await awardJobViewPoints(userId, id).catch(() => {})
     })
   }
 

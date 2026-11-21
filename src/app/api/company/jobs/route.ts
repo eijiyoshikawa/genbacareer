@@ -2,12 +2,14 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { CATEGORIES } from "@/lib/categories"
+import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
 import { revalidateAfterJobChange } from "@/lib/revalidate-public"
 import { computeDisplayPriority } from "@/lib/job-display-priority"
 
-const VALID_CATEGORIES = CATEGORIES.map((c) => c.value)
+// 建設業カテゴリのみ受け付ける。「その他 (other)」は公開一覧・サイトマップに出ないのに
+// /jobs/{id} では公開されてしまうため、API でも弾く (投稿フォームの選択肢にも無い)。
+const VALID_CATEGORIES: readonly string[] = CONSTRUCTION_CATEGORY_VALUES
 
 const jobSchema = z.object({
   title: z.string().min(1).max(200),

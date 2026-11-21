@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic"
 const updateSchema = z.object({
   name: z.string().min(1).max(60).optional(),
   body: z.string().min(1).max(2000).optional(),
-  sortOrder: z.number().int().optional(),
+  sortOrder: z.number().int().min(-10000).max(10000).optional(),
 })
 
 async function requireOwner(id: string) {

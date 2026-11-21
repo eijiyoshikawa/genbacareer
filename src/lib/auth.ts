@@ -436,8 +436,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                   where: { id: existing.id },
                   data: {
                     ...(existing.emailVerified ? {} : { emailVerified: new Date() }),
+                    // 先取りした第三者が自分の LINE を連携済みだと、パスワードを消しても
+                    // 「LINE でログイン」で入り続けられるため LINE 連携も外す
+                    // (LINE ログインの場合は直後の bindLineUserToAccount が本人の ID を入れ直す)
                     ...(takeover
-                      ? { passwordHash: null, authProvider: account.provider }
+                      ? {
+                          passwordHash: null,
+                          authProvider: account.provider,
+                          lineUserId: null,
+                        }
                       : {}),
                   },
                 })

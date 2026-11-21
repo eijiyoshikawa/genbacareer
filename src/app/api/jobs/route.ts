@@ -31,11 +31,14 @@ export async function GET(request: NextRequest) {
   const session = await auth().catch(() => null)
   const loggedIn = !!session?.user?.id
 
-  const prefecture = searchParams.get("prefecture")
-  const category = searchParams.get("category")
-  const employmentType = searchParams.get("employment_type")
+  // NUL 文字 (%00) は PostgreSQL が受け付けず 500 になるため除去する (/jobs ページと同じ扱い)
+  const param = (name: string) =>
+    searchParams.get(name)?.replace(/\u0000/g, "") || null
+  const prefecture = param("prefecture")
+  const category = param("category")
+  const employmentType = param("employment_type")
   const salaryMin = searchParams.get("salary_min")
-  const q = searchParams.get("q")
+  const q = param("q")
   // 数値以外 / 小数が来ると take・skip が NaN になり Prisma が 500 を返すため
   // 整数化して既定値へフォールバックする。
   const toInt = (v: string | null, fallback: number) => {

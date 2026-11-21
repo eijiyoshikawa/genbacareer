@@ -62,7 +62,28 @@ export async function GET(request: Request) {
   const refundCount = refunds._count ?? 0
   const refundAmount = refunds._sum.refundAmount ?? 0
 
-  const totalTasks = pendingCount + refundCount
+  // 採用確定 (hired) なのに請求レコードが無い応募。ステータス更新と請求作成は別処理のため、
+  // 作成側だけが一時的な DB エラー等で失敗すると、発行待ちリストにも本メールにも現れず
+  // 請求漏れになる。成果報酬プランの直近 90 日分を数えて知らせる (自動作成はしない)。
+  const unbilledHires = await prisma.application
+    .findMany({
+      where: {
+        status: "hired",
+        billingEvent: null,
+        hiredAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
+        company: { planType: "success_fee" },
+      },
+      select: { id: true, company: { select: { name: true } }, job: { select: { title: true } } },
+      orderBy: { hiredAt: "desc" },
+      take: 20,
+    })
+    .catch((e) => {
+      console.error("[cron/billing-todo-digest] unbilled hire check failed:", e)
+      return []
+    })
+  const unbilledCount = unbilledHires.length
+
+  const totalTasks = pendingCount + refundCount + unbilledCount
 
   if (totalTasks === 0) {
     console.log("[cron/billing-todo-digest] no tasks, skipping email")
@@ -106,6 +127,16 @@ export async function GET(request: Request) {
         label: "C. 戻入 credit note 待ち",
         value: `${refundCount} 件 / ¥${refundAmount.toLocaleString()}`,
       },
+      ...(unbilledCount > 0
+        ? [
+            {
+              label: "⚠ 採用確定済みで請求レコード無し (要確認)",
+              value: `${unbilledCount} 件: ${unbilledHires
+                .map((a) => `${a.company?.name ?? "-"} / ${a.job?.title ?? "-"}`)
+                .join("、")}`,
+            },
+          ]
+        : []),
     ],
     detailSection:
       breakdownKv.length > 0

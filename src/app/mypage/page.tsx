@@ -25,6 +25,7 @@ import { LineLinkBanner } from "@/components/mypage/line-link-banner"
 import { LineInAppNotice } from "@/components/line-inapp-notice"
 import { isScoutEnabled } from "@/lib/feature-flags"
 import { awardDailyLoginBonus } from "@/lib/points"
+import { isValidUuid } from "@/lib/uuid"
 
 export const metadata: Metadata = {
   title: "マイページ",
@@ -37,6 +38,9 @@ export default async function MyPage({
 }) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
+  // 管理者セッション (id="admin") は users の UUID ではないため、そのまま
+  // 引くと DB エラーで 500 になる。求職者用ページなので管理画面へ戻す。
+  if (!isValidUuid(session.user.id)) redirect("/admin")
 
   // ポイント制度: その日最初のマイページ訪問でログインボーナス（1 日 1 回・冪等）。
   void awardDailyLoginBonus(session.user.id).catch(() => {})

@@ -588,12 +588,59 @@ export function inferCategory(
     },
   ]
 
+  // 1) まずタイトルだけで判定する (タイトルは職種そのものなので広い語でも誤判定しにくい)
   for (const { category, pattern } of patterns) {
+    if (pattern.test(titleLower)) return category
+  }
+
+  // 2) タイトルで決まらない場合のみ本文を見る。本文は一般的な言い回しが多く、
+  //    広い語をそのまま当てると建設と無関係の求人が通ってしまう:
+  //      「ライフスタイルに合わせて」→ タイル / 「基礎から丁寧に教えます」→ 基礎 /
+  //      「人生設計」「自動車部品の設計」→ 設計 / 「道路沿いの工場」→ 道路
+  //    そのため本文には、建設の文脈でしか使われない語・複合語だけを当てる。
+  for (const { category, pattern } of DESCRIPTION_PATTERNS) {
     if (pattern.test(text)) return category
   }
 
   return null
 }
+
+/**
+ * 本文 (説明文) 用のカテゴリ判定パターン。タイトル用と同じ並びだが、一般的な文章にも
+ * 現れる語 (道路 / 仕上げ / クロス / タイル / 設計 / 基礎) だけを建設の複合語に限定している。
+ * それ以外 (建設・建築・空調・配管・塗装 等) はタイトル用と同じ広さのまま。
+ */
+const DESCRIPTION_PATTERNS: Array<{ category: CategoryValue; pattern: RegExp }> = [
+  {
+    category: "civil",
+    pattern: /土木|舗装|道路工事|道路整備|道路維持|道路補修|河川|橋梁|トンネル|造成/,
+  },
+  {
+    category: "electrical",
+    pattern: /電気工事|設備工事|空調|衛生設備|給排水|配管|配線|消防/,
+  },
+  {
+    category: "interior",
+    pattern: /内装|仕上げ工事|仕上工事|塗装|防水|クロス張|クロス貼|クロス職人|クロス工|(?<!ス)タイル|左官/,
+  },
+  { category: "demolition", pattern: /解体|産廃|アスベスト|スクラップ/ },
+  {
+    category: "driver",
+    pattern: /重機|建設機械|建機|クレーン|ダンプ|ショベル|ユンボ|ミキサー車|生コン|ユニック|セルフローダ|高所作業車/,
+  },
+  {
+    category: "management",
+    pattern: /施工管理|現場監督|現場代理人|工事主任|現場所長/,
+  },
+  {
+    category: "survey",
+    pattern: /測量|cad|積算|建築設計|土木設計|設備設計|構造設計|意匠設計|設計事務所|施工図/,
+  },
+  {
+    category: "construction",
+    pattern: /建設|建築|躯体|鳶|鉄筋|型枠|大工|足場|基礎工|屋根|建築板金/,
+  },
+]
 
 // ========================================
 // バッチインポート

@@ -9,7 +9,7 @@
  *  - 続いて LINE 公式アカウントから「ご応募ありがとうございます」push を送る
  */
 
-import { type NextRequest } from "next/server"
+import { after, type NextRequest } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { isLineConfigured, buildLineMessage } from "@/lib/line"
@@ -130,8 +130,9 @@ export async function POST(request: NextRequest) {
     })
     leadId = lead.id
 
-    // 通知
-    void notifyNewLead({
+    // 通知。レスポンス返却後に確実に走らせる (void のままだと Vercel では関数が
+    // 凍結され、新規応募の通知や受付確認が届かないことがある)
+    const newLeadPayload = {
       leadId: lead.id,
       name: parsed.name,
       phone: parsed.phone,
@@ -144,6 +145,9 @@ export async function POST(request: NextRequest) {
         prefecture: job.prefecture,
         city: job.city,
       },
+    }
+    after(async () => {
+      await notifyNewLead(newLeadPayload).catch(() => {})
     })
 
     // 受付確認 Push（LINE Messaging API 設定済みの場合）
@@ -162,7 +166,9 @@ export async function POST(request: NextRequest) {
         "",
         "担当より 1 営業日以内にこちらの LINE トークでご連絡いたします。",
       ].join("\n")
-      void pushMessage(lineUserId, [{ type: "text", text: ack }]).catch(() => {})
+      after(async () => {
+        await pushMessage(lineUserId, [{ type: "text", text: ack }]).catch(() => {})
+      })
     }
   } catch (e) {
     console.error(

@@ -195,6 +195,9 @@ export async function awardDailyLoginBonus(
   now = new Date(),
 ): Promise<number> {
   return prisma.$transaction(async (tx) => {
+    // ユーザー行をロックしてから当日の付与量を数える。ロック無しだと並列リクエストが
+    // 全て同じ合計を読み、1 日の獲得上限を超えて付与されてしまう (抽選と同じ方式)。
+    await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`
     const todays = await sumDailyCappedToday(tx, userId, now)
     const grant = Math.min(POINT_RULES.loginBonus, POINT_RULES.dailyEarnCap - todays)
     if (grant <= 0) return 0
@@ -219,6 +222,9 @@ export async function awardJobViewPoints(
 ): Promise<number> {
   const dedupeKey = `view_job:${jobId}:${jstDateKey(now)}`
   return prisma.$transaction(async (tx) => {
+    // ユーザー行をロックしてから当日の付与量を数える。ロック無しだと並列リクエストが
+    // 全て同じ合計を読み、1 日の獲得上限を超えて付与されてしまう (抽選と同じ方式)。
+    await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`
     const todays = await sumDailyCappedToday(tx, userId, now)
     const grant = Math.min(POINT_RULES.viewJob, POINT_RULES.dailyEarnCap - todays)
     if (grant <= 0) return 0

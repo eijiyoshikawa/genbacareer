@@ -69,6 +69,8 @@ export async function GET() {
   const jobs = await prisma.job.findMany({
     where: {
       status: "active",
+      // ハローワーク取り込み求人は外部配信しない (src/lib/indeed-feed.ts の方針どおり)
+      source: "direct",
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
       // 説明文が空の求人は Indeed の品質要件を満たさないので除外
       NOT: { description: null },

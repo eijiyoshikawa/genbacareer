@@ -140,6 +140,11 @@ export async function PATCH(request: NextRequest) {
       commuteAllowance: true,
       companyFeatures: true,
       businessContent: true,
+      // 時間軸・人気シグナル。省くと新着加点と閲覧数加点が 0 で再計算され、
+      // プロフィールを保存するたびに自社求人の順位が下がってしまう。
+      publishedAt: true,
+      expiresAt: true,
+      viewCount: true,
     },
   })
 

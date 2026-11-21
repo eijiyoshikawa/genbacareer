@@ -88,7 +88,8 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const created = await prisma.hiringBonus.create({
+  const created = await prisma.hiringBonus
+    .create({
     data: {
       applicationId: app.id,
       userId: session.user.id,
@@ -100,6 +101,17 @@ export async function POST(request: NextRequest) {
     },
     select: { id: true, amount: true },
   })
+    .catch((e: unknown) => {
+      // 二重送信で findUnique のチェックを両方すり抜けた場合 (applicationId は一意)
+      if ((e as { code?: string })?.code === "P2002") return null
+      throw e
+    })
+  if (!created) {
+    return Response.json(
+      { error: "この採用に対しては既に申請済みです" },
+      { status: 409 }
+    )
+  }
 
   return Response.json({ ok: true, ...created }, { status: 201 })
 }

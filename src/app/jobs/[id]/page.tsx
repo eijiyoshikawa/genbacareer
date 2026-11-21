@@ -239,8 +239,9 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
 
   // プレビューモードではトラッキングを行わない（社内チェックを実件数に混ぜないため）
   if (!isPreview) {
-    prisma.job
-      .update({ where: { id }, data: { viewCount: { increment: 1 } } })
+    // 生 SQL で加算する: prisma.job.update だと @updatedAt も更新され、閲覧のたびに
+    // サイトマップの lastmod や「最終同期」表示が実際の更新と無関係に動いてしまう。
+    prisma.$executeRaw`UPDATE jobs SET view_count = view_count + 1 WHERE id = ${id}::uuid`
       .catch(() => {})
   }
 
@@ -396,7 +397,7 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
     <div className="bg-gray-50 min-h-screen pb-24 sm:pb-28">
       <JobViewBeacon jobId={job.id} enabled={!isPreview} />
       {/* 募集終了・下書きには JobPosting を出さない (Google for Jobs の期限切れ求人掲載を防ぐ) */}
-      {job.status === "active" && (
+      {job.status === "active" && (!job.expiresAt || job.expiresAt > new Date()) && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: toJsonLdScript(jsonLd) }}

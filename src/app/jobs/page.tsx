@@ -201,21 +201,31 @@ export default async function JobsPage({ searchParams }: Props) {
         { description: { contains: params.q, mode: "insensitive" as const } },
       ],
     }),
-    // 17.3 ブロック企業除外
-    ...(blockedCompanyIds.length > 0 && {
-      companyId: { notIn: blockedCompanyIds },
-    }),
-    // 17.3 NG キーワード除外: title/description のいずれにも含まれない
-    ...(blockedKeywords.length > 0 && {
-      AND: blockedKeywords.map((kw) => ({
-        title: { not: { contains: kw, mode: "insensitive" as const } },
-        // description が NULL の求人は `NOT LIKE` が NULL になり除外されてしまうため、
-        // NULL を明示的に許可する
-        OR: [
-          { description: null },
-          { description: { not: { contains: kw, mode: "insensitive" as const } } },
-        ],
-      })),
+    // 17.3 ブロック企業除外 / NG キーワード除外
+    ...((blockedCompanyIds.length > 0 || blockedKeywords.length > 0) && {
+      AND: [
+        // companyId が NULL の求人 (企業未紐付けのハローワーク求人) は `NOT IN` が
+        // NULL になり丸ごと除外されてしまうため、NULL を明示的に許可する
+        ...(blockedCompanyIds.length > 0
+          ? [
+              {
+                OR: [
+                  { companyId: null },
+                  { companyId: { notIn: blockedCompanyIds } },
+                ],
+              },
+            ]
+          : []),
+        // title/description のいずれにも含まれない
+        ...blockedKeywords.map((kw) => ({
+          title: { not: { contains: kw, mode: "insensitive" as const } },
+          // description が NULL の求人も同じ理由で NULL を明示的に許可する
+          OR: [
+            { description: null },
+            { description: { not: { contains: kw, mode: "insensitive" as const } } },
+          ],
+        })),
+      ],
     }),
   }
 

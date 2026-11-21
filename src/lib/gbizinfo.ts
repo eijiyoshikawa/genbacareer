@@ -82,6 +82,8 @@ async function get<T>(path: string): Promise<T | null> {
       },
       // 法人情報は変動が少ないので 24h キャッシュ
       next: { revalidate: 60 * 60 * 24 },
+      // 応答が返らないと呼び出し元 (企業ページ / 月次 cron) が関数の制限時間まで固まる
+      signal: AbortSignal.timeout(10_000),
     })
     if (!res.ok) return null
     return (await res.json()) as T

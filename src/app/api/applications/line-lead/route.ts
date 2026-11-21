@@ -8,7 +8,7 @@
  * 旧 /api/jobs/[id]/apply-click の上位互換。
  */
 
-import { type NextRequest } from "next/server"
+import { after, type NextRequest } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { buildLineApplyUrl, isLineConfigured } from "@/lib/line"
@@ -109,7 +109,8 @@ export async function POST(request: NextRequest) {
     leadId = lead.id
 
     // 新規 lead 通知（Slack / メール）。失敗してもユーザー体験は阻害しない。
-    void notifyNewLead({
+    // after(): void のままだと Vercel では応答後に関数が凍結され通知が落ちることがある
+    const newLeadPayload = {
       leadId: lead.id,
       name: parsed.name,
       phone: parsed.phone,
@@ -122,6 +123,9 @@ export async function POST(request: NextRequest) {
         prefecture: job.prefecture,
         city: job.city,
       },
+    }
+    after(async () => {
+      await notifyNewLead(newLeadPayload).catch(() => {})
     })
   } catch (e) {
     // line_leads テーブル未作成などのケースは ensure-schema が走れば次回成功する。

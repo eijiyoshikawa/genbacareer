@@ -7,8 +7,10 @@ import { fetchSnapshot, isGbizConfigured } from "@/lib/gbizinfo"
  *
  * - corporate_number が設定された Company を対象に、最終取得から
  *   28 日以上経過したものを再フェッチする。
- * - GbizINFO API レート制限（1 秒 5 リクエスト）に合わせて 200ms 間隔で実行。
- * - 1 回の Cron で最大 200 社まで処理（タイムアウト保護）。
+ * - GbizINFO API レート制限（1 秒 5 リクエスト）を守る。1 社あたり 3 リクエスト
+ *   (基本 / 届出認定 / 表彰) を並列で投げるため、700ms 間隔で実行する。
+ * - 1 回の Cron で最大 200 社まで。制限時間が近づいたら途中で打ち切り、
+ *   残りは次回に回す（gbizSyncedAt の古い順なので取りこぼしは出ない）。
  *
  * Vercel Cron Jobs 設定例 (vercel.json):
  *   { "path": "/api/cron/refresh-gbiz", "schedule": "0 3 1 * *" }
@@ -18,10 +20,12 @@ import { fetchSnapshot, isGbizConfigured } from "@/lib/gbizinfo"
  */
 
 const STALE_MS = 28 * 24 * 60 * 60 * 1000
-const RATE_INTERVAL_MS = 250
+const RATE_INTERVAL_MS = 700
 const MAX_PER_RUN = 200
 
-export const maxDuration = 60 // Vercel function 最長 60s
+export const maxDuration = 300
+// maxDuration の手前で自主的に止める (途中で kill されると結果 JSON も残らない)
+const DEADLINE_MS = 240_000
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -41,7 +45,8 @@ export async function GET(request: Request) {
     )
   }
 
-  const cutoff = new Date(Date.now() - STALE_MS)
+  const startedAt = Date.now()
+  const cutoff = new Date(startedAt - STALE_MS)
 
   // 再取得対象: corporate_number あり、かつ gbiz_synced_at が古い or 未取得
   const targets = await prisma.company.findMany({
@@ -56,10 +61,13 @@ export async function GET(request: Request) {
 
   let updated = 0
   let failed = 0
+  let attempted = 0
   const failedIds: string[] = []
 
   for (const c of targets) {
     if (!c.corporateNumber) continue
+    if (Date.now() - startedAt > DEADLINE_MS) break
+    attempted++
     try {
       const snapshot = await fetchSnapshot(c.corporateNumber)
       if (snapshot) {
@@ -85,7 +93,8 @@ export async function GET(request: Request) {
   }
 
   return Response.json({
-    processed: targets.length,
+    processed: attempted,
+    remaining: targets.length - attempted,
     updated,
     failed,
     failedIds: failedIds.slice(0, 20),
