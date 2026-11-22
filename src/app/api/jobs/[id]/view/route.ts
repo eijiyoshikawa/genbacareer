@@ -47,7 +47,11 @@ export async function POST(
   // dwell=true は「10 秒以上滞在した後の 2 回目のシグナル」を表し、閲覧ポイント付与の条件。
   let body: { referrer?: string; pageUrl?: string; dwell?: boolean } = {}
   try {
-    body = await request.json()
+    const parsedBody: unknown = await request.json()
+    // JSON の null / 配列 / 文字列が来ると body.referrer の参照で 500 になっていた
+    if (parsedBody && typeof parsedBody === "object" && !Array.isArray(parsedBody)) {
+      body = parsedBody as typeof body
+    }
   } catch {
     // body 無しでも記録は試みる
   }

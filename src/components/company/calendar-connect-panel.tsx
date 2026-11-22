@@ -25,6 +25,8 @@ const STATUS_OK_LABEL: Record<string, string> = {
 const STATUS_ERROR_LABEL: Record<string, string> = {
   missing_params: "認可コードを受け取れませんでした",
   invalid_state: "セッションが期限切れ、または不正な state です",
+  session_mismatch:
+    "連携を開始した企業管理者のアカウントでログインした状態で、もう一度お試しください",
   no_refresh_token:
     "リフレッシュトークンを取得できませんでした。Google アカウント側で連携を一度解除してから再試行してください",
   exchange_failed: "Google からのトークン取得に失敗しました",

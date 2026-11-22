@@ -19,7 +19,7 @@
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { PLAN_TYPES, planTier } from "@/lib/plans"
+import { PLAN_TYPES, isPlanActive, planTier } from "@/lib/plans"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -135,7 +135,12 @@ export async function POST(
       planActivatedAt: activatedAt,
       planPrepaidFull,
       planNotes,
-      planTier: planTier({ planType, source: company.source }),
+      // 期限切れの月額 / SNS プランは expire-plans cron が planTier を 0 に落とす。
+      // ここで無条件に再計算すると、メモだけ編集しても次の cron まで (最長 24 時間)
+      // 有料枠の表示順位に戻ってしまう。
+      planTier: isPlanActive({ planType, planPaidUntil: nextPaidUntil })
+        ? planTier({ planType, source: company.source })
+        : 0,
       ...(planChanged ? { planExpiryNotifiedAt: null } : {}),
     },
   })

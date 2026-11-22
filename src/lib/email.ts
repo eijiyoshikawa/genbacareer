@@ -68,7 +68,21 @@ function getTransporter(): nodemailer.Transporter | null {
   return cachedTransporter
 }
 
+/**
+ * 実在しないプレースホルダーのメールアドレスかどうか。
+ *   - line_<sub>@line.local       … LINE ログインで作られたアカウント (メール未取得)
+ *   - deleted+<id>@deleted.local  … 退会済みアカウント
+ * 送っても必ずバウンスし、送信ドメインの評価を下げるだけなので送信しない。
+ */
+export function isPlaceholderEmail(address: string): boolean {
+  return /@(line|deleted)\.local$/i.test(address.trim())
+}
+
 export async function sendEmail({ to, subject, html, text }: SendEmailParams) {
+  if (isPlaceholderEmail(to)) {
+    return { success: false, skipped: true }
+  }
+
   const transporter = getTransporter()
 
   if (!transporter) {

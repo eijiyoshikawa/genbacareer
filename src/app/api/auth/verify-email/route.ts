@@ -85,11 +85,10 @@ export async function POST(request: NextRequest) {
 
   await prisma.user.update({
     where: { id: user.id },
-    data: {
-      emailVerified: new Date(),
-      verificationToken: null,
-      verificationTokenExpiry: null,
-    },
+    // トークンは消さない。メールソフトのリンク先読みや二度押しで 2 回目に開くと
+    // 「確認リンクが無効です」と表示されていた (上の alreadyVerified 分岐に到達しない)。
+    // 残しても確認済みのメールを再確認できるだけで、他の操作には使えない。
+    data: { emailVerified: new Date() },
   })
 
   return Response.json({

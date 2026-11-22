@@ -95,6 +95,31 @@ export async function resolveSegment(
     where.sessionId = { in: sids }
   }
 
+  // 配信停止は LINE アカウント単位で効かせる。配信停止の記録は「その時点で存在した
+  // lead 行」にしか付かないため、停止後に別の求人へ応募して新しい行ができると
+  // 再び配信対象に戻ってしまっていた。同じ lineUserId に配信停止の行が 1 つでも
+  // あれば、その LINE アカウントの行はすべて除外する。
+  const optedOutRows = await prisma.lineLead
+    .findMany({
+      where: { optedOut: true, lineUserId: { not: null } },
+      distinct: ["lineUserId"],
+      select: { lineUserId: true },
+    })
+    .catch(() => [] as Array<{ lineUserId: string | null }>)
+  const optedOutLineUserIds = optedOutRows
+    .map((r) => r.lineUserId)
+    .filter((v): v is string => !!v)
+  if (optedOutLineUserIds.length > 0) {
+    where.AND = [
+      {
+        OR: [
+          { lineUserId: null },
+          { lineUserId: { notIn: optedOutLineUserIds } },
+        ],
+      },
+    ]
+  }
+
   return prisma.lineLead
     .findMany({
       where,

@@ -108,10 +108,25 @@ export async function POST(
       return Response.json({ ok: true })
     }
     case "mark_failed": {
-      await prisma.billingEvent.update({
-        where: { id },
+      // 入金済み (paid) を誤操作で「失敗」にすると戻す手段が無く、請求待ちリストや
+      // 日次サマリーからも消える。未入金の状態からのみ受け付け、同時操作にも
+      // 備えて条件付き更新にする。
+      if (row.status !== "pending" && row.status !== "invoiced") {
+        return Response.json(
+          { error: `現在のステータス (${row.status}) からは失敗マークできません` },
+          { status: 409 },
+        )
+      }
+      const result = await prisma.billingEvent.updateMany({
+        where: { id, status: { in: ["pending", "invoiced"] } },
         data: { status: "failed" },
       })
+      if (result.count === 0) {
+        return Response.json(
+          { error: "他の操作でステータスが変更されました。再読み込みしてください" },
+          { status: 409 },
+        )
+      }
       return Response.json({ ok: true })
     }
   }

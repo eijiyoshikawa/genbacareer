@@ -11,6 +11,7 @@
 
 import { after, type NextRequest } from "next/server"
 import { z } from "zod"
+import { leadValidationMessage, normalizeLeadPhone } from "@/lib/lead-input"
 import { prisma } from "@/lib/db"
 import { isLineConfigured, buildLineMessage } from "@/lib/line"
 import { isMessagingConfigured, pushMessage } from "@/lib/line-messaging"
@@ -25,16 +26,37 @@ export const dynamic = "force-dynamic"
 
 const bodySchema = z.object({
   jobId: z.string().uuid(),
-  name: z.string().trim().min(1).max(100),
-  phone: z
+  name: z
     .string()
     .trim()
-    .min(8)
-    .max(30)
-    .regex(/^[0-9+\-()\s]+$/u, "電話番号は数字と記号のみで入力してください"),
-  email: z.email().max(255),
-  experienceYears: z.number().int().min(0).max(60).nullable().optional(),
-  notes: z.string().max(2000).nullable().optional(),
+    .min(1, "氏名を入力してください")
+    .max(100, "氏名は 100 文字以内で入力してください"),
+  // 携帯/固定どちらも許容。-/() スペース許容。全角数字・全角ハイフンは半角に揃える
+  phone: z
+    .string()
+    .transform(normalizeLeadPhone)
+    .pipe(
+      z
+        .string()
+        .min(8, "電話番号は 8 桁以上で入力してください")
+        .max(30, "電話番号が長すぎます")
+        .regex(/^[0-9+\-()\s]+$/u, "電話番号は数字と記号のみで入力してください")
+    ),
+  email: z
+    .email("メールアドレスの形式が正しくありません")
+    .max(255, "メールアドレスが長すぎます"),
+  experienceYears: z
+    .number("経験年数は数字で入力してください")
+    .int("経験年数は整数で入力してください")
+    .min(0, "経験年数は 0 以上で入力してください")
+    .max(60, "経験年数は 60 以下で入力してください")
+    .nullable()
+    .optional(),
+  notes: z
+    .string()
+    .max(2000, "備考は 2000 文字以内で入力してください")
+    .nullable()
+    .optional(),
   lineUserId: z.string().min(1).max(50),
   lineDisplayName: z.string().max(100).optional(),
   accessToken: z.string().min(1),
@@ -55,8 +77,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}))
     parsed = bodySchema.parse(body)
   } catch (err) {
+    // error はフォームにそのまま表示される (内部コードではなく日本語で返す)
+    const issues = err instanceof z.ZodError ? err.issues : []
     return Response.json(
-      { error: "invalid_body", issues: err instanceof z.ZodError ? err.issues : [] },
+      { error: leadValidationMessage(issues), code: "invalid_body", issues },
       { status: 400 }
     )
   }
@@ -70,13 +94,20 @@ export async function POST(request: NextRequest) {
     const v = await verifyLiffAccessToken(parsed.accessToken)
     if (!v.ok) {
       return Response.json(
-        { error: "invalid_liff_token", reason: v.reason },
+        {
+          error: "LINE の認証に失敗しました。画面を開き直してもう一度お試しください。",
+          code: "invalid_liff_token",
+          reason: v.reason,
+        },
         { status: 401 }
       )
     }
     if (v.userId && v.userId !== parsed.lineUserId) {
       return Response.json(
-        { error: "line_user_id_mismatch" },
+        {
+          error: "LINE の認証に失敗しました。画面を開き直してもう一度お試しください。",
+          code: "line_user_id_mismatch",
+        },
         { status: 401 }
       )
     }
@@ -97,7 +128,10 @@ export async function POST(request: NextRequest) {
     },
   })
   if (!job || job.status !== "active") {
-    return Response.json({ error: "job_not_found" }, { status: 404 })
+    return Response.json(
+      { error: "この求人は現在応募を受け付けていません。", code: "job_not_found" },
+      { status: 404 }
+    )
   }
 
   const sessionId = await getSessionIdIfExists().catch(() => null)

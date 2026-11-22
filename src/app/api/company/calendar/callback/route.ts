@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import crypto from "node:crypto"
 import { prisma } from "@/lib/db"
+import { auth } from "@/lib/auth"
 import {
   exchangeCodeForTokens,
   fetchUserEmail,
@@ -65,6 +66,20 @@ export async function GET(request: NextRequest) {
   const verified = verifyState(state)
   if (!verified.ok || !verified.companyId) {
     return redirectWith(url, "invalid_state", "error")
+  }
+
+  // state は companyId の署名だけなので、同意画面の URL を第三者に渡して同意させると
+  // その人の Google アカウントが自社のカレンダー連携として保存されてしまう。
+  // 連携を開始した企業管理者本人のセッションで戻ってきた場合だけ受け付ける。
+  const session = await auth().catch(() => null)
+  const sessionUser = session?.user as
+    | { role?: string; companyId?: string }
+    | undefined
+  if (
+    sessionUser?.role !== "company_admin" ||
+    sessionUser.companyId !== verified.companyId
+  ) {
+    return redirectWith(url, "session_mismatch", "error")
   }
 
   try {

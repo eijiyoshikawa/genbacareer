@@ -175,7 +175,8 @@ export async function GET(request: NextRequest) {
       a.user.phone ?? "",
       a.job.title,
       "ゲンバキャリア",
-      a.createdAt.toISOString().slice(0, 10),
+      // 応募日は日本時間の日付で出す (UTC だと 0〜9 時の応募が前日扱いになる)
+      a.createdAt.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }),
       STATUS_JA[a.status] ?? a.status,
       a.interviewAt ? a.interviewAt.toISOString() : "",
       a.interviewVenue ?? "",
