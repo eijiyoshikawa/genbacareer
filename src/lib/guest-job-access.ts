@@ -1,6 +1,10 @@
 import { prisma } from "./db"
 import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { CONSTRUCTION_CATEGORY_VALUES } from "./categories"
+import { cachedQuery } from "./cached-query"
+
+/** ゲスト向けクエリ結果のキャッシュ秒数。/jobs 一覧のゲスト表示と揃える。 */
+export const GUEST_CACHE_SECONDS = 120
 
 /** 未登録ユーザーが /jobs 一覧で閲覧できる最大件数。詳細閲覧可能セットの大きさでもある。 */
 export const GUEST_LIMIT = 15
@@ -45,8 +49,17 @@ export function isCrawlerUserAgent(ua: string | null | undefined): boolean {
  *
  * 高度に絞り込んだ検索結果からのクリックは未登録ゲートに引っかかるが、
  * これは仕様（無料体験は上位 15 件まで）として明示的に許容している。
+ *
+ * 全ゲスト共通の結果なので短時間キャッシュする。この並び順は companies との JOIN と
+ * 全掲載求人のソートを伴う重いクエリで、未ログインの求人詳細を開くたびに走っていた。
+ * 世界中からの同時アクセスで pooler の接続が枯渇し、サイト全体が数分間
+ * エラーになった (2026-11-22)。
  */
 export async function getGuestAccessibleJobIds(): Promise<string[]> {
+  return cachedQuery(["guest-accessible-job-ids"], GUEST_CACHE_SECONDS, queryGuestAccessibleJobIds)
+}
+
+async function queryGuestAccessibleJobIds(): Promise<string[]> {
   const rows = await prisma.job.findMany({
     where: {
       status: "active",

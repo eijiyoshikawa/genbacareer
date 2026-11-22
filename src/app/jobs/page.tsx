@@ -26,7 +26,8 @@ import {
   GuestSignupCta,
   GuestTrialBanner,
 } from "@/components/jobs/guest-signup-cta"
-import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import { GUEST_CACHE_SECONDS, GUEST_LIMIT } from "@/lib/guest-job-access"
+import { cachedQuery } from "@/lib/cached-query"
 import { logSearch } from "@/lib/search-log"
 import { trackEvent } from "@/lib/track"
 import type { Metadata } from "next"
@@ -92,6 +93,9 @@ const DATE_WITHIN_OPTIONS = [
 ] as const
 
 const MAN_YEN = 10_000
+
+/** これより長い検索条件はキャッシュキーにしない (巨大な q でキャッシュを汚さない)。 */
+const GUEST_CACHE_KEY_MAX = 400
 
 export async function generateMetadata({
   searchParams,
@@ -242,46 +246,6 @@ export default async function JobsPage({ searchParams }: Props) {
     conditionList.length === 0 &&
     blockedCompanyIds.length === 0 &&
     blockedKeywords.length === 0
-  let fuzzyIds: string[] | null = null
-  let fuzzyTotal: number | null = null
-  if (useFuzzy) {
-    const { fuzzySearchJobs, fuzzySearchJobsCount } = await import(
-      "@/lib/job-search"
-    )
-    const fuzzyInput = {
-      q: params.q!,
-      prefecture: params.prefecture,
-      city: params.city,
-      category: params.category,
-      employmentType: params.employment_type,
-      source: params.source,
-      salaryMin: salaryMinYen ?? undefined,
-      salaryMax: salaryMaxYen ?? undefined,
-      publishedSince: dateWithinThreshold ?? undefined,
-      hasVideo:
-        snsFilter === "with"
-          ? true
-          : snsFilter === "without"
-            ? false
-            : undefined,
-    }
-    // ページ単位で直接 LIMIT/OFFSET する（旧実装は上位 100 件を毎回まとめて
-    // 取得してからスライスしていたため、100 件超のヒットで総件数・ページ数を
-    // 過小表示し、かつ 6 ページ目以降は常に空になっていた）。
-    const [rows, count] = await Promise.all([
-      fuzzySearchJobs({
-        ...fuzzyInput,
-        limit,
-        offset: (page - 1) * limit,
-      }),
-      fuzzySearchJobsCount(fuzzyInput),
-    ])
-    if (rows && rows.length > 0) {
-      fuzzyIds = rows.map((r) => r.id)
-    }
-    fuzzyTotal = count
-  }
-
   // 一覧表示用の最小カラムのみ select。Job.description (長文) や
   // company.gbizData (大きな JSON) など重いカラムは取得しない。
   const jobListSelect = {
@@ -314,33 +278,104 @@ export default async function JobsPage({ searchParams }: Props) {
     },
   } as const
 
-  const [jobs, total] = await Promise.all([
-    fuzzyIds
-      ? prisma.job
-          .findMany({
-            where: { id: { in: fuzzyIds } },
-            select: jobListSelect,
-          })
-          // fuzzy で返ってきた id 順（類似度順）を維持
-          .then((rows) => {
-            const order = new Map(fuzzyIds!.map((id, i) => [id, i]))
-            return rows.sort(
-              (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)
-            )
-          })
-      : prisma.job.findMany({
-          where,
-          orderBy,
-          skip: (page - 1) * limit,
-          take: limit,
-          select: jobListSelect,
+  const loadJobs = async () => {
+    let fuzzyIds: string[] | null = null
+    let fuzzyTotal: number | null = null
+    if (useFuzzy) {
+      const { fuzzySearchJobs, fuzzySearchJobsCount } = await import(
+        "@/lib/job-search"
+      )
+      const fuzzyInput = {
+        q: params.q!,
+        prefecture: params.prefecture,
+        city: params.city,
+        category: params.category,
+        employmentType: params.employment_type,
+        source: params.source,
+        salaryMin: salaryMinYen ?? undefined,
+        salaryMax: salaryMaxYen ?? undefined,
+        publishedSince: dateWithinThreshold ?? undefined,
+        hasVideo:
+          snsFilter === "with"
+            ? true
+            : snsFilter === "without"
+              ? false
+              : undefined,
+      }
+      // ページ単位で直接 LIMIT/OFFSET する（旧実装は上位 100 件を毎回まとめて
+      // 取得してからスライスしていたため、100 件超のヒットで総件数・ページ数を
+      // 過小表示し、かつ 6 ページ目以降は常に空になっていた）。
+      const [rows, count] = await Promise.all([
+        fuzzySearchJobs({
+          ...fuzzyInput,
+          limit,
+          offset: (page - 1) * limit,
         }),
-    // fuzzyIds が null の場合（未検索 or pg_trgm 失敗によるフォールバック）は
-    // 上の jobs 側と同じく通常の Prisma count を使う。
-    fuzzyIds
-      ? Promise.resolve(fuzzyTotal ?? fuzzyIds.length)
-      : prisma.job.count({ where }),
+        fuzzySearchJobsCount(fuzzyInput),
+      ])
+      if (rows && rows.length > 0) {
+        fuzzyIds = rows.map((r) => r.id)
+      }
+      fuzzyTotal = count
+    }
+
+    const [jobs, total] = await Promise.all([
+      fuzzyIds
+        ? prisma.job
+            .findMany({
+              where: { id: { in: fuzzyIds } },
+              select: jobListSelect,
+            })
+            // fuzzy で返ってきた id 順（類似度順）を維持
+            .then((rows) => {
+              const order = new Map(fuzzyIds!.map((id, i) => [id, i]))
+              return rows.sort(
+                (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)
+              )
+            })
+        : prisma.job.findMany({
+            where,
+            orderBy,
+            skip: (page - 1) * limit,
+            take: limit,
+            select: jobListSelect,
+          }),
+      // fuzzyIds が null の場合（未検索 or pg_trgm 失敗によるフォールバック）は
+      // 上の jobs 側と同じく通常の Prisma count を使う。
+      fuzzyIds
+        ? Promise.resolve(fuzzyTotal ?? fuzzyIds.length)
+        : prisma.job.count({ where }),
+    ])
+    return { jobs, total }
+  }
+
+  // 未ログイン (ゲスト) の一覧は誰が見ても同じ結果なので短時間キャッシュする。
+  // おすすめ順は companies との JOIN + 全掲載求人のソートで重く、同時アクセスが
+  // 集中すると pooler の接続が枯渇してサイト全体がエラーになっていた (2026-11-22)。
+  // ログイン中はブロック設定・ページ送りがあるためキャッシュしない。
+  // キャッシュ経由の publishedAt は文字列で返る (JobCard は両方を受け付ける)。
+  const guestCacheKey = JSON.stringify([
+    params.prefecture ?? "",
+    params.city ?? "",
+    params.category ?? "",
+    params.source ?? "",
+    params.employment_type ?? "",
+    salaryMinYen,
+    salaryMaxYen,
+    snsFilter ?? "",
+    conditionList,
+    dateWithinDays,
+    params.q ?? "",
+    sort,
   ])
+  const { jobs, total } =
+    !loggedIn && guestCacheKey.length <= GUEST_CACHE_KEY_MAX
+      ? await cachedQuery(
+          ["guest-jobs-list", guestCacheKey],
+          GUEST_CACHE_SECONDS,
+          loadJobs
+        )
+      : await loadJobs()
 
   // ログイン中ならお気に入り Set を取得（カードの星表示用）
   const favoriteIds = loggedIn
