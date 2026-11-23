@@ -21,7 +21,9 @@ export const runtime = "nodejs"
 export const maxDuration = 300
 
 const BATCH_SIZE = 500
-const UPDATE_CONCURRENCY = 25
+// 接続プール (1 インスタンス 10 本) を使い切らない本数にする。25 だと実行中は
+// プール全体を占有し、昼の時間帯 (JST 12:45) に pooler を圧迫していた。
+const UPDATE_CONCURRENCY = 5
 const MAX_JOBS = 40000 // 1 実行あたりの上限（タイムアウト保護）
 const WINDOW_MS = 14 * 24 * 60 * 60 * 1000
 
@@ -47,6 +49,7 @@ export async function GET(request: Request) {
   let cursor: string | undefined
   let scanned = 0
   let updated = 0
+  let updateFailed = 0
 
   try {
     while (scanned < MAX_JOBS) {
@@ -103,21 +106,30 @@ export async function GET(request: Request) {
 
       for (let i = 0; i < updates.length; i += UPDATE_CONCURRENCY) {
         const chunk = updates.slice(i, i + UPDATE_CONCURRENCY)
-        await Promise.all(
+        const results = await Promise.all(
           chunk.map((u) =>
             prisma.job
               .update({ where: { id: u.id }, data: { rankScore: u.newScore } })
-              .catch(() => null)
+              .then(() => true)
+              .catch(() => false)
           )
         )
-        updated += chunk.length
+        // 失敗した更新も「更新済み」に数えていたため、全件失敗でも成功に見えていた
+        const succeeded = results.filter(Boolean).length
+        updated += succeeded
+        updateFailed += chunk.length - succeeded
       }
 
       cursor = batch[batch.length - 1].id
       if (batch.length < BATCH_SIZE) break
     }
 
-    return Response.json({ ok: true, scanned, updated })
+    return Response.json({
+      ok: updateFailed === 0,
+      scanned,
+      updated,
+      updateFailed,
+    })
   } catch (e) {
     return Response.json(
       { ok: false, scanned, updated, error: e instanceof Error ? e.message : String(e) },

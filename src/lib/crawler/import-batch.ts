@@ -707,13 +707,40 @@ export async function importHelloworkJobs(
     string,
     { publishedAt: Date | null; viewCount: number | null }
   >()
+  // 重複排除済み / 運営が掲載終了にした既存求人。取り込みで active に戻さない。
+  // 以前は一律 active に戻してからバッチの最後 (Step 1.5 / 1.6) で閉じ直していたため、
+  // 取り込み中の数分間は公開状態になり、途中で処理が打ち切られると公開されたまま残った。
+  const keepClosedHwIds = new Set<string>()
   if (!dryRun && jobs.length > 0) {
     try {
       const rows = await prisma.job.findMany({
         where: { helloworkId: { in: jobs.map((j) => j.helloworkId) } },
-        select: { helloworkId: true, publishedAt: true, viewCount: true },
+        select: {
+          id: true,
+          helloworkId: true,
+          publishedAt: true,
+          viewCount: true,
+          dedupedTo: true,
+        },
       })
+      const adminClosed = new Set(
+        rows.length > 0
+          ? (
+              await prisma.auditLog.findMany({
+                where: {
+                  resourceType: "job",
+                  action: "admin_close",
+                  resourceId: { in: rows.map((r) => r.id) },
+                },
+                select: { resourceId: true },
+              })
+            ).map((l) => l.resourceId)
+          : []
+      )
       for (const r of rows) {
+        if (r.helloworkId && (r.dedupedTo || adminClosed.has(r.id))) {
+          keepClosedHwIds.add(r.helloworkId)
+        }
         if (r.helloworkId) {
           existingByHwId.set(r.helloworkId, {
             publishedAt: r.publishedAt,
@@ -767,7 +794,8 @@ export async function importHelloworkJobs(
       // expire-jobs cron が closed にした期限切れ求人が次の取り込み (毎時) で復活し、
       // 期限切れの validThrough を持ったまま掲載され続けていた。
       const importStatus =
-        data.expiresAt && data.expiresAt.getTime() <= Date.now()
+        keepClosedHwIds.has(job.helloworkId) ||
+        (data.expiresAt && data.expiresAt.getTime() <= Date.now())
           ? ("closed" as const)
           : ("active" as const)
 

@@ -57,6 +57,11 @@ export async function POST(request: NextRequest) {
     where: { id: user.id },
     data: {
       passwordHash,
+      // LINE 連携も解除する。メール所有の確認前に第三者がこのメールで登録し、
+      // 自分の LINE を連携していた場合、パスワードを変えても「LINE でログイン」で
+      // 入り続けられた (OAuth 初回ログイン時の乗っ取り対策と同じ扱い)。
+      // 本人はマイページからワンタップで再連携できる。
+      lineUserId: null,
       resetToken: null,
       resetTokenExpiry: null,
     },

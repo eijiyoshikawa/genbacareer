@@ -130,6 +130,17 @@ async function appendLedger(
   // ロストアップデートで残高が不整合になったり残高チェックをすり抜けたり
   // しないようにするため（gift_codes の FOR UPDATE SKIP LOCKED や
   // lotteryPrize.stock の decrement と同じ「DB に原子性を担保させる」方針）。
+  // 冪等キーが既にあれば何もしない。以前は台帳 INSERT の一意制約違反 (P2002) を
+  // 捕まえて残高を戻そうとしていたが、Postgres はエラー後のトランザクションで
+  // 以降の文を受け付けないため、その取り消し自体が失敗して例外になっていた
+  // (求人閲覧のたびに走る「1 日 1 回ログインボーナス」が 2 回目以降毎回これを踏む)。
+  if (args.dedupeKey) {
+    const already = await tx.pointLedger.findFirst({
+      where: { userId: args.userId, dedupeKey: args.dedupeKey },
+      select: { id: true },
+    })
+    if (already) return 0
+  }
   const rows = await tx.$queryRaw<Array<{ point_balance: number }>>(Prisma.sql`
     UPDATE "users" SET "point_balance" = "point_balance" + ${args.delta}
     WHERE "id" = ${args.userId}::uuid AND "point_balance" + ${args.delta} >= 0
@@ -493,15 +504,24 @@ export async function drawLottery(
           )
           RETURNING "id", "code"
         `)
-        if (rows.length > 0) {
-          assignedCodeId = rows[0].id
-          assignedCode = rows[0].code
+        // 在庫の確認 (上の groupBy) からここまでの間に、別のユーザーの抽選が
+        // 最後の 1 枚を取ることがある。以前はそのまま進み、コードが無いのに
+        // 「当選」として記録・表示していた (ポイントも消費済み)。
+        // 抽選ごと取り消して、ポイントを消費させない。
+        if (rows.length === 0) {
+          throw new PointError("NO_PRIZES", "景品の在庫が変わりました。もう一度お試しください")
         }
+        assignedCodeId = rows[0].id
+        assignedCode = rows[0].code
       } else if (chosen.stock !== null) {
-        await tx.lotteryPrize.update({
-          where: { id: chosen.id },
+        // 在庫が残っているときだけ減らす (同時当選で在庫がマイナスにならないように)
+        const dec = await tx.lotteryPrize.updateMany({
+          where: { id: chosen.id, stock: { gt: 0 } },
           data: { stock: { decrement: 1 } },
         })
+        if (dec.count === 0) {
+          throw new PointError("NO_PRIZES", "景品の在庫が変わりました。もう一度お試しください")
+        }
       }
     }
 

@@ -74,13 +74,45 @@ export function parsePrefs(value: unknown): NotificationPrefs {
  * - start === end は無効と見なす
  */
 export function isInQuietHours(prefs: NotificationPrefs, at: Date = new Date()): boolean {
+  return isQuietHourJst(prefs, jstHourOf(at))
+}
+
+export function jstHourOf(at: Date): number {
+  return (at.getUTCHours() + 9) % 24
+}
+
+function isQuietHourJst(prefs: NotificationPrefs, jstHour: number): boolean {
   const { quietHoursStart: s, quietHoursEnd: e } = prefs
   if (s == null || e == null || s === e) return false
-  const jstHour = (at.getUTCHours() + 9) % 24
   if (s < e) {
     // 例: 9-18 → 9 以上 18 未満
     return jstHour >= s && jstHour < e
   }
   // 例: 22-7 → 22 以上 もしくは 7 未満
   return jstHour >= s || jstHour < e
+}
+
+/** まとめ配信の既定の時刻 (JST)。 */
+export const DIGEST_DEFAULT_HOUR_JST = 9
+
+/**
+ * このユーザーにまとめ配信 (LINE ダイジェスト) を送る時刻 (JST の時)。
+ *
+ * 通常は 9 時。9 時が静音時間帯に入っている場合は静音の終了時刻に送る。
+ * 以前は 9:30 の 1 回だけ実行して静音中のユーザーを飛ばしていたため、
+ * 静音時間に 9 時台を含むユーザー (例: 勤務時間の 8〜17 時) には、
+ * 翌日も同じ時刻に飛ばされ続けて一度も届かなかった。
+ *
+ * afterQuietHours=true (即時配信ユーザーの取りこぼし救済) の場合は、
+ * 静音時間を設定していれば常にその終了時刻に送る
+ * (設定画面の「終了時刻以降にまとめて配信」)。
+ */
+export function digestHourJst(
+  prefs: NotificationPrefs,
+  { afterQuietHours = false }: { afterQuietHours?: boolean } = {}
+): number {
+  const { quietHoursStart: s, quietHoursEnd: e } = prefs
+  if (s == null || e == null || s === e) return DIGEST_DEFAULT_HOUR_JST
+  if (afterQuietHours) return e
+  return isQuietHourJst(prefs, DIGEST_DEFAULT_HOUR_JST) ? e : DIGEST_DEFAULT_HOUR_JST
 }

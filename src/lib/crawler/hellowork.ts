@@ -181,6 +181,9 @@ async function postForm(
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
+    // 応答が返らないまま関数の実行上限まで待ち続けると、進捗が記録されずに
+    // 次回も同じページからやり直しになり、取り込みの巡回が止まる。
+    signal: AbortSignal.timeout(90_000),
   })
 
   if (!res.ok) {

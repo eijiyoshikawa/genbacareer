@@ -9,6 +9,9 @@
  * 通知は未送信のまま残るため、daily 実行時に直近分だけ拾って届ける
  * (設定画面の「静音時間の終了後にまとめて配信」に相当)。
  *
+ * 実行は毎時 (daily は毎時 30 分、weekly は月曜 UTC の毎時 0 分)。各ユーザーには
+ * 配信時刻 (JST 9 時。静音時間に掛かる場合はその終了時刻) の回にだけ送る。
+ *
  * 冪等性: 実行開始時刻 startedAt を cutoff とし、それ以前に作成された未送信通知のみ
  *         まとめて送信→マークする。送信後に作られた通知は次回実行へ回る。
  *
@@ -19,7 +22,8 @@ import { prisma } from "@/lib/db"
 import { pushUserNotification } from "@/lib/line-push-notifier"
 import {
   parsePrefs,
-  isInQuietHours,
+  digestHourJst,
+  jstHourOf,
   type NotificationFrequency,
 } from "@/lib/notification-prefs"
 
@@ -95,8 +99,12 @@ export async function GET(request: Request) {
         skippedFrequency++
         continue
       }
-      // 静音時間帯なら今回は送らず次回実行へ持ち越し（マークしない）
-      if (isInQuietHours(prefs, startedAt)) {
+      // この cron は毎時実行される。ユーザーごとの配信時刻 (通常 9 時、
+      // 静音時間に掛かる場合はその終了時刻) の回だけ送る。
+      if (
+        jstHourOf(startedAt) !==
+        digestHourJst(prefs, { afterQuietHours: isImmediateCatchUp })
+      ) {
         skippedQuiet++
         continue
       }

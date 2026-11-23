@@ -44,11 +44,11 @@
     },
     {
       "path": "/api/cron/line-digest?mode=daily",
-      "schedule": "30 0 * * *"
+      "schedule": "30 * * * *"
     },
     {
       "path": "/api/cron/line-digest?mode=weekly",
-      "schedule": "0 0 * * 1"
+      "schedule": "0 * * * 1"
     },
     {
       "path": "/api/cron/refresh-gbiz",

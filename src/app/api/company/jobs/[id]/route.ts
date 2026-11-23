@@ -181,21 +181,21 @@ export async function PUT(
     }
     // 運営が掲載終了にした求人は、企業側の操作では再公開させない。
     // (掲載終了の印は監査ログ。admin/jobs/[id]/close と action 名を揃えること)
-    if (existing.status === "closed") {
-      const adminClosed = await prisma.auditLog.findFirst({
-        where: { resourceType: "job", resourceId: id, action: "admin_close" },
-        select: { id: true },
-      })
-      if (adminClosed) {
-        return Response.json(
-          {
-            error:
-              "この求人は運営により掲載終了となっています。再公開をご希望の場合はお問い合わせください",
-            code: "CLOSED_BY_ADMIN",
-          },
-          { status: 403 }
-        )
-      }
+    // 現在の状態が closed のときだけ確認していたため、closed → draft → active の
+    // 2 回の更新で運営の掲載終了を回避できた。公開への遷移すべてで確認する。
+    const adminClosed = await prisma.auditLog.findFirst({
+      where: { resourceType: "job", resourceId: id, action: "admin_close" },
+      select: { id: true },
+    })
+    if (adminClosed) {
+      return Response.json(
+        {
+          error:
+            "この求人は運営により掲載終了となっています。再公開をご希望の場合はお問い合わせください",
+          code: "CLOSED_BY_ADMIN",
+        },
+        { status: 403 }
+      )
     }
   }
 
