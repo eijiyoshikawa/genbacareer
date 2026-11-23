@@ -18,6 +18,7 @@
  */
 
 import { XMLParser } from "fast-xml-parser"
+import { parseSalaryText } from "./salary-parser"
 
 // ========================================
 // 型定義（import-batch.ts と互換維持）
@@ -361,11 +362,27 @@ function toHelloworkJobData(
     str(record.jgshjusho_n)
   const { prefecture, city } = splitPrefectureCity(locText)
 
-  const salaryMin = numericOrNull(record.chgnkeitai_kagen)
-  const salaryMax = numericOrNull(record.chgnkeitai_jgn)
-  const salaryType =
+  // 1) 構造化タグ (chgnkeitai_kagen / _jgn / chgnkeitai) を最優先
+  let salaryMin = numericOrNull(record.chgnkeitai_kagen)
+  let salaryMax = numericOrNull(record.chgnkeitai_jgn)
+  let salaryType: "monthly" | "hourly" | "annual" | "daily" | null =
     inferSalaryType(str(record.chgnkeitai)) ??
     inferSalaryTypeFromAmount(salaryMin ?? salaryMax)
+
+  // 2) 構造化タグが空なら baseSalary (khky) 文字列をパースしてフォールバック
+  //    例: "月給 250,000円〜300,000円" / "日給12,000円" / "月給25万円〜30万円"
+  if (salaryMin == null && salaryMax == null) {
+    const parsed = parseSalaryText(str(record.khky))
+    if (parsed.min != null) salaryMin = parsed.min
+    if (parsed.max != null) salaryMax = parsed.max
+    if (salaryType == null && parsed.type != null) salaryType = parsed.type
+  }
+
+  // 3) baseSalary が「300,000円〜350,000円」のように種別語を含まないケース対策。
+  //    金額レンジから monthly/hourly/daily/annual を最終推定する。
+  if (salaryType == null) {
+    salaryType = inferSalaryTypeFromAmount(salaryMin ?? salaryMax)
+  }
 
   const requirements = str(record.menkyo_skku3_n)
 
@@ -421,10 +438,22 @@ function toHelloworkJobData(
     companyFeatures: str(record.kaishatokucho),
     businessContent: str(record.jigyony),
     companyUrl: str(record.jgshhp),
-    validUntil: parseDate(str(record.kjyukoymd)),
+    validUntil: endOfJstDay(parseDate(str(record.kjyukoymd))),
     receivedDate: parseDate(str(record.uktkymd_seireki)),
     rawData,
   }
+}
+
+/**
+ * 有効期限 (日付のみ) を「その日の 23:59:59.999 JST」に変換する。
+ * parseDate は UTC 0 時 (= JST 9 時) を返すため、そのまま expiresAt に使うと
+ * 有効期限当日の朝 9 時に JSON-LD の validThrough が過去になり、正午 (JST) の
+ * expire-jobs cron で当日中に掲載終了してしまう。
+ */
+export function endOfJstDay(date: Date | null): Date | null {
+  if (!date) return null
+  // UTC 0 時 + 15h = 翌日 0 時 JST。そこから 1ms 引いて当日の終わりにする
+  return new Date(date.getTime() + 15 * 60 * 60 * 1000 - 1)
 }
 
 /** "YYYY-MM-DD" / "YYYYMMDD" / "YYYY/MM/DD" を Date に変換。失敗時は null。 */

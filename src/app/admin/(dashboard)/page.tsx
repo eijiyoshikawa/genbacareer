@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import Link from "next/link"
 import { Suspense } from "react"
 import { prisma } from "@/lib/db"
@@ -29,7 +30,8 @@ export const dynamic = "force-dynamic"
 // メイン: 軽いクエリ (要対応タスク) は同期で先に流す。
 // 重い参照 (集計 / 一覧) は <Suspense> でストリーミング。
 // =================================================================
-export default function AdminDashboard() {
+export default async function AdminDashboard() {
+  await requireAdminPage()
   return (
     <div className="space-y-6">
       <div>

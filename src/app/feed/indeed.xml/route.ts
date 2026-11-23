@@ -14,6 +14,7 @@
  *   3. 審査通過後、Indeed が定期クロール
  */
 
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES, getCategoryLabel } from "@/lib/categories"
 
@@ -24,6 +25,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.genbacareer.jp
 
 function escapeXml(s: string): string {
   return s
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -33,7 +35,7 @@ function escapeXml(s: string): string {
 
 function cdata(s: string): string {
   // CDATA で囲む。`]]>` は分割エスケープ
-  return `<![CDATA[${s.replace(/]]>/g, "]]]]><![CDATA[>")}]]>`
+  return `<![CDATA[${s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "").replace(/]]>/g, "]]]]><![CDATA[>")}]]>`
 }
 
 function formatSalary(job: {
@@ -49,8 +51,17 @@ function formatSalary(job: {
   const min = job.salaryMin ?? job.salaryMax ?? 0
   const max = job.salaryMax ?? job.salaryMin ?? 0
   // 月給/時給は Indeed 仕様で yearly に換算
-  const yearlyMin = job.salaryType === "hourly" ? min * 8 * 250 : job.salaryType === "monthly" ? min * 12 : min
-  const yearlyMax = job.salaryType === "hourly" ? max * 8 * 250 : job.salaryType === "monthly" ? max * 12 : max
+  // 日給 (HelloWork 由来) は年 250 日換算。未換算だと日給 15,000 円が年収 15,000 円と表示される。
+  const factor =
+    job.salaryType === "hourly"
+      ? 8 * 250
+      : job.salaryType === "daily"
+        ? 250
+        : job.salaryType === "annual" || job.salaryType === "yearly"
+          ? 1
+          : 12 // monthly / 未設定は月給扱い (未設定を年収扱いにすると月給 25 万円が年収 25 万円になる)
+  const yearlyMin = min * factor
+  const yearlyMax = max * factor
   return `<salary>${yearlyMin}〜${yearlyMax} JPY/${unit}</salary>`
 }
 
@@ -58,6 +69,8 @@ export async function GET() {
   const jobs = await prisma.job.findMany({
     where: {
       status: "active",
+      // ハローワーク取り込み求人は外部配信しない (src/lib/indeed-feed.ts の方針どおり)
+      source: "direct",
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
       // 説明文が空の求人は Indeed の品質要件を満たさないので除外
       NOT: { description: null },
@@ -78,9 +91,20 @@ export async function GET() {
       updatedAt: true,
       company: { select: { name: true } },
     },
-    orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+    orderBy: buildPublicJobOrderBy("recommended"),
     take: 5000,
-  }).catch(() => [])
+  }).catch((err) => {
+    console.error("[feed/indeed.xml] query failed:", err)
+    return null
+  })
+
+  // DB 障害時に空フィードを 200 で返すと全求人が削除扱いになるため 503 を返す
+  if (!jobs) {
+    return new Response("Service Unavailable", {
+      status: 503,
+      headers: { "Cache-Control": "no-store", "Retry-After": "300" },
+    })
+  }
 
   const items = jobs
     .map((j) => {

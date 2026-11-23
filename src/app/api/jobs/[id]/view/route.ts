@@ -10,15 +10,17 @@
  */
 
 import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/db"
 import { getSessionIdIfExists } from "@/lib/session-id"
 import { recordJobView, extractUtmFromUrl } from "@/lib/tracking"
 import { trackEvent } from "@/lib/track"
+import { awardJobViewPoints, awardDailyLoginBonus } from "@/lib/points"
 import {
   checkRateLimit,
   getClientIp,
   rateLimitResponse,
 } from "@/lib/rate-limit"
-import type { NextRequest } from "next/server"
+import { after, type NextRequest } from "next/server"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -41,10 +43,15 @@ export async function POST(
     return Response.json({ ok: false }, { status: 400 })
   }
 
-  // body から referrer / utm を取得（クライアントが知っている情報）
-  let body: { referrer?: string; pageUrl?: string } = {}
+  // body から referrer / utm / dwell を取得（クライアントが知っている情報）
+  // dwell=true は「10 秒以上滞在した後の 2 回目のシグナル」を表し、閲覧ポイント付与の条件。
+  let body: { referrer?: string; pageUrl?: string; dwell?: boolean } = {}
   try {
-    body = await request.json()
+    const parsedBody: unknown = await request.json()
+    // JSON の null / 配列 / 文字列が来ると body.referrer の参照で 500 になっていた
+    if (parsedBody && typeof parsedBody === "object" && !Array.isArray(parsedBody)) {
+      body = parsedBody as typeof body
+    }
   } catch {
     // body 無しでも記録は試みる
   }
@@ -70,6 +77,26 @@ export async function POST(
     referer,
     utm,
   }).catch(() => {})
+
+  // ポイント制度（ログインユーザーのみ・付与失敗は握りつぶす）:
+  //  - ログインボーナス（1 日 1 回）はその日の最初のアクセスで付与
+  //  - 閲覧ポイントは 10 秒以上滞在した dwell シグナル時のみ付与（同一求人は 1 日 1 回・上限あり）
+  if (userId) {
+    // レスポンス返却後に確実に走らせる (void のままだと Vercel では関数が凍結され、
+    // 付与が落ちる / トランザクションが開いたまま残ることがある)
+    const dwell = body.dwell === true
+    after(async () => {
+      await awardDailyLoginBonus(userId).catch(() => {})
+      if (!dwell) return
+      // 実在する公開中の求人だけを対象にする (適当な UUID を並べて叩くだけで
+      // 閲覧ポイントを稼げないように)
+      const job = await prisma.job
+        .findUnique({ where: { id }, select: { status: true } })
+        .catch(() => null)
+      if (job?.status !== "active") return
+      await awardJobViewPoints(userId, id).catch(() => {})
+    })
+  }
 
   // 13.4 独自イベントトラッキング (AnalyticsEvent への記録)
   void trackEvent({

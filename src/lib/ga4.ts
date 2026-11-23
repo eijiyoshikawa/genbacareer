@@ -47,7 +47,7 @@ export function gaTrackLead(opts: {
 }): void {
   gaEvent("generate_lead", {
     currency: "JPY",
-    value: opts.valueJpy ?? 498000, // 成果報酬 1 名 49.8 万円〜（職種による）
+    value: opts.valueJpy ?? 1_400_000, // 成果報酬 = 理論年収×35%（年収400万想定の代表値）
     lead_id: opts.leadId ?? undefined,
     job_id: opts.jobId ?? undefined,
     job_title: opts.jobTitle ?? undefined,

@@ -1,31 +1,37 @@
 import { type NextRequest } from "next/server"
-import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
+import { isScoutEnabled } from "@/lib/feature-flags"
 
 export async function GET(request: NextRequest) {
-  const session = await auth()
-  if (!session?.user) {
-    return Response.json({ error: "ログインが必要です" }, { status: 401 })
+  // 求職者プロフィールの一覧は、運営が承認した企業にのみ返す。
+  // 自己登録しただけの未承認 (pending) / 却下企業に公開プロフィールを
+  // 列挙させない。
+  const ctx = await requireCompanyAuth({ requireApproved: true })
+  if (isCompanyAuthError(ctx)) {
+    return Response.json({ error: ctx.error }, { status: ctx.status })
   }
 
-  const role = (session.user as { role?: string }).role
-  if (role !== "company_admin" && role !== "company_member") {
-    return Response.json({ error: "企業アカウントでログインしてください" }, { status: 403 })
-  }
-
-  const companyId = (session.user as { companyId?: string }).companyId
-  if (!companyId) {
-    return Response.json({ error: "企業情報が見つかりません" }, { status: 403 })
+  // スカウト機能の解放前は候補者検索も閉じる (UI 側のゲートと揃える)
+  if (!(await isScoutEnabled())) {
+    return Response.json(
+      { error: "スカウト機能は現在準備中です（近日公開予定）" },
+      { status: 403 }
+    )
   }
 
   const { searchParams } = request.nextUrl
   const prefecture = searchParams.get("prefecture")
   const category = searchParams.get("category")
-  const page = Math.max(1, Number(searchParams.get("page")) || 1)
+  const page = Math.min(10_000, Math.max(1, Math.trunc(Number(searchParams.get("page"))) || 1))
   const perPage = 20
 
   const where = {
     profilePublic: true,
+    // 凍結・退会済みユーザーは候補に出さない
+    status: "active",
+    // この企業をブロックした求職者は候補に出さない
+    NOT: { blockedCompanyIds: { has: ctx.companyId } },
     ...(prefecture ? { prefecture } : {}),
     ...(category ? { desiredCategories: { has: category } } : {}),
   }

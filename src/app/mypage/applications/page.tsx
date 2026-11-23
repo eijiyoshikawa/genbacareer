@@ -57,7 +57,8 @@ export default async function ApplicationsPage({ searchParams }: Props) {
   if (!session?.user?.id) redirect("/login")
 
   const params = await searchParams
-  const page = Math.max(1, Number(params.page ?? "1"))
+  const parsedPage = Number.parseInt(params.page ?? "", 10)
+  const page = Number.isFinite(parsedPage) ? Math.min(10000, Math.max(1, parsedPage)) : 1
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
@@ -185,7 +186,7 @@ async function ApplicationsList({
 
                 <div className="mt-3 flex items-center justify-between gap-2">
                   <p className="text-xs text-gray-400">
-                    応募日: {app.createdAt.toLocaleDateString("ja-JP")}
+                    応募日: {app.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </p>
                   <div className="flex items-center gap-2">
                     {app.status === "hired" &&

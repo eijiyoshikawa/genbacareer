@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Building2, ArrowRight } from "lucide-react";
 import { LineLoginButton } from "@/components/auth/line-login-button";
+import { LineInAppNotice } from "@/components/line-inapp-notice";
+import { PasswordInput } from "@/components/auth/password-input";
 
 /**
  * 求職者向けログインページ。
@@ -12,7 +14,31 @@ import { LineLoginButton } from "@/components/auth/line-login-button";
  * 企業ログインは /company/login に分離してある。
  * 企業の方は本ページ下部の「企業の方はこちら」リンクから遷移する。
  */
+
+/**
+ * ?callbackUrl= を同一オリジンの相対パスに限定して受け取る (open redirect 防止)。
+ * ゲスト閲覧制限やお気に入りボタンから飛ばされたユーザーを元のページへ戻す。
+ */
+function safeCallbackUrl(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) {
+    return "/mypage";
+  }
+  // LINE 連携の開始だけは /api/ 配下でも戻り先として許可する (セッション切れで
+  // 「LINE 連携」を押した人が、ログイン後にそのまま連携へ進めるように)
+  if (raw === "/api/line/link/start") return raw;
+  if (raw.startsWith("/login") || raw.startsWith("/api/")) return "/mypage";
+  return raw;
+}
+
 export default function LoginPage() {
+  const [callbackUrl, setCallbackUrl] = useState("/mypage");
+  useEffect(() => {
+    setCallbackUrl(
+      safeCallbackUrl(
+        new URLSearchParams(window.location.search).get("callbackUrl"),
+      ),
+    );
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -33,7 +59,7 @@ export default function LoginPage() {
       if (result?.error) {
         setError("メールアドレスまたはパスワードが正しくありません。");
       } else if (result?.ok) {
-        window.location.href = "/mypage";
+        window.location.href = callbackUrl;
       }
     } catch {
       setError("ログイン中にエラーが発生しました。もう一度お試しください。");
@@ -46,6 +72,7 @@ export default function LoginPage() {
     <div className="flex min-h-[calc(100vh-200px)] items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         <div className="bg-white p-8 shadow-lg">
+          <LineInAppNotice />
           <h1 className="mb-1 text-center text-2xl font-bold text-gray-900">
             求職者ログイン
           </h1>
@@ -60,7 +87,7 @@ export default function LoginPage() {
           )}
 
           {/* === LINE 1 タップログイン (主導線) === */}
-          <LineLoginButton label="LINE でログイン" callbackUrl="/mypage" fullWidth />
+          <LineLoginButton label="LINE でログイン" callbackUrl={callbackUrl} fullWidth />
 
           <div className="my-4 flex items-center gap-2 text-xs text-gray-400">
             <span className="flex-1 border-t border-gray-200" />
@@ -94,13 +121,11 @@ export default function LoginPage() {
               >
                 パスワード
               </label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 placeholder="パスワードを入力"
               />
             </div>

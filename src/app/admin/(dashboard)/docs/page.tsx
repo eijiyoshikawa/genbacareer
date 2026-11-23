@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import Link from "next/link"
 import type { Metadata } from "next"
 import {
@@ -21,7 +22,8 @@ const DOCS = [
   },
 ] as const
 
-export default function AdminDocsIndexPage() {
+export default async function AdminDocsIndexPage() {
+  await requireAdminPage()
   return (
     <div>
       <header className="mb-6">

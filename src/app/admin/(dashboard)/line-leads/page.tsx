@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import Link from "next/link"
 import { prisma } from "@/lib/db"
 import { Pagination } from "@/components/pagination"
@@ -23,8 +24,9 @@ type Props = {
 const PER_PAGE = 30
 
 export default async function AdminLineLeadsPage({ searchParams }: Props) {
+  await requireAdminPage()
   const params = await searchParams
-  const page = Math.max(1, Number(params.page ?? "1"))
+  const page = Math.max(1, Number(params.page ?? "1") || 1)
   const statusFilter = isLeadStatus(params.status) ? params.status : undefined
   const q = (params.q ?? "").trim()
 
@@ -79,6 +81,7 @@ export default async function AdminLineLeadsPage({ searchParams }: Props) {
   // ステータス別件数を Record 化（fall back 0）
   const statusCountMap: Record<LeadStatus, number> = {
     pending: 0,
+    follower: 0,
     line_added: 0,
     contacted: 0,
     qualified: 0,

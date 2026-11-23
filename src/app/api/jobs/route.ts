@@ -10,6 +10,10 @@ import {
 } from "@/lib/rate-limit"
 import { auth } from "@/lib/auth"
 import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import {
+  buildPublicJobOrderBy,
+  type PublicJobSort,
+} from "@/lib/job-sort"
 import { type NextRequest } from "next/server"
 
 export async function GET(request: NextRequest) {
@@ -27,16 +31,23 @@ export async function GET(request: NextRequest) {
   const session = await auth().catch(() => null)
   const loggedIn = !!session?.user?.id
 
-  const prefecture = searchParams.get("prefecture")
-  const category = searchParams.get("category")
-  const employmentType = searchParams.get("employment_type")
+  // NUL 文字 (%00) は PostgreSQL が受け付けず 500 になるため除去する (/jobs ページと同じ扱い)
+  const param = (name: string) =>
+    searchParams.get(name)?.replace(/\u0000/g, "") || null
+  const prefecture = param("prefecture")
+  const category = param("category")
+  const employmentType = param("employment_type")
   const salaryMin = searchParams.get("salary_min")
-  const q = searchParams.get("q")
-  const rawPage = Math.max(1, Number(searchParams.get("page") ?? "1"))
-  const rawLimit = Math.min(
-    50,
-    Math.max(1, Number(searchParams.get("limit") ?? "20")),
-  )
+  const q = param("q")
+  // 数値以外 / 小数が来ると take・skip が NaN になり Prisma が 500 を返すため
+  // 整数化して既定値へフォールバックする。
+  const toInt = (v: string | null, fallback: number) => {
+    const n = Number.parseInt(v ?? "", 10)
+    return Number.isFinite(n) ? n : fallback
+  }
+  const rawPage = Math.min(10000, Math.max(1, toInt(searchParams.get("page"), 1)))
+  const rawLimit = Math.min(50, Math.max(1, toInt(searchParams.get("limit"), 20)))
+  const salaryMinNum = Number.parseInt(salaryMin ?? "", 10)
   const page = loggedIn ? rawPage : 1
   const limit = loggedIn ? rawLimit : Math.min(rawLimit, GUEST_LIMIT)
   const sort = searchParams.get("sort") ?? "published_at"
@@ -53,27 +64,29 @@ export async function GET(request: NextRequest) {
     ...(prefecture && { prefecture }),
     ...categoryFilter,
     ...(employmentType && { employmentType }),
-    ...(salaryMin && { salaryMin: { gte: Number(salaryMin) } }),
+    ...(Number.isFinite(salaryMinNum) &&
+      salaryMinNum > 0 &&
+      salaryMinNum <= 2_000_000_000 && { salaryMin: { gte: salaryMinNum } }),
     ...(q && {
       OR: [
         { title: { contains: q, mode: "insensitive" as const } },
         { description: { contains: q, mode: "insensitive" as const } },
+        { company: { is: { name: { contains: q, mode: "insensitive" as const } } } },
       ],
     }),
   }
 
-  const orderBy =
+  // Job.displayPriority を主キーとした統一ソート（src/lib/job-sort.ts 参照）。
+  // 公開 API のソートパラメタを内部の PublicJobSort に正規化する。
+  const normalizedSort: PublicJobSort =
     sort === "salary_max"
-      ? { salaryMax: "desc" as const }
+      ? "salary_high"
       : sort === "view_count"
-        ? { viewCount: "desc" as const }
+        ? "popular"
         : sort === "newest"
-          ? { publishedAt: "desc" as const }
-          : // default: recommended (rankScore)
-            [
-              { rankScore: "desc" as const },
-              { publishedAt: "desc" as const },
-            ]
+          ? "newest"
+          : "recommended"
+  const orderBy = buildPublicJobOrderBy(normalizedSort)
 
   const [jobs, total] = await Promise.all([
     prisma.job.findMany({

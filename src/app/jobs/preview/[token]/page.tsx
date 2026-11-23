@@ -26,7 +26,7 @@ export default async function JobPreviewPage({
   const job = await prisma.job
     .findUnique({
       where: { previewToken: token },
-      select: { id: true },
+      select: { id: true, previewToken: true },
     })
     .catch(() => null)
 
@@ -35,5 +35,5 @@ export default async function JobPreviewPage({
   }
 
   // 既存の求人詳細ページに転送（status を問わず描画される現行仕様を活用）
-  redirect(`/jobs/${job.id}?preview=1`)
+  redirect(`/jobs/${job.id}?preview=${encodeURIComponent(token)}`)
 }

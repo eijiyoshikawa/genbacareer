@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import { prisma } from "@/lib/db"
 import { Send } from "lucide-react"
 import type { Metadata } from "next"
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
 }
 
 export default async function SegmentsPage() {
+  await requireAdminPage()
   // UTM source 一覧 + 直近 broadcast ログを並列取得
   const [utmSources, recentLogs] = await Promise.all([
     prisma.lineLead

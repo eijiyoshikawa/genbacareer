@@ -48,7 +48,7 @@ export default async function ResumePrintPage({ searchParams }: Props) {
   const licenses = parseLicenses(resume?.licenses)
   const careerDetails = parseCareer(resume?.careerDetails)
 
-  const generatedAt = new Date().toLocaleString("ja-JP")
+  const generatedAt = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
 
   return (
     <html lang="ja">

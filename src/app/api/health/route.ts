@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { isGbizConfigured } from "@/lib/gbizinfo"
+import { isEmailConfigured } from "@/lib/email"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -49,7 +50,8 @@ export async function GET(request: Request) {
     const optional = {
       GBIZ_API_TOKEN: isGbizConfigured(),
       CRON_SECRET: !!process.env.CRON_SECRET,
-      RESEND_API_KEY: !!process.env.RESEND_API_KEY,
+      SMTP_EMAIL: isEmailConfigured(),
+      MAIL_FROM: !!process.env.MAIL_FROM,
       SENTRY_DSN: !!process.env.SENTRY_DSN,
       GA_ID: !!process.env.NEXT_PUBLIC_GA_ID,
       GSC_VERIFICATION: !!process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
@@ -59,7 +61,15 @@ export async function GET(request: Request) {
       detail: JSON.stringify(optional),
     }
 
-    // 4) Cron 設定
+    // 4) メール送信 (SMTP) — 未設定だと signup/応募/スカウト通知が飛ばない
+    checks.email = {
+      ok: isEmailConfigured(),
+      detail: isEmailConfigured()
+        ? "SMTP configured"
+        : "SMTP_USER / SMTP_PASS not set — メールは送信されません",
+    }
+
+    // 5) Cron 設定
     checks.cron = {
       ok: !!process.env.CRON_SECRET,
       detail: process.env.CRON_SECRET ? "configured" : "CRON_SECRET not set",

@@ -19,6 +19,8 @@ const SITE_URL =
 
 function escapeXml(str: string): string {
   return str
+    // XML 1.0 で不正な制御文字は 1 文字でもフィード全体が無効になるため除去
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")

@@ -2,6 +2,13 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { revalidateAfterJobChange } from "@/lib/revalidate-public"
+import { computeDisplayPriority } from "@/lib/job-display-priority"
+import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
+import { isValidUuid } from "@/lib/uuid"
+import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
+
+const VALID_CATEGORIES: readonly string[] = CONSTRUCTION_CATEGORY_VALUES
 
 const updateJobSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -10,8 +17,8 @@ const updateJobSchema = z.object({
   employmentType: z.enum(["full_time", "part_time", "contract"]).nullable().optional(),
   description: z.string().nullable().optional(),
   requirements: z.string().nullable().optional(),
-  salaryMin: z.number().int().min(0).nullable().optional(),
-  salaryMax: z.number().int().min(0).nullable().optional(),
+  salaryMin: z.number().int().min(0).max(100_000_000).nullable().optional(),
+  salaryMax: z.number().int().min(0).max(100_000_000).nullable().optional(),
   salaryType: z.enum(["monthly", "hourly", "annual"]).nullable().optional(),
   prefecture: z.string().min(1).max(10).optional(),
   city: z.string().max(50).nullable().optional(),
@@ -19,6 +26,7 @@ const updateJobSchema = z.object({
   benefits: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
   videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
+  imageUrls: z.array(z.string().url().max(500)).max(12).optional(),
   status: z.enum(["draft", "active", "closed"]).optional(),
   /**
    * 楽観ロック用 ISO timestamp。GET で取得した updatedAt をそのまま PUT に
@@ -51,8 +59,36 @@ export async function GET(
   }
 
   const { id } = await params
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
 
-  const job = await prisma.job.findUnique({ where: { id } })
+  const job = await prisma.job.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      companyId: true,
+      title: true,
+      category: true,
+      subcategory: true,
+      employmentType: true,
+      description: true,
+      requirements: true,
+      salaryMin: true,
+      salaryMax: true,
+      salaryType: true,
+      prefecture: true,
+      city: true,
+      address: true,
+      benefits: true,
+      tags: true,
+      videoUrls: true,
+      imageUrls: true,
+      status: true,
+      previewToken: true,
+      updatedAt: true,
+    },
+  })
   if (!job || job.companyId !== ctx.companyId) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
   }
@@ -64,16 +100,41 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const ctx = await getCompanySession()
-  if (!ctx) {
-    return Response.json({ error: "企業アカウントでログインしてください" }, { status: 401 })
+  // 求人更新（公開への遷移を含む）は POST（新規投稿）と同様、status=approved の
+  // 企業のみ許可する。以前は getCompanySession() のみで承認状態を見ておらず、
+  // 却下/承認待ちに転落した企業でも既存求人を編集・再公開できてしまっていた。
+  const ctx = await requireCompanyAuth({ requireApproved: true })
+  if (isCompanyAuthError(ctx)) {
+    return Response.json({ error: ctx.error }, { status: ctx.status })
   }
 
   const { id } = await params
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
 
   const existing = await prisma.job.findUnique({
     where: { id },
-    select: { companyId: true, status: true, publishedAt: true, updatedAt: true },
+    select: {
+      companyId: true,
+      status: true,
+      publishedAt: true,
+      updatedAt: true,
+      source: true,
+      salaryType: true,
+      salaryMin: true,
+      salaryMax: true,
+      employmentType: true,
+      workHours: true,
+      workHoursNotes: true,
+      holidays: true,
+      annualHolidays: true,
+      insurance: true,
+      smokingPolicy: true,
+      trialPeriod: true,
+      description: true,
+      prefecture: true,
+    },
   })
   if (!existing || existing.companyId !== ctx.companyId) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
@@ -95,6 +156,48 @@ export async function PUT(
   }
 
   const { expectedUpdatedAt, ...data } = parsed.data
+
+  // POST と同じカテゴリ制約 (建設業 9 カテゴリ固定)。PUT だけ素通しだと
+  // 無効カテゴリが保存され、公開一覧から黙って消える。
+  if (data.category !== undefined && !VALID_CATEGORIES.includes(data.category)) {
+    return Response.json(
+      { error: `無効なカテゴリです。有効な値: ${VALID_CATEGORIES.join(", ")}` },
+      { status: 400 }
+    )
+  }
+
+  // 公開 (active 化) は承認済み企業のみ。POST / 複製と同条件にし、
+  // 審査中・否認済み企業が既存の下書きを PUT で公開できないようにする。
+  if (data.status === "active" && existing.status !== "active") {
+    const company = await prisma.company.findUnique({
+      where: { id: ctx.companyId },
+      select: { status: true },
+    })
+    if (company?.status !== "approved") {
+      return Response.json(
+        { error: "企業アカウントの審査が完了するまで求人を公開できません" },
+        { status: 403 }
+      )
+    }
+    // 運営が掲載終了にした求人は、企業側の操作では再公開させない。
+    // (掲載終了の印は監査ログ。admin/jobs/[id]/close と action 名を揃えること)
+    if (existing.status === "closed") {
+      const adminClosed = await prisma.auditLog.findFirst({
+        where: { resourceType: "job", resourceId: id, action: "admin_close" },
+        select: { id: true },
+      })
+      if (adminClosed) {
+        return Response.json(
+          {
+            error:
+              "この求人は運営により掲載終了となっています。再公開をご希望の場合はお問い合わせください",
+            code: "CLOSED_BY_ADMIN",
+          },
+          { status: 403 }
+        )
+      }
+    }
+  }
 
   // 楽観ロック: クライアントが取得した時点から変わっていなければ更新を許可
   if (expectedUpdatedAt) {
@@ -119,11 +222,43 @@ export async function PUT(
       ? new Date()
       : undefined
 
+  // 編集後の値で displayPriority を再計算（賃金タイプや明示項目の変更を反映）
+  const merged = {
+    source: existing.source,
+    salaryType: data.salaryType !== undefined ? data.salaryType : existing.salaryType,
+    salaryMin: data.salaryMin !== undefined ? data.salaryMin : existing.salaryMin,
+    salaryMax: data.salaryMax !== undefined ? data.salaryMax : existing.salaryMax,
+    employmentType:
+      data.employmentType !== undefined ? data.employmentType : existing.employmentType,
+    workHours: existing.workHours,
+    workHoursNotes: existing.workHoursNotes,
+    holidays: existing.holidays,
+    annualHolidays: existing.annualHolidays,
+    insurance: existing.insurance,
+    smokingPolicy: existing.smokingPolicy,
+    trialPeriod: existing.trialPeriod,
+    description: data.description !== undefined ? data.description : existing.description,
+    prefecture: data.prefecture !== undefined ? data.prefecture : existing.prefecture,
+  }
+  if (
+    merged.salaryMin != null &&
+    merged.salaryMax != null &&
+    merged.salaryMax > 0 &&
+    merged.salaryMin > merged.salaryMax
+  ) {
+    return Response.json(
+      { error: "給与の下限は上限以下で入力してください" },
+      { status: 400 }
+    )
+  }
+  const displayPriority = computeDisplayPriority(merged)
+
   const job = await prisma.job.update({
     where: { id },
     data: {
       ...data,
       ...(publishedAt ? { publishedAt } : {}),
+      displayPriority,
     },
   })
 
@@ -141,6 +276,15 @@ export async function PUT(
     }
   }
 
+  // 公開中の求人に変更があった、または初回公開された場合のみ public ページを再生成。
+  // draft 編集の度に revalidate する必要は無いので、active なケースに限定する。
+  // 公開中 → 下書き / 募集終了 に変えたときも対象 (以前は対象外で、トップや企業ページに
+  // 404 になる求人へのリンクが ISR の期限まで残っていた)。
+  const touchesPublic = existing.status === "active" || data.status === "active"
+  if (touchesPublic || publishedAt) {
+    revalidateAfterJobChange({ companyId: existing.companyId })
+  }
+
   return Response.json({ job })
 }
 
@@ -148,22 +292,45 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const ctx = await getCompanySession()
-  if (!ctx) {
-    return Response.json({ error: "企業アカウントでログインしてください" }, { status: 401 })
+  const ctx = await requireCompanyAuth({ requireApproved: true })
+  if (isCompanyAuthError(ctx)) {
+    return Response.json({ error: ctx.error }, { status: ctx.status })
   }
 
   const { id } = await params
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "求人が見つかりません" }, { status: 404 })
+  }
 
   const existing = await prisma.job.findUnique({
     where: { id },
-    select: { companyId: true },
+    select: { companyId: true, status: true },
   })
   if (!existing || existing.companyId !== ctx.companyId) {
     return Response.json({ error: "求人が見つかりません" }, { status: 404 })
   }
 
+  // 応募が付いた求人を物理削除すると Application → BillingEvent まで cascade で
+  // 消え、成果報酬の請求記録と応募者の履歴が失われる。応募がある場合は
+  // 削除を拒否し、掲載終了 (closed) への変更を案内する。
+  const applicationCount = await prisma.application.count({ where: { jobId: id } })
+  if (applicationCount > 0) {
+    return Response.json(
+      {
+        error:
+          "応募のある求人は削除できません。掲載を止める場合はステータスを「掲載終了」に変更してください",
+        code: "HAS_APPLICATIONS",
+      },
+      { status: 409 }
+    )
+  }
+
   await prisma.job.delete({ where: { id } })
+
+  // 公開中だった求人の削除はトップ / 企業ページの一覧に影響するので再生成。
+  if (existing.status === "active") {
+    revalidateAfterJobChange({ companyId: existing.companyId })
+  }
 
   return Response.json({ success: true })
 }

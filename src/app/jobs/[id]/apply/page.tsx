@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { isValidUuid } from "@/lib/uuid"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Building2, MessageCircle, MapPin } from "lucide-react"
@@ -13,16 +14,21 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  const job = await prisma.job.findUnique({
-    where: { id },
-    select: { title: true },
-  })
-  if (!job) return { title: "求人が見つかりません" }
-  return { title: `${job.title} に応募` }
+  if (!isValidUuid(id)) return { title: "求人が見つかりません" }
+  const job = await prisma.job
+    .findUnique({
+      where: { id },
+      select: { title: true, status: true },
+    })
+    .catch(() => null)
+  if (!job || job.status === "draft") return { title: "求人が見つかりません" }
+  // 応募フォームは求人ごとに中身の薄いページになるため検索結果には出さない
+  return { title: `${job.title} に応募`, robots: { index: false, follow: false } }
 }
 
 export default async function ApplyPage({ params }: Props) {
   const { id } = await params
+  if (!isValidUuid(id)) notFound()
   const job = await prisma.job.findUnique({
     where: { id },
     select: {
@@ -37,7 +43,8 @@ export default async function ApplyPage({ params }: Props) {
     },
   })
 
-  if (!job) notFound()
+  // 下書きは求人詳細と同じく 404 (ID 直打ちで未公開求人の内容が見えてしまう)
+  if (!job || job.status === "draft") notFound()
 
   // User-Agent からモバイル判定（クライアント側でも再判定するが、初期レンダリングを正しく出すため）
   const ua = (await headers()).get("user-agent") ?? ""

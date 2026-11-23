@@ -15,6 +15,8 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { deleteFileByUrl } from "@/lib/storage"
+import { deleteCompanyImage, extractPathFromUrl } from "@/lib/storage-images"
 import {
   checkRateLimit,
   getClientIp,
@@ -59,6 +61,17 @@ export async function POST(request: Request) {
     )
   }
 
+  // 匿名化で URL が消える前に、ストレージ上の実ファイル (顔写真・履歴書) を
+  // 控えておく。DB の参照だけ消すと公開 URL のまま残り続けていた。
+  const [beforeUser, uploadedFiles] = await Promise.all([
+    prisma.user
+      .findUnique({ where: { id: userId }, select: { avatarUrl: true } })
+      .catch(() => null),
+    prisma.uploadedFile
+      .findMany({ where: { userId }, select: { fileUrl: true } })
+      .catch(() => []),
+  ])
+
   try {
     await prisma.$transaction(async (tx) => {
       // PII を匿名化
@@ -76,6 +89,10 @@ export async function POST(request: Request) {
           city: null,
           birthDate: null,
           resumeUrl: null,
+          avatarUrl: null,
+          // LINE 連携を外す。残すと再登録後の LINE ログインが
+          // この退会済み行に当たって拒否され続ける。
+          lineUserId: null,
           profilePublic: false,
           passwordHash: null,
           verificationToken: null,
@@ -85,23 +102,6 @@ export async function POST(request: Request) {
           resetTokenExpiry: null,
         },
       })
-
-      // 退会後に通知が来ても困るので関連レコードを削除
-      await Promise.all([
-        tx.savedSearch.deleteMany({ where: { userId } }).catch(() => null),
-        tx.jobFavorite.deleteMany({ where: { userId } }).catch(() => null),
-        tx.notification.deleteMany({ where: { userId } }).catch(() => null),
-        // メッセージテンプレートはユーザー固有の PII を含むため削除
-        tx.applicationMessageTemplate
-          .deleteMany({ where: { userId } })
-          .catch(() => null),
-        // CompanyFollow / Resume が存在する場合は同様に削除
-        tx.$executeRawUnsafe(
-          `DELETE FROM "company_follows" WHERE "user_id" = $1::uuid`,
-          userId
-        ).catch(() => null),
-        tx.resume.deleteMany({ where: { userId } }).catch(() => null),
-      ])
     })
   } catch (e) {
     console.error("[delete-account] failed:", e)
@@ -109,6 +109,44 @@ export async function POST(request: Request) {
       { error: "退会処理に失敗しました。時間を置いて再度お試しください。" },
       { status: 500 }
     )
+  }
+
+  // 退会後に通知が来ても困るので関連レコードを削除する。
+  // 匿名化のトランザクションとは分けて実行する: 以前は同じトランザクション内で
+  // 各削除を .catch で握りつぶしていたが、Postgres は 1 文でも失敗すると
+  // トランザクション全体が中断状態になり COMMIT も無効になる。その結果、匿名化が
+  // 巻き戻ったのに「退会完了」を返し、ファイルだけ消してしまう恐れがあった。
+  // 本番 DB に未作成のテーブルがあっても退会自体は成立させる。
+  const cleanups: Array<[string, () => Promise<unknown>]> = [
+    ["savedSearch", () => prisma.savedSearch.deleteMany({ where: { userId } })],
+    ["jobFavorite", () => prisma.jobFavorite.deleteMany({ where: { userId } })],
+    ["notification", () => prisma.notification.deleteMany({ where: { userId } })],
+    // メッセージテンプレートはユーザー固有の PII を含むため削除
+    [
+      "applicationMessageTemplate",
+      () => prisma.applicationMessageTemplate.deleteMany({ where: { userId } }),
+    ],
+    ["companyFollow", () => prisma.companyFollow.deleteMany({ where: { userId } })],
+    ["resume", () => prisma.resume.deleteMany({ where: { userId } })],
+    ["uploadedFile", () => prisma.uploadedFile.deleteMany({ where: { userId } })],
+  ]
+  for (const [label, run] of cleanups) {
+    await run().catch((e) => {
+      console.error(`[delete-account] cleanup failed (${label}):`, e)
+    })
+  }
+
+  // ストレージの実体を削除 (失敗しても退会自体は成立させる)
+  try {
+    const avatarPath = beforeUser?.avatarUrl
+      ? extractPathFromUrl(beforeUser.avatarUrl)
+      : null
+    await Promise.all([
+      avatarPath ? deleteCompanyImage(avatarPath) : null,
+      ...uploadedFiles.map((f) => deleteFileByUrl(f.fileUrl)),
+    ])
+  } catch (e) {
+    console.warn("[delete-account] storage cleanup failed:", e)
   }
 
   // NextAuth セッション Cookie をクリア（クライアント側 signOut で確実に）

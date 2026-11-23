@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 /**
  * 12.2 企業口コミ モデレーション画面 (admin)。
  *
@@ -34,6 +35,7 @@ type SearchParams = Promise<{ status?: string }>
 export default async function AdminCompanyReviewsPage(props: {
   searchParams: SearchParams
 }) {
+  await requireAdminPage()
   const { status } = await props.searchParams
   const filter =
     status === "approved" || status === "rejected" ? status : "pending"

@@ -152,12 +152,13 @@ export async function findNewMatchingJobs(
   const since = search.lastNotifiedAt ?? search.createdAt
   const where = buildJobWhere(search, since)
 
-  return prisma.job
-    .findMany({
-      where,
-      orderBy: { publishedAt: "desc" },
-      take: limit,
-      select: { id: true, title: true, prefecture: true, publishedAt: true },
-    })
-    .catch(() => [])
+  // DB エラーを握りつぶして [] を返すと、cron が「新着なし」と判断して lastNotifiedAt を
+  // 進めてしまい、その間に公開された求人のアラートが永久に送られなくなる。
+  // 例外は呼び出し側 (検索条件ごとの try/catch) に任せる。
+  return prisma.job.findMany({
+    where,
+    orderBy: { publishedAt: "desc" },
+    take: limit,
+    select: { id: true, title: true, prefecture: true, publishedAt: true },
+  })
 }

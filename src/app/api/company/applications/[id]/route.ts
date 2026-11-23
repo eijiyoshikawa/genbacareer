@@ -1,18 +1,14 @@
-import { type NextRequest } from "next/server"
+import { type NextRequest, after } from "next/server"
 import { z } from "zod"
+import type { Prisma } from "@prisma/client"
+import { isValidUuid } from "@/lib/uuid"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { ensureSchema } from "@/lib/ensure-schema"
 import { sendApplicationStatusEmail } from "@/lib/application-notifications"
 import { notifyApplicationStatusChange } from "@/lib/notifications"
 import { syncApplicationToCalendar } from "@/lib/application-calendar-sync"
-
-const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
-  applied: ["reviewing", "rejected"],
-  reviewing: ["interview", "rejected"],
-  interview: ["offered", "rejected"],
-  offered: ["hired", "rejected"],
-  // hired と rejected は終端ステータス
-}
+import { VALID_STATUS_TRANSITIONS, buildOfferSalarySnapshotData } from "@/lib/application-status"
 
 // 既存互換: { status } 単体更新
 const updateStatusSchema = z.object({
@@ -78,16 +74,20 @@ export async function PUT(
   }
 
   const { id } = await params
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "応募が見つかりません" }, { status: 404 })
+  }
 
   const application = await prisma.application.findUnique({
     where: { id },
     select: {
       companyId: true,
       userId: true,
+      jobId: true,
       status: true,
       statusHistory: true,
       hiredAt: true,
-      user: { select: { email: true, name: true } },
+      user: { select: { email: true, name: true, status: true } },
       job: { select: { title: true } },
       company: { select: { name: true } },
     },
@@ -134,17 +134,38 @@ export async function PUT(
     ...(parsed.data.note ? { note: parsed.data.note } : {}),
   }
 
-  const updated = await prisma.application.update({
-    where: { id },
+  // offer_salary_* など後付けカラムが本番 DB に無い状態で書き込むと P2022 になる。
+  // 結果はプロセス内でキャッシュされるため 2 回目以降のコストはほぼ無い。
+  await ensureSchema()
+
+  const offerSnapshot = await buildOfferSalarySnapshotData(newStatus, application.jobId)
+
+  // 遷移チェックと更新を原子的にする: 読み取り後に別リクエストがステータスを
+  // 変えていた場合 (採用と不採用の同時押下など) は 0 件更新になり 409 を返す。
+  // これが無いと「不採用なのに成果報酬の請求だけ残る」状態が起こり得る。
+  const { count } = await prisma.application.updateMany({
+    where: { id, companyId: ctx.companyId, status: currentStatus },
     data: {
       status: newStatus,
-      statusHistory: [...history, entry],
+      statusHistory: [...history, entry] as unknown as Prisma.InputJsonValue,
       // 採用確定時に hiredAt を打刻 (C3 戻入処理の経過月数計算の基準)
       ...(newStatus === "hired" && !application.hiredAt
         ? { hiredAt: new Date() }
         : {}),
+      ...(offerSnapshot ?? {}),
     },
   })
+  if (count === 0) {
+    return Response.json(
+      {
+        error:
+          "他の操作でステータスが変更されています。画面を再読み込みしてからやり直してください",
+        code: "STALE_STATUS",
+      },
+      { status: 409 }
+    )
+  }
+  const updated = await prisma.application.findUniqueOrThrow({ where: { id } })
 
   // 採用確定時の自動請求
   if (newStatus === "hired") {
@@ -163,29 +184,50 @@ export async function PUT(
     }
   }
 
-  // マイページ inbox 通知（fire-and-forget）
-  notifyApplicationStatusChange({
-    userId: application.userId,
-    applicationId: id,
-    newStatus,
-    jobTitle: application.job.title,
-  }).catch((e) => {
-    console.warn(`[notification] failed: ${e instanceof Error ? e.message : e}`)
-  })
-
-  // ステータス通知メール（fire-and-forget）
-  if (application.user.email) {
-    sendApplicationStatusEmail({
-      to: application.user.email,
-      candidateName: application.user.name ?? null,
-      companyName: application.company?.name ?? "—",
-      jobTitle: application.job.title,
-      newStatus,
-      note: parsed.data.note,
-    }).catch((e) => {
-      console.warn(`[application-notify] failed: ${e instanceof Error ? e.message : e}`)
-    })
+  // 退会・凍結済みの求職者には通知しない (退会時にメールは deleted+<id>@deleted.local へ
+  // 書き換えられており、送ってもバウンスして送信ドメインの評価を下げるだけ)
+  if (application.user.status !== "active") {
+    return Response.json({ application: updated })
   }
+
+  // 通知とメールはレスポンス返却後に after() で送る。await も after() も無い
+  // fire-and-forget だと、Vercel ではレスポンス返却と同時に関数が凍結され、
+  // 送信が落ちる / 次のリクエストまで遅延することがある (一括変更は after() 済み)。
+  const notifyUser = {
+    id: application.userId,
+    email: application.user.email,
+    name: application.user.name ?? null,
+  }
+  const jobTitle = application.job.title
+  const companyName = application.company?.name ?? "—"
+  after(async () => {
+    const results = await Promise.allSettled([
+      notifyApplicationStatusChange({
+        userId: notifyUser.id,
+        applicationId: id,
+        newStatus,
+        jobTitle,
+      }),
+      // note は社内向けの変更理由メモ (入力欄にも「求職者には届きません」と表示)。
+      // 以前はここで渡していたため、不採用理由などがそのまま本人へメールされていた。
+      notifyUser.email
+        ? sendApplicationStatusEmail({
+            to: notifyUser.email,
+            candidateName: notifyUser.name,
+            companyName,
+            jobTitle,
+            newStatus,
+          })
+        : Promise.resolve(),
+    ])
+    for (const r of results) {
+      if (r.status === "rejected") {
+        console.warn(
+          `[application-notify] failed: ${r.reason instanceof Error ? r.reason.message : r.reason}`
+        )
+      }
+    }
+  })
 
   return Response.json({ application: updated })
 }
@@ -200,6 +242,9 @@ export async function PATCH(
   }
 
   const { id } = await params
+  if (!isValidUuid(id)) {
+    return Response.json({ error: "応募が見つかりません" }, { status: 404 })
+  }
 
   const application = await prisma.application.findUnique({
     where: { id },
@@ -252,11 +297,13 @@ export async function PATCH(
     data.interviewVenue !== undefined ||
     data.interviewUrl !== undefined
   ) {
-    syncApplicationToCalendar(id).catch((e) => {
-      console.warn(
-        `[calendar-sync] failed: ${e instanceof Error ? e.message : e}`
-      )
-    })
+    after(() =>
+      syncApplicationToCalendar(id).catch((e) => {
+        console.warn(
+          `[calendar-sync] failed: ${e instanceof Error ? e.message : e}`
+        )
+      })
+    )
   }
 
   return Response.json({ application: updated })

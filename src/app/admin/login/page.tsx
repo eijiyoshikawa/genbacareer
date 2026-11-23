@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import { PasswordInput } from "@/components/auth/password-input";
 
 export const dynamic = "force-dynamic";
 
@@ -75,14 +76,12 @@ export default function AdminLoginPage() {
               >
                 パスワード
               </label>
-              <input
+              <PasswordInput
                 id="admin-password"
-                type="password"
                 required
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
               />
             </div>
 

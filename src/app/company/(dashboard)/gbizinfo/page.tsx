@@ -89,7 +89,7 @@ export default async function CompanyGbizInfoPage() {
           </h2>
           <p className="mt-1 text-xs text-gray-500">
             最終取得:{" "}
-            {company.gbizSyncedAt?.toLocaleString("ja-JP") ?? "—"}
+            {company.gbizSyncedAt?.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }) ?? "—"}
           </p>
 
           <dl className="mt-4 grid gap-3 sm:grid-cols-2">

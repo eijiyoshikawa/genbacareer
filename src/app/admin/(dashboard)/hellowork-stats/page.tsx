@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import { prisma } from "@/lib/db"
 import { daysAgo } from "@/lib/date-range"
 
@@ -9,6 +10,7 @@ import { daysAgo } from "@/lib/date-range"
  * - 都道府県別 Top 10
  */
 export default async function HelloworkStatsPage() {
+  await requireAdminPage()
   const since7d = daysAgo(7)
   const [active, closed, byCategory, byPrefecture, recent7d] = await Promise.all([
     prisma.job.count({ where: { source: "hellowork", status: "active" } }),

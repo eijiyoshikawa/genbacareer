@@ -28,7 +28,7 @@ const SOON_THRESHOLD_DAYS = 30
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -81,39 +81,65 @@ export async function GET(request: Request) {
       ],
     }
 
-    if (c.contactEmail) {
+    // 宛先: 担当メール。未設定なら企業ユーザーのログインメールへ送る
+    // (以前は宛先なしでも「通知済み」にしており、誰にも届かないまま失効していた)。
+    const recipients = c.contactEmail
+      ? [c.contactEmail]
+      : Array.from(new Set(c.companyUsers.map((u) => u.email).filter(Boolean)))
+    if (recipients.length === 0) {
+      console.warn(`[cron/plan-expiry-notice] no recipient for ${c.id}`)
+      continue
+    }
+
+    // 先に「通知済み」を原子的に確保する。cron の重複配信や手動再実行が重なっても
+    // 同じ企業へ二重送信しない。
+    const claim = await prisma.company
+      .updateMany({
+        where: { id: c.id, planExpiryNotifiedAt: null },
+        data: { planExpiryNotifiedAt: now },
+      })
+      .catch((err) => {
+        console.error(`[cron/plan-expiry-notice] claim failed for ${c.id}:`, err)
+        return { count: 0 }
+      })
+    if (claim.count === 0) continue
+
+    // メール送信に失敗した企業は通知済みを取り消す (翌日の cron で再送する)
+    let delivered = 0
+    for (const to of recipients) {
       try {
-        await sendEmail({
-          to: c.contactEmail,
+        const result = await sendEmail({
+          to,
           subject: `【期限通知】ご契約プランの満了日が近づいています (${expiryStr}) — ゲンバキャリア`,
           html: renderEmailLayout(layout),
           text: renderEmailText(layout),
         })
+        if (result && result.success === false) {
+          console.error(`[cron/plan-expiry-notice] mail not sent for ${c.id}`)
+        } else {
+          delivered += 1
+        }
       } catch (err) {
-        mailFailures += 1
         console.error(`[cron/plan-expiry-notice] mail failed for ${c.id}:`, err)
       }
     }
 
-    // 企業ユーザー全員にサイト内通知
-    if (c.companyUsers.length > 0) {
-      await prisma.notification.createMany({
-        data: c.companyUsers.map((u) => ({
-          userId: u.id,
-          type: "plan_expiry",
-          title: "ご契約プランの期限が近づいています",
-          body: `${planLabel} は ${expiryStr} に期限を迎えます。`,
-          linkUrl: "/company/billing",
-        })),
-      }).catch((e) => {
-        console.error(`[cron/plan-expiry-notice] notif failed for ${c.id}:`, e)
-      })
+    if (delivered === 0) {
+      mailFailures += 1
+      await prisma.company
+        .updateMany({
+          where: { id: c.id, planExpiryNotifiedAt: now },
+          data: { planExpiryNotifiedAt: null },
+        })
+        .catch((err) => {
+          console.error(`[cron/plan-expiry-notice] revert failed for ${c.id}:`, err)
+        })
+      continue
     }
 
-    await prisma.company.update({
-      where: { id: c.id },
-      data: { planExpiryNotifiedAt: now },
-    })
+    // 注: 以前はここで notifications テーブルへ企業ユーザー宛の行を作っていたが、
+    // notifications.user_id は users (求職者) への外部キーのため必ず失敗していた。
+    // 企業向けのサイト内通知の仕組みが無いので、通知はメールのみとする。
     notified += 1
   }
 

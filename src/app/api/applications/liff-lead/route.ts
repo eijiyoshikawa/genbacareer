@@ -9,8 +9,9 @@
  *  - 続いて LINE 公式アカウントから「ご応募ありがとうございます」push を送る
  */
 
-import { type NextRequest } from "next/server"
+import { after, type NextRequest } from "next/server"
 import { z } from "zod"
+import { leadValidationMessage, normalizeLeadPhone } from "@/lib/lead-input"
 import { prisma } from "@/lib/db"
 import { isLineConfigured, buildLineMessage } from "@/lib/line"
 import { isMessagingConfigured, pushMessage } from "@/lib/line-messaging"
@@ -25,16 +26,37 @@ export const dynamic = "force-dynamic"
 
 const bodySchema = z.object({
   jobId: z.string().uuid(),
-  name: z.string().trim().min(1).max(100),
-  phone: z
+  name: z
     .string()
     .trim()
-    .min(8)
-    .max(30)
-    .regex(/^[0-9+\-()\s]+$/u, "電話番号は数字と記号のみで入力してください"),
-  email: z.email().max(255),
-  experienceYears: z.number().int().min(0).max(60).nullable().optional(),
-  notes: z.string().max(2000).nullable().optional(),
+    .min(1, "氏名を入力してください")
+    .max(100, "氏名は 100 文字以内で入力してください"),
+  // 携帯/固定どちらも許容。-/() スペース許容。全角数字・全角ハイフンは半角に揃える
+  phone: z
+    .string()
+    .transform(normalizeLeadPhone)
+    .pipe(
+      z
+        .string()
+        .min(8, "電話番号は 8 桁以上で入力してください")
+        .max(30, "電話番号が長すぎます")
+        .regex(/^[0-9+\-()\s]+$/u, "電話番号は数字と記号のみで入力してください")
+    ),
+  email: z
+    .email("メールアドレスの形式が正しくありません")
+    .max(255, "メールアドレスが長すぎます"),
+  experienceYears: z
+    .number("経験年数は数字で入力してください")
+    .int("経験年数は整数で入力してください")
+    .min(0, "経験年数は 0 以上で入力してください")
+    .max(60, "経験年数は 60 以下で入力してください")
+    .nullable()
+    .optional(),
+  notes: z
+    .string()
+    .max(2000, "備考は 2000 文字以内で入力してください")
+    .nullable()
+    .optional(),
   lineUserId: z.string().min(1).max(50),
   lineDisplayName: z.string().max(100).optional(),
   accessToken: z.string().min(1),
@@ -55,22 +77,43 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}))
     parsed = bodySchema.parse(body)
   } catch (err) {
+    // error はフォームにそのまま表示される (内部コードではなく日本語で返す)
+    const issues = err instanceof z.ZodError ? err.issues : []
     return Response.json(
-      { error: "invalid_body", issues: err instanceof z.ZodError ? err.issues : [] },
+      { error: leadValidationMessage(issues), code: "invalid_body", issues },
       { status: 400 }
     )
   }
 
-  // LIFF access token の verify（なりすまし防止）
+  // LIFF access token の verify（なりすまし防止）。
+  // verify API 自体はトークンの持ち主を返さないため、確認済み userId
+  // (v2/profile 由来) が取れた場合はそれを信頼し、クライアント送信の
+  // lineUserId が別人になりすましていないか照合する。
+  let verifiedLineUserId: string | null = null
   if (isLiffServerConfigured()) {
     const v = await verifyLiffAccessToken(parsed.accessToken)
     if (!v.ok) {
       return Response.json(
-        { error: "invalid_liff_token", reason: v.reason },
+        {
+          error: "LINE の認証に失敗しました。画面を開き直してもう一度お試しください。",
+          code: "invalid_liff_token",
+          reason: v.reason,
+        },
         { status: 401 }
       )
     }
+    if (v.userId && v.userId !== parsed.lineUserId) {
+      return Response.json(
+        {
+          error: "LINE の認証に失敗しました。画面を開き直してもう一度お試しください。",
+          code: "line_user_id_mismatch",
+        },
+        { status: 401 }
+      )
+    }
+    verifiedLineUserId = v.userId ?? null
   }
+  const lineUserId = verifiedLineUserId ?? parsed.lineUserId
 
   // 対象求人
   const job = await prisma.job.findUnique({
@@ -85,7 +128,10 @@ export async function POST(request: NextRequest) {
     },
   })
   if (!job || job.status !== "active") {
-    return Response.json({ error: "job_not_found" }, { status: 404 })
+    return Response.json(
+      { error: "この求人は現在応募を受け付けていません。", code: "job_not_found" },
+      { status: 404 }
+    )
   }
 
   const sessionId = await getSessionIdIfExists().catch(() => null)
@@ -110,7 +156,7 @@ export async function POST(request: NextRequest) {
         utmMedium: utm.medium,
         utmCampaign: utm.campaign,
         referer: referer?.slice(0, 500) ?? null,
-        lineUserId: parsed.lineUserId,
+        lineUserId,
         lineDisplayName: parsed.lineDisplayName ?? null,
         status: "line_added",
       },
@@ -118,8 +164,9 @@ export async function POST(request: NextRequest) {
     })
     leadId = lead.id
 
-    // 通知
-    void notifyNewLead({
+    // 通知。レスポンス返却後に確実に走らせる (void のままだと Vercel では関数が
+    // 凍結され、新規応募の通知や受付確認が届かないことがある)
+    const newLeadPayload = {
       leadId: lead.id,
       name: parsed.name,
       phone: parsed.phone,
@@ -132,6 +179,9 @@ export async function POST(request: NextRequest) {
         prefecture: job.prefecture,
         city: job.city,
       },
+    }
+    after(async () => {
+      await notifyNewLead(newLeadPayload).catch(() => {})
     })
 
     // 受付確認 Push（LINE Messaging API 設定済みの場合）
@@ -150,11 +200,23 @@ export async function POST(request: NextRequest) {
         "",
         "担当より 1 営業日以内にこちらの LINE トークでご連絡いたします。",
       ].join("\n")
-      void pushMessage(parsed.lineUserId, [{ type: "text", text: ack }]).catch(() => {})
+      after(async () => {
+        await pushMessage(lineUserId, [{ type: "text", text: ack }]).catch(() => {})
+      })
     }
   } catch (e) {
     console.error(
       `[liff-lead] DB insert failed: ${e instanceof Error ? e.message : e}`
+    )
+  }
+
+  // lead を保存できなかった場合は成功扱いにしない。LIFF フォームには
+  // LINE トークへ続く導線が無く、「受け付けました」と表示すると応募が
+  // 記録されないまま失われる。フォームは入力を保持したまま再送できる。
+  if (!leadId) {
+    return Response.json(
+      { error: "送信に失敗しました。時間をおいてもう一度お試しください。" },
+      { status: 503 }
     )
   }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { StepShell } from "@/components/registration/step-shell"
 import { WizardProgress } from "@/components/registration/wizard-progress"
 import {
@@ -90,10 +91,22 @@ export default function IdentityStepPage() {
         return
       }
 
-      // 成功 → セッション破棄 → 完了画面へ (メール送信状態を query で受け渡し)
+      // 登録直後にそのままログインさせる。完了画面は「そのまま応募できます」と
+      // 案内しているのに未ログインのままで、応募・マイページの前にもう一度
+      // メールとパスワードを打ち直させていた。失敗しても登録自体は完了扱い。
+      try {
+        await signIn("seeker-credentials", {
+          email: answers.email,
+          password,
+          redirect: false,
+        })
+      } catch {
+        // ログイン画面から入れるので無視
+      }
+
+      // 成功 → セッション破棄 → 完了画面へ
       clearAnswers()
-      const emailSent = data.emailSent !== false
-      router.push(`/register/wizard/done?emailSent=${emailSent ? "1" : "0"}`)
+      router.push("/register/wizard/done")
     } catch {
       setError("通信エラーが発生しました。時間をおいてお試しください。")
       setSubmitting(false)

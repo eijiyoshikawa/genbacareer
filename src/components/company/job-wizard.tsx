@@ -7,6 +7,7 @@ import { CATEGORIES } from "@/lib/categories"
 import { Sparkles, Loader2, Eye, ChevronRight, ChevronLeft, Save, Check, FileStack } from "lucide-react"
 import { JobCard } from "@/components/jobs/job-card"
 import { ComplianceWarnings } from "@/components/company/compliance-warnings"
+import { MultiImageUploader } from "@/components/company/image-uploader"
 import { type JobTemplate } from "@/lib/job-templates"
 
 const EMPLOYMENT_TYPES = [
@@ -38,6 +39,7 @@ export interface JobWizardData {
   benefits: string[]
   tags: string[]
   videoUrls?: string[]
+  imageUrls?: string[]
   status: string
 }
 
@@ -57,6 +59,7 @@ type FormState = {
   benefits: string
   tags: string
   videoUrls: string
+  imageUrls: string[]
 }
 
 const STEPS = ["基本情報", "勤務地", "給与・条件", "プレビュー"] as const
@@ -80,6 +83,7 @@ function buildInitial(initial?: JobWizardData): FormState {
     benefits: initial?.benefits?.join(", ") ?? "",
     tags: initial?.tags?.join(", ") ?? "",
     videoUrls: initial?.videoUrls?.join("\n") ?? "",
+    imageUrls: initial?.imageUrls ?? [],
   }
 }
 
@@ -108,6 +112,7 @@ function toApiBody(form: FormState, status: string) {
           .filter(Boolean)
           .slice(0, 6)
       : [],
+    imageUrls: form.imageUrls.filter(Boolean).slice(0, 12),
     status,
   }
 }
@@ -602,6 +607,18 @@ export function JobWizard({
               description={form.description}
               requirements={form.requirements}
             />
+
+            {/* 求人写真 — 先頭がヒーロー画像として詳細ページ上部に表示される */}
+            <div className="border-t pt-5">
+              <MultiImageUploader
+                label="求人写真"
+                hint="「メインにする」で求人詳細ページの上部に表示するメイン画像を選べます。職場の様子・現場・チームの写真などを掲載すると応募が増えます。"
+                values={form.imageUrls}
+                onChange={(urls) => setForm({ ...form, imageUrls: urls })}
+                max={12}
+                primarySelectable
+              />
+            </div>
           </div>
         )}
 
@@ -750,7 +767,7 @@ export function JobWizard({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  動画 URL（YouTube / TikTok / Vimeo、1 行 1 URL、最大 6 本）
+                  動画・SNS URL（YouTube / TikTok / Vimeo / Instagram、1 行 1 URL、最大 6 本）
                 </label>
                 <textarea
                   rows={3}
@@ -759,7 +776,7 @@ export function JobWizard({
                     setForm({ ...form, videoUrls: e.target.value })
                   }
                   className="mt-1 block w-full border px-3 py-2 text-sm shadow-sm font-mono"
-                  placeholder={"https://youtu.be/XXXXXXXXXXX\nhttps://www.tiktok.com/@user/video/0000000000000000000"}
+                  placeholder={"https://youtu.be/XXXXXXXXXXX\nhttps://www.tiktok.com/@user/video/0000000000000000000\nhttps://www.instagram.com/reel/XXXXXXXXXXX/"}
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   現場の様子・社員インタビュー・1 日の流れなどの動画を掲載できます。求人詳細ページで埋め込み表示されます。

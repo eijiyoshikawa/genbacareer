@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { prisma } from "@/lib/db"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
+import { prisma, withDbRetry } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
 import { ChevronRight } from "lucide-react"
 import { Buildings, Clock, ArrowLeft, ArrowRight, Tag } from "@phosphor-icons/react/dist/ssr"
@@ -14,6 +15,7 @@ import { CATEGORIES } from "@/lib/categories"
 import {
   generateArticleSchema,
   generateBreadcrumbSchema,
+  toJsonLdScript,
 } from "@/lib/structured-data"
 import { CATEGORY_LABELS } from "@/lib/article-categories"
 
@@ -28,20 +30,23 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const article = await prisma.article.findFirst({
-    where: { slug, ...publishedArticleFilter() },
-    select: {
-      title: true,
-      metaDescription: true,
-      excerpt: true,
-      authorName: true,
-      category: true,
-      tags: true,
-      imageUrl: true,
-      publishedAt: true,
-      updatedAt: true,
-    },
-  })
+  const article = await withDbRetry(() =>
+    prisma.article.findFirst({
+      where: { slug, ...publishedArticleFilter() },
+      select: {
+        title: true,
+        metaDescription: true,
+        excerpt: true,
+        authorName: true,
+        category: true,
+        tags: true,
+        imageUrl: true,
+        publishedAt: true,
+        updatedAt: true,
+      },
+    })
+  ).catch(() => undefined)
+  if (article === undefined) return { title: "ゲンバキャリア マガジン" }
   if (!article) return { title: "記事が見つかりません" }
 
   const description =
@@ -88,9 +93,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params
-  const article = await prisma.article.findFirst({
-    where: { slug, ...publishedArticleFilter() },
-  })
+  const article = await withDbRetry(() =>
+    prisma.article.findFirst({
+      where: { slug, ...publishedArticleFilter() },
+    })
+  )
 
   if (!article) notFound()
 
@@ -114,7 +121,7 @@ export default async function ArticlePage({ params }: Props) {
     ? await prisma.job
         .findMany({
           where: { status: "active", category: article.subcategory! },
-          orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+          orderBy: buildPublicJobOrderBy("recommended"),
           take: 3,
           select: {
             id: true,
@@ -144,7 +151,7 @@ export default async function ArticlePage({ params }: Props) {
     select: { slug: true, title: true, publishedAt: true },
     orderBy: { publishedAt: "desc" },
     take: 5,
-  })
+  }).catch(() => [])
 
   // 前後の記事 (publishedAt 順、同カテゴリ内)
   const [prevArticle, nextArticle] = await Promise.all([
@@ -167,7 +174,9 @@ export default async function ArticlePage({ params }: Props) {
             where: {
               ...publishedArticleFilter(),
               category: article.category,
-              publishedAt: { gt: article.publishedAt },
+              // publishedArticleFilter() の「公開日時が現在以前」を上書きしないよう両方指定する
+              // (予約投稿の記事タイトルが「次の記事」に先出しされ、リンク先は 404 だった)
+              publishedAt: { gt: article.publishedAt, lte: new Date() },
             },
             orderBy: { publishedAt: "asc" },
             select: { slug: true, title: true },
@@ -216,11 +225,11 @@ export default async function ArticlePage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(articleJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumbJsonLd) }}
       />
 
       {/* Breadcrumb */}

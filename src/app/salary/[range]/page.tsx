@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import type { Metadata } from "next"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
 import { JobCard } from "@/components/jobs/job-card"
 import {
@@ -12,6 +13,7 @@ import {
   generateBreadcrumbSchema,
   generateCollectionPageSchema,
   generateItemListSchema,
+  toJsonLdScript,
 } from "@/lib/structured-data"
 import { auth } from "@/lib/auth"
 import { GUEST_LIMIT } from "@/lib/guest-job-access"
@@ -60,19 +62,21 @@ export default async function SalaryRangePage({ params }: Props) {
   const fullLimit = 60
   const limit = loggedIn ? fullLimit : GUEST_LIMIT
 
+  // 月給 X 万円以上 = salaryMin >= lp.minMonthly && salaryType in (monthly, null)
+  // null は不明扱いだが除外すると hellowork 系がほとんど消えるため許容する。
+  // salaryType を絞らないと年収/時給ベースの求人が数値だけで月給ページに混入する
+  // (例: 年収400万円=salaryMin 4,000,000 が「月給50万円以上」に紛れ込む)。
   const where = {
     status: "active",
     category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
     salaryMin: { gte: lp.minMonthly },
+    OR: [{ salaryType: "monthly" }, { salaryType: null }],
   }
-
-  // 月給 X 万円以上 = salaryMin >= lp.minMonthly && salaryType in (monthly, null)
-  // null は不明扱いだが除外すると hellowork 系がほとんど消えるため許容する。
   const [jobs, total] = await Promise.all([
     prisma.job
       .findMany({
         where,
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit,
         select: {
           id: true,
@@ -119,15 +123,15 @@ export default async function SalaryRangePage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumb) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPage) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(collectionPage) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(itemList) }}
       />
 
       <header className="border-b bg-warm-50">

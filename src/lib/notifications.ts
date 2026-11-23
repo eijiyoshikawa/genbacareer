@@ -48,8 +48,9 @@ export async function createNotification(input: {
   refId?: string | null
 }): Promise<void> {
   // inbox 行は通知設定に関わらず常に作成 (ユーザーが履歴を後から見られるように)
+  let createdId: string | null = null
   try {
-    await prisma.notification.create({
+    const row = await prisma.notification.create({
       data: {
         userId: input.userId,
         type: input.type,
@@ -58,7 +59,9 @@ export async function createNotification(input: {
         linkUrl: input.linkUrl ?? null,
         refId: input.refId ?? null,
       },
+      select: { id: true },
     })
+    createdId = row.id
   } catch (e) {
     console.warn(`[notifications] create failed: ${e instanceof Error ? e.message : e}`)
   }
@@ -75,9 +78,15 @@ export async function createNotification(input: {
   // 静音時間帯ならプッシュ系をスキップ (inbox には残る)
   if (isInQuietHours(prefs)) return
 
-  // 即時配信のみ LINE Push 発火 (daily/weekly は cron でバッチ送信、未実装)
+  // 即時配信は今ここで LINE Push。daily/weekly は line-digest cron がまとめて送る。
+  // linePushedAt は「送信成功」の記録として使う（digest 側の再送判定にも使うため、
+  // 実際には届いていないのに送信済み扱いにして黙って通知を失わないよう、
+  // 成功したときだけマークする）。
   if (prefs.frequency === "immediate" && prefs.lineEnabled) {
-    pushUserNotification({
+    // await する: void のままだと呼び出し元 (cron / API) がレスポンスを返した時点で
+    // 関数が凍結され、最後の数件の LINE 通知が送られないことがある。即時配信の
+    // 通知は digest の再送対象にもならないため、落ちると届かないままになる。
+    await pushUserNotification({
       userId: input.userId,
       title: input.title,
       body: input.body,
@@ -85,11 +94,22 @@ export async function createNotification(input: {
       linkUrl: input.linkUrl,
       linkLabel: input.linkLabel,
       kind: input.type,
-    }).catch((e) => {
-      console.warn(
-        `[notifications] line push failed: ${e instanceof Error ? e.message : e}`
-      )
     })
+      .then((result) => {
+        if (result === "sent" && createdId) {
+          return prisma.notification
+            .update({
+              where: { id: createdId },
+              data: { linePushedAt: new Date() },
+            })
+            .catch(() => {})
+        }
+      })
+      .catch((e) => {
+        console.warn(
+          `[notifications] line push failed: ${e instanceof Error ? e.message : e}`
+        )
+      })
   }
 }
 

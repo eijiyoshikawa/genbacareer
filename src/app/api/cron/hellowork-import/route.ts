@@ -21,13 +21,16 @@
 
 import {
   fetchPagesFromDataId,
+  fetchKyujinByDataId,
   getToken,
   delToken,
 } from "@/lib/crawler/hellowork"
 import { importHelloworkJobs } from "@/lib/crawler/import-batch"
 import {
+  isHelloworkQuietHour,
   planNextRotation,
   recordBatchResult,
+  recordRunWithoutProgress,
 } from "@/lib/crawler/rotation-planner"
 import { prisma } from "@/lib/db"
 
@@ -40,7 +43,7 @@ const DEFAULT_PAGES_PER_RUN = 2
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -54,6 +57,16 @@ export async function GET(request: Request) {
 
   const t0 = Date.now()
 
+  // 手動で dataId/page を明示した場合は窓に関係なく実行する（運用者の判断を優先）
+  if (!(dataIdParam && pageParam) && isHelloworkQuietHour()) {
+    return Response.json({
+      success: true,
+      skipped: "hellowork-api-quiet-hours",
+      timestamp: new Date().toISOString(),
+    })
+  }
+
+  let failedDataId: string | null = null
   try {
     // ---- 1. 取り込み計画を決定 ----
     let dataId: string
@@ -69,6 +82,8 @@ export async function GET(request: Request) {
       startPage = plan.startPage
     }
 
+    failedDataId = dataId
+
     // ---- 2. API から N ページ分取得 ----
     const credentials = {
       id: requiredEnv("HELLOWORK_API_USER"),
@@ -76,6 +91,7 @@ export async function GET(request: Request) {
     }
     const token = await getToken(credentials)
     let fetchResult
+    let apiUnavailable = false
     try {
       fetchResult = await fetchPagesFromDataId(
         token,
@@ -83,6 +99,13 @@ export async function GET(request: Request) {
         startPage,
         pagesPerRun
       )
+      // 途中ページから 1 件も取れなかった場合、本当に末尾なのか API が
+      // 一時的にデータを返していないだけなのかを page 1 で確認する。
+      // page 1 まで空なら API 側の一時不調とみなし、進捗を進めない。
+      if (fetchResult.jobs.length === 0 && startPage > 1) {
+        const probe = await fetchKyujinByDataId(token, dataId, 1)
+        if (probe.length === 0) apiUnavailable = true
+      }
     } finally {
       try {
         await delToken(token)
@@ -93,6 +116,23 @@ export async function GET(request: Request) {
           }`
         )
       }
+    }
+
+    if (apiUnavailable) {
+      // exhausted を立てず lastRunAt だけ更新して次の dataId へ回す。
+      // 進捗 (lastPage) は保持されるため、次の巡回で同じページから再開する。
+      await recordRunWithoutProgress(prisma, dataId)
+      console.warn(
+        `[cron/hellowork-import] API がデータを返さないため進捗を保留: dataId=${dataId} page=${startPage}`
+      )
+      return Response.json({
+        success: true,
+        skipped: "hellowork-api-empty",
+        dataId,
+        startPage,
+        durationMs: Date.now() - t0,
+        timestamp: new Date().toISOString(),
+      })
     }
 
     // ---- 3. DB に upsert ----
@@ -128,6 +168,12 @@ export async function GET(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error"
     console.error(`[cron/hellowork-import] failed: ${message}`)
+    // 失敗しても lastRunAt だけは進める。進めないと次回も同じ dataId (最も古い
+    // lastRunAt) が選ばれ続け、特定ページの不調で巡回全体が止まってしまう。
+    // lastPage は変えないので、一巡後に同じページから再開する。
+    if (failedDataId) {
+      await recordRunWithoutProgress(prisma, failedDataId).catch(() => {})
+    }
     return Response.json(
       { success: false, error: message, durationMs: Date.now() - t0 },
       { status: 500 }

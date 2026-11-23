@@ -40,7 +40,8 @@ export async function POST(
       companyId: ctx.companyId,
       source: "direct",
       // 「(複製)」サフィックス。既にあれば連番にしない（最小実装）
-      title: `${original.title}（複製）`.slice(0, 500),
+      // 編集 API の title 上限 (200 文字) に収める。超えると複製した下書きを保存できない
+      title: `${original.title.slice(0, 200 - "（複製）".length)}（複製）`,
       category: original.category,
       subcategory: original.subcategory,
       employmentType: original.employmentType,
@@ -60,6 +61,7 @@ export async function POST(
       expiresAt: null,
       viewCount: 0,
       rankScore: 0,
+      displayPriority: 1, // source='direct' のため必ず Tier 1
       // hellowork 拡張フィールドは複製対象外（参照系のため）
     },
   })

@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/db"
-import { generateToken, TOKEN_EXPIRY_MS } from "@/lib/tokens"
+import { generateToken, hashToken, TOKEN_EXPIRY_MS } from "@/lib/tokens"
 import { sendPasswordResetEmail } from "@/lib/email"
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit"
 
@@ -33,8 +33,9 @@ export async function POST(request: NextRequest) {
   const { email } = parsed.data
 
   // Always return success to prevent email enumeration
-  const user = await prisma.user.findUnique({
-    where: { email },
+  // 登録は小文字正規化で保存するため、入力の大文字小文字違いも拾う
+  const user = await prisma.user.findFirst({
+    where: { email: { in: [email, email.trim().toLowerCase()] } },
     select: { id: true },
   })
 
@@ -42,9 +43,12 @@ export async function POST(request: NextRequest) {
     const token = generateToken()
     const expiry = new Date(Date.now() + TOKEN_EXPIRY_MS)
 
+    // DB にはハッシュを保存し、平文トークンはメールでのみ送る（at-rest 保護）
     await prisma.user.update({
       where: { id: user.id },
-      data: { resetToken: token, resetTokenExpiry: expiry },
+      data: { resetToken: hashToken(token), resetTokenExpiry: expiry },
+      // 更新後に全カラムを SELECT して返さない（無関係なカラム欠落で巻き込まれないよう）
+      select: { id: true },
     })
 
     try {

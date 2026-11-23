@@ -2,10 +2,14 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { CATEGORIES } from "@/lib/categories"
+import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
+import { revalidateAfterJobChange } from "@/lib/revalidate-public"
+import { computeDisplayPriority } from "@/lib/job-display-priority"
 
-const VALID_CATEGORIES = CATEGORIES.map((c) => c.value)
+// 建設業カテゴリのみ受け付ける。「その他 (other)」は公開一覧・サイトマップに出ないのに
+// /jobs/{id} では公開されてしまうため、API でも弾く (投稿フォームの選択肢にも無い)。
+const VALID_CATEGORIES: readonly string[] = CONSTRUCTION_CATEGORY_VALUES
 
 const jobSchema = z.object({
   title: z.string().min(1).max(200),
@@ -14,8 +18,8 @@ const jobSchema = z.object({
   employmentType: z.enum(["full_time", "part_time", "contract"]).nullable().optional(),
   description: z.string().nullable().optional(),
   requirements: z.string().nullable().optional(),
-  salaryMin: z.number().int().min(0).nullable().optional(),
-  salaryMax: z.number().int().min(0).nullable().optional(),
+  salaryMin: z.number().int().min(0).max(100_000_000).nullable().optional(),
+  salaryMax: z.number().int().min(0).max(100_000_000).nullable().optional(),
   salaryType: z.enum(["monthly", "hourly", "annual"]).nullable().optional(),
   prefecture: z.string().min(1).max(10),
   city: z.string().max(50).nullable().optional(),
@@ -23,6 +27,7 @@ const jobSchema = z.object({
   benefits: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
   videoUrls: z.array(z.string().url().max(500)).max(6).optional(),
+  imageUrls: z.array(z.string().url().max(500)).max(12).optional(),
   status: z.enum(["draft", "active", "closed"]).optional(),
 })
 
@@ -46,7 +51,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = request.nextUrl
-  const page = Math.max(1, Number(searchParams.get("page")) || 1)
+  const page = Math.min(10_000, Math.max(1, Math.trunc(Number(searchParams.get("page"))) || 1))
   const perPage = 20
   const status = searchParams.get("status")
 
@@ -99,6 +104,18 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  if (
+    data.salaryMin != null &&
+    data.salaryMax != null &&
+    data.salaryMax > 0 &&
+    data.salaryMin > data.salaryMax
+  ) {
+    return Response.json(
+      { error: "給与の下限は上限以下で入力してください" },
+      { status: 400 }
+    )
+  }
+
   const job = await prisma.job.create({
     data: {
       companyId: ctx.companyId,
@@ -118,8 +135,25 @@ export async function POST(request: NextRequest) {
       benefits: data.benefits ?? [],
       tags: data.tags ?? [],
       videoUrls: data.videoUrls ?? [],
+      imageUrls: data.imageUrls ?? [],
       status: data.status ?? "draft",
       publishedAt: data.status === "active" ? new Date() : null,
+      displayPriority: computeDisplayPriority({
+        source: "direct",
+        salaryType: data.salaryType ?? null,
+        salaryMin: data.salaryMin ?? null,
+        salaryMax: data.salaryMax ?? null,
+        employmentType: data.employmentType ?? null,
+        workHours: null,
+        workHoursNotes: null,
+        holidays: null,
+        annualHolidays: null,
+        insurance: null,
+        smokingPolicy: null,
+        trialPeriod: null,
+        description: data.description ?? null,
+        prefecture: data.prefecture,
+      }), // source='direct' のため常に Tier 1 になるが、将来の優先度ロジック変更に追従できるよう関数経由でセット
     },
   })
 
@@ -136,6 +170,7 @@ export async function POST(request: NextRequest) {
         `[gbiz-reminder] job published without corporateNumber: companyId=${ctx.companyId} name=${company.name} jobId=${job.id}`
       )
     }
+    revalidateAfterJobChange({ companyId: ctx.companyId })
   }
 
   return Response.json({ job }, { status: 201 })

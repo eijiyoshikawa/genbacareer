@@ -19,7 +19,7 @@
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { PLAN_TYPES, planTier } from "@/lib/plans"
+import { PLAN_TYPES, isPlanActive, planTier } from "@/lib/plans"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -90,7 +90,13 @@ export async function POST(
 
   const company = await prisma.company.findUnique({
     where: { id },
-    select: { id: true, planType: true, planActivatedAt: true, source: true },
+    select: {
+      id: true,
+      planType: true,
+      planActivatedAt: true,
+      planPaidUntil: true,
+      source: true,
+    },
   })
   if (!company) {
     return Response.json({ error: "企業が見つかりません" }, { status: 404 })
@@ -114,18 +120,43 @@ export async function POST(
     }
   }
 
+  // 期限通知の再送フラグは、プラン種別か終了日が変わったときだけ戻す。
+  // メモだけの保存でも毎回戻していたため、翌日に同じ期限通知メールが再送されていた。
+  const nextPaidUntil = parsePaidUntil(planPaidUntil)
+  const planChanged =
+    company.planType !== planType ||
+    (company.planPaidUntil?.getTime() ?? null) !== (nextPaidUntil?.getTime() ?? null)
+
   await prisma.company.update({
     where: { id },
     data: {
       planType,
-      planPaidUntil: planPaidUntil ? new Date(planPaidUntil) : null,
+      planPaidUntil: nextPaidUntil,
       planActivatedAt: activatedAt,
       planPrepaidFull,
       planNotes,
-      planTier: planTier({ planType, source: company.source }),
-      planExpiryNotifiedAt: null,
+      // 期限切れの月額 / SNS プランは expire-plans cron が planTier を 0 に落とす。
+      // ここで無条件に再計算すると、メモだけ編集しても次の cron まで (最長 24 時間)
+      // 有料枠の表示順位に戻ってしまう。
+      planTier: isPlanActive({ planType, planPaidUntil: nextPaidUntil })
+        ? planTier({ planType, source: company.source })
+        : 0,
+      ...(planChanged ? { planExpiryNotifiedAt: null } : {}),
     },
   })
 
   return Response.json({ ok: true })
+}
+
+/**
+ * 契約終了日。フォームは YYYY-MM-DD を送るため、そのまま new Date() すると
+ * UTC 0 時 (= JST 9 時) になり、最終日の朝 9 時にプランが失効していた。
+ * 日付のみの入力は JST のその日の終わりとして扱う。
+ */
+function parsePaidUntil(value: string | null | undefined): Date | null {
+  if (!value) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T23:59:59.999+09:00`)
+  }
+  return new Date(value)
 }

@@ -11,7 +11,11 @@
  */
 
 import { prisma } from "@/lib/db"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
+import { headers } from "next/headers"
+import { auth } from "@/lib/auth"
+import { getGuestJobIdLimit } from "@/lib/guest-job-access"
+import { isValidUuid } from "@/lib/uuid"
 import type { Metadata } from "next"
 import Image from "next/image"
 import { getCategoryLabel } from "@/lib/categories"
@@ -33,12 +37,24 @@ export default async function JobPrintPage({ params, searchParams }: Props) {
   const { id } = await params
   const sp = (await searchParams) ?? {}
   const auto = sp.auto === "1"
+  if (!isValidUuid(id)) notFound()
+
+  // 求人詳細と同じ未登録ゲート (上位 15 件以外はログインが必要)
+  const session = await auth().catch(() => null)
+  const guestLimit = await getGuestJobIdLimit({
+    loggedIn: !!session?.user?.id,
+    userAgent: (await headers()).get("user-agent"),
+  })
+  if (guestLimit && !guestLimit.has(id)) {
+    redirect(`/login?callbackUrl=${encodeURIComponent(`/jobs/${id}`)}`)
+  }
 
   // 印刷ページで実際に使うカラムのみ select する。
   // rawData (Json 丸ごと格納) など印刷に不要な重カラムは含めない。
   const job = await prisma.job
-    .findUnique({
-      where: { id },
+    .findFirst({
+      // 掲載中のみ。下書き・終了求人を ID 直打ちで閲覧できないようにする。
+      where: { id, status: "active" },
       select: {
         id: true,
         title: true,
@@ -72,7 +88,7 @@ export default async function JobPrintPage({ params, searchParams }: Props) {
   if (!job) notFound()
 
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryType)
-  const generatedAt = new Date().toLocaleString("ja-JP")
+  const generatedAt = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
 
   return (
     <html lang="ja">

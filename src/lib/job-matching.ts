@@ -61,6 +61,7 @@ export async function findRelatedJobs(
   }
 
   const orderBy: Prisma.JobOrderByWithRelationInput[] = [
+    { displayPriority: "asc" },
     { rankScore: "desc" },
     { publishedAt: "desc" },
   ]

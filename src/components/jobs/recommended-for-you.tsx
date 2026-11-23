@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Sparkle, Money, MapPin } from "@phosphor-icons/react/dist/ssr"
+import { Money, MapPin } from "@phosphor-icons/react/dist/ssr"
 import { JobCardSkeletonGrid } from "@/components/ui/skeleton"
 import { getCategoryLabel } from "@/lib/categories"
 
@@ -104,7 +104,6 @@ export function RecommendedForYou({
   return (
     <section>
       <h2 className="flex items-center gap-2 text-xl sm:text-2xl font-bold text-gray-900 section-bar">
-        <Sparkle weight="fill" className="h-5 w-5 text-amber-500" />
         あなたへのおすすめ求人
       </h2>
       <p className="mt-1 text-xs text-gray-500">

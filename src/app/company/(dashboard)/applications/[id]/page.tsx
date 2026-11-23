@@ -1,5 +1,7 @@
+import { isValidUuid } from "@/lib/uuid"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { CandidateAvatar } from "@/components/company/candidate-avatar"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
@@ -42,6 +44,8 @@ export default async function ApplicationDetailPage({
   if (!companyId) redirect("/login")
 
   const { id } = await params
+  // UUID でない ID を Prisma に渡すと P2023 で 500 になるため 404 にする
+  if (!isValidUuid(id)) notFound()
 
   const app = await prisma.application.findUnique({
     where: { id },
@@ -70,6 +74,7 @@ export default async function ApplicationDetailPage({
           phone: true,
           prefecture: true,
           city: true,
+          avatarUrl: true,
         },
       },
     },
@@ -99,7 +104,9 @@ export default async function ApplicationDetailPage({
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="flex items-center gap-4">
+          <CandidateAvatar avatarUrl={app.user.avatarUrl} name={app.user.name} size="lg" />
+          <div>
           <h1 className="text-2xl font-bold text-gray-900">
             {app.user.name ?? "（名前未設定）"}
           </h1>
@@ -114,6 +121,7 @@ export default async function ApplicationDetailPage({
               {app.job.title}
             </Link>
           </p>
+          </div>
         </div>
         <span
           className={`inline-flex items-center px-3 py-1 text-sm font-bold ${status.classes}`}
@@ -162,7 +170,7 @@ export default async function ApplicationDetailPage({
               <div>
                 <dt className="text-xs font-bold text-gray-500">応募日時</dt>
                 <dd className="mt-0.5 text-gray-900">
-                  {app.createdAt.toLocaleString("ja-JP")}
+                  {app.createdAt.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
                 </dd>
               </div>
             </dl>
@@ -193,7 +201,7 @@ export default async function ApplicationDetailPage({
                     <li key={`${h.at}-${i}`} className="relative">
                       <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-primary-500" />
                       <p className="text-xs text-gray-500">
-                        {new Date(h.at).toLocaleString("ja-JP")}
+                        {new Date(h.at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
                       </p>
                       <p className="mt-0.5 text-sm">
                         <span className="font-bold text-gray-700">

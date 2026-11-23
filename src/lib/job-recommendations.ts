@@ -13,6 +13,8 @@
  * - 募集が枯れた場合は最新ハイランクの建設業求人にフォールバック
  */
 
+import { isValidUuid } from "@/lib/uuid"
+import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
 import {
   CONSTRUCTION_CATEGORY_VALUES,
@@ -192,9 +194,34 @@ export async function getRecommendedJobs(
     company: { select: { name: true, logoUrl: true, gbizData: true } },
   } as const
 
+  // 求職者がブロックした企業はおすすめにも出さない (/jobs 検索と同じ扱い)
+  const blockedCompanyIds =
+    userId && isValidUuid(userId)
+      ? await prisma.user
+          .findUnique({
+            where: { id: userId },
+            select: { blockedCompanyIds: true },
+          })
+          .then((u) => u?.blockedCompanyIds ?? [])
+          .catch(() => [] as string[])
+      : []
+
   const baseFilter = {
     status: "active" as const,
     category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
+    ...(blockedCompanyIds.length > 0
+      ? {
+          // companyId が NULL の求人は NOT IN が NULL になり落ちるため明示的に許可
+          AND: [
+            {
+              OR: [
+                { companyId: null },
+                { companyId: { notIn: blockedCompanyIds } },
+              ],
+            },
+          ],
+        }
+      : {}),
   }
 
   // userId も sessionId も無い → グローバル人気求人
@@ -202,7 +229,7 @@ export async function getRecommendedJobs(
     return prisma.job
       .findMany({
         where: baseFilter,
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit,
         select,
       })
@@ -217,7 +244,7 @@ export async function getRecommendedJobs(
     return prisma.job
       .findMany({
         where: baseFilter,
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit,
         select,
       })
@@ -240,7 +267,7 @@ export async function getRecommendedJobs(
           prefecture: { in: preferredPrefectures },
           ...notInExclude,
         },
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit,
         select,
       })
@@ -259,7 +286,7 @@ export async function getRecommendedJobs(
             ? { id: { notIn: [...collected.keys(), ...excludeArray] } }
             : notInExclude),
         },
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit - collected.size,
         select,
       })
@@ -278,7 +305,7 @@ export async function getRecommendedJobs(
             ? { id: { notIn: [...collected.keys(), ...excludeArray] } }
             : notInExclude),
         },
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit - collected.size,
         select,
       })
@@ -296,7 +323,7 @@ export async function getRecommendedJobs(
             ? { id: { notIn: [...collected.keys(), ...excludeArray] } }
             : notInExclude),
         },
-        orderBy: [{ rankScore: "desc" }, { publishedAt: "desc" }],
+        orderBy: buildPublicJobOrderBy("recommended"),
         take: limit - collected.size,
         select,
       })

@@ -72,7 +72,7 @@ export function RelatedAreaCategoryLinks({
                       href={`/${s}/${category}`}
                       className="press inline-flex items-center gap-1 bg-white border border-gray-200 px-2.5 py-1 text-xs text-gray-700 hover:border-primary-400 hover:bg-primary-50 hover:text-primary-700 transition"
                     >
-                      {p.replace(/[県府都道]$/, "")} × {categoryLabel}
+                      {p.replace(/[県府都]$/, "")} × {categoryLabel}
                     </Link>
                   </li>
                 )
@@ -86,7 +86,7 @@ export function RelatedAreaCategoryLinks({
           <div>
             <p className="flex items-center gap-1.5 text-xs font-bold text-gray-600 mb-2">
               <Briefcase weight="duotone" className="h-3.5 w-3.5 text-primary-500" />
-              {prefecture.replace(/[県府都道]$/, "")}の他職種
+              {prefecture.replace(/[県府都]$/, "")}の他職種
             </p>
             <ul className="flex flex-wrap gap-1.5">
               {otherCategories.map((c) => (

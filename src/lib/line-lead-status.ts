@@ -5,6 +5,7 @@
 
 export const LEAD_STATUSES = [
   "pending",
+  "follower",
   "line_added",
   "contacted",
   "qualified",
@@ -22,6 +23,11 @@ export const LEAD_STATUS_META: Record<
     label: "新規",
     description: "フォーム送信直後、未対応",
     classes: "bg-amber-100 text-amber-800 border-amber-200",
+  },
+  follower: {
+    label: "フォロワー",
+    description: "公式 LINE 友だち追加のみ（応募前・配信対象）",
+    classes: "bg-violet-100 text-violet-800 border-violet-200",
   },
   line_added: {
     label: "LINE 追加済",

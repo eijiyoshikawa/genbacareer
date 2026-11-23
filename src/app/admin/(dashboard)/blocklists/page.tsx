@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 /**
  * 8.1 除外キーワード GUI 管理。
  *
@@ -19,6 +20,7 @@ export const metadata: Metadata = {
 }
 
 export default async function BlocklistsPage() {
+  await requireAdminPage()
   const items = await prisma.blocklist
     .findMany({
       orderBy: [{ enabled: "desc" }, { updatedAt: "desc" }],

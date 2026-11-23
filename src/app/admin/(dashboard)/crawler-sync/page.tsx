@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 /**
  * 7.2 クローラ差分同期 / 8.4 重複求人マージ admin 画面。
  *
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
 }
 
 export default async function CrawlerSyncPage() {
+  await requireAdminPage()
   const [checkpoints, dedupeStats] = await Promise.all([
     prisma.crawlerSyncCheckpoint
       .findMany({ orderBy: { lastSyncedAt: "desc" } })

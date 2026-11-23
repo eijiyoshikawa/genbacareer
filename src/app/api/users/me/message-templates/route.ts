@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic"
 const createSchema = z.object({
   name: z.string().min(1).max(60),
   body: z.string().min(1).max(2000),
-  sortOrder: z.number().int().optional(),
+  sortOrder: z.number().int().min(-10000).max(10000).optional(),
 })
 
 export async function GET() {

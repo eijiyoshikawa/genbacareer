@@ -230,7 +230,7 @@ export function computeScoreBreakdown(
 
   // 更新日
   let freshScore = 0
-  let freshHint = "プロフィールを保存するとフレッシュネス +20 点"
+  let freshHint = "プロフィールを保存すると最新性 +20 点"
   if (company.lastContentUpdatedAt) {
     const days =
       (now.getTime() - company.lastContentUpdatedAt.getTime()) / (1000 * 60 * 60 * 24)

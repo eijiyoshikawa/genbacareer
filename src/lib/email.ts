@@ -34,6 +34,22 @@ interface SendEmailParams {
 
 let cachedTransporter: nodemailer.Transporter | null = null
 
+/**
+ * SMTP の送信設定（SMTP_USER / SMTP_PASS）が揃っているか。
+ * ヘルスチェック等から本番のメール送信可否を確認するために公開する。
+ */
+export function isEmailConfigured(): boolean {
+  return !!(process.env.SMTP_USER && process.env.SMTP_PASS)
+}
+
+/** 本番(Vercel Production / NODE_ENV=production)かどうか */
+function isProduction(): boolean {
+  return (
+    process.env.VERCEL_ENV === "production" ||
+    process.env.NODE_ENV === "production"
+  )
+}
+
 function getTransporter(): nodemailer.Transporter | null {
   const user = process.env.SMTP_USER
   const pass = process.env.SMTP_PASS
@@ -52,10 +68,33 @@ function getTransporter(): nodemailer.Transporter | null {
   return cachedTransporter
 }
 
+/**
+ * 実在しないプレースホルダーのメールアドレスかどうか。
+ *   - line_<sub>@line.local       … LINE ログインで作られたアカウント (メール未取得)
+ *   - deleted+<id>@deleted.local  … 退会済みアカウント
+ * 送っても必ずバウンスし、送信ドメインの評価を下げるだけなので送信しない。
+ */
+export function isPlaceholderEmail(address: string): boolean {
+  return /@(line|deleted)\.local$/i.test(address.trim())
+}
+
 export async function sendEmail({ to, subject, html, text }: SendEmailParams) {
+  if (isPlaceholderEmail(to)) {
+    return { success: false, skipped: true }
+  }
+
   const transporter = getTransporter()
 
   if (!transporter) {
+    if (isProduction()) {
+      // 本番で SMTP 未設定 = メールが実際には送信されていない。
+      // console.error にすることで Vercel ログ / Sentry に可視化し、
+      // 「黙って飛ばない」事故を検知できるようにする。
+      console.error(
+        `[email] SMTP 未設定のためメール未送信 (本番)。SMTP_USER / SMTP_PASS を設定してください。 To: ${to} / Subject: ${subject}`,
+      )
+      return { success: false, skipped: true }
+    }
     // Development fallback
     console.log(`[email] To: ${to}`)
     console.log(`[email] Subject: ${subject}`)

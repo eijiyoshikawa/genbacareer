@@ -1,11 +1,7 @@
 import Link from "next/link"
 import Image from "next/image"
-import {
-  Megaphone,
-  Star,
-  CaretRight,
-  Microphone,
-} from "@phosphor-icons/react/dist/ssr"
+import { CaretRight } from "@phosphor-icons/react/dist/ssr"
+import { pickDefaultJobImage } from "@/lib/default-job-images"
 
 type SidebarJob = {
   id: string
@@ -15,6 +11,7 @@ type SidebarJob = {
   salaryMin: number | null
   salaryMax: number | null
   salaryType: string | null
+  imageUrls?: string[]
   company: { name: string } | null
 }
 
@@ -54,12 +51,7 @@ export function HomeSidebar({
       {featuredJobs.length > 0 && (
         <section className="card p-4">
           <div className="flex items-end justify-between mb-3">
-            <h3 className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
-              <Star
-                weight="fill"
-                className="h-4 w-4 text-amber-500"
-                aria-hidden
-              />
+            <h3 className="text-sm font-bold text-gray-900">
               注目求人
             </h3>
             <Link
@@ -70,51 +62,74 @@ export function HomeSidebar({
             </Link>
           </div>
           <ul className="space-y-2">
-            {featuredJobs.slice(0, 5).map((j) => (
-              <li key={j.id}>
-                <Link
-                  href={`/jobs/${j.id}`}
-                  className="press card-flat block p-3"
-                >
-                  <p className="text-xs font-bold text-gray-900 line-clamp-2">
-                    {j.title}
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-gray-500">
-                    {j.company && (
-                      <span className="truncate max-w-[140px]">
-                        {j.company.name}
-                      </span>
+            {featuredJobs.slice(0, 7).map((j, idx) => {
+              const thumb = j.imageUrls?.[0] ?? pickDefaultJobImage(j.id)
+              return (
+                // スマホ(メイン下に積まれる表示)は3件まで。lg以上のサイドバーでは7件
+                <li key={j.id} className={idx >= 3 ? "hidden lg:block" : undefined}>
+                  <Link
+                    href={`/jobs/${j.id}`}
+                    className="press card-flat block overflow-hidden"
+                  >
+                    {thumb && (
+                      <div className="relative aspect-[16/9] w-full overflow-hidden bg-gray-100">
+                        <Image
+                          src={thumb}
+                          alt=""
+                          fill
+                          sizes="260px"
+                          className="object-cover"
+                          unoptimized={
+                            !thumb.startsWith("/") &&
+                            !thumb.includes("supabase.co")
+                          }
+                        />
+                      </div>
                     )}
-                    <span>
-                      {j.prefecture}
-                      {j.city ? ` ${j.city}` : ""}
-                    </span>
-                  </div>
-                  {j.salaryMin && (
-                    <p className="mt-1 text-xs font-bold text-primary-700">
-                      {formatSalaryShort(
-                        j.salaryMin,
-                        j.salaryMax,
-                        j.salaryType,
+                    <div className="p-3">
+                      <p className="text-xs font-bold text-gray-900 line-clamp-2">
+                        {j.title}
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-gray-500">
+                        {j.company && (
+                          <span className="truncate max-w-[140px]">
+                            {j.company.name}
+                          </span>
+                        )}
+                        <span>
+                          {j.prefecture}
+                          {j.city ? ` ${j.city}` : ""}
+                        </span>
+                      </div>
+                      {j.salaryMin && (
+                        <p className="mt-1 text-xs font-bold text-primary-700">
+                          {formatSalaryShort(
+                            j.salaryMin,
+                            j.salaryMax,
+                            j.salaryType,
+                          )}
+                        </p>
                       )}
-                    </p>
-                  )}
-                </Link>
-              </li>
-            ))}
+                    </div>
+                  </Link>
+                </li>
+              )
+            })}
           </ul>
+          {/* スマホは3件までに絞るため「もっと見る」導線を出す（lgのサイドバーでは非表示） */}
+          <Link
+            href="/jobs"
+            className="press mt-3 flex w-full items-center justify-center gap-1 border border-primary-300 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 hover:bg-primary-100 lg:hidden"
+          >
+            もっと見る →
+          </Link>
         </section>
       )}
 
       {/* === お知らせ === */}
       {announcements.length > 0 && (
         <section className="card p-4">
-          <h3 className="flex items-center gap-1.5 text-sm font-bold text-gray-900 mb-3">
-            <Megaphone
-              weight="duotone"
-              className="h-4 w-4 text-primary-500"
-              aria-hidden
-            />
+          <h3 className="text-sm font-bold text-gray-900 mb-3">
             お知らせ
           </h3>
           <ul className="space-y-2">
@@ -156,12 +171,7 @@ export function HomeSidebar({
       {interviewArticles.length > 0 && (
         <section className="card p-4">
           <div className="flex items-end justify-between mb-3">
-            <h3 className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
-              <Microphone
-                weight="duotone"
-                className="h-4 w-4 text-rose-500"
-                aria-hidden
-              />
+            <h3 className="text-sm font-bold text-gray-900">
               現場インタビュー
             </h3>
             <Link
@@ -172,7 +182,7 @@ export function HomeSidebar({
             </Link>
           </div>
           <ul className="space-y-3">
-            {interviewArticles.slice(0, 4).map((a) => (
+            {interviewArticles.slice(0, 5).map((a) => (
               <li key={a.slug}>
                 <Link
                   href={`/journal/${a.slug}`}

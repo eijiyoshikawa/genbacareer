@@ -1,4 +1,5 @@
 import type { HwJob } from "@/lib/jobs-api"
+import { toJsonLdScript } from "@/lib/structured-data"
 
 /**
  * Google for Jobs 用 JSON-LD（schema.org JobPosting）。
@@ -47,7 +48,7 @@ export function HwJobStructuredData({ job }: { job: HwJob }) {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{ __html: toJsonLdScript(data) }}
     />
   )
 }
@@ -55,6 +56,11 @@ export function HwJobStructuredData({ job }: { job: HwJob }) {
 /** 日本語雇用形態文字列を Google for Jobs vocab にマッピング */
 function mapEmploymentType(value: string | null | undefined): string {
   if (!value) return "OTHER"
+  // DB の値 (full_time / part_time / contract) がそのまま渡ってくる。日本語だけを
+  // 見ていたため、全ての HW 求人が OTHER で出力されていた。
+  if (value === "full_time") return "FULL_TIME"
+  if (value === "part_time") return "PART_TIME"
+  if (value === "contract") return "CONTRACTOR"
   if (/正社員|フルタイム/i.test(value)) return "FULL_TIME"
   if (/パート|アルバイト/i.test(value)) return "PART_TIME"
   if (/契約|嘱託/i.test(value)) return "CONTRACTOR"
@@ -98,15 +104,20 @@ function buildJobLocation(job: HwJob) {
   }
 }
 
-function buildBaseSalary(job: HwJob) {
-  if (job.salary.min === null && job.salary.max === null) return null
+export function buildBaseSalary(job: HwJob) {
+  // schema.org QuantitativeValue: 範囲なら minValue + maxValue を両方セットする
+  // (片方だけは NG)。単一値なら value を使う。min/max どちらも無ければ null。
+  // (structured-data.ts の同種修正と同じ理由 — Search Console の
+  // 「maxValue がありません」警告を避けるため)
+  const { min, max } = job.salary
+  if (min === null && max === null) return null
+  const hasRange = min !== null && max !== null && min !== max
   return {
     "@type": "MonetaryAmount",
     currency: "JPY",
     value: {
       "@type": "QuantitativeValue",
-      ...(job.salary.min !== null ? { minValue: job.salary.min } : {}),
-      ...(job.salary.max !== null ? { maxValue: job.salary.max } : {}),
+      ...(hasRange ? { minValue: min, maxValue: max } : { value: min ?? max }),
       unitText: mapUnit(job.salary.type),
     },
   }
@@ -114,6 +125,11 @@ function buildBaseSalary(job: HwJob) {
 
 function mapUnit(type: string | null): string {
   if (!type) return "MONTH"
+  // DB の値 (hourly / daily / annual / monthly)。日本語だけを見ていたため、
+  // 時給 1,200 円の求人が「月 1,200 円」として出力されていた。
+  if (type === "hourly") return "HOUR"
+  if (type === "daily") return "DAY"
+  if (type === "annual") return "YEAR"
   if (type.includes("時給")) return "HOUR"
   if (type.includes("日給")) return "DAY"
   if (type.includes("年俸")) return "YEAR"

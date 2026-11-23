@@ -82,6 +82,8 @@ async function get<T>(path: string): Promise<T | null> {
       },
       // 法人情報は変動が少ないので 24h キャッシュ
       next: { revalidate: 60 * 60 * 24 },
+      // 応答が返らないと呼び出し元 (企業ページ / 月次 cron) が関数の制限時間まで固まる
+      signal: AbortSignal.timeout(10_000),
     })
     if (!res.ok) return null
     return (await res.json()) as T
@@ -183,15 +185,22 @@ export function extractConstructionPermits(snapshot: GbizSnapshot): string[] {
   const permits: string[] = []
 
   // 1) basic.qualificationGrade — 既に建設業許可の正規化文字列
-  if (snapshot.basic?.qualificationGrade) {
-    permits.push(...snapshot.basic.qualificationGrade.filter(Boolean))
+  // JSONB 由来で配列でない可能性があるため Array.isArray でガードする。
+  const grades = snapshot.basic?.qualificationGrade
+  if (Array.isArray(grades)) {
+    permits.push(...grades.filter(Boolean))
   }
 
   // 2) certifications で「建設業」を含むもの
-  for (const c of snapshot.certifications) {
-    const label = c.description || c.name
-    if (label && /建設業/.test(label)) {
-      permits.push(label)
+  // certifications が欠落/非配列の gbizData だと for..of が "is not iterable" で
+  // throw し、JobCard の render を巻き込んでページが 500 になるためガードする。
+  const certifications = snapshot.certifications
+  if (Array.isArray(certifications)) {
+    for (const c of certifications) {
+      const label = c?.description || c?.name
+      if (label && /建設業/.test(label)) {
+        permits.push(label)
+      }
     }
   }
 

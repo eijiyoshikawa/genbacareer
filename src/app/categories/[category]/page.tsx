@@ -11,6 +11,7 @@ import {
 import { PREFECTURE_LABEL_TO_SLUG } from "@/lib/prefectures"
 import { auth } from "@/lib/auth"
 import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import { toJsonLdScript } from "@/lib/structured-data"
 import {
   GuestSignupCta,
   GuestTrialBanner,
@@ -128,7 +129,7 @@ export default async function CategoryPage({ params }: Props) {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumb) }}
       />
 
       <nav className="mb-4 text-sm text-gray-500">

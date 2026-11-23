@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { revalidateAfterArticleChange } from "@/lib/revalidate-public"
 
 const articleUpdateSchema = z.object({
   slug: z
@@ -110,6 +111,13 @@ export async function PUT(
   ) {
     nextPublishedAt = new Date()
   }
+  // 公開状態なのに publishedAt が空になる保存を防ぐ。編集フォームは日時欄が空だと
+  // 常に null を送るため、下書きを「公開」に切り替えて保存すると
+  // status=published / publishedAt=NULL になり、管理画面では公開済みなのに
+  // サイト上は 404・一覧 / sitemap / RSS にも出ない記事になっていた。
+  if (nextStatus === "published" && nextPublishedAt === null) {
+    nextPublishedAt = existing.publishedAt ?? new Date()
+  }
 
   const article = await prisma.article.update({
     where: { id },
@@ -131,6 +139,16 @@ export async function PUT(
     },
   })
 
+  // 公開中の記事を編集した場合、または公開状態に変更された場合に
+  // 公開ページ (ホーム / マガジン一覧 / 記事詳細) を再生成する。
+  // slug 変更時は旧 slug も再生成して即座に 404 化させる。
+  if (nextStatus === "published" || existing.status === "published") {
+    revalidateAfterArticleChange({ slug: article.slug })
+    if (d.slug && d.slug !== existing.slug) {
+      revalidateAfterArticleChange({ slug: existing.slug })
+    }
+  }
+
   return Response.json({ article })
 }
 
@@ -150,5 +168,10 @@ export async function DELETE(
   }
 
   await prisma.article.delete({ where: { id } })
+
+  if (existing.status === "published") {
+    revalidateAfterArticleChange({ slug: existing.slug })
+  }
+
   return Response.json({ success: true })
 }

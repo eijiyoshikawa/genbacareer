@@ -21,6 +21,9 @@ const profileSchema = z.object({
   pitchHighlights: z.string().max(4000).optional().default(""),
   idealCandidate: z.string().max(4000).optional().default(""),
   employeeVoice: z.string().max(4000).optional().default(""),
+  capital: z.string().max(100).optional().default(""),
+  foundedOn: z.string().max(100).optional().default(""),
+  employeeCount: z.string().max(100).optional().default(""),
   logoUrl: urlOrEmpty(),
   photos: z
     .array(z.string().url().max(500))
@@ -89,6 +92,9 @@ export async function PATCH(request: NextRequest) {
       pitchHighlights: emptyToNull(body.pitchHighlights),
       idealCandidate: emptyToNull(body.idealCandidate),
       employeeVoice: emptyToNull(body.employeeVoice),
+      capital: emptyToNull(body.capital),
+      foundedOn: emptyToNull(body.foundedOn),
+      employeeCount: emptyToNull(body.employeeCount),
       logoUrl: emptyToNull(body.logoUrl),
       photos: body.photos ?? [],
       schedulingUrls: (body.schedulingUrls ?? []) as unknown as object,
@@ -134,6 +140,11 @@ export async function PATCH(request: NextRequest) {
       commuteAllowance: true,
       companyFeatures: true,
       businessContent: true,
+      // 時間軸・人気シグナル。省くと新着加点と閲覧数加点が 0 で再計算され、
+      // プロフィールを保存するたびに自社求人の順位が下がってしまう。
+      publishedAt: true,
+      expiresAt: true,
+      viewCount: true,
     },
   })
 

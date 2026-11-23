@@ -21,8 +21,13 @@ export async function POST(request: Request) {
     return Response.json({ error: "ログインが必要です" }, { status: 401 })
   }
 
-  const formData = await request.formData()
-  const file = formData.get("file") as File | null
+  // multipart 以外の POST は formData() が throw して 500 になっていた
+  const formData = await request.formData().catch(() => null)
+  if (!formData) {
+    return Response.json({ error: "ファイルが選択されていません" }, { status: 400 })
+  }
+  const fileEntry = formData.get("file")
+  const file = fileEntry instanceof File ? fileEntry : null
   const fileType = (formData.get("fileType") as string) || "other"
 
   if (!file) {

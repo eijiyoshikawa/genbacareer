@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/admin-page-auth"
 import { prisma } from "@/lib/db"
 import Link from "next/link"
 import type { Metadata } from "next"
@@ -11,8 +12,9 @@ export default async function AdminBillingPage({
 }: {
   searchParams: Promise<{ page?: string; status?: string }>
 }) {
+  await requireAdminPage()
   const params = await searchParams
-  const page = Math.max(1, Number(params.page) || 1)
+  const page = Math.min(10_000, Math.max(1, Math.trunc(Number(params.page)) || 1))
   const statusFilter = params.status || "all"
   const perPage = 20
 

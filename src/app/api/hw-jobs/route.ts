@@ -12,9 +12,10 @@ const querySchema = z.object({
   prefecture: z.string().min(1).max(20).optional(),
   jobType: z.string().min(1).max(20).optional(),
   employmentType: z.string().min(1).max(40).optional(),
-  minSalary: z.coerce.number().int().min(0).optional(),
+  // INT4 列。上限なしだと巨大な値で DB エラー (500) になる
+  minSalary: z.coerce.number().int().min(0).max(100_000_000).optional(),
   q: z.string().min(1).max(100).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
+  offset: z.coerce.number().int().min(0).max(1_000_000).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
 })
 

@@ -32,7 +32,11 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic"
 export const revalidate = 21600
 
-type SearchParams = Promise<{ industry?: string; pref?: string; tab?: string }>
+type SearchParams = Promise<{
+  industry?: string | string[]
+  pref?: string | string[]
+  tab?: string | string[]
+}>
 
 interface RankedCompany {
   id: string
@@ -54,6 +58,9 @@ async function aggregateRanking(opts: {
   const companies = await prisma.company.findMany({
     where: {
       status: "approved",
+      // 詳細ページ (/companies/[id]) は直接掲載企業のみ公開。HelloWork 由来の
+      // 企業を混ぜるとリンク先が 404 になり、take の対象も不定になる。
+      source: "direct",
       ...(opts.industry ? { industry: opts.industry } : {}),
       ...(opts.prefecture ? { prefecture: opts.prefecture } : {}),
     },
@@ -104,7 +111,13 @@ async function aggregateRanking(opts: {
 export default async function CompanyRankingPage(props: {
   searchParams: SearchParams
 }) {
-  const { industry, pref, tab } = await props.searchParams
+  // ?industry=a&industry=b (配列) をそのまま Prisma に渡すと 500 になる
+  const sp = await props.searchParams
+  const one = (v: string | string[] | undefined) =>
+    (Array.isArray(v) ? v[0] : v)?.slice(0, 50)
+  const industry = one(sp.industry)
+  const pref = one(sp.pref)
+  const tab = one(sp.tab)
   const activeTab = tab === "prefecture" ? "prefecture" : "industry"
 
   const ranked = await aggregateRanking({

@@ -11,6 +11,7 @@ import { buildPrefectureCategoryDescription } from "@/lib/seo-text"
 import { PREFECTURE_SLUG_TO_LABEL as PREFECTURES } from "@/lib/prefectures"
 import { auth } from "@/lib/auth"
 import { GUEST_LIMIT } from "@/lib/guest-job-access"
+import { toJsonLdScript } from "@/lib/structured-data"
 import {
   GuestSignupCta,
   GuestTrialBanner,
@@ -48,7 +49,9 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { prefecture, category } = await params
-  const prefLabel = PREFECTURES[prefecture]
+  const prefLabel = Object.hasOwn(PREFECTURES, prefecture)
+    ? PREFECTURES[prefecture]
+    : undefined
   const catLabel = CATEGORIES[category]
 
   if (!prefLabel || !catLabel) {
@@ -70,7 +73,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PrefectureCategoryPage({ params }: Props) {
   const { prefecture, category } = await params
-  const prefLabel = PREFECTURES[prefecture]
+  const prefLabel = Object.hasOwn(PREFECTURES, prefecture)
+    ? PREFECTURES[prefecture]
+    : undefined
   const catLabel = CATEGORIES[category]
 
   if (!prefLabel || !catLabel) {
@@ -152,7 +157,7 @@ export default async function PrefectureCategoryPage({ params }: Props) {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumb) }}
       />
 
       <nav className="mb-4 text-sm text-gray-500">

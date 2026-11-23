@@ -18,6 +18,7 @@ import { type NextRequest } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { toActorUuid } from "@/lib/actor-id"
 import { isMessagingConfigured, pushMessage, type LineMessage } from "@/lib/line-messaging"
 import { buildJobRecommendationFlex } from "@/lib/line-flex-builders"
 import { resolveSegment, type Segment } from "@/lib/segment"
@@ -106,8 +107,18 @@ export async function POST(request: NextRequest) {
   let failure = 0
   let skipped = 0
 
-  for (let i = 0; i < leads.length; i += CONCURRENCY) {
-    const batch = leads.slice(i, i + CONCURRENCY)
+  // LineLead は応募ごとに 1 行。同じ人が複数の求人に応募していると同じ配信が
+  // 人数分ではなく応募件数分届いていたため、lineUserId で 1 人 1 通にまとめる。
+  const seenLineUsers = new Set<string>()
+  const targets = leads.filter((lead) => {
+    if (!lead.lineUserId) return true // 下の skipped 集計に回す
+    if (seenLineUsers.has(lead.lineUserId)) return false
+    seenLineUsers.add(lead.lineUserId)
+    return true
+  })
+
+  for (let i = 0; i < targets.length; i += CONCURRENCY) {
+    const batch = targets.slice(i, i + CONCURRENCY)
     await Promise.all(
       batch.map(async (lead) => {
         if (!lead.lineUserId) {
@@ -131,14 +142,14 @@ export async function POST(request: NextRequest) {
   }
 
   // ログ保存
-  const userId = (session.user as { id?: string } | undefined)?.id ?? null
+  const userId = toActorUuid((session.user as { id?: string } | undefined)?.id)
   await prisma.broadcastLog
     .create({
       data: {
         segment: JSON.parse(JSON.stringify(body.segment)),
         jobIds: body.jobIds,
         freeText: body.freeText ?? null,
-        targetCount: leads.length,
+        targetCount: targets.length,
         successCount: success,
         failureCount: failure,
         skippedCount: skipped,

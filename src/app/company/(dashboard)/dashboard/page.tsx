@@ -455,7 +455,7 @@ async function RecentApplicationsSection({
                     <ApplicationStatusBadge status={app.status} />
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                    {app.createdAt.toLocaleDateString("ja-JP")}
+                    {app.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </td>
                 </tr>
               ))}

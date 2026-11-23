@@ -130,28 +130,39 @@ export async function acceptInvitation({
 
   const existing = await prisma.companyUser.findUnique({
     where: { email: inv.email },
+    select: { id: true },
   })
   if (existing) return { ok: false, reason: "email_taken" }
 
   const passwordHash = await bcrypt.hash(password, 10)
 
-  const created = await prisma.$transaction(async (tx) => {
-    const user = await tx.companyUser.create({
-      data: {
-        companyId: inv.companyId,
-        email: inv.email,
-        passwordHash,
-        name: name ?? null,
-        role: inv.role,
-        mustChangePassword: false,
-      },
+  let created: { id: string }
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      const user = await tx.companyUser.create({
+        data: {
+          companyId: inv.companyId,
+          email: inv.email,
+          passwordHash,
+          name: name ?? null,
+          role: inv.role,
+          mustChangePassword: false,
+        },
+      })
+      await tx.companyInvitation.update({
+        where: { id: inv.id },
+        data: { acceptedAt: new Date() },
+      })
+      return user
     })
-    await tx.companyInvitation.update({
-      where: { id: inv.id },
-      data: { acceptedAt: new Date() },
-    })
-    return user
-  })
+  } catch (e) {
+    // 二度押しで 2 つのリクエストが同時に existing チェックを通過すると、後発が
+    // email の一意制約 (P2002) で 500 になっていた。作成済みとして案内する。
+    if ((e as { code?: string } | null)?.code === "P2002") {
+      return { ok: false, reason: "email_taken" }
+    }
+    throw e
+  }
 
   return { ok: true, companyUserId: created.id }
 }

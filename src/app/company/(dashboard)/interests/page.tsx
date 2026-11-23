@@ -10,6 +10,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { Eye } from "lucide-react"
+import { CandidateAvatar } from "@/components/company/candidate-avatar"
 import Link from "next/link"
 import type { Metadata } from "next"
 
@@ -26,7 +27,11 @@ export default async function CompanyInterestsPage() {
   if (!companyId) redirect("/login")
 
   const interests = await prisma.jobInterest.findMany({
-    where: { job: { companyId } },
+    // この企業をブロックした求職者・退会済みは候補に出さない (候補者一覧と同条件)
+    where: {
+      job: { companyId },
+      user: { status: "active", NOT: { blockedCompanyIds: { has: companyId } } },
+    },
     orderBy: { createdAt: "desc" },
     take: 100,
     select: {
@@ -39,6 +44,7 @@ export default async function CompanyInterestsPage() {
           prefecture: true,
           city: true,
           desiredCategories: true,
+          avatarUrl: true,
         },
       },
       job: {
@@ -85,6 +91,7 @@ export default async function CompanyInterestsPage() {
               className="border bg-white p-4 shadow-sm"
             >
               <div className="flex items-start justify-between gap-3 flex-wrap">
+                <CandidateAvatar avatarUrl={i.user.avatarUrl} name={i.user.name} />
                 <div className="min-w-0 flex-1">
                   {!i.seenByCompanyAt && (
                     <span className="inline-block bg-purple-600 px-2 py-0.5 text-[10px] font-bold text-white mb-1">
@@ -114,7 +121,7 @@ export default async function CompanyInterestsPage() {
                 </div>
                 <div className="flex flex-col items-end gap-2 text-right shrink-0">
                   <p className="text-xs text-gray-400">
-                    {i.createdAt.toLocaleString("ja-JP")}
+                    {i.createdAt.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </p>
                   <Link
                     href={`/company/scouts/new?userId=${i.user.id}&jobId=${i.job.id}`}

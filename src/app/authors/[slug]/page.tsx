@@ -9,6 +9,7 @@ import {
   generatePersonSchema,
   generateBreadcrumbSchema,
   generateItemListSchema,
+  toJsonLdScript,
 } from "@/lib/structured-data"
 import {
   Buildings,
@@ -104,16 +105,16 @@ export default async function AuthorPage({ params }: Props) {
     <div className="bg-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(personJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: toJsonLdScript(breadcrumb) }}
       />
       {itemList && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(itemList) }}
+          dangerouslySetInnerHTML={{ __html: toJsonLdScript(itemList) }}
         />
       )}
 

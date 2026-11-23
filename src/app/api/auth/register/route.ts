@@ -1,17 +1,20 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hashSync } from "bcryptjs";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { ensureSchema } from "@/lib/ensure-schema";
 import { PREFECTURES } from "@/lib/constants";
 import { generateToken } from "@/lib/tokens";
 import { sendEmailVerificationEmail } from "@/lib/email";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { trackEvent } from "@/lib/track";
+import { awardSignupBonus } from "@/lib/points";
 
 const registerSchema = z.object({
-  name: z.string().min(1, "氏名は必須です。"),
-  email: z.string().email("有効なメールアドレスを入力してください。"),
-  password: z.string().min(8, "パスワードは8文字以上で入力してください。"),
+  name: z.string().trim().min(1, "氏名は必須です。").max(100, "氏名は100文字以内で入力してください。"),
+  email: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください。"),
+  password: z.string().min(8, "パスワードは8文字以上で入力してください。").max(200, "パスワードが長すぎます。"),
   prefecture: z.enum(PREFECTURES, "有効な都道府県を選択してください。"),
   birthDate: z
     .string()
@@ -68,7 +71,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    // API のみのルートは layout.tsx の fire-and-forget self-heal を経由しないため、
+    // 新規カラム未反映のまま prisma.user.* を叩いて P2022 になることがある。
+    await ensureSchema();
+
+    const existing = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
     if (existing) {
       return NextResponse.json(
         { error: "このメールアドレスは既に登録されています。" },
@@ -103,6 +113,9 @@ export async function POST(request: Request) {
       payload: { prefecture, authProvider: "email" },
     });
 
+    // ポイント制度: 初回登録ボーナス（1 回のみ・日次上限の対象外）。失敗は握りつぶす。
+    void awardSignupBonus(user.id).catch(() => {});
+
     try {
       await sendEmailVerificationEmail(email, verificationToken);
     } catch (error) {
@@ -120,6 +133,16 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     console.error("Registration error:", error);
+    // 二重クリック / 複数タブの同時送信で create が競合 (P2002)
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "このメールアドレスは既に登録されています。" },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: "サーバーエラーが発生しました。" },
       { status: 500 }

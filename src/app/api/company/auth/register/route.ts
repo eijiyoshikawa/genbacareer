@@ -11,11 +11,11 @@ import {
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 const companyRegisterSchema = z.object({
-  companyName: z.string().min(1, "会社名は必須です。"),
+  companyName: z.string().trim().min(1, "会社名は必須です。").max(200, "会社名は200文字以内で入力してください。"),
   industry: z.string().min(1, "業種は必須です。"),
   prefecture: z.enum(PREFECTURES, "有効な都道府県を選択してください。"),
-  contactEmail: z.string().email("有効なメールアドレスを入力してください。"),
-  password: z.string().min(8, "パスワードは8文字以上で入力してください。"),
+  contactEmail: z.string().trim().toLowerCase().email("有効なメールアドレスを入力してください。").max(255),
+  password: z.string().min(8, "パスワードは8文字以上で入力してください。").max(200, "パスワードが長すぎます。"),
 });
 
 export async function POST(request: NextRequest) {
@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
 
     const existingUser = await prisma.companyUser.findUnique({
       where: { email: contactEmail },
+      select: { id: true },
     });
     if (existingUser) {
       return NextResponse.json(
@@ -84,7 +85,8 @@ export async function POST(request: NextRequest) {
           companyId: created.id,
           email: contactEmail,
           passwordHash,
-          name: companyName,
+          // company_users.name は VARCHAR(100)
+          name: companyName.slice(0, 100),
           role: "admin",
         },
       });

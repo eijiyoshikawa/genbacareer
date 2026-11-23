@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { CompanySidebar } from "@/components/company/sidebar"
 import { CompanyStatusBanner } from "@/components/company/status-banner"
 import { prisma } from "@/lib/db"
+import { isScoutEnabled } from "@/lib/feature-flags"
 
 // /company 配下は全て認証必須。build 時 prerender を回避。
 export const dynamic = "force-dynamic"
@@ -51,6 +52,7 @@ export default async function CompanyLayout({
           companyId={companyId}
           userName={session.user.name ?? "担当者"}
           role={role}
+          scoutEnabled={await isScoutEnabled()}
         />
         <div className="flex-1 min-w-0">
           {company && company.status !== "approved" && (

@@ -48,10 +48,17 @@ export async function POST(request: NextRequest) {
   }
 
   const { email } = parsed.data
-  const user = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true, emailVerified: true },
-  })
+  const select = { id: true, emailVerified: true } as const
+  const rawEmail = email.trim()
+  // 登録時は小文字に正規化して保存しているため、大文字違いの入力も拾う
+  const user =
+    (await prisma.user.findUnique({ where: { email: rawEmail }, select })) ??
+    (rawEmail !== rawEmail.toLowerCase()
+      ? await prisma.user.findUnique({
+          where: { email: rawEmail.toLowerCase() },
+          select,
+        })
+      : null)
 
   // ユーザー列挙対策: 存在の有無/確認状態に関わらず同じレスポンスを返す
   const standardResponse = Response.json({

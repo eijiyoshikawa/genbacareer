@@ -86,6 +86,17 @@ export async function POST(request: Request) {
 
   const { applicationId, resignedAt: resignedAtStr, companyNote } = parsed.data
   const resignedAt = new Date(resignedAtStr)
+  if (Number.isNaN(resignedAt.getTime())) {
+    return Response.json({ error: "退職日の形式が不正です" }, { status: 400 })
+  }
+  // 未来日の退職は申請不可 (採用直後に翌日付で申請すると、退職の事実が無いまま
+  // 80% の戻入申請が作れてしまう)。タイムゾーン差を見て 1 日の猶予を持たせる。
+  if (resignedAt.getTime() > Date.now() + 24 * 60 * 60 * 1000) {
+    return Response.json(
+      { error: "退職日に未来の日付は指定できません" },
+      { status: 400 },
+    )
+  }
 
   const app = await prisma.application.findUnique({
     where: { id: applicationId },
@@ -116,7 +127,13 @@ export async function POST(request: Request) {
       { status: 400 },
     )
   }
-  if (resignedAt <= app.hiredAt) {
+  // 日付のみ (YYYY-MM-DD) は UTC 0 時として解釈されるため、その日の JST 終わり
+  // (UTC 0 時 + 15h) で比較する。そうしないと、採用確定と同じ日 (JST) の退職が
+  // 「入社日より前」と判定されて申請できない。
+  const resignedCompare = /^\d{4}-\d{2}-\d{2}$/.test(resignedAtStr)
+    ? new Date(resignedAt.getTime() + 15 * 60 * 60 * 1000)
+    : resignedAt
+  if (resignedCompare <= app.hiredAt) {
     return Response.json(
       { error: "退職日は入社日より後である必要があります" },
       { status: 400 },
@@ -157,7 +174,14 @@ export async function POST(request: Request) {
     )
   }
 
-  const created = await prisma.earlyResignation.create({
+  let created: {
+    id: string
+    refundRate: number
+    refundAmount: number
+    monthsAfterHire: number
+  }
+  try {
+    created = await prisma.earlyResignation.create({
     data: {
       applicationId: app.id,
       companyId: me.companyId,
@@ -180,6 +204,16 @@ export async function POST(request: Request) {
       monthsAfterHire: true,
     },
   })
+  } catch (e) {
+    // 二重送信: application_id の unique 制約違反は 500 ではなく 409 で返す
+    if ((e as { code?: string }).code === "P2002") {
+      return Response.json(
+        { error: "この応募は既に早期退職の申請済みです" },
+        { status: 409 },
+      )
+    }
+    throw e
+  }
 
   return Response.json({ ok: true, ...created }, { status: 201 })
 }

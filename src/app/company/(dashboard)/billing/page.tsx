@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
-import { HIRING_FEE_AMOUNT } from "@/lib/hiring-fee"
+import { HIRING_FEE_FALLBACK } from "@/lib/hiring-fee"
 import { resolveHiringFee } from "@/lib/hiring-fee"
 import {
   PLAN_LABELS,
@@ -27,7 +27,7 @@ export default async function CompanyBillingPage({
   if (!companyId) redirect("/login")
 
   const params = await searchParams
-  const page = Math.max(1, Number(params.page) || 1)
+  const page = Math.min(10_000, Math.max(1, Math.trunc(Number(params.page)) || 1))
   const perPage = 20
 
   const [events, total, summaryData, companyJobs, company] = await Promise.all([
@@ -55,7 +55,12 @@ export default async function CompanyBillingPage({
     // 求人ごとの単価範囲を計算するために active 求人の hiringFeeAmount を取得
     prisma.job.findMany({
       where: { companyId, status: "active" },
-      select: { hiringFeeAmount: true },
+      select: {
+        hiringFeeAmount: true,
+        salaryMin: true,
+        salaryMax: true,
+        salaryType: true,
+      },
     }),
     prisma.company.findUnique({
       where: { id: companyId },
@@ -70,8 +75,8 @@ export default async function CompanyBillingPage({
 
   // 求人別の単価レンジ表示（個別設定が混在しているケースの可視化）
   const feeAmounts = companyJobs.map((j) => resolveHiringFee(j))
-  const feeMin = feeAmounts.length > 0 ? Math.min(...feeAmounts) : HIRING_FEE_AMOUNT
-  const feeMax = feeAmounts.length > 0 ? Math.max(...feeAmounts) : HIRING_FEE_AMOUNT
+  const feeMin = feeAmounts.length > 0 ? Math.min(...feeAmounts) : HIRING_FEE_FALLBACK
+  const feeMax = feeAmounts.length > 0 ? Math.max(...feeAmounts) : HIRING_FEE_FALLBACK
   const feeIsRange = feeMin !== feeMax
 
   const totalPages = Math.ceil(total / perPage)
@@ -79,9 +84,8 @@ export default async function CompanyBillingPage({
   const totalPaid =
     summaryData.find((s) => s.status === "paid")?._sum.amount ?? 0
   const totalPending =
-    summaryData.find((s) => s.status === "pending")?._sum.amount ??
-    0 +
-      (summaryData.find((s) => s.status === "invoiced")?._sum.amount ?? 0)
+    (summaryData.find((s) => s.status === "pending")?._sum.amount ?? 0) +
+    (summaryData.find((s) => s.status === "invoiced")?._sum.amount ?? 0)
   const totalHired = summaryData.reduce((sum, s) => sum + s._count, 0)
 
   const planLabel = company
@@ -230,7 +234,7 @@ export default async function CompanyBillingPage({
                     <BillingStatusBadge status={event.status} />
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                    {event.createdAt.toLocaleDateString("ja-JP")}
+                    {event.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </td>
                 </tr>
               ))}

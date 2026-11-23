@@ -3,6 +3,7 @@ import { z } from "zod"
 import bcrypt from "bcryptjs"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { toActorUuid } from "@/lib/actor-id"
 import {
   generateInvitationToken,
   generateTemporaryPassword,
@@ -13,12 +14,12 @@ import {
 const bodySchema = z.discriminatedUnion("method", [
   z.object({
     method: z.literal("email"),
-    email: z.string().email().max(255),
+    email: z.string().email().max(255).toLowerCase(),
     role: z.enum(["admin", "member"]).default("admin"),
   }),
   z.object({
     method: z.literal("direct"),
-    email: z.string().email().max(255),
+    email: z.string().email().max(255).toLowerCase(),
     role: z.enum(["admin", "member"]).default("admin"),
     name: z.string().max(100).optional(),
   }),
@@ -74,6 +75,7 @@ export async function POST(
   // 同 email の CompanyUser が既に存在する場合は弾く
   const existing = await prisma.companyUser.findUnique({
     where: { email: d.email },
+    select: { id: true },
   })
   if (existing) {
     return Response.json(
@@ -82,7 +84,7 @@ export async function POST(
     )
   }
 
-  const adminUserId = (session.user as { id?: string }).id ?? null
+  const adminUserId = toActorUuid((session.user as { id?: string }).id)
 
   if (d.method === "email") {
     // 既存の未受領招待があれば再利用ではなく取り消して新規発行（運用シンプル化）
@@ -151,6 +153,8 @@ export async function POST(
       name: d.name ?? null,
       role: d.role,
       mustChangePassword: true,
+      // 企業一覧からID/PASSを確認できるよう平文を控える（PW変更でクリア）
+      issuedLoginPassword: tempPassword,
     },
   })
 

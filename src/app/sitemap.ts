@@ -35,16 +35,6 @@ async function safeFindMany<T>(label: string, fn: () => Promise<T[]>): Promise<T
   }
 }
 
-const journalSlugs = [
-  "construction-career-guide",
-  "tobi-salary",
-  "electrician-license",
-  "construction-manager-role",
-  "civil-engineering-career",
-  "construction-safety",
-  "interior-finishing-guide",
-  "demolition-work",
-]
 
 // 都道府県スラッグは @/lib/prefectures から取得 (47 件、重複定義の排除)
 
@@ -73,6 +63,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.8,
+    },
+    {
+      url: `${BASE_URL}/guide`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.7,
+    },
+    {
+      url: `${BASE_URL}/shindan`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.7,
     },
     {
       url: `${BASE_URL}/help`,
@@ -143,18 +145,35 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ]
 
   // Journal articles
-  const journalPages: MetadataRoute.Sitemap = journalSlugs.map((slug) => ({
-    url: `${BASE_URL}/journal/${slug}`,
-    lastModified: new Date(),
+  // /journal/[slug] は DB の公開記事のみを配信する。以前は固定の slug 配列を
+  // 出力しており、管理画面から公開した記事が sitemap に載らなかった。
+  const journalArticles = await safeFindMany("journalArticles", () =>
+    prisma.article.findMany({
+      where: {
+        ...publishedArticleFilter(),
+        category: { notIn: ["help-seeker", "help-employer"] },
+      },
+      select: { slug: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+      take: 2000,
+    })
+  )
+  const journalPages: MetadataRoute.Sitemap = journalArticles.map((a) => ({
+    url: `${BASE_URL}/journal/${a.slug}`,
+    lastModified: a.updatedAt,
     changeFrequency: "monthly" as const,
     priority: 0.6,
   }))
 
   // Active job detail pages（建設業カテゴリのみ、更新順 上位 5,000 件）
+  // dedupedTo: null は重複として close されていないことを担保（防御的）。
+  // 重複求人をサイトマップに含めると Search Console が
+  // 「user-declared canonical と Google's choice が違う」と判定するため除外。
   const jobs = await safeFindMany("jobs", () =>
     prisma.job.findMany({
       where: {
         status: "active",
+        dedupedTo: null,
         category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
       },
       select: { id: true, updatedAt: true },

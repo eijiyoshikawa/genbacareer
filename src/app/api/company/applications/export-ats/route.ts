@@ -12,9 +12,11 @@
  * 既存の applications/export と同じ status / jobId / date フィルタを受け付ける。
  */
 
+import { isValidUuid } from "@/lib/uuid"
 import { type NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { csvEscape } from "@/lib/csv"
 
 export const dynamic = "force-dynamic"
 
@@ -30,13 +32,6 @@ const VALID_STATUSES = [
 type Format = "hrmos" | "herp" | "csv" | "json"
 function isFormat(s: string | null): s is Format {
   return s === "hrmos" || s === "herp" || s === "csv" || s === "json"
-}
-
-function csvEscape(value: string | number | null | undefined): string {
-  if (value === null || value === undefined) return ""
-  const s = String(value)
-  if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
-  return s
 }
 
 const STATUS_JA: Record<string, string> = {
@@ -103,7 +98,8 @@ export async function GET(request: NextRequest) {
     ...(status && (VALID_STATUSES as readonly string[]).includes(status)
       ? { status }
       : {}),
-    ...(jobId ? { jobId } : {}),
+    // UUID でない値を @db.Uuid 列に渡すと Prisma が P2023 で 500 になる
+    ...(jobId && isValidUuid(jobId) ? { jobId } : {}),
     ...(from || to
       ? {
           createdAt: {
@@ -179,7 +175,8 @@ export async function GET(request: NextRequest) {
       a.user.phone ?? "",
       a.job.title,
       "ゲンバキャリア",
-      a.createdAt.toISOString().slice(0, 10),
+      // 応募日は日本時間の日付で出す (UTC だと 0〜9 時の応募が前日扱いになる)
+      a.createdAt.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }),
       STATUS_JA[a.status] ?? a.status,
       a.interviewAt ? a.interviewAt.toISOString() : "",
       a.interviewVenue ?? "",
