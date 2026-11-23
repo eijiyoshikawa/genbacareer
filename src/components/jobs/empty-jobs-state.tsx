@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Search, Sparkles, RefreshCcw } from "lucide-react"
 import { prisma } from "@/lib/db"
+import { cachedQuery } from "@/lib/cached-query"
 import { JobCard } from "@/components/jobs/job-card"
 import { CONSTRUCTION_CATEGORY_VALUES, getCategoryLabel } from "@/lib/categories"
 
@@ -34,25 +35,46 @@ function suggestOtherCategories(current?: string): string[] {
  */
 export async function EmptyJobsState({ params, favoriteIds, loggedIn }: Props) {
   // 軽量な「最新求人」フェッチ（全フィルタを外して 6 件のみ）
-  const latestJobs = await prisma.job.findMany({
-    where: {
-      status: "active",
-      category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
-    },
-    orderBy: { publishedAt: "desc" },
-    take: 6,
-    include: {
-      company: {
-        select: {
-          id: true,
-          name: true,
-          logoUrl: true,
-          tagline: true,
-          gbizData: true,
+  // 全ゲスト・全ユーザー共通の結果なので短時間キャッシュする。以前は include で
+  // rawData (ハローワークの生 JSON) や description を含む全カラムを毎回取得していた。
+  // 0 件ヒットの検索を連打するだけで重い行を引き続けられる経路だった。
+  // キャッシュ経由の publishedAt は文字列で返る (JobCard は両方を受け付ける)。
+  const latestJobs = await cachedQuery(["empty-state-latest-jobs"], 120, () =>
+    prisma.job.findMany({
+      where: {
+        status: "active",
+        category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
+      },
+      orderBy: { publishedAt: "desc" },
+      take: 6,
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        employmentType: true,
+        salaryMin: true,
+        salaryMax: true,
+        salaryType: true,
+        prefecture: true,
+        city: true,
+        source: true,
+        tags: true,
+        annualHolidays: true,
+        insurance: true,
+        imageUrls: true,
+        videoUrls: true,
+        publishedAt: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+            logoUrl: true,
+            gbizData: true,
+          },
         },
       },
-    },
-  })
+    })
+  ).catch(() => [])
 
   // 「条件を緩める」サジェストのリンクを生成
   const relaxLinks: Array<{ label: string; href: string }> = []

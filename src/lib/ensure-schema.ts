@@ -24,13 +24,24 @@ const SECURITY_STATEMENTS: ReadonlyArray<string> = [
       EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', r.relname);
     END LOOP;
   END $$`,
- // マテリアライズドビューは RLS 不可のため anon/authenticated の SELECT を剥奪
+ // マテリアライズドビューは RLS 不可のため anon/authenticated の SELECT を剥奪。
+ // 実際に権限が残っているビューだけを対象にする。以前は cold start のたびに
+ // 無条件で REVOKE しており、同時に起動した Lambda 同士で pg_class の更新が衝突して
+ // "tuple concurrently updated" を出していた (アクセス集中時ほど多発する)。
+ // 剥奪済みならカタログの SELECT だけで終わる。
  `DO $$
   DECLARE r RECORD;
   BEGIN
-    FOR r IN SELECT matviewname FROM pg_matviews WHERE schemaname = 'public'
+    FOR r IN
+      SELECT DISTINCT c.relname, g.rolname
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      CROSS JOIN LATERAL aclexplode(c.relacl) a
+      JOIN pg_roles g ON g.oid = a.grantee
+      WHERE n.nspname = 'public' AND c.relkind = 'm'
+        AND g.rolname IN ('anon', 'authenticated')
     LOOP
-      EXECUTE format('REVOKE ALL ON public.%I FROM anon, authenticated', r.matviewname);
+      EXECUTE format('REVOKE ALL ON public.%I FROM %I', r.relname, r.rolname);
     END LOOP;
   END $$`,
 ]
@@ -748,6 +759,16 @@ export function ensureSchema(): Promise<boolean> {
  return inflight
 }
 
+// DDL がロック待ちで居座らないようにする上限。
+// ALTER TABLE は列が既にあっても ACCESS EXCLUSIVE ロックを要求する。実行中の
+// SELECT があるとその完了を待ち、待っている間は後続の SELECT も全部その後ろに並ぶ。
+// jobs / users のような常時読まれるテーブルでこれが起きると、接続が滞留して
+// pooler が枯渇し、サイト全体が止まる。数秒で諦めて次回の cold start に回す。
+const DDL_LOCK_TIMEOUT = "3s"
+
+// ロック待ちで諦めた文は恒久的な失敗と同じ扱いにする (このインスタンスでは再試行しない)。
+// リクエストのたびに再試行すると、混雑している最中に DDL を撃ち続けることになるため。
+// 次に起動したインスタンスがもう一度試す。
 async function runStatements(
   statements: ReadonlyArray<string>
 ): Promise<{ ok: boolean; hadConnectionError: boolean }> {
@@ -755,7 +776,12 @@ async function runStatements(
   let hadConnectionError = false
   for (const sql of statements) {
     try {
-      await prisma.$executeRawUnsafe(sql)
+      // pooler (Transaction mode) では SET がセッションに残らないため、
+      // SET LOCAL と DDL を同じトランザクションで送る。
+      await prisma.$transaction([
+        prisma.$executeRawUnsafe(`SET LOCAL lock_timeout = '${DDL_LOCK_TIMEOUT}'`),
+        prisma.$executeRawUnsafe(sql),
+      ])
     } catch (e) {
       allOk = false
       if (isConnectionError(e)) hadConnectionError = true

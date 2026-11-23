@@ -43,14 +43,18 @@ const SELECT_FIELDS = {
 /** 求人 ID から関連求人 take 件を抽出 */
 export async function findRelatedJobs(
   sourceJobId: string,
-  take: number = 3
+  take: number = 3,
+  /** 呼び出し側が既に求人を取得済みなら渡す (同じ行の再取得を省く) */
+  known?: { category: string; prefecture: string }
 ): Promise<MatchedJob[]> {
-  const source = await prisma.job
-    .findUnique({
-      where: { id: sourceJobId },
-      select: { id: true, category: true, prefecture: true },
-    })
-    .catch(() => null)
+  const source =
+    known ??
+    (await prisma.job
+      .findUnique({
+        where: { id: sourceJobId },
+        select: { id: true, category: true, prefecture: true },
+      })
+      .catch(() => null))
 
   if (!source) return []
 

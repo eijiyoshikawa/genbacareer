@@ -102,7 +102,10 @@ export default async function ArticlePage({ params }: Props) {
   if (!article) notFound()
 
   // Increment view count (non-blocking)
-  prisma.article.update({ where: { id: article.id }, data: { viewCount: { increment: 1 } } }).catch(() => {})
+  // 生 SQL で加算する: prisma.article.update だと @updatedAt も更新され、閲覧のたびに
+  // 記事の「更新日」表示・構造化データの dateModified・サイトマップの lastmod が動いていた。
+  prisma.$executeRaw`UPDATE articles SET view_count = view_count + 1 WHERE id = ${article.id}::uuid`
+    .catch(() => {})
 
   // 13.4 trackEvent("view_article")
   void trackEvent({

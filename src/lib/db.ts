@@ -60,7 +60,8 @@ const TRANSIENT_DB_ERROR_CODES = new Set([
   "P1002", // Database server timed out
   "P1008", // Operations timed out
   "P1017", // Server has closed the connection
-  "P2024", // Timed out fetching a new connection from the pool
+  // P2024 (接続プールのタイムアウト) は含めない。プールが枯渇している最中に
+  // 30 秒待った後でもう 30 秒並び直すことになり、枯渇を長引かせるだけだった。
 ])
 
 export function isTransientDbError(error: unknown): boolean {

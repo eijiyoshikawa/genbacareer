@@ -94,8 +94,9 @@ const DATE_WITHIN_OPTIONS = [
 
 const MAN_YEN = 10_000
 
-/** これより長い検索条件はキャッシュキーにしない (巨大な q でキャッシュを汚さない)。 */
-const GUEST_CACHE_KEY_MAX = 400
+/** 検索語・地域などの自由入力パラメータの最大文字数。超えた分は切り捨てる。 */
+const SEARCH_PARAM_MAX = 60
+const TRUNCATED_PARAMS = new Set(["q", "prefecture", "city", "employment_type"])
 
 export async function generateMetadata({
   searchParams,
@@ -357,8 +358,10 @@ export default async function JobsPage({ searchParams }: Props) {
   const guestCacheKey = JSON.stringify([
     params.prefecture ?? "",
     params.city ?? "",
-    params.category ?? "",
-    params.source ?? "",
+    // category / source は検証後の値を使う (不正値は無視されて同じ SQL になるので、
+    // 生の値をキーにすると値を変えるだけでキャッシュを素通りできた)
+    typeof categoryFilter.category === "string" ? categoryFilter.category : "",
+    "source" in sourceFilter ? sourceFilter.source ?? "" : "",
     params.employment_type ?? "",
     salaryMinYen,
     salaryMaxYen,
@@ -369,7 +372,7 @@ export default async function JobsPage({ searchParams }: Props) {
     sort,
   ])
   const { jobs, total } =
-    !loggedIn && guestCacheKey.length <= GUEST_CACHE_KEY_MAX
+    !loggedIn
       ? await cachedQuery(
           ["guest-jobs-list", guestCacheKey],
           GUEST_CACHE_SECONDS,
@@ -905,7 +908,14 @@ function firstValues(
   for (const [k, v] of Object.entries(raw)) {
     const first = Array.isArray(v) ? v[0] : v
     // NUL 文字 (%00) は Postgres が拒否して 500 になるため取り除く
-    out[k] = first?.replace(/\u0000/g, "")
+    const cleaned = first?.replace(/\u0000/g, "")
+    // 検索語などの文字数を抑える。極端に長い値は ILIKE / 類似度計算を重くするうえ、
+    // 以前はキャッシュキーが長すぎるという理由でゲストのキャッシュを素通りしていた
+    // (= 一番重い経路が毎回 DB に行っていた)。
+    out[k] =
+      cleaned && TRUNCATED_PARAMS.has(k) && cleaned.length > SEARCH_PARAM_MAX
+        ? cleaned.slice(0, SEARCH_PARAM_MAX)
+        : cleaned
   }
   return out
 }

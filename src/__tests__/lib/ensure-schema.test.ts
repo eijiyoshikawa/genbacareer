@@ -5,6 +5,7 @@ const executeRawUnsafe = vi.fn()
 vi.mock("@/lib/db", () => ({
   prisma: {
     $executeRawUnsafe: (...args: unknown[]) => executeRawUnsafe(...args),
+    $transaction: (ops: Promise<unknown>[]) => Promise.all(ops),
   },
 }))
 
@@ -54,5 +55,29 @@ describe("ensureSchema", () => {
 
     expect(await ensureSchema()).toBe(false)
     expect(executeRawUnsafe.mock.calls.length).toBe(callsAfterFirst)
+  })
+
+  it("runs every DDL with a lock timeout so it cannot queue readers behind it", async () => {
+    executeRawUnsafe.mockResolvedValue(undefined)
+    const { ensureSchema } = await import("@/lib/ensure-schema")
+    await ensureSchema()
+
+    const sqls = executeRawUnsafe.mock.calls.map((c) => String(c[0]))
+    expect(sqls.length % 2).toBe(0)
+    for (let i = 0; i < sqls.length; i += 2) {
+      expect(sqls[i]).toMatch(/^SET LOCAL lock_timeout = '\d+s'$/)
+      expect(sqls[i + 1]).not.toMatch(/lock_timeout/)
+    }
+  })
+
+  it("only revokes materialized-view grants that actually exist", async () => {
+    executeRawUnsafe.mockResolvedValue(undefined)
+    const { ensureSchema } = await import("@/lib/ensure-schema")
+    await ensureSchema()
+
+    const revoke = executeRawUnsafe.mock.calls
+      .map((c) => String(c[0]))
+      .find((sql) => sql.includes("REVOKE ALL"))
+    expect(revoke).toContain("aclexplode(c.relacl)")
   })
 })

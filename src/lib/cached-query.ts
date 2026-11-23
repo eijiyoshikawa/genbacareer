@@ -17,7 +17,57 @@ import { unstable_cache } from "next/cache"
  * Next.js のリクエスト外 (vitest / スクリプト) では unstable_cache が使えないため、
  * その場合はキャッシュ無しでそのまま実行する。
  */
+/** 1 インスタンス内で同時に走らせるキャッシュミス (= 重いクエリ) の上限。 */
+const MAX_CONCURRENT_MISSES = 3
+
+let running = 0
+const waiters: Array<() => void> = []
+
+async function withMissLimit<T>(fn: () => Promise<T>): Promise<T> {
+  if (running >= MAX_CONCURRENT_MISSES) {
+    await new Promise<void>((resolve) => waiters.push(resolve))
+  } else {
+    running++
+  }
+  try {
+    return await fn()
+  } finally {
+    const next = waiters.shift()
+    // 枠を次の待機者へそのまま渡す (running は減らさない)
+    if (next) next()
+    else running--
+  }
+}
+
+/** 同じキーで実行中のクエリ。同時に来た同一リクエストは 1 回の実行を共有する。 */
+const inflight = new Map<string, Promise<unknown>>()
+
+/**
+ * 条件の異なる検索が一斉に来ると、キャッシュはすべてミスして重いクエリが
+ * 並列に走り、Prisma の接続 (1 インスタンス 10 本) と pooler を使い切って
+ * サイト全体が 500 になる (2026-11-22, 11-23 に本番で発生)。
+ * ミス時の実行は同一キーを 1 回にまとめ、同時実行数も絞って、
+ * 求人詳細や記事など他のページが使う接続を残す。
+ */
 export async function cachedQuery<T>(
+  keyParts: string[],
+  revalidateSeconds: number,
+  fn: () => Promise<T>
+): Promise<T> {
+  const key = JSON.stringify(keyParts)
+  const existing = inflight.get(key)
+  if (existing) return existing as Promise<T>
+  const promise = cachedQueryInner(keyParts, revalidateSeconds, () =>
+    withMissLimit(fn)
+  ).finally(() => {
+    inflight.delete(key)
+  })
+  inflight.set(key, promise)
+  return promise
+}
+
+async function cachedQueryInner<T>(
+
   keyParts: string[],
   revalidateSeconds: number,
   fn: () => Promise<T>

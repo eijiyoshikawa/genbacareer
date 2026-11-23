@@ -37,6 +37,7 @@ import { RightTocNav } from "@/components/jobs/right-toc-nav"
 import { StickyActionBar } from "@/components/jobs/sticky-action-bar"
 import { ReportButton } from "@/components/reports/report-button"
 import { findRelatedJobs } from "@/lib/job-matching"
+import { cachedQuery } from "@/lib/cached-query"
 import { RelatedAreaCategoryLinks } from "@/components/jobs/related-area-category-links"
 import { HeroBanner } from "@/components/jobs/hero-banner"
 import { JobSpec } from "@/components/jobs/job-spec"
@@ -378,7 +379,13 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
 
   // 11.7 類似求人レコメンド: findRelatedJobs ヘルパーで 4 件取得
   // (同カテゴリ × 同県 → 同カテゴリ → 同県 → 全国 のフォールバック)
-  const relatedJobs = await findRelatedJobs(job.id, 4).catch(() => [])
+  // 求人ごとに 5 分キャッシュする (最大 4 回の findMany を毎回実行していた)。
+  const relatedJobs = await cachedQuery(["related-jobs", job.id], 300, () =>
+    findRelatedJobs(job.id, 4, {
+      category: job.category,
+      prefecture: job.prefecture,
+    })
+  ).catch(() => [])
 
   // 12.3 ログインユーザーがこの求人を「気になる」登録しているか
   const loggedInUserId = session?.user?.id
