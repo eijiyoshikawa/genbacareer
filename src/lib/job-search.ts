@@ -8,7 +8,7 @@
  * 拡張未導入の DB 環境では try/catch でフォールバックする。
  */
 
-import { prisma } from "@/lib/db"
+import { noteDbError, prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES, isConstructionCategory } from "@/lib/categories"
 
 export type FuzzySearchInput = {
@@ -25,11 +25,6 @@ export type FuzzySearchInput = {
   hasVideo?: boolean
   limit?: number
   offset?: number
-}
-
-export type FuzzySearchRow = {
-  id: string
-  similarity: number
 }
 
 // where句と params の組み立ては件数取得(count)と本検索(search)で共有する。
@@ -89,64 +84,8 @@ function buildFuzzyWhere(input: FuzzySearchInput): {
 }
 
 /**
- * 求人 ID と類似度スコアを返す（最大 limit 件）。
- * 結果の整形（JobCard 用 include）は呼び出し側で findMany し直すこと。
- *
- * pg_trgm 拡張が無いと SQL エラーになるので、その場合は空配列を返す
- * （呼び出し側で ILIKE 等にフォールバック判断）。
- */
-export async function fuzzySearchJobs(
-  input: FuzzySearchInput
-): Promise<FuzzySearchRow[] | null> {
-  if (!input.q.trim()) return null
-  const limit = Math.min(100, Math.max(1, input.limit ?? 50))
-  const offset = Math.max(0, input.offset ?? 0)
-
-  // raw query で similarity を計算しつつ where もまとめる。
-  // - title と description それぞれの類似度の最大値を採用
-  // - 0.05 以上を閾値（ある程度関連がある）
-  // - 同点は publishedAt DESC
-  try {
-    const { whereSql, params } = buildFuzzyWhere(input)
-
-    const rows = await prisma.$queryRawUnsafe<
-      { id: string; similarity: number }[]
-    >(
-      `
-      WITH scored AS (
-        SELECT id,
-               GREATEST(
-                 similarity(title, $1),
-                 similarity(coalesce(description, ''), $1)
-               ) AS similarity,
-               published_at
-        FROM jobs
-        WHERE status = 'active'
-          AND category = ANY($2)
-          ${whereSql}
-      )
-      SELECT id, similarity
-      FROM scored
-      WHERE similarity > 0.05
-      ORDER BY similarity DESC, published_at DESC NULLS LAST
-      LIMIT ${limit} OFFSET ${offset};
-      `,
-      ...params
-    )
-    return rows
-  } catch (e) {
-    console.warn(
-      `[job-search] pg_trgm fuzzy search failed (falling back): ${e instanceof Error ? e.message : e}`
-    )
-    return null
-  }
-}
-
-/**
- * fuzzySearchJobs と同じ条件に一致する総件数を返す（ページング用）。
- * fuzzySearchJobs 自体は LIMIT で最大 100 件しか返さないため、
- * 呼び出し側が `rows.length` を総件数として使うと、実際のヒット件数が
- * 100 件を超える人気キーワードで検索結果数・ページ数を過小表示してしまう。
+ * fuzzySearchJobsPage と同じ条件に一致する総件数だけを返す。
+ * 範囲外のページを開いたとき (行が 0 件で総件数が分からないとき) に使う。
  */
 export async function fuzzySearchJobsCount(
   input: FuzzySearchInput
@@ -174,8 +113,74 @@ export async function fuzzySearchJobsCount(
     )
     return Number(rows[0]?.count ?? 0)
   } catch (e) {
+    // 接続枯渇はフォールバックしない (理由は fuzzySearchJobsPage を参照)
+    if (noteDbError(e)) throw e
     console.warn(
       `[job-search] pg_trgm fuzzy count failed (falling back): ${e instanceof Error ? e.message : e}`
+    )
+    return null
+  }
+}
+
+/**
+ * 1 ページ分の求人 ID と総件数を 1 回の走査で返す。
+ *
+ * 類似度は全掲載求人の title / description に対して計算するためインデックスが
+ * 効かず、このサイトで最も重いクエリになる。以前は「ページ取得」と「件数取得」を
+ * 別々の SQL で並列に流しており、同じ全件走査を 2 本同時に走らせていた。
+ * キーワード検索がまとめて来ると接続を使い切る原因になるため、
+ * count(*) OVER() で件数を同じ走査から得る。
+ *
+ * 戻り値:
+ *  - null: pg_trgm が使えない等で失敗 (呼び出し側は ILIKE にフォールバックする)
+ *  - 接続枯渇 (P2024 / ECHECKOUTTIMEOUT) の場合は null を返さず throw する。
+ *    フォールバックの ILIKE も同じく全件走査で、枯渇の最中にもう 1 本重い
+ *    クエリを足すことになるため。
+ */
+export async function fuzzySearchJobsPage(
+  input: FuzzySearchInput
+): Promise<{ ids: string[]; total: number } | null> {
+  if (!input.q.trim()) return null
+  const limit = Math.min(100, Math.max(1, input.limit ?? 50))
+  const offset = Math.max(0, input.offset ?? 0)
+  try {
+    const { whereSql, params } = buildFuzzyWhere(input)
+    const rows = await prisma.$queryRawUnsafe<
+      { id: string; total: bigint }[]
+    >(
+      `
+      WITH scored AS (
+        SELECT id,
+               GREATEST(
+                 similarity(title, $1),
+                 similarity(coalesce(description, ''), $1)
+               ) AS similarity,
+               published_at
+        FROM jobs
+        WHERE status = 'active'
+          AND category = ANY($2)
+          ${whereSql}
+      )
+      SELECT id, count(*) OVER() AS total
+      FROM scored
+      WHERE similarity > 0.05
+      ORDER BY similarity DESC, published_at DESC NULLS LAST
+      LIMIT ${limit} OFFSET ${offset};
+      `,
+      ...params
+    )
+    if (rows.length > 0) {
+      return { ids: rows.map((r) => r.id), total: Number(rows[0].total) }
+    }
+    // 0 行: 先頭ページなら本当に 0 件。2 ページ目以降は範囲外の可能性があるので
+    // 件数だけ数え直す (ページ送りの表示に必要。ログイン中のみ到達する稀な経路)。
+    if (offset === 0) return { ids: [], total: 0 }
+    const total = await fuzzySearchJobsCount(input)
+    return total === null ? null : { ids: [], total }
+  } catch (e) {
+    if (noteDbError(e)) throw e
+    console.warn(
+      `[job-search] pg_trgm fuzzy search failed (falling back): ${e instanceof Error ? e.message : e}`
     )
     return null
   }

@@ -20,12 +20,46 @@ import { unstable_cache } from "next/cache"
 /** 1 インスタンス内で同時に走らせるキャッシュミス (= 重いクエリ) の上限。 */
 const MAX_CONCURRENT_MISSES = 3
 
+/**
+ * 実行枠が空くのを待つ上限。枠を持っているクエリが接続待ちで固まると
+ * (pooler の払い出し待ちは 1 本あたり最長 60 秒)、後ろに並んだリクエストは
+ * 関数の実行上限 (300 秒) まで黙って待ち続け、その間ずっとインスタンスの
+ * 同時実行枠を占有していた (本番で /jobs/[id] の "Task timed out after 300 seconds")。
+ * 待ちきれなければエラーにして、その場でエラーページを返す。
+ */
+const MAX_QUEUE_WAIT_MS = 15_000
+
+export class CachedQueryBusyError extends Error {
+  constructor() {
+    super("cachedQuery: timed out waiting for a free slot (database is busy)")
+    this.name = "CachedQueryBusyError"
+  }
+}
+
 let running = 0
 const waiters: Array<() => void> = []
 
+function waitForSlot(): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const grant = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      const i = waiters.indexOf(grant)
+      // まだ並んでいる (= 枠を渡されていない) 場合だけ列から抜けて諦める
+      if (i >= 0) {
+        waiters.splice(i, 1)
+        reject(new CachedQueryBusyError())
+      }
+    }, MAX_QUEUE_WAIT_MS)
+    waiters.push(grant)
+  })
+}
+
 async function withMissLimit<T>(fn: () => Promise<T>): Promise<T> {
   if (running >= MAX_CONCURRENT_MISSES) {
-    await new Promise<void>((resolve) => waiters.push(resolve))
+    await waitForSlot()
   } else {
     running++
   }

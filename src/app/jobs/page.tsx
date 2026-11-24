@@ -283,10 +283,10 @@ export default async function JobsPage({ searchParams }: Props) {
     let fuzzyIds: string[] | null = null
     let fuzzyTotal: number | null = null
     if (useFuzzy) {
-      const { fuzzySearchJobs, fuzzySearchJobsCount } = await import(
-        "@/lib/job-search"
-      )
-      const fuzzyInput = {
+      const { fuzzySearchJobsPage } = await import("@/lib/job-search")
+      // ページ取得と件数取得を 1 回の走査で行う (類似度計算は全件走査になり、
+      // 別々に流すと同じ重いクエリが 2 本並列に走っていた)。
+      const result = await fuzzySearchJobsPage({
         q: params.q!,
         prefecture: params.prefecture,
         city: params.city,
@@ -302,22 +302,19 @@ export default async function JobsPage({ searchParams }: Props) {
             : snsFilter === "without"
               ? false
               : undefined,
+        limit,
+        offset: (page - 1) * limit,
+      })
+      if (result) {
+        if (result.ids.length > 0) {
+          fuzzyIds = result.ids
+        } else if (result.total > 0) {
+          // 範囲外のページ (ヒットはあるがこのページには無い): ILIKE に
+          // フォールバックすると別の並び順の結果が出てしまうので空で返す。
+          return { jobs: [], total: result.total }
+        }
+        fuzzyTotal = result.total
       }
-      // ページ単位で直接 LIMIT/OFFSET する（旧実装は上位 100 件を毎回まとめて
-      // 取得してからスライスしていたため、100 件超のヒットで総件数・ページ数を
-      // 過小表示し、かつ 6 ページ目以降は常に空になっていた）。
-      const [rows, count] = await Promise.all([
-        fuzzySearchJobs({
-          ...fuzzyInput,
-          limit,
-          offset: (page - 1) * limit,
-        }),
-        fuzzySearchJobsCount(fuzzyInput),
-      ])
-      if (rows && rows.length > 0) {
-        fuzzyIds = rows.map((r) => r.id)
-      }
-      fuzzyTotal = count
     }
 
     const [jobs, total] = await Promise.all([

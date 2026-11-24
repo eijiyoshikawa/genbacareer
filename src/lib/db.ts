@@ -87,3 +87,48 @@ export async function withDbRetry<T>(
     }
   }
 }
+
+/**
+ * 接続枯渇 (プール待ちのタイムアウト) を表すエラーかどうか。
+ *  - P2024: Prisma 側のプール待ちが pool_timeout を超えた
+ *  - ECHECKOUTTIMEOUT / ECHECKOUTRETRIES: Supabase pooler 側で接続を払い出せなかった
+ */
+const POOL_EXHAUSTION_PATTERN =
+  /P2024|ECHECKOUTTIMEOUT|ECHECKOUTRETRIES|Timed out fetching a new connection/i
+
+export function isPoolExhaustionError(error: unknown): boolean {
+  if (!error) return false
+  if (typeof error === "object") {
+    const code = (error as { code?: unknown }).code
+    if (code === "P2024") return true
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  return POOL_EXHAUSTION_PATTERN.test(message)
+}
+
+/**
+ * 接続枯渇を観測した直後は、無くても画面が成り立つ DB アクセス
+ * (閲覧ログ・検索ログ・スキーマ自己修復) を一定時間止める。
+ *
+ * 枯渇中もこれらはリクエストのたびに発行され、プールの待ち行列に 30 秒ずつ
+ * 並び続けて、求人の表示に必要なクエリの順番を遅らせていた (本番ログでは
+ * 障害の間じゅう [track] / [ensureSchema] の失敗が画面のエラーと同数出ていた)。
+ * インスタンス単位の目安であり、厳密な制御ではない。
+ */
+const DB_PRESSURE_WINDOW_MS = 30_000
+let dbPressureUntil = 0
+
+export function markDbPressure(now: number = Date.now()): void {
+  dbPressureUntil = now + DB_PRESSURE_WINDOW_MS
+}
+
+export function isDbUnderPressure(now: number = Date.now()): boolean {
+  return now < dbPressureUntil
+}
+
+/** エラーが接続枯渇なら記録する。枯渇だった場合 true。 */
+export function noteDbError(error: unknown): boolean {
+  if (!isPoolExhaustionError(error)) return false
+  markDbPressure()
+  return true
+}

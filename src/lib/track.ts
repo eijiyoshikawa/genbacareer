@@ -14,7 +14,7 @@
  * このファイルは「イベントを書き込む側」の責務に絞る。
  */
 
-import { prisma } from "@/lib/db"
+import { isDbUnderPressure, noteDbError, prisma } from "@/lib/db"
 
 export type TrackEventName =
   | "view_job"
@@ -46,6 +46,8 @@ interface TrackEventInput {
  * await した方が安全 (Vercel のリクエスト境界で abort される可能性)。
  */
 export async function trackEvent(input: TrackEventInput): Promise<void> {
+  // 接続枯渇の直後は記録を諦める (画面表示に必要なクエリへ接続を譲る)
+  if (isDbUnderPressure()) return
   try {
     await prisma.analyticsEvent.create({
       data: {
@@ -56,6 +58,7 @@ export async function trackEvent(input: TrackEventInput): Promise<void> {
       },
     })
   } catch (e) {
+    noteDbError(e)
     console.warn(
       `[track] event failed (${input.name}):`,
       e instanceof Error ? e.message : e

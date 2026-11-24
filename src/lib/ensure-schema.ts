@@ -1,4 +1,4 @@
-import { prisma } from "./db"
+import { isDbUnderPressure, noteDbError, prisma } from "./db"
 
 // 本番 DB にスキーマ追加カラムが未反映の場合でもアプリが落ちないよう、
 // 起動時に冪等な ALTER TABLE / CREATE INDEX を発行する。
@@ -690,6 +690,9 @@ const STATEMENTS: ReadonlyArray<string> = [
     WHERE status NOT IN ('expired','declined')`,
 ]
 
+// 手前の区画が DB に届かなかったとき、後続の区画を実行せずに返す結果。
+const SKIPPED = { ok: false, hadConnectionError: true } as const
+
 let inflight: Promise<boolean> | null = null
 let securityInflight: Promise<boolean> | null = null
 
@@ -698,7 +701,7 @@ let securityInflight: Promise<boolean> | null = null
 // inflight にキャッシュせず次回呼び出しで再試行する。pg_trgm 権限不足のような
 // 恒久的な失敗は引き続きキャッシュし、無駄なリトライで DB 負荷を増やさない。
 const CONNECTION_ERROR_PATTERN =
-  /P1001|P2024|ECHECKOUTTIMEOUT|Can't reach database server|Timed out fetching a new connection/i
+  /P1001|P2024|ECHECKOUTTIMEOUT|ECHECKOUTRETRIES|Can't reach database server|Timed out fetching a new connection/i
 
 function isConnectionError(e: unknown): boolean {
   const message = e instanceof Error ? e.message : String(e)
@@ -723,14 +726,23 @@ export function ensureSchema(): Promise<boolean> {
  if (process.env.NEXT_PHASE === "phase-production-build") {
    return Promise.resolve(true)
  }
+ // 接続枯渇の直後は新しい実行を始めない (実行済み・実行中の結果はそのまま返す)。
+ // 枯渇中は全リクエストがここを通るたびに再試行し、文ごとに 30 秒ずつプールの
+ // 待ち行列に並んで枯渇を長引かせていた (2026-11-22〜25 の本番障害で、画面の
+ // エラーと同数の [ensureSchema] 失敗を確認)。このリクエストでは「未適用かも
+ // しれない」(false) として先へ進み、落ち着いてから再試行する。
+ const holdOff = isDbUnderPressure()
  // 本番安定後は env でスキーマ修復をスキップ可能 (TTFB 改善)。
  // ただしセキュリティDDL (RLS 有効化) と、認証に必須のカラム (CRITICAL) は
  // env に関係なく必ず実行する。
  if (process.env.ENSURE_SCHEMA === "false") {
    if (!securityInflight) {
+     if (holdOff) return Promise.resolve(false)
      securityInflight = (async () => {
         const sec = await runStatements(SECURITY_STATEMENTS)
-        const crit = await runStatements(CRITICAL_STATEMENTS)
+        const crit = sec.hadConnectionError
+          ? SKIPPED
+          : await runStatements(CRITICAL_STATEMENTS)
         // 接続断で失敗した場合は、次回呼び出しで最初から再試行できるよう
         // このウォーム状態のインスタンスに結果をキャッシュしない。
         if (sec.hadConnectionError || crit.hadConnectionError) {
@@ -742,10 +754,15 @@ export function ensureSchema(): Promise<boolean> {
    return securityInflight
  }
  if (!inflight) {
+   if (holdOff) return Promise.resolve(false)
    inflight = (async () => {
       const sec = await runStatements(SECURITY_STATEMENTS)
-      const crit = await runStatements(CRITICAL_STATEMENTS)
-      const rest = await runStatements(STATEMENTS)
+      const crit = sec.hadConnectionError
+        ? SKIPPED
+        : await runStatements(CRITICAL_STATEMENTS)
+      const rest = crit.hadConnectionError
+        ? SKIPPED
+        : await runStatements(STATEMENTS)
       if (
         sec.hadConnectionError ||
         crit.hadConnectionError ||
@@ -784,11 +801,17 @@ async function runStatements(
       ])
     } catch (e) {
       allOk = false
-      if (isConnectionError(e)) hadConnectionError = true
       console.warn(
         "[ensureSchema] statement skipped:",
         e instanceof Error ? e.message : e
       )
+      if (isConnectionError(e)) {
+        // DB に届いていないので、残りの文も同じ理由で失敗する。1 文ごとに
+        // プール待ち (30 秒) を繰り返さず、ここで打ち切って次回に回す。
+        hadConnectionError = true
+        noteDbError(e)
+        break
+      }
     }
   }
   return { ok: allOk, hadConnectionError }

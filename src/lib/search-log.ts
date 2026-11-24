@@ -7,7 +7,7 @@
  * テーブルが未作成 (初回デプロイ直後) の場合は黙ってスキップする。
  */
 
-import { prisma } from "./db"
+import { isDbUnderPressure, noteDbError, prisma } from "./db"
 
 export interface SearchLogInput {
   query?: string | null
@@ -32,6 +32,8 @@ export function logSearch(input: SearchLogInput): void {
       ) {
         return
       }
+      // 接続枯渇の直後は記録を諦める (画面表示に必要なクエリへ接続を譲る)
+      if (isDbUnderPressure()) return
       await prisma.searchLog.create({
         data: {
           query: trimmedQuery ? trimmedQuery.slice(0, QUERY_MAX) : null,
@@ -41,7 +43,8 @@ export function logSearch(input: SearchLogInput): void {
           sessionId: input.sessionId ?? null,
         },
       })
-    } catch {
+    } catch (e) {
+      noteDbError(e)
       // search_logs テーブル未作成 or 一時的エラー → 黙殺
     }
   })()
