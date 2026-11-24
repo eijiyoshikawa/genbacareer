@@ -12,7 +12,9 @@ function getSupabaseClient() {
 }
 
 const BUCKET_NAME = "documents"
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+// Vercel の関数はリクエスト本文が 4.5MB を超えると関数に届く前に 413 で拒否する。
+// 以前は 10MB と案内していたため、4.5MB を超えるファイルは必ず失敗していた。
+const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB
 const ALLOWED_MIME_TYPES = [
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
@@ -24,7 +26,7 @@ export async function uploadFile(
   fileType: "resume" | "cv" | "other"
 ): Promise<{ url: string; path: string }> {
   if (file.size > MAX_FILE_SIZE) {
-    throw new Error("ファイルサイズは10MB以下にしてください")
+    throw new Error("ファイルサイズは4MB以下にしてください")
   }
 
   if (!ALLOWED_MIME_TYPES.includes(file.type)) {

@@ -279,6 +279,11 @@ async function captureFollowerOnFollow(
     )
 }
 
+/** 応募フォームの定型文 (src/lib/line.ts の buildLineMessage) かどうか。 */
+function isApplyMessage(input: string): boolean {
+  return input.includes("【応募希望】") || /求人ID[:：]/.test(input)
+}
+
 function autoReplyText(input: string): string | null {
   const normalized = input.replace(/\s+/g, "").toLowerCase()
   if (/求人|もとめる|求める|探/.test(normalized)) {
@@ -433,6 +438,20 @@ async function handleEvent(ev: LineEvent): Promise<void> {
           await replyMessage(ev.replyToken, [{ type: "text", text: msg }])
           return
         }
+      }
+
+      // 応募フォームから送られる定型文 (buildLineMessage) への受付返信。
+      // 定型文には必ず「求人」が含まれるため、以前は下の FAQ に一致して
+      // 「最新の求人はこちら」と返しており、応募した人に受付の返事が届かなかった。
+      if (isApplyMessage(text)) {
+        const msg = [
+          "応募のご希望を受け付けました。ありがとうございます。",
+          "",
+          "担当者より 1 営業日以内にこの LINE トークでご連絡いたします。",
+          "お名前・ご連絡先がまだの場合は、このトークにお送りください。",
+        ].join("\n")
+        await replyMessage(ev.replyToken, [{ type: "text", text: msg }])
+        return
       }
 
       // FAQ パターン応答（キーワード）

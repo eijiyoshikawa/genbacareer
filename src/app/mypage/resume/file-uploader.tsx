@@ -13,6 +13,13 @@ export function FileUploader() {
     const file = e.target.files?.[0]
     if (!file) return
 
+    // サーバーに送る前に大きさを確かめる (上限を超えると基盤側で拒否され、理由が伝わらない)
+    if (file.size > 4 * 1024 * 1024) {
+      setError("ファイルサイズは4MB以下にしてください")
+      e.target.value = ""
+      return
+    }
+
     setUploading(true)
     setError("")
 
@@ -27,8 +34,13 @@ export function FileUploader() {
       })
 
       if (!res.ok) {
-        const data = await res.json()
-        setError(data.error || "アップロードに失敗しました")
+        const data = await res.json().catch(() => null)
+        setError(
+          data?.error ||
+            (res.status === 413
+              ? "ファイルサイズは4MB以下にしてください"
+              : "アップロードに失敗しました")
+        )
         return
       }
 

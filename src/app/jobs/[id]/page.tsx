@@ -885,7 +885,10 @@ function computeValidUntilInfo(validUntil: Date | null): {
 } | null {
   if (!validUntil) return null
   const now = Date.now()
-  const target = validUntil.getTime()
+  // validUntil は日付のみ (DATE) で UTC 0 時として読まれる。締切日の終わり
+  // (JST 23:59:59.999 = UTC 0 時 + 15h - 1ms) まで応募できるので、そこを基準にする。
+  // UTC 0 時のままだと、締切日当日の 9:00 (JST) 以降は締切の表示が消えていた。
+  const target = validUntil.getTime() + 15 * 60 * 60 * 1000 - 1
   const diffMs = target - now
   if (diffMs < 0) return null // 期限切れ
   const daysLeft = Math.ceil(diffMs / (24 * 60 * 60 * 1000))

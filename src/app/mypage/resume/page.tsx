@@ -116,7 +116,7 @@ export default async function ResumePage() {
           ファイルアップロード
         </h2>
         <p className="mt-2 text-sm text-gray-500">
-          作成済みの履歴書・職務経歴書をアップロードできます（PDF / Word, 10MB以下）
+          作成済みの履歴書・職務経歴書をアップロードできます（PDF / Word, 4MB以下）
         </p>
         <FileUploader />
 

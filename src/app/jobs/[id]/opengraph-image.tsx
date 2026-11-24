@@ -13,10 +13,11 @@ export default async function OGImage({
 }) {
   const { id } = await params
 
-  const job = await prisma.job
+  const found = await prisma.job
     .findUnique({
       where: { id },
       select: {
+        status: true,
         title: true,
         prefecture: true,
         city: true,
@@ -28,6 +29,12 @@ export default async function OGImage({
       },
     })
     .catch(() => null)
+  // 公開前 (下書き・審査中など) の求人は内容を画像にしない。求人詳細ページと同じく
+  // 掲載中・掲載終了のものだけ描画し、それ以外は汎用の画像を返す。
+  const job =
+    found && (found.status === "active" || found.status === "closed")
+      ? found
+      : null
 
   const title = sanitizeOgText(truncate(job?.title ?? "求人情報", 60))
   const companyName = sanitizeOgText(truncate(job?.company?.name ?? "", 30))
