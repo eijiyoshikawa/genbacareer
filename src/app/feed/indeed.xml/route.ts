@@ -16,6 +16,7 @@
 
 import { buildPublicJobOrderBy } from "@/lib/job-sort"
 import { prisma } from "@/lib/db"
+import { mapEmploymentTypeToIndeed } from "@/lib/indeed-feed"
 import { CONSTRUCTION_CATEGORY_VALUES, getCategoryLabel } from "@/lib/categories"
 
 export const dynamic = "force-dynamic"
@@ -74,6 +75,17 @@ export async function GET() {
       category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
       // 説明文が空の求人は Indeed の品質要件を満たさないので除外
       NOT: { description: null },
+      // 外部配信は課金プランが有効な企業のみ (/jobs.xml と同じ条件)。
+      // 無料キャンペーン・契約切れの企業の求人もこの URL からは配信されていた。
+      company: {
+        OR: [
+          { planType: "success_fee" },
+          {
+            planType: { in: ["monthly_12", "monthly_24", "sns_client"] },
+            planPaidUntil: { gt: new Date() },
+          },
+        ],
+      },
     },
     select: {
       id: true,
@@ -125,7 +137,7 @@ export async function GET() {
       <description>${cdata(j.description ?? "")}</description>
       ${formatSalary(j)}
       <education></education>
-      <jobtype>${cdata(j.employmentType ?? "")}</jobtype>
+      <jobtype>${cdata(mapEmploymentTypeToIndeed(j.employmentType))}</jobtype>
       <category>${cdata(getCategoryLabel(j.category))}</category>
       <experience></experience>
       <location>${cdata(location)}</location>

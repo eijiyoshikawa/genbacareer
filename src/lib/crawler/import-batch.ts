@@ -239,6 +239,10 @@ async function upsertHelloworkCompany(
       city,
       address: job.address,
       status: "approved",
+      // 列の既定値 3 は有料プラン相当。HW 企業は 0 (src/lib/plans.ts の方針)。
+      // 省略していたため、新しく取り込まれた HW 企業の求人が「おすすめ順」で
+      // 既存の HW 企業の求人より常に上に並んでいた。
+      planTier: 0,
     },
     update: {
       // 既存レコードの prefecture/city/address は最新ジョブの値で更新
@@ -763,6 +767,26 @@ export async function importHelloworkJobs(
       )
       if (category === null) {
         skipped++
+        // 以前は建設業と判定されて取り込み済みの求人が、判定の見直しや HW 側の
+        // 内容変更で対象外になった場合は掲載を終了する。スキップするだけだと
+        // 有効期限 (数週間〜数ヶ月) まで建設カテゴリのまま掲載され続けていた。
+        if (!dryRun && existingByHwId.has(job.helloworkId)) {
+          await prisma.job
+            .updateMany({
+              where: {
+                helloworkId: job.helloworkId,
+                source: "hellowork",
+                status: "active",
+              },
+              data: { status: "closed" },
+            })
+            .catch((e) =>
+              console.warn(
+                `[import-batch] 対象外になった求人の掲載終了に失敗 (${job.helloworkId}):`,
+                e instanceof Error ? e.message : e
+              )
+            )
+        }
         continue
       }
 

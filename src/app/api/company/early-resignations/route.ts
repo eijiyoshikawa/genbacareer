@@ -107,7 +107,7 @@ export async function POST(request: Request) {
       userId: true,
       status: true,
       hiredAt: true,
-      billingEvent: { select: { amount: true } },
+      billingEvent: { select: { amount: true, status: true } },
       earlyResignation: { select: { id: true } },
     },
   })
@@ -131,7 +131,7 @@ export async function POST(request: Request) {
   // (UTC 0 時 + 15h) で比較する。そうしないと、採用確定と同じ日 (JST) の退職が
   // 「入社日より前」と判定されて申請できない。
   const resignedCompare = /^\d{4}-\d{2}-\d{2}$/.test(resignedAtStr)
-    ? new Date(resignedAt.getTime() + 15 * 60 * 60 * 1000)
+    ? new Date(resignedAt.getTime() + 15 * 60 * 60 * 1000 - 1)
     : resignedAt
   if (resignedCompare <= app.hiredAt) {
     return Response.json(
@@ -146,6 +146,16 @@ export async function POST(request: Request) {
     )
   }
 
+  // 請求が取り消された (failed) 採用は入金が無いので戻入の対象にならない
+  if (app.billingEvent?.status === "failed") {
+    return Response.json(
+      {
+        error:
+          "この採用の成果報酬は請求が取り消されているため、戻入申請の対象外です",
+      },
+      { status: 400 },
+    )
+  }
   const originalFeeAmount = app.billingEvent?.amount ?? 0
   if (originalFeeAmount <= 0) {
     return Response.json(
@@ -157,10 +167,14 @@ export async function POST(request: Request) {
     )
   }
 
+  // 採用確定と同じ日 (JST) の退職は、日付のみの値 (UTC 0 時) だと採用日時より前になり、
+  // 経過 0 ヶ月として DB の CHECK (resigned_at > hired_at / months >= 1) に違反して
+  // 500 になっていた。その場合はその日の終わり (JST 23:59:59.999) を退職日時とする。
+  const effectiveResignedAt = resignedAt > app.hiredAt ? resignedAt : resignedCompare
   const { monthsAfterHire, refundRate, refundAmount, eligible } =
     computeRefundParams({
       hiredAt: app.hiredAt,
-      resignedAt,
+      resignedAt: effectiveResignedAt,
       originalFeeAmount,
     })
 
@@ -188,7 +202,7 @@ export async function POST(request: Request) {
       jobId: app.jobId,
       userId: app.userId,
       hiredAt: app.hiredAt,
-      resignedAt,
+      resignedAt: effectiveResignedAt,
       monthsAfterHire,
       refundRate,
       refundAmount,

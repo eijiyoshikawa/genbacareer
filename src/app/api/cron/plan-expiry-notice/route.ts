@@ -16,7 +16,7 @@
  */
 
 import { prisma } from "@/lib/db"
-import { sendEmail } from "@/lib/email"
+import { isPlaceholderEmail, sendEmail } from "@/lib/email"
 import { renderEmailLayout, renderEmailText, baseUrl } from "@/lib/email-template"
 import { PLAN_LABELS, type PlanType } from "@/lib/plans"
 
@@ -85,9 +85,21 @@ export async function GET(request: Request) {
     // (以前は宛先なしでも「通知済み」にしており、誰にも届かないまま失効していた)。
     const recipients = c.contactEmail
       ? [c.contactEmail]
-      : Array.from(new Set(c.companyUsers.map((u) => u.email).filter(Boolean)))
+      : Array.from(
+          new Set(
+            c.companyUsers
+              .map((u) => u.email)
+              // 運営が発行した自動生成 ID (co-xxxx@agency.genbacareer.jp) などは
+              // 受信できないアドレス。宛先に数えると「通知済み」になるだけで誰にも届かない。
+              .filter((e): e is string => !!e && !isPlaceholderEmail(e))
+          )
+        )
     if (recipients.length === 0) {
-      console.warn(`[cron/plan-expiry-notice] no recipient for ${c.id}`)
+      // 届く宛先が無い企業は、運営が代わりに連絡できるよう error で残す (Sentry / Vercel ログ)。
+      // 通知済みにはしないので、担当メールが登録されれば翌日以降に送られる。
+      console.error(
+        `[cron/plan-expiry-notice] 届く宛先がありません (担当メール未登録): company=${c.id}`
+      )
       continue
     }
 

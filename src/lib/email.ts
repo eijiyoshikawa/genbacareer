@@ -72,10 +72,11 @@ function getTransporter(): nodemailer.Transporter | null {
  * 実在しないプレースホルダーのメールアドレスかどうか。
  *   - line_<sub>@line.local       … LINE ログインで作られたアカウント (メール未取得)
  *   - deleted+<id>@deleted.local  … 退会済みアカウント
+ *   - co-xxxxxxxx@agency.genbacareer.jp … 運営が発行した企業ログイン ID (受信箱は無い)
  * 送っても必ずバウンスし、送信ドメインの評価を下げるだけなので送信しない。
  */
 export function isPlaceholderEmail(address: string): boolean {
-  return /@(line|deleted)\.local$/i.test(address.trim())
+  return /@((line|deleted)\.local|agency\.genbacareer\.jp)$/i.test(address.trim())
 }
 
 export async function sendEmail({ to, subject, html, text }: SendEmailParams) {
