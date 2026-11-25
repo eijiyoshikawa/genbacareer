@@ -23,7 +23,11 @@ export type SavedSearchInput = {
   excludeKeywords?: string[] | null
 }
 
-export function buildJobWhere(input: SavedSearchInput, since?: Date) {
+export function buildJobWhere(
+  input: SavedSearchInput,
+  since?: Date,
+  until?: Date
+) {
   const categoryFilter =
     input.category && isConstructionCategory(input.category)
       ? { category: input.category }
@@ -74,7 +78,9 @@ export function buildJobWhere(input: SavedSearchInput, since?: Date) {
         }
       : {}),
     ...(excludeFilters.length > 0 ? { AND: excludeFilters } : {}),
-    ...(since ? { publishedAt: { gte: since } } : {}),
+    ...(since
+      ? { publishedAt: { gte: since, ...(until ? { lt: until } : {}) } }
+      : {}),
   }
 }
 
@@ -140,7 +146,13 @@ export async function findNewMatchingJobs(
     lastNotifiedAt: Date | null
     createdAt: Date
   },
-  limit = 5
+  limit = 5,
+  /**
+   * この時刻より前に公開された求人だけを対象にする。cron は lastNotifiedAt を
+   * 実行開始時刻に進めるため、上限が無いと「開始後〜この検索の処理まで」に
+   * 公開された求人が今回と次回の両方で通知されていた。
+   */
+  until?: Date
 ): Promise<
   Array<{
     id: string
@@ -150,7 +162,7 @@ export async function findNewMatchingJobs(
   }>
 > {
   const since = search.lastNotifiedAt ?? search.createdAt
-  const where = buildJobWhere(search, since)
+  const where = buildJobWhere(search, since, until)
 
   // DB エラーを握りつぶして [] を返すと、cron が「新着なし」と判断して lastNotifiedAt を
   // 進めてしまい、その間に公開された求人のアラートが永久に送られなくなる。

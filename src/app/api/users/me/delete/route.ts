@@ -65,7 +65,10 @@ export async function POST(request: Request) {
   // 控えておく。DB の参照だけ消すと公開 URL のまま残り続けていた。
   const [beforeUser, uploadedFiles] = await Promise.all([
     prisma.user
-      .findUnique({ where: { id: userId }, select: { avatarUrl: true } })
+      .findUnique({
+        where: { id: userId },
+        select: { avatarUrl: true, lineUserId: true },
+      })
       .catch(() => null),
     prisma.uploadedFile
       .findMany({ where: { userId }, select: { fileUrl: true } })
@@ -129,7 +132,37 @@ export async function POST(request: Request) {
     ["companyFollow", () => prisma.companyFollow.deleteMany({ where: { userId } })],
     ["resume", () => prisma.resume.deleteMany({ where: { userId } })],
     ["uploadedFile", () => prisma.uploadedFile.deleteMany({ where: { userId } })],
+    // 「気になる」は企業の管理画面に表示され続けるため削除
+    ["jobInterest", () => prisma.jobInterest.deleteMany({ where: { userId } })],
   ]
+  // LINE 連携時に作られる line_leads の行は users.line_user_id を外しても残り、
+  // 運営の一斉配信 (line_leads.line_user_id 宛て) が退会後も届き続けていた。
+  //  - 応募に紐づかない連携だけの行 (follower) は削除
+  //  - 応募の記録は企業側の履歴として残すが、配信は止める
+  const lineUserId = beforeUser?.lineUserId
+  if (lineUserId) {
+    cleanups.push(
+      [
+        "lineLead(follower)",
+        () =>
+          prisma.lineLead.deleteMany({
+            where: { lineUserId, status: "follower", jobId: null },
+          }),
+      ],
+      [
+        "lineLead(optOut)",
+        () =>
+          prisma.lineLead.updateMany({
+            where: { lineUserId, optedOut: false },
+            data: {
+              optedOut: true,
+              optedOutAt: new Date(),
+              optedOutSource: "account_deleted",
+            },
+          }),
+      ]
+    )
+  }
   for (const [label, run] of cleanups) {
     await run().catch((e) => {
       console.error(`[delete-account] cleanup failed (${label}):`, e)

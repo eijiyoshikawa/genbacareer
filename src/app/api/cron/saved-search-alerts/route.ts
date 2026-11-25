@@ -46,7 +46,7 @@ export async function GET(request: Request) {
   for (const s of searches) {
     searchProcessed++
     try {
-      const matches = await findNewMatchingJobs(s, 5)
+      const matches = await findNewMatchingJobs(s, 5, startedAt)
       if (matches.length === 0) {
         await prisma.savedSearch.update({
           where: { id: s.id },
@@ -117,7 +117,8 @@ export async function GET(request: Request) {
           where: {
             companyId: f.companyId,
             status: "active",
-            publishedAt: { gte: since },
+            // 上限は startedAt (次回は startedAt 以降を見るので二重通知にならない)
+            publishedAt: { gte: since, lt: startedAt },
           },
           orderBy: { publishedAt: "desc" },
           take: 5,

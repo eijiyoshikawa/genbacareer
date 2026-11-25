@@ -39,7 +39,8 @@ export default async function JobFeedPage() {
   const [jobs, imagePool] = await Promise.all([
     prisma.job.findMany({
     where: { status: "active" },
-    orderBy: buildPublicJobOrderBy("recommended"),
+    // API (/api/jobs/feed) の続きの取得と同じ順序にする (id は同順位の決定用)
+    orderBy: [...buildPublicJobOrderBy("recommended"), { id: "asc" }],
     take: initialLimit,
     select: {
       id: true,

@@ -30,6 +30,13 @@ export const REFUND_RATE_SCHEDULE: ReadonlyArray<{
   { monthsAfterHire: 3, refundRate: 20 },
 ] as const
 
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000
+
+/** 日本時間での暦日の通し番号 (日付の差を取るためだけに使う)。 */
+function jstDayNumber(d: Date): number {
+  return Math.floor((d.getTime() + JST_OFFSET_MS) / DAY_MS)
+}
+
 /**
  * 入社日から退職日までの経過月数を算出する。
  * 端数は切り上げ (Math.ceil) で月単位に丸める。最低 1 ヶ月。
@@ -38,11 +45,13 @@ export function calculateMonthsAfterHire(
   hiredAt: Date,
   resignedAt: Date,
 ): number {
-  const diffMs = resignedAt.getTime() - hiredAt.getTime()
-  if (diffMs <= 0) return 0
-  const days = diffMs / DAY_MS
-  const months = days / MONTH_DAYS
-  return Math.max(1, Math.ceil(months))
+  if (resignedAt.getTime() <= hiredAt.getTime()) return 0
+  // 経過日数は日本時間の暦日で数える。ミリ秒差で数えると、採用確定の時刻が
+  // 朝 9 時より前 (JST) の場合に、日付のみで届く退職日 (UTC 0 時 = JST 9 時) との
+  // 差が「30 日と数時間」になり、規定どおり 30 日目の退職が 2 ヶ月目 (80% → 50%)、
+  // 90 日目の退職が対象外 (20% → 0%) に繰り下がっていた。
+  const days = jstDayNumber(resignedAt) - jstDayNumber(hiredAt)
+  return Math.max(1, Math.ceil(days / MONTH_DAYS))
 }
 
 /**

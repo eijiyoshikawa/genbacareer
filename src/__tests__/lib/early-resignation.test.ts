@@ -186,3 +186,26 @@ describe("computeRefundParams (integration)", () => {
     expect(r.refundAmount).toBe(0)
   })
 })
+
+describe("calculateMonthsAfterHire: 日本時間の暦日で数える", () => {
+  // 採用確定が JST 朝 8 時 (= 前日 23:00 UTC)。退職日は日付のみで届き UTC 0 時になる。
+  const hire = new Date("2025-12-31T23:00:00Z") // 2026-01-01 08:00 JST
+
+  it("30 日目の退職は 1 ヶ月以内 (時刻の端数で 2 ヶ月目に繰り下がらない)", () => {
+    expect(calculateMonthsAfterHire(hire, new Date("2026-01-31"))).toBe(1)
+  })
+
+  it("31 日目は 2 ヶ月目", () => {
+    expect(calculateMonthsAfterHire(hire, new Date("2026-02-01"))).toBe(2)
+  })
+
+  it("90 日目の退職は 3 ヶ月以内", () => {
+    expect(calculateMonthsAfterHire(hire, new Date("2026-04-01"))).toBe(3)
+  })
+
+  it("同じ日 (JST) の退職は 1 ヶ月以内", () => {
+    expect(
+      calculateMonthsAfterHire(hire, new Date("2026-01-01T14:59:59Z"))
+    ).toBe(1)
+  })
+})

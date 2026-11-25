@@ -1,5 +1,6 @@
 import { requireAdminPage } from "@/lib/admin-page-auth"
 import Link from "next/link"
+import { getLeadAdminNotes } from "@/lib/line-lead-admin-notes"
 import { prisma } from "@/lib/db"
 import { Pagination } from "@/components/pagination"
 import { MessageCircle, Search, Download } from "lucide-react"
@@ -97,7 +98,13 @@ export default async function AdminLineLeadsPage({ searchParams }: Props) {
 
   // 直近 24h / 7d の集計
   const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  // 「本日」は日本時間の 0 時から (サーバーは UTC のため、ローカル時刻の 0 時だと
+  // 日本時間 9 時始まりになり、0〜9 時の応募が本日分に入らなかった)
+  const JST_OFFSET_MS = 9 * 3_600_000
+  const today = new Date(
+    Math.floor((now.getTime() + JST_OFFSET_MS) / 86_400_000) * 86_400_000 -
+      JST_OFFSET_MS
+  )
   const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000)
   const [todayCount, weekCount] = await Promise.all([
     prisma.lineLead.count({ where: { createdAt: { gte: today } } }).catch(() => 0),
@@ -105,6 +112,8 @@ export default async function AdminLineLeadsPage({ searchParams }: Props) {
       .count({ where: { createdAt: { gte: sevenDaysAgo } } })
       .catch(() => 0),
   ])
+
+  const adminNotes = await getLeadAdminNotes(leads.map((l) => l.id))
 
   const rowData: LeadRowData[] = leads.map((l) => ({
     id: l.id,
@@ -114,6 +123,7 @@ export default async function AdminLineLeadsPage({ searchParams }: Props) {
     email: l.email,
     experienceYears: l.experienceYears,
     notes: l.notes,
+    adminNotes: adminNotes.get(l.id) ?? null,
     status: (isLeadStatus(l.status) ? l.status : "pending") as LeadStatus,
     lineUserId: l.lineUserId,
     lineDisplayName: l.lineDisplayName,

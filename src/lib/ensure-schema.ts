@@ -335,6 +335,9 @@ const STATEMENTS: ReadonlyArray<string> = [
     ADD COLUMN IF NOT EXISTS "opted_out_at" TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS "opted_out_source" VARCHAR(20)`,
  `CREATE INDEX IF NOT EXISTS "idx_line_leads_opted_out" ON "line_leads" ("opted_out")`,
+ // 運営の内部メモ (lib/line-lead-admin-notes.ts)。応募者の入力 (notes) は企業にも
+ // 表示されるため、運営のメモは別の列に持つ。
+ `ALTER TABLE "line_leads" ADD COLUMN IF NOT EXISTS "admin_notes" TEXT`,
  // pg_trgm: 求人 q 検索の類似度ベース高速化（lib/job-search.ts が利用）
  // CREATE EXTENSION は superuser 権限が必要だが Supabase なら通る。
  // 失敗してもループ全体は止まらず、後段の CREATE INDEX のみ警告で skip される。

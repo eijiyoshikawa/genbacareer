@@ -16,6 +16,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { isLeadStatus } from "@/lib/line-lead-status"
 import { csvEscape } from "@/lib/csv"
+import { getLeadAdminNotes } from "@/lib/line-lead-admin-notes"
 
 export const dynamic = "force-dynamic"
 
@@ -45,7 +46,8 @@ const HEADERS = [
   "UTM source",
   "UTM medium",
   "UTM campaign",
-  "メモ",
+  "応募者メッセージ",
+  "運用メモ",
 ]
 
 export async function GET(request: NextRequest) {
@@ -106,6 +108,8 @@ export async function GET(request: NextRequest) {
     },
   })
 
+  const adminNotes = await getLeadAdminNotes(leads.map((l) => l.id))
+
   const rows: string[] = [HEADERS.map(csvEscape).join(",")]
   for (const l of leads) {
     rows.push(
@@ -127,6 +131,7 @@ export async function GET(request: NextRequest) {
         l.utmMedium ?? "",
         l.utmCampaign ?? "",
         l.notes ?? "",
+        adminNotes.get(l.id) ?? "",
       ]
         .map(csvEscape)
         .join(",")

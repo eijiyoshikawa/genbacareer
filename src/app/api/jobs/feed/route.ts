@@ -10,6 +10,7 @@
  */
 
 import { type NextRequest } from "next/server"
+import { isValidUuid } from "@/lib/uuid"
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { buildPublicJobOrderBy } from "@/lib/job-sort"
@@ -28,7 +29,9 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = request.nextUrl
-  const cursor = searchParams.get("cursor")
+  // UUID でない cursor は無視する (そのまま where に渡すと P2023 で 500 になる)
+  const rawCursor = searchParams.get("cursor")
+  const cursor = isValidUuid(rawCursor) ? rawCursor : null
 
   let cursorRow: {
     displayPriority: number
@@ -58,18 +61,43 @@ export async function GET(request: NextRequest) {
                   displayPriority: cursorRow.displayPriority,
                   rankScore: { lt: cursorRow.rankScore },
                 },
-                {
-                  displayPriority: cursorRow.displayPriority,
-                  rankScore: cursorRow.rankScore,
-                  ...(cursorRow.publishedAt
-                    ? { publishedAt: { lt: cursorRow.publishedAt } }
-                    : {}),
-                },
+                // 3 つのキーがすべて同じ求人は id で順序を決める。以前は
+                // publishedAt が「より古い」ものだけを次ページにしていたため、
+                // 同時刻に取り込まれた求人 (HW の一括取り込みで多発) のうち
+                // ページの境目より後ろの分がどのページにも出てこなかった。
+                // (publishedAt desc は NULL が先頭に並ぶ)
+                ...(cursorRow.publishedAt
+                  ? [
+                      {
+                        displayPriority: cursorRow.displayPriority,
+                        rankScore: cursorRow.rankScore,
+                        publishedAt: { lt: cursorRow.publishedAt },
+                      },
+                      {
+                        displayPriority: cursorRow.displayPriority,
+                        rankScore: cursorRow.rankScore,
+                        publishedAt: cursorRow.publishedAt,
+                        id: { gt: cursor! },
+                      },
+                    ]
+                  : [
+                      {
+                        displayPriority: cursorRow.displayPriority,
+                        rankScore: cursorRow.rankScore,
+                        publishedAt: { not: null },
+                      },
+                      {
+                        displayPriority: cursorRow.displayPriority,
+                        rankScore: cursorRow.rankScore,
+                        publishedAt: null,
+                        id: { gt: cursor! },
+                      },
+                    ]),
               ],
             }
           : {}),
       },
-      orderBy: buildPublicJobOrderBy("recommended"),
+      orderBy: [...buildPublicJobOrderBy("recommended"), { id: "asc" }],
       take: PAGE_SIZE,
       select: {
         id: true,

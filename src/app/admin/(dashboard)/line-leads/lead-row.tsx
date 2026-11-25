@@ -24,7 +24,10 @@ export interface LeadRowData {
   phone: string
   email: string
   experienceYears: number | null
+  /** 応募者本人が応募時に書いた内容 (企業にも表示される。運営は書き換えない) */
   notes: string | null
+  /** 運営だけが見る内部メモ */
+  adminNotes: string | null
   status: LeadStatus
   lineUserId: string | null
   lineDisplayName: string | null
@@ -64,13 +67,13 @@ export function LeadRow({ lead, expanded: initiallyExpanded }: { lead: LeadRowDa
   const router = useRouter()
   const [expanded, setExpanded] = useState(initiallyExpanded ?? false)
   const [status, setStatus] = useState<LeadStatus>(lead.status)
-  const [notes, setNotes] = useState(lead.notes ?? "")
+  const [notes, setNotes] = useState(lead.adminNotes ?? "")
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState<null | "ok" | string>(null)
   const [tab, setTab] = useState<"detail" | "history">("detail")
   const [pushOpen, setPushOpen] = useState(false)
 
-  async function save(changes: { status?: LeadStatus; notes?: string; optedOut?: boolean }) {
+  async function save(changes: { status?: LeadStatus; adminNotes?: string | null; optedOut?: boolean }) {
     setSaving(true)
     setResult(null)
     try {
@@ -264,13 +267,24 @@ export function LeadRow({ lead, expanded: initiallyExpanded }: { lead: LeadRowDa
 
           {/* メモ */}
           <div>
-            <label className="block text-xs font-bold text-gray-700">運用メモ</label>
+            {lead.notes && (
+              <div className="mb-3">
+                <p className="text-xs font-bold text-gray-700">応募者からのメッセージ</p>
+                <p className="mt-1 whitespace-pre-wrap border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                  {lead.notes}
+                </p>
+              </div>
+            )}
+            <label className="block text-xs font-bold text-gray-700">
+              運用メモ（運営のみ表示・企業には見えません）
+            </label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               onBlur={() => {
-                if (notes !== (lead.notes ?? "")) {
-                  save({ notes: notes || undefined })
+                if (notes !== (lead.adminNotes ?? "")) {
+                  // 空にした場合は null を送ってメモを消す
+                  save({ adminNotes: notes.trim() ? notes : null })
                 }
               }}
               rows={3}
