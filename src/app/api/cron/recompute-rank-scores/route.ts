@@ -23,6 +23,7 @@ export const maxDuration = 300
 const BATCH_SIZE = 500
 // 接続プール (1 インスタンス 10 本) を使い切らない本数にする。25 だと実行中は
 // プール全体を占有し、昼の時間帯 (JST 12:45) に pooler を圧迫していた。
+// 実行時刻も深夜 (JST 03:45 = 18:45 UTC) に移している (vercel.json)。
 const UPDATE_CONCURRENCY = 5
 const MAX_JOBS = 40000 // 1 実行あたりの上限（タイムアウト保護）
 const WINDOW_MS = 14 * 24 * 60 * 60 * 1000

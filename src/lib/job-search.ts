@@ -27,6 +27,44 @@ export type FuzzySearchInput = {
   offset?: number
 }
 
+/** ILIKE の部分一致パターン。キーワード中の % _ \ はワイルドカードにしない。 */
+export function toContainsPattern(q: string): string {
+  return `%${q.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`
+}
+
+/**
+ * 一致した求人と並び順のスコアを返す CTE 本体。件数取得と本検索で共有する。
+ *
+ * 以前は全掲載求人について similarity(description, q) も計算していた。
+ * 求人本文は数百〜千文字あり、1 行ごとに本文全体の trigram を作るため
+ * 1 回の検索で DB の CPU を数秒〜10 秒近く使い切る (約 4.5 万件・本文平均
+ * 900 文字で実測 8〜9 秒)。キーワード検索が数本重なるだけで DB が飽和し、
+ * 接続が返らなくなってサイト全体が 500 になっていた (2026-11-21〜25 に毎日発生)。
+ * しかも長い本文と短いキーワードの類似度は 0.05 に届かず、本文にキーワードが
+ * そのまま書かれていても一致しなかった (計算はするが結果には効いていなかった)。
+ *
+ *  - タイトル: 従来どおり類似度 (表記ゆれに強い)。短い文字列なので軽い。
+ *  - 本文 / タイトル: キーワードをそのまま含むものを ILIKE で拾う
+ *    (3 文字以上なら pg_trgm の GIN インデックスが効く)。類似度一致より下に並べる。
+ */
+function scoredCte(whereSql: string): string {
+  return `
+        SELECT id, similarity(title, $1) AS similarity, published_at
+        FROM jobs
+        WHERE status = 'active'
+          AND category = ANY($2)
+          ${whereSql}
+          AND similarity(title, $1) > 0.05
+        UNION ALL
+        SELECT id, 0.05::real AS similarity, published_at
+        FROM jobs
+        WHERE status = 'active'
+          AND category = ANY($2)
+          ${whereSql}
+          AND (title ILIKE $3 OR description ILIKE $3)
+          AND NOT (similarity(title, $1) > 0.05)`
+}
+
 // where句と params の組み立ては件数取得(count)と本検索(search)で共有する。
 function buildFuzzyWhere(input: FuzzySearchInput): {
   whereSql: string
@@ -40,8 +78,9 @@ function buildFuzzyWhere(input: FuzzySearchInput): {
   // NOTE: $N の位置はオプションフィルタの有無で変わるため動的に採番する。
   // （静的に $3..$8 と書くと、prefecture 無しで employmentType 等を指定したとき
   //   実際の引数位置とずれて SQL エラーになり、ファジー検索が無音で失敗していた）
-  const params: unknown[] = [input.q, categories]
-  let n = 2
+  // $3 は「キーワードをそのまま含む」判定用の ILIKE パターン (% _ \ はエスケープ)
+  const params: unknown[] = [input.q, categories, toContainsPattern(input.q)]
+  let n = 3
   const whereClauses: string[] = []
   if (input.prefecture) {
     whereClauses.push(`AND prefecture = $${++n}`)
@@ -95,19 +134,10 @@ export async function fuzzySearchJobsCount(
     const { whereSql, params } = buildFuzzyWhere(input)
     const rows = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
       `
-      WITH scored AS (
-        SELECT GREATEST(
-                 similarity(title, $1),
-                 similarity(coalesce(description, ''), $1)
-               ) AS similarity
-        FROM jobs
-        WHERE status = 'active'
-          AND category = ANY($2)
-          ${whereSql}
+      WITH scored AS (${scoredCte(whereSql)}
       )
       SELECT count(*)::bigint AS count
-      FROM scored
-      WHERE similarity > 0.05;
+      FROM scored;
       `,
       ...params
     )
@@ -125,10 +155,9 @@ export async function fuzzySearchJobsCount(
 /**
  * 1 ページ分の求人 ID と総件数を 1 回の走査で返す。
  *
- * 類似度は全掲載求人の title / description に対して計算するためインデックスが
- * 効かず、このサイトで最も重いクエリになる。以前は「ページ取得」と「件数取得」を
- * 別々の SQL で並列に流しており、同じ全件走査を 2 本同時に走らせていた。
- * キーワード検索がまとめて来ると接続を使い切る原因になるため、
+ * タイトルの類似度は全掲載求人に対して計算する (インデックスは効かない)。
+ * 以前は「ページ取得」と「件数取得」を別々の SQL で並列に流しており、
+ * 同じ全件走査を 2 本同時に走らせていた。
  * count(*) OVER() で件数を同じ走査から得る。
  *
  * 戻り値:
@@ -149,22 +178,11 @@ export async function fuzzySearchJobsPage(
       { id: string; total: bigint }[]
     >(
       `
-      WITH scored AS (
-        SELECT id,
-               GREATEST(
-                 similarity(title, $1),
-                 similarity(coalesce(description, ''), $1)
-               ) AS similarity,
-               published_at
-        FROM jobs
-        WHERE status = 'active'
-          AND category = ANY($2)
-          ${whereSql}
+      WITH scored AS (${scoredCte(whereSql)}
       )
       SELECT id, count(*) OVER() AS total
       FROM scored
-      WHERE similarity > 0.05
-      ORDER BY similarity DESC, published_at DESC NULLS LAST
+      ORDER BY similarity DESC, published_at DESC NULLS LAST, id
       LIMIT ${limit} OFFSET ${offset};
       `,
       ...params

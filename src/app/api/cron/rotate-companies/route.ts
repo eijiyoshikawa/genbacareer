@@ -1,7 +1,8 @@
 /**
  * C8 公平ローテーション: 全 Company の rotationKey を日次更新する cron。
  *
- * 毎日 03:30 UTC (= 12:30 JST) に Vercel Cron Jobs から呼び出す。
+ * 毎日 18:30 UTC (= 翌 03:30 JST) に Vercel Cron Jobs から呼び出す。
+ * 全企業の行を書き換えるため、以前の 12:30 JST (昼のアクセスのピーク) から深夜に移した。
  * Authorization ヘッダーで CRON_SECRET を検証。
  *
  * 動作:

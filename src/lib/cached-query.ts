@@ -31,9 +31,30 @@ const MAX_QUEUE_WAIT_MS = 15_000
 
 export class CachedQueryBusyError extends Error {
   constructor() {
-    super("cachedQuery: timed out waiting for a free slot (database is busy)")
+    super("cachedQuery: timed out waiting for the database (busy)")
     this.name = "CachedQueryBusyError"
   }
+}
+
+/**
+ * クエリ自体の待ち時間の上限。枠待ち (MAX_QUEUE_WAIT_MS) だけを区切っても、
+ * 枠を持ったクエリが固まると同じキーの呼び出しは全員その 1 本の完了を
+ * 待ち続ける (inflight 共有)。ゲスト閲覧可否の判定のように全ページが通る
+ * キーで起きると、そのインスタンスの求人詳細がすべて関数の実行上限
+ * (300 秒) まで応答しなくなる。上限を超えたら待つのをやめてエラーにし、
+ * 枠も次へ渡す (DB 側のクエリは止められないが、待ちの連鎖は断てる)。
+ * 正常時の最も重いクエリでも数秒なので、25 秒で打ち切って困るものは無い。
+ */
+const MAX_QUERY_MS = 25_000
+
+function withDeadline<T>(promise: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new CachedQueryBusyError()), MAX_QUERY_MS)
+  })
+  // 打ち切り後に本体が失敗しても未処理の rejection にしない
+  promise.catch(() => {})
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer))
 }
 
 let running = 0
@@ -64,7 +85,7 @@ async function withMissLimit<T>(fn: () => Promise<T>): Promise<T> {
     running++
   }
   try {
-    return await fn()
+    return await withDeadline(fn())
   } finally {
     const next = waiters.shift()
     // 枠を次の待機者へそのまま渡す (running は減らさない)

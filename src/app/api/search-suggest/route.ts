@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/db"
+import { isDbUnderPressure, noteDbError, prisma } from "@/lib/db"
+import { cachedQuery } from "@/lib/cached-query"
 import { CATEGORIES, CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { PREFECTURES } from "@/lib/constants"
 
@@ -43,17 +44,28 @@ export async function GET(req: Request) {
   }
 
   // 求人タイトル（建設業・公開中）
+  // 入力のたび (200ms 間隔) に呼ばれるため DB には控えめに行く:
+  //  - 1 文字ではタイトルの trigram インデックスが使えず、公開中の全求人を
+  //    なめることになるので 2 文字以上から検索する
+  //  - 同じ入力は誰が打っても同じ結果なので短時間キャッシュする
+  //  - 接続が枯渇している間は DB に行かない (候補が出なくても検索はできる)
+  const key = q.toLowerCase()
+  if (key.length < 2 || key.length > 50 || isDbUnderPressure()) {
+    return NextResponse.json({ suggestions: out.slice(0, 12) })
+  }
   try {
-    const jobs = await prisma.job.findMany({
-      where: {
-        status: "active",
-        category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
-        title: { contains: q, mode: "insensitive" },
-      },
-      select: { title: true },
-      orderBy: { publishedAt: "desc" },
-      take: 12,
-    })
+    const jobs = await cachedQuery(["search-suggest-titles", key], 300, () =>
+      prisma.job.findMany({
+        where: {
+          status: "active",
+          category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
+          title: { contains: q, mode: "insensitive" },
+        },
+        select: { title: true },
+        orderBy: { publishedAt: "desc" },
+        take: 12,
+      })
+    )
     const seen = new Set<string>()
     for (const j of jobs) {
       const t = j.title.trim()
@@ -62,7 +74,8 @@ export async function GET(req: Request) {
       out.push({ type: "job", label: t, href: `/jobs?q=${encodeURIComponent(t)}` })
       if (out.filter((s) => s.type === "job").length >= 6) break
     }
-  } catch {
+  } catch (e) {
+    noteDbError(e)
     // DB エラー時はカテゴリ/都道府県分だけ返す
   }
 
