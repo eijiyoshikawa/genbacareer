@@ -209,7 +209,7 @@ export function HomeSidebar({
                     </p>
                     {a.publishedAt && (
                       <p className="mt-1 text-[10px] text-gray-400">
-                        {new Date(a.publishedAt).toLocaleDateString("ja-JP")}
+                        {new Date(a.publishedAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                       </p>
                     )}
                   </div>

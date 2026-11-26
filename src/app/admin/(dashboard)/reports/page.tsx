@@ -121,7 +121,7 @@ export default async function AdminReportsPage(props: {
                   {r.resolvedAt && r.resolution && (
                     <p className="mt-2 border-t pt-2 text-xs text-gray-600">
                       対応メモ: {r.resolution}（
-                      {new Date(r.resolvedAt).toLocaleDateString("ja-JP")}）
+                      {new Date(r.resolvedAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}）
                     </p>
                   )}
                 </div>

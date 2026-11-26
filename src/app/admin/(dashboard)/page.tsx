@@ -363,7 +363,7 @@ async function PendingCompaniesSection() {
                   {c.contactEmail ?? "—"}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 text-gray-500 text-xs">
-                  {c.createdAt.toLocaleDateString("ja-JP")}
+                  {c.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                 </td>
               </tr>
             ))}

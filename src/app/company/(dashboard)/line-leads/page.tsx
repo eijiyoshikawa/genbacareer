@@ -149,7 +149,7 @@ export default async function CompanyLineLeadsPage({ searchParams }: Props) {
                     <p className="text-sm font-bold text-gray-900">
                       {lead.name}
                       <span className="ml-2 text-xs font-normal text-gray-500">
-                        {new Date(lead.createdAt).toLocaleString("ja-JP", {
+                        {new Date(lead.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo",
                           month: "numeric",
                           day: "numeric",
                           hour: "2-digit",

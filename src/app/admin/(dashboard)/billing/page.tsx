@@ -139,7 +139,7 @@ export default async function AdminBillingPage({
                     <BillingStatusBadge status={event.status} />
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                    {event.createdAt.toLocaleDateString("ja-JP")}
+                    {event.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </td>
                 </tr>
               ))}

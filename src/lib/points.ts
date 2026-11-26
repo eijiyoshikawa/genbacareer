@@ -477,10 +477,10 @@ export async function drawLottery(
         prizeId: isWin ? chosen.id : null,
         prizeName: chosen.name,
         isWin,
-        fulfillment:
-          isWin && (chosen.kind === "amazon_gift" || chosen.kind === "physical")
-            ? "pending"
-            : "not_applicable",
+        // 当選はすべて運営の発送待ちに載せる。以前は service_perk (景品作成時の
+        // 既定の種別) だけ対象外にしていたため、当選者には「運営よりご連絡します」
+        // と表示されるのに admin の発送待ち一覧には出ず、連絡されないままになっていた。
+        fulfillment: isWin ? "pending" : "not_applicable",
       },
     })
 

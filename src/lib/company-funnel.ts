@@ -346,19 +346,26 @@ async function computeTimeSeriesUncached(
     prisma.application
       .findMany({
         where: { companyId, createdAt: { gte: from }, status: "hired" },
-        select: { updatedAt: true },
+        select: { updatedAt: true, hiredAt: true },
       })
-      .catch(() => [] as { updatedAt: Date }[]),
+      .catch(() => [] as { updatedAt: Date; hiredAt: Date | null }[]),
   ])
 
   // バケット作成
   const buckets = new Map<string, TimeSeriesPoint>()
-  const fromMs = from.getTime()
+  // バケットは日本時間の暦日で区切る。以前は「今から 30 日前の同時刻」を起点に
+  // 24 時間ずつ区切り、起点の UTC 日付を見出しにしていたため、14 時に開くと
+  // 「11/25」の棒が 11/25 14:00〜11/26 14:00 (JST) を指し、開くたびに境目も動いていた。
+  const JST_OFFSET_MS = 9 * 3_600_000
+  const DAY_MS = 86_400_000
+  const fromMs =
+    Math.floor((from.getTime() + JST_OFFSET_MS) / DAY_MS) * DAY_MS - JST_OFFSET_MS
   const toMs = to.getTime()
-  const bucketMs = bucketDays * 86_400_000
+  const bucketMs = bucketDays * DAY_MS
+  const labelOf = (startMs: number) =>
+    new Date(startMs + JST_OFFSET_MS).toISOString().slice(0, 10)
   for (let t = fromMs; t <= toMs; t += bucketMs) {
-    const d = new Date(t)
-    const key = d.toISOString().slice(0, 10)
+    const key = labelOf(t)
     buckets.set(key, { date: key, views: 0, applications: 0, hired: 0 })
   }
 
@@ -366,8 +373,7 @@ async function computeTimeSeriesUncached(
     const diff = d.getTime() - fromMs
     if (diff < 0) return ""
     const bucketIdx = Math.floor(diff / bucketMs)
-    const bucketStart = new Date(fromMs + bucketIdx * bucketMs)
-    return bucketStart.toISOString().slice(0, 10)
+    return labelOf(fromMs + bucketIdx * bucketMs)
   }
 
   for (const v of views) {
@@ -381,7 +387,9 @@ async function computeTimeSeriesUncached(
     if (b) b.applications++
   }
   for (const h of hires) {
-    const k = bucketKey(h.updatedAt)
+    // 採用確定日で数える。updatedAt だと社内メモや面接情報を編集しただけで
+    // 過去の採用が今日の棒に移動していた。
+    const k = bucketKey(h.hiredAt ?? h.updatedAt)
     const b = buckets.get(k)
     if (b) b.hired++
   }

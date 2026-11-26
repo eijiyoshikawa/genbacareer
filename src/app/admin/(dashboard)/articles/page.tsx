@@ -199,7 +199,7 @@ export default async function AdminArticlesPage({
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">
                     {a.publishedAt
-                      ? a.publishedAt.toLocaleDateString("ja-JP")
+                      ? a.publishedAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })
                       : "—"}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-right text-sm">

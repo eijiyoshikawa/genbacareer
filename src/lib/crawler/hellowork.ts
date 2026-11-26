@@ -450,8 +450,8 @@ function toHelloworkJobData(
 /**
  * 有効期限 (日付のみ) を「その日の 23:59:59.999 JST」に変換する。
  * parseDate は UTC 0 時 (= JST 9 時) を返すため、そのまま expiresAt に使うと
- * 有効期限当日の朝 9 時に JSON-LD の validThrough が過去になり、正午 (JST) の
- * expire-jobs cron で当日中に掲載終了してしまう。
+ * 有効期限当日の朝 9 時に JSON-LD の validThrough が過去になり、
+ * expire-jobs cron (毎日 00:05 JST) で期限前に掲載終了してしまう。
  */
 export function endOfJstDay(date: Date | null): Date | null {
   if (!date) return null

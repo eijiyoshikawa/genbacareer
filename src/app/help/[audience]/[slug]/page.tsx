@@ -99,7 +99,7 @@ export default async function HelpArticlePage({ params }: Props) {
         <p className="mt-2 text-gray-600">{article.excerpt}</p>
       )}
       <p className="mt-2 text-xs text-gray-400">
-        最終更新: {article.updatedAt.toLocaleDateString("ja-JP")}
+        最終更新: {article.updatedAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
       </p>
 
       <article

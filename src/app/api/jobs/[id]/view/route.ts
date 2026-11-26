@@ -10,7 +10,7 @@
  */
 
 import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/db"
+import { prisma, isDbUnderPressure } from "@/lib/db"
 import { getSessionIdIfExists } from "@/lib/session-id"
 import { recordJobView, extractUtmFromUrl } from "@/lib/tracking"
 import { trackEvent } from "@/lib/track"
@@ -68,7 +68,7 @@ export async function POST(
     ? extractUtmFromUrl(body.pageUrl)
     : { source: null, medium: null, campaign: null }
 
-  await recordJobView({
+  const recorded = await recordJobView({
     jobId: id,
     sessionId,
     userId,
@@ -76,7 +76,18 @@ export async function POST(
     userAgent: ua,
     referer,
     utm,
-  }).catch(() => {})
+  }).catch(() => false)
+
+  // 閲覧数 (人気順・ランキングの元) の加算。以前は求人詳細の描画のたびに SSR から
+  // UPDATE していたため、クローラーの巡回でも増え、接続枯渇中も 1 表示ごとに
+  // 接続待ちを 1 本積み増していた。人の閲覧として記録できたときだけ加算する
+  // (dwell は同じ閲覧の 2 回目の合図なので数えない)。
+  // 生 SQL なのは prisma.job.update だと @updatedAt まで動いてしまうため。
+  if (recorded && body.dwell !== true && !isDbUnderPressure()) {
+    await prisma.$executeRaw`UPDATE jobs SET view_count = view_count + 1 WHERE id = ${id}::uuid AND status = 'active'`.catch(
+      () => {}
+    )
+  }
 
   // ポイント制度（ログインユーザーのみ・付与失敗は握りつぶす）:
   //  - ログインボーナス（1 日 1 回）はその日の最初のアクセスで付与

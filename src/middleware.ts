@@ -18,16 +18,19 @@ const SESSION_MAX_AGE = 365 * 24 * 60 * 60
 // 誤爆防止:
 //  - 閾値を十分緩く設定(20 req/s/IP)。通常ユーザーや Googlebot(自己制御された
 //    巡回で毎秒1〜2程度)は到達しない。スクレイパーの毎秒数十〜数百のみ 429。
-//  - ログイン済み(セッションCookie保持)ユーザーは対象外。
+//  - セッション Cookie を持つリクエストは上限を 3 倍に緩める (対象外にはしない。
+//    Cookie は名前があるだけで中身を検証できないため、適当な値を付けるだけで
+//    制限を素通りでき、ゲスト扱いの重いクエリを無制限に叩けていた)。
 //  - GET のみ対象(フォーム送信などの POST は巻き込まない)。
 // ============================================================
 const RL_WINDOW_MS = 10_000 // 10 秒窓
 const RL_MAX_HITS = 200 // 1 IP あたり 10 秒で 200 (= 20 req/s) まで許容
+const RL_MAX_HITS_WITH_SESSION = 600 // セッション Cookie 付き (管理画面の連続操作を巻き込まない)
 const RL_MAX_ENTRIES = 20_000 // メモリ肥大ガード
 const rlHits = new Map<string, number[]>()
 
 /** 同一 IP が直近 RL_WINDOW_MS 内に RL_MAX_HITS 以上叩いていれば true。 */
-function isRateLimited(ip: string): boolean {
+function isRateLimited(ip: string, maxHits: number = RL_MAX_HITS): boolean {
   const now = Date.now()
   const windowStart = now - RL_WINDOW_MS
   const arr = rlHits.get(ip)
@@ -45,7 +48,7 @@ function isRateLimited(ip: string): boolean {
   let i = 0
   while (i < arr.length && arr[i] < windowStart) i++
   if (i > 0) arr.splice(0, i)
-  if (arr.length >= RL_MAX_HITS) return true
+  if (arr.length >= maxHits) return true
   arr.push(now)
   return false
 }
@@ -190,14 +193,19 @@ export function middleware(request: NextRequest) {
   // ============================================================
   // 0b) レート制限: 匿名 GET への単一 IP 高速連打を 429 で遮断。
   //     ページ関数が走る前に返すため、スクレイパー由来の Function Invocations /
-  //     DB アクセスを未然に削減する。ログイン済み・POST・インフラ経路は対象外。
+  //     DB アクセスを未然に削減する。POST・インフラ経路は対象外 (Cookie 付きは上限を緩める)。
   // ============================================================
   const hasSession =
     !!request.cookies.get("authjs.session-token")?.value ||
     !!request.cookies.get("__Secure-authjs.session-token")?.value
-  if (!isExempt && request.method === "GET" && !hasSession) {
+  if (!isExempt && request.method === "GET") {
     const rlIp = extractClientIp(request.headers)
-    if (rlIp && isRateLimited(rlIp)) {
+    if (
+      rlIp &&
+      (hasSession
+        ? isRateLimited(`s:${rlIp}`, RL_MAX_HITS_WITH_SESSION)
+        : isRateLimited(rlIp))
+    ) {
       return new NextResponse("Too Many Requests", {
         status: 429,
         headers: {

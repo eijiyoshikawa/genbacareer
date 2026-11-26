@@ -14,6 +14,7 @@
 import { isValidUuid } from "@/lib/uuid"
 import { type NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
+import { getSuspendedCompanyError } from "@/lib/company-auth"
 import { prisma } from "@/lib/db"
 import { csvEscape } from "@/lib/csv"
 
@@ -64,6 +65,9 @@ export async function GET(request: NextRequest) {
   }
   const companyId = (session.user as { companyId?: string }).companyId
   if (!companyId) {
+    return new Response("forbidden", { status: 403 })
+  }
+  if (await getSuspendedCompanyError(companyId)) {
     return new Response("forbidden", { status: 403 })
   }
 

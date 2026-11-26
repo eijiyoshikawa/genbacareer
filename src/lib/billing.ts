@@ -54,11 +54,26 @@ export async function createHiringInvoice(applicationId: string) {
   // (無ければ求人の現在値にフォールバック — スナップショット導入前の古い応募向け)。
   // これは、企業が採用確定の直前に求人の給与を一時的に下げて成果報酬を圧縮し、
   // 請求後に元へ戻すという操作を防ぐため。
+  //
+  // スナップショットは 3 項目をまとめて扱う。項目ごとに `??` で求人の現在値へ
+  // 落とすと、内定時に空だった項目 (例: 下限なし・上限 40 万) を後から埋めるだけで
+  // 基準額を差し替えられてしまう (下限 24 万を足すと 168 万 → 100.8 万)。
+  // 1 項目でも記録があれば内定時点の値だけで計算する。
+  const hasOfferSnapshot =
+    application.offerSalaryMin != null ||
+    application.offerSalaryMax != null ||
+    application.offerSalaryType != null
   const feeAmount = resolveHiringFee({
     hiringFeeAmount: application.job.hiringFeeAmount,
-    salaryMin: application.offerSalaryMin ?? application.job.salaryMin,
-    salaryMax: application.offerSalaryMax ?? application.job.salaryMax,
-    salaryType: application.offerSalaryType ?? application.job.salaryType,
+    salaryMin: hasOfferSnapshot
+      ? application.offerSalaryMin
+      : application.job.salaryMin,
+    salaryMax: hasOfferSnapshot
+      ? application.offerSalaryMax
+      : application.job.salaryMax,
+    salaryType: hasOfferSnapshot
+      ? application.offerSalaryType
+      : application.job.salaryType,
   })
 
   return prisma.billingEvent.create({

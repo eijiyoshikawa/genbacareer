@@ -566,7 +566,7 @@ export default async function CompanyDetailPage({ params }: Props) {
                   <span>·</span>
                   <span>{r.displayName ?? "建設業界の方"}</span>
                   <span>·</span>
-                  <span>{r.createdAt.toLocaleDateString("ja-JP")}</span>
+                  <span>{r.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}</span>
                 </div>
                 {r.title && (
                   <p className="font-bold text-gray-900">{r.title}</p>

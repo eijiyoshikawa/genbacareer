@@ -159,7 +159,7 @@ export default async function TagPage({ params }: Props) {
                   <>
                     <span>·</span>
                     <time dateTime={a.publishedAt.toISOString()}>
-                      {a.publishedAt.toLocaleDateString("ja-JP")}
+                      {a.publishedAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                     </time>
                   </>
                 )}

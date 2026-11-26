@@ -84,6 +84,18 @@ describe("resolveHiringFee (年収35%モデル)", () => {
       HIRING_FEE_FALLBACK,
     )
   })
+  it("上限を超える推定も暫定額にする (月給欄に年収・時給欄に巨大な値)", () => {
+    expect(resolveHiringFee({ salaryMin: 4_500_000, salaryType: "monthly" })).toBe(
+      HIRING_FEE_FALLBACK,
+    )
+    expect(resolveHiringFee({ salaryMin: 100_000_000, salaryType: "hourly" })).toBe(
+      HIRING_FEE_FALLBACK,
+    )
+    // 上限ちょうどまでは自動計算のまま
+    expect(resolveHiringFee({ salaryMin: 14_000_000, salaryType: "annual" })).toBe(
+      4_900_000,
+    )
+  })
   it("率は 35%", () => {
     expect(HIRING_FEE_RATE).toBe(0.35)
   })

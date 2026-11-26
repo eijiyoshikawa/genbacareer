@@ -177,7 +177,7 @@ export default async function ScoutNewPage({ searchParams }: Props) {
       {existing && (
         <div className="mt-4 border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           この求職者には既にアクティブなスカウトが送信済みです (
-          {existing.sentAt.toLocaleDateString("ja-JP")} 送信)。期限切れ後に再送できます。
+          {existing.sentAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })} 送信)。期限切れ後に再送できます。
         </div>
       )}
 

@@ -216,7 +216,7 @@ export function ApplicationsBulkTable({
                   />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                  {new Date(app.createdAt).toLocaleDateString("ja-JP")}
+                  {new Date(app.createdAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">
                   <Link

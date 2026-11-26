@@ -238,13 +238,8 @@ export default async function JobDetailPage({ params, searchParams }: Props) {
     }
   }
 
-  // プレビューモードではトラッキングを行わない（社内チェックを実件数に混ぜないため）
-  if (!isPreview) {
-    // 生 SQL で加算する: prisma.job.update だと @updatedAt も更新され、閲覧のたびに
-    // サイトマップの lastmod や「最終同期」表示が実際の更新と無関係に動いてしまう。
-    prisma.$executeRaw`UPDATE jobs SET view_count = view_count + 1 WHERE id = ${id}::uuid`
-      .catch(() => {})
-  }
+  // 閲覧数の加算はクライアント beacon (POST /api/jobs/[id]/view) 側で行う。
+  // ここ (SSR) では DB に書き込まない。
 
   const jsonLd = generateJobPostingSchema({
     id: job.id,

@@ -227,7 +227,7 @@ export default async function AdminCompaniesPage({
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                      {company.createdAt.toLocaleDateString("ja-JP")}
+                      {company.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                     </td>
                   </tr>
                 )

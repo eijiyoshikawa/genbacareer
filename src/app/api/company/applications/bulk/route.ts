@@ -18,6 +18,7 @@ import { prisma } from "@/lib/db"
 import { ensureSchema } from "@/lib/ensure-schema"
 import type { Prisma } from "@prisma/client"
 import { auth } from "@/lib/auth"
+import { getSuspendedCompanyError } from "@/lib/company-auth"
 import { z } from "zod"
 import { sendApplicationStatusEmail } from "@/lib/application-notifications"
 import { notifyApplicationStatusChange } from "@/lib/notifications"
@@ -54,6 +55,10 @@ export async function POST(request: Request) {
   const companyId = (session.user as { companyId?: string }).companyId
   if (!companyId) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
+  }
+  const suspended = await getSuspendedCompanyError(companyId)
+  if (suspended) {
+    return Response.json({ error: suspended }, { status: 403 })
   }
   const actorId = (session.user as { id?: string }).id ?? "unknown"
 

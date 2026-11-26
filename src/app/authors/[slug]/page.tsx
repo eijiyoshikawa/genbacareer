@@ -229,7 +229,7 @@ export default async function AuthorPage({ params }: Props) {
                       {a.publishedAt && (
                         <p className="mt-1.5 flex items-center gap-1 text-[10px] text-gray-400">
                           <CalendarBlank weight="duotone" className="h-3 w-3" />
-                          {new Date(a.publishedAt).toLocaleDateString("ja-JP")}
+                          {new Date(a.publishedAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                         </p>
                       )}
                     </div>

@@ -119,7 +119,7 @@ export function CompanyGbizSection({
 
       {gbizSyncedAt && (
         <p className="mt-4 text-xs text-gray-400">
-          最終更新: {gbizSyncedAt.toLocaleDateString("ja-JP")}
+          最終更新: {gbizSyncedAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
         </p>
       )}
     </section>

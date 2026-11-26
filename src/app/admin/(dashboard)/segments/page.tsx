@@ -76,7 +76,7 @@ export default async function SegmentsPage() {
               {recentLogs.map((log) => (
                 <tr key={log.id} className="border-b text-xs">
                   <td className="py-2 text-gray-600">
-                    {new Date(log.createdAt).toLocaleString("ja-JP", {
+                    {new Date(log.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo",
                       month: "numeric",
                       day: "numeric",
                       hour: "2-digit",

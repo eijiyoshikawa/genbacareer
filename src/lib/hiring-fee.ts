@@ -73,7 +73,10 @@ export function resolveHiringFee(
   // 給与を「25」(万円のつもり) のように桁違いで入力した求人や、下限を極端に
   // 低くした求人では自動計算が ¥0〜数千円になる。確定額の下限 (HIRING_FEE_MIN) を
   // 下回る推定は信用せず、給与情報なしと同じ暫定額にする (admin が確定額を設定)。
-  if (fee < HIRING_FEE_MIN) return HIRING_FEE_FALLBACK
+  // 上側も同じ: 月給の欄に年収 (450 万) を入れると 1,890 万円、時給の欄に大きな数を
+  // 入れると INT の範囲を超えて請求レコードの作成自体が失敗し、採用が請求漏れになる。
+  // 確定額として設定できる上限 (HIRING_FEE_MAX) を超える推定も暫定額に倒す。
+  if (fee < HIRING_FEE_MIN || fee > HIRING_FEE_MAX) return HIRING_FEE_FALLBACK
   return fee
 }
 

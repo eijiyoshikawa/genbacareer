@@ -53,8 +53,9 @@ export interface RecordJobViewInput {
  * - 同一 sessionId + jobId は直近 5 分以内なら skip（バウンス防止）
  * - 失敗してもページ表示には影響させない
  */
-export async function recordJobView(input: RecordJobViewInput): Promise<void> {
-  if (isLikelyBot(input.userAgent)) return
+/** 戻り値: 閲覧として新たに記録したら true (bot・5 分以内の再読込・失敗は false) */
+export async function recordJobView(input: RecordJobViewInput): Promise<boolean> {
+  if (isLikelyBot(input.userAgent)) return false
 
   try {
     // 重複抑制: 同セッションで同求人を 5 分以内に再ロードしても 1 回だけ記録
@@ -67,7 +68,7 @@ export async function recordJobView(input: RecordJobViewInput): Promise<void> {
         },
         select: { id: true },
       })
-      if (recent) return
+      if (recent) return false
     }
 
     await prisma.jobView.create({
@@ -83,8 +84,10 @@ export async function recordJobView(input: RecordJobViewInput): Promise<void> {
         utmCampaign: input.utm.campaign,
       },
     })
+    return true
   } catch (e) {
     // テーブル未作成・接続エラーなどはサイレントにスキップ
     console.warn(`[tracking.jobView] ${e instanceof Error ? e.message : e}`)
+    return false
   }
 }

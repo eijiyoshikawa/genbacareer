@@ -76,3 +76,25 @@ export function isCompanyAuthError(
 ): ctx is CompanyAuthError {
   return "error" in ctx
 }
+
+/**
+ * 運営が利用停止 (rejected) にした企業かどうか。停止済みなら表示用の文言を返す。
+ *
+ * 求人の投稿・公開は requireCompanyAuth({ requireApproved: true }) で止まるが、
+ * 応募者の選考操作と一覧の書き出しはセッションだけを見ていたため、不正などで
+ * 停止した企業が応募者の氏名・連絡先を書き出したり、内定・不採用の通知を
+ * 送ったりできた。承認待ち (pending) は対象外 (応募がまだ無く、止める理由もない)。
+ */
+export async function getSuspendedCompanyError(
+  companyId: string
+): Promise<string | null> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { status: true },
+  })
+  if (!company) return "企業情報が見つかりません"
+  if (company.status === "rejected") {
+    return "申し訳ございません。本アカウントではご利用いただくことができません。詳細は info@let-inc.net までお問い合わせください。"
+  }
+  return null
+}

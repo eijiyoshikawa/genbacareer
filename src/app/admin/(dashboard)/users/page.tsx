@@ -139,7 +139,7 @@ export default async function AdminUsersPage({
                   {u.prefecture ?? "—"}
                 </td>
                 <td className="px-3 py-2 text-xs text-gray-500">
-                  {u.createdAt.toLocaleDateString("ja-JP")}
+                  {u.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                 </td>
                 <td className="px-3 py-2">
                   {u.status === "active" && (

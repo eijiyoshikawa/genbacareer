@@ -118,5 +118,5 @@ function formatRelative(d: Date): string {
   if (hr < 24) return `${hr} 時間前`
   const day = Math.floor(hr / 24)
   if (day < 7) return `${day} 日前`
-  return d.toLocaleDateString("ja-JP")
+  return d.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })
 }

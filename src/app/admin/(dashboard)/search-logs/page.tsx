@@ -200,7 +200,7 @@ export default async function SearchLogsPage() {
               {recent.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
-                    {r.createdAt.toLocaleString("ja-JP", {
+                    {r.createdAt.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo",
                       month: "2-digit",
                       day: "2-digit",
                       hour: "2-digit",

@@ -73,6 +73,22 @@ describe("createHiringInvoice", () => {
     expect(create.mock.calls[0][0].data.amount).toBe(expected)
   })
 
+  it("内定時に空だった項目を後から求人に足しても請求額は変わらない", async () => {
+    findUnique.mockResolvedValue({
+      offerSalaryMin: null,
+      offerSalaryMax: 400000,
+      offerSalaryType: "monthly",
+      company: { id: "c1", planType: "success_fee" },
+      // 内定後に下限 24 万を足して基準額を差し替えようとする
+      job: { hiringFeeAmount: null, salaryMin: 240000, salaryMax: 400000, salaryType: "monthly" },
+    })
+
+    await createHiringInvoice("a1")
+
+    // 上限 40 万 × 12 × 35%
+    expect(create.mock.calls[0][0].data.amount).toBe(1_680_000)
+  })
+
   it.each(["monthly_12", "monthly_24", "campaign_free", "sns_client"])(
     "成果報酬プラン以外 (%s) では請求を作らない",
     async (planType) => {

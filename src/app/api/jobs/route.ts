@@ -38,7 +38,8 @@ export async function GET(request: NextRequest) {
   const category = param("category")
   const employmentType = param("employment_type")
   const salaryMin = searchParams.get("salary_min")
-  const q = param("q")
+  // 長大な q は本文 ILIKE の全件走査をそのまま重くするだけなので切り詰める (/jobs と同じ 60 文字)
+  const q = param("q")?.trim().slice(0, 60) || null
   // 数値以外 / 小数が来ると take・skip が NaN になり Prisma が 500 を返すため
   // 整数化して既定値へフォールバックする。
   const toInt = (v: string | null, fallback: number) => {

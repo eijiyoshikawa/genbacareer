@@ -278,8 +278,8 @@ export function InvitationManager({
                   <div className="min-w-0">
                     <p className="truncate font-mono">{inv.email}</p>
                     <p className="text-xs text-gray-500">
-                      {inv.role} · 発行 {new Date(inv.createdAt).toLocaleDateString("ja-JP")} · 期限{" "}
-                      {new Date(inv.expiresAt).toLocaleDateString("ja-JP")}
+                      {inv.role} · 発行 {new Date(inv.createdAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })} · 期限{" "}
+                      {new Date(inv.expiresAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                       {expired && (
                         <span className="ml-1 text-red-600">(期限切れ)</span>
                       )}

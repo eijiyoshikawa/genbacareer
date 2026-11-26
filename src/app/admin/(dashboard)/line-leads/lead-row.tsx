@@ -97,7 +97,7 @@ export function LeadRow({ lead, expanded: initiallyExpanded }: { lead: LeadRowDa
   }
 
   const meta = LEAD_STATUS_META[status]
-  const createdLocal = new Date(lead.createdAt).toLocaleString("ja-JP", {
+  const createdLocal = new Date(lead.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo",
     month: "numeric",
     day: "numeric",
     hour: "2-digit",
@@ -408,7 +408,7 @@ function HistoryPanel({ leadId }: { leadId: string }) {
                   className="press group flex items-start gap-2 border bg-white p-2 hover:border-primary-300"
                 >
                   <span className="text-xs text-gray-400 tabular-nums shrink-0 mt-0.5">
-                    {new Date(v.viewedAt).toLocaleString("ja-JP", {
+                    {new Date(v.viewedAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo",
                       month: "numeric",
                       day: "numeric",
                       hour: "2-digit",
@@ -449,7 +449,7 @@ function HistoryPanel({ leadId }: { leadId: string }) {
                   className="press group flex items-start gap-2 border bg-white p-2 hover:border-primary-300"
                 >
                   <span className="text-xs text-gray-400 tabular-nums shrink-0 mt-0.5">
-                    {new Date(c.clickedAt).toLocaleString("ja-JP", {
+                    {new Date(c.clickedAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo",
                       month: "numeric",
                       day: "numeric",
                       hour: "2-digit",
@@ -486,7 +486,7 @@ function HistoryPanel({ leadId }: { leadId: string }) {
                 className="flex items-start gap-2 border bg-white p-2"
               >
                 <span className="text-xs text-gray-400 tabular-nums shrink-0 mt-0.5">
-                  {new Date(l.createdAt).toLocaleString("ja-JP", {
+                  {new Date(l.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo",
                     month: "numeric",
                     day: "numeric",
                     hour: "2-digit",

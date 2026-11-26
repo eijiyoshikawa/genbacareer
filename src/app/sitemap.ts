@@ -177,7 +177,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         category: { in: [...CONSTRUCTION_CATEGORY_VALUES] },
       },
       select: { id: true, updatedAt: true },
-      orderBy: { updatedAt: "desc" },
+      // 直接掲載 (displayPriority が小さい) を先に取る。更新順だけだと、毎時の
+      // HW 取り込みと順位再計算で updatedAt が動く HW 求人が上位 5,000 件を占め、
+      // 数日前に編集しただけの直接掲載求人がサイトマップから漏れていた。
+      orderBy: [{ displayPriority: "asc" }, { updatedAt: "desc" }],
       take: MAX_JOBS,
     })
   )

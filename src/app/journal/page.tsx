@@ -3,6 +3,7 @@ import Image from "next/image"
 import type { Metadata } from "next"
 import { prisma, withDbRetry } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
+import { cachedQuery } from "@/lib/cached-query"
 import { Newspaper, Search, ChevronRight } from "lucide-react"
 import { Pagination } from "@/components/pagination"
 
@@ -65,39 +66,64 @@ export default async function JournalPage({ searchParams }: Props) {
     ...(categoryFilter ? { category: categoryFilter } : {}),
   }
 
-  const [articles, total, featured, categories, popular] = await Promise.all([
-    withDbRetry(() =>
-      prisma.article.findMany({
-        where,
-        orderBy: { publishedAt: "desc" },
-        skip: (page - 1) * PER_PAGE,
-        take: PER_PAGE,
-        select: { slug: true, title: true, excerpt: true, category: true, imageUrl: true, publishedAt: true, featured: true },
-      })
-    ),
-    withDbRetry(() => prisma.article.count({ where })),
-    page === 1 && !categoryFilter
-      ? prisma.article.findMany({
-          where: { ...publishedArticleFilter(), featured: true },
+  // 一覧は誰が見ても同じ内容なので 5 分キャッシュする。searchParams を読むため
+  // このページは動的描画になり (上の revalidate は効かない)、以前は 1 表示ごとに
+  // 5 本のクエリを並列で投げていた。1 インスタンスの接続は 10 本なので、
+  // クローラーが ?page=N を数本並べて叩くだけで接続を使い切り、求人ページごと
+  // 500 になっていた (本番の P2024 に /journal が毎回含まれていた)。
+  // キャッシュのキーを際限なく増やさないよう、既知のカテゴリだけキャッシュに載せる。
+  const loadList = () =>
+    Promise.all([
+      withDbRetry(() =>
+        prisma.article.findMany({
+          where,
           orderBy: { publishedAt: "desc" },
-          take: 3,
-          select: { slug: true, title: true, category: true, imageUrl: true },
+          skip: (page - 1) * PER_PAGE,
+          take: PER_PAGE,
+          select: { slug: true, title: true, excerpt: true, category: true, imageUrl: true, publishedAt: true, featured: true },
         })
-      : Promise.resolve([]),
-    prisma.article.groupBy({
-      by: ["category"],
-      where: publishedArticleFilter(),
-      _count: true,
-      orderBy: { _count: { category: "desc" } },
-    }),
-    // 13.1: 人気記事ランキング (viewCount desc, 上位 5 件)
-    prisma.article.findMany({
-      where: publishedArticleFilter(),
-      orderBy: { viewCount: "desc" },
-      take: 5,
-      select: { slug: true, title: true, category: true, viewCount: true },
-    }),
-  ])
+      ),
+      withDbRetry(() => prisma.article.count({ where })),
+    ])
+  const cacheableList =
+    (!categoryFilter || categoryFilter in CATEGORY_LABELS) && page <= 200
+  const loadSidebar = () =>
+    Promise.all([
+      prisma.article.findMany({
+        where: { ...publishedArticleFilter(), featured: true },
+        orderBy: { publishedAt: "desc" },
+        take: 3,
+        select: { slug: true, title: true, category: true, imageUrl: true },
+      }),
+      prisma.article.groupBy({
+        by: ["category"],
+        where: publishedArticleFilter(),
+        _count: true,
+        orderBy: { _count: { category: "desc" } },
+      }),
+      // 13.1: 人気記事ランキング (viewCount desc, 上位 5 件)
+      prisma.article.findMany({
+        where: publishedArticleFilter(),
+        orderBy: { viewCount: "desc" },
+        take: 5,
+        select: { slug: true, title: true, category: true, viewCount: true },
+      }),
+    ])
+
+  // 接続を取り合わないよう、一覧 → サイドバーの順に取得する
+  const [articles, total] = cacheableList
+    ? await cachedQuery(
+        ["journal-list", categoryFilter, String(page)],
+        300,
+        loadList
+      )
+    : await loadList()
+  const [allFeatured, categories, popular] = await cachedQuery(
+    ["journal-sidebar"],
+    300,
+    loadSidebar
+  )
+  const featured = page === 1 && !categoryFilter ? allFeatured : []
 
   const totalPages = Math.ceil(total / PER_PAGE)
 
@@ -209,7 +235,7 @@ export default async function JournalPage({ searchParams }: Props) {
                           {CATEGORY_LABELS[a.category] ?? a.category}
                         </span>
                         {a.publishedAt && (
-                          <time className="text-xs text-gray-400">{a.publishedAt.toLocaleDateString("ja-JP")}</time>
+                          <time className="text-xs text-gray-400">{new Date(a.publishedAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}</time>
                         )}
                       </div>
                       <h3 className="mt-1 text-sm font-medium text-gray-900 line-clamp-2 group-hover:text-primary-600 transition">

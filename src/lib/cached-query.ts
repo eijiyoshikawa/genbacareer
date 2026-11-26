@@ -94,7 +94,32 @@ async function withMissLimit<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-/** 同じキーで実行中のクエリ。同時に来た同一リクエストは 1 回の実行を共有する。 */
+/**
+ * 同じキーで実行中の「クエリ本体」。
+ *
+ * 下の inflight は unstable_cache の呼び出しをまとめるだけで、期限切れの
+ * エントリには効かない。unstable_cache は期限切れの値をその場で返し、更新は
+ * リクエストごとに裏で走らせるため、外側の Promise はすぐ解決して inflight から
+ * 消える。その結果、全ページが通るキー (ゲスト閲覧可否・既定の求人一覧) が
+ * 期限を迎えるたびに、更新が書き戻されるまでに来たリクエストの数だけ同じ重い
+ * クエリが走り、ミス用の実行枠 (3 本) も埋めて他の検索を 500 にしていた。
+ * クエリ本体の実行をキーごとに 1 本にまとめ、表の読み直しも裏の更新も共有する。
+ */
+const runningFns = new Map<string, Promise<unknown>>()
+
+function runShared<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const existing = runningFns.get(key)
+  if (existing) return existing as Promise<T>
+  const promise = withMissLimit(fn).finally(() => {
+    runningFns.delete(key)
+  })
+  // 裏の更新として実行され、誰も待っていない場合でも未処理の rejection にしない
+  promise.catch(() => {})
+  runningFns.set(key, promise)
+  return promise
+}
+
+/** 同じキーで実行中の呼び出し。同時に来た同一リクエストは 1 回の実行を共有する。 */
 const inflight = new Map<string, Promise<unknown>>()
 
 /**
@@ -113,7 +138,7 @@ export async function cachedQuery<T>(
   const existing = inflight.get(key)
   if (existing) return existing as Promise<T>
   const promise = cachedQueryInner(keyParts, revalidateSeconds, () =>
-    withMissLimit(fn)
+    runShared(key, fn)
   ).finally(() => {
     inflight.delete(key)
   })

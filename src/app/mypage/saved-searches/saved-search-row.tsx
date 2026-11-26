@@ -111,7 +111,7 @@ export function SavedSearchRow({
           </p>
           <p className="mt-0.5 text-xs text-gray-500 line-clamp-2">{label}</p>
           <p className="mt-0.5 text-xs text-gray-400">
-            保存日: {new Date(createdAt).toLocaleDateString("ja-JP")}
+            保存日: {new Date(createdAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
           </p>
         </Link>
 

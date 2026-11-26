@@ -3,6 +3,7 @@ import { z } from "zod"
 import type { Prisma } from "@prisma/client"
 import { isValidUuid } from "@/lib/uuid"
 import { auth } from "@/lib/auth"
+import { getSuspendedCompanyError } from "@/lib/company-auth"
 import { prisma } from "@/lib/db"
 import { ensureSchema } from "@/lib/ensure-schema"
 import { sendApplicationStatusEmail } from "@/lib/application-notifications"
@@ -60,6 +61,8 @@ async function getCompanyCtx() {
   if (!companyId) {
     return { error: "企業情報が見つかりません", status: 403 as const }
   }
+  const suspended = await getSuspendedCompanyError(companyId)
+  if (suspended) return { error: suspended, status: 403 as const }
   const userId = (session.user as { id?: string }).id ?? "unknown"
   return { companyId, userId }
 }

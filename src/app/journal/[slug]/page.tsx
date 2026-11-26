@@ -258,7 +258,7 @@ export default async function ArticlePage({ params }: Props) {
           </span>
           {article.publishedAt && (
             <time className="text-xs text-gray-400" dateTime={article.publishedAt.toISOString()}>
-              {article.publishedAt.toLocaleDateString("ja-JP")}
+              {article.publishedAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
             </time>
           )}
         </div>
@@ -283,7 +283,7 @@ export default async function ArticlePage({ params }: Props) {
             <span className="hidden sm:inline">
               最終更新:{" "}
               <time dateTime={article.updatedAt.toISOString()}>
-                {article.updatedAt.toLocaleDateString("ja-JP")}
+                {article.updatedAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
               </time>
             </span>
             <span className="hidden sm:inline text-gray-300">|</span>
@@ -302,7 +302,7 @@ export default async function ArticlePage({ params }: Props) {
           <span>
             最終更新:{" "}
             <time dateTime={article.updatedAt.toISOString()}>
-              {article.updatedAt.toLocaleDateString("ja-JP")}
+              {article.updatedAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
             </time>
           </span>
           <span>·</span>

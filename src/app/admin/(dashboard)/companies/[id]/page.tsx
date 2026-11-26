@@ -218,7 +218,7 @@ export default async function AdminCompanyDetailPage({
                 <p className="text-gray-900">{u.name ?? "(名前未設定)"}</p>
                 <p className="text-gray-500">
                   {u.email} · {u.role} ·{" "}
-                  {u.createdAt.toLocaleDateString("ja-JP")}
+                  {u.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   {u.mustChangePassword && (
                     <span className="ml-2 inline-block bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
                       仮 PW 未変更
