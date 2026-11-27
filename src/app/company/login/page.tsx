@@ -39,17 +39,22 @@ export default function CompanyLoginPage() {
       });
 
       if (result?.error) {
-        // 2FA が有効な企業アカウントは "TOTP_REQUIRED" を throw する
-        if (
-          result.error.includes("TOTP_REQUIRED") ||
-          (!totp && result.error.toLowerCase().includes("totp"))
-        ) {
+        // 失敗の理由は result.code に入る (lib/auth.ts の AuthCodeError)。
+        // 以前は result.error の文字列を見ていたが、そこには "Configuration" しか
+        // 入らないため、2 段階認証の入力欄が表示されずログインできなかった。
+        const code = result.code ?? "";
+        if (code === "TOTP_REQUIRED") {
           setTotpRequired(true);
           setError("認証アプリの 6 桁コード（またはリカバリコード）を入力してください。");
           return;
         }
-        if (result.error.includes("TOTP_INVALID")) {
+        if (code === "TOTP_INVALID") {
+          setTotpRequired(true);
           setError("認証コードが正しくありません。もう一度お試しください。");
+          return;
+        }
+        if (code === "RATE_LIMITED") {
+          setError("ログインの試行回数が上限に達しました。15 分ほど時間をおいてからお試しください。");
           return;
         }
         setError("メールアドレスまたはパスワードが正しくありません。");

@@ -57,7 +57,15 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError("メールアドレスまたはパスワードが正しくありません。");
+        // 理由ごとに案内を分ける (以前はすべて「パスワードが正しくありません」と表示され、
+        // 試行回数の上限に達した人が正しいパスワードを何度も入れ直していた)
+        if (result.code === "RATE_LIMITED") {
+          setError("ログインの試行回数が上限に達しました。15 分ほど時間をおいてからお試しください。");
+        } else if (result.code === "ACCOUNT_SUSPENDED") {
+          setError("このアカウントは現在ご利用いただけません。お問い合わせフォームよりご連絡ください。");
+        } else {
+          setError("メールアドレスまたはパスワードが正しくありません。");
+        }
       } else if (result?.ok) {
         window.location.href = callbackUrl;
       }

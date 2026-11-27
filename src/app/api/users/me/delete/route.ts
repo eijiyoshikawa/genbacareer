@@ -93,6 +93,11 @@ export async function POST(request: Request) {
           birthDate: null,
           resumeUrl: null,
           avatarUrl: null,
+          // 希望条件・ブロック設定 (現在の勤務先を登録していることが多い) も消す
+          blockedCompanyIds: [],
+          blockedKeywords: [],
+          desiredCategories: [],
+          desiredSalaryMin: null,
           // LINE 連携を外す。残すと再登録後の LINE ログインが
           // この退会済み行に当たって拒否され続ける。
           lineUserId: null,

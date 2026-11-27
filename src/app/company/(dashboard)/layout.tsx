@@ -61,7 +61,10 @@ export default async function CompanyLayout({
               rejectionReason={company.rejectionReason}
             />
           )}
-          {children}
+          {/* 運営が利用停止にした企業には案内だけを表示する。以前は案内の下に
+              応募者一覧・LINE 応募・「気になる」の各ページがそのまま描画され、
+              氏名・電話番号・メールアドレスを見続けられた。 */}
+          {company?.status === "rejected" ? null : children}
         </div>
       </div>
     </div>

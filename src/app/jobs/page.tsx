@@ -292,7 +292,12 @@ export default async function JobsPage({ searchParams }: Props) {
         city: params.city,
         category: params.category,
         employmentType: params.employment_type,
-        source: params.source,
+        // 検証後の値を渡す (キャッシュキーと同じ)。生の値だと ?source=x のような
+        // 不正値で結果が空になり、その代替結果が正規の検索と同じキーに保存されていた
+        source:
+          "source" in sourceFilter && typeof sourceFilter.source === "string"
+            ? sourceFilter.source
+            : undefined,
         salaryMin: salaryMinYen ?? undefined,
         salaryMax: salaryMaxYen ?? undefined,
         publishedSince: dateWithinThreshold ?? undefined,
@@ -651,6 +656,10 @@ export default async function JobsPage({ searchParams }: Props) {
                   employmentType={params.employment_type}
                   salaryMin={salaryMinYen ?? undefined}
                   source={params.source}
+                  // こだわり条件も保存する。以前は渡しておらず、こだわり条件だけで
+                  // 絞って保存すると条件なしの検索として登録され、全国の新着求人が
+                  // すべて通知されていた。
+                  tags={conditionTagVariants.slice(0, 20)}
                 />
               )}
               <SortLink params={params} sort={sort} />

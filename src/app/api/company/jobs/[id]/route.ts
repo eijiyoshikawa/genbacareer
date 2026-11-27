@@ -6,7 +6,8 @@ import { revalidateAfterJobChange } from "@/lib/revalidate-public"
 import { computeDisplayPriority } from "@/lib/job-display-priority"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
 import { isValidUuid } from "@/lib/uuid"
-import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
+import { requireCompanyAuth, isCompanyAuthError, getPlanExpiredError } from "@/lib/company-auth"
+import { resolveHiringFee } from "@/lib/hiring-fee"
 
 const VALID_CATEGORIES: readonly string[] = CONSTRUCTION_CATEGORY_VALUES
 
@@ -121,6 +122,7 @@ export async function PUT(
       publishedAt: true,
       updatedAt: true,
       source: true,
+      hiringFeeAmount: true,
       salaryType: true,
       salaryMin: true,
       salaryMax: true,
@@ -197,6 +199,10 @@ export async function PUT(
         { status: 403 }
       )
     }
+    const planExpired = await getPlanExpiredError(ctx.companyId)
+    if (planExpired) {
+      return Response.json({ error: planExpired, code: "PLAN_EXPIRED" }, { status: 403 })
+    }
   }
 
   // 楽観ロック: クライアントが取得した時点から変わっていなければ更新を許可
@@ -251,6 +257,39 @@ export async function PUT(
       { status: 400 }
     )
   }
+  // 選考中の応募がある求人では、成果報酬の基準額が下がる給与変更を受け付けない。
+  // 成果報酬は内定 (offered) にした時点の求人の給与から計算するため、内定の直前に
+  // 月給 30 万 → 2.4 万 (または給与形態を年収に変更) と書き換えてから内定・採用にし、
+  // あとで元に戻せば 126 万円の請求を約 10 万円にできた。内定時に給与が空だった応募は
+  // 採用時の値で計算するので、offered も対象に含める。
+  // 運営が確定額 (hiringFeeAmount) を設定済みの求人は給与に左右されないため対象外。
+  const salaryTouched =
+    data.salaryMin !== undefined ||
+    data.salaryMax !== undefined ||
+    data.salaryType !== undefined
+  if (
+    salaryTouched &&
+    existing.hiringFeeAmount == null &&
+    resolveHiringFee(merged) < resolveHiringFee(existing)
+  ) {
+    const inSelection = await prisma.application.count({
+      where: {
+        jobId: id,
+        status: { in: ["applied", "reviewing", "interview", "offered"] },
+      },
+    })
+    if (inSelection > 0) {
+      return Response.json(
+        {
+          error:
+            "選考中の応募があるため、給与の引き下げ・給与形態の変更はできません。選考の完了後に変更するか、info@let-inc.net までお問い合わせください",
+          code: "SALARY_LOCKED",
+        },
+        { status: 409 }
+      )
+    }
+  }
+
   const displayPriority = computeDisplayPriority(merged)
 
   const job = await prisma.job.update({

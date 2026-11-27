@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { buildPublicJobOrderBy } from "@/lib/job-sort"
-import { prisma, withDbRetry } from "@/lib/db"
+import { prisma, withDbRetry, isDbUnderPressure } from "@/lib/db"
 import { publishedArticleFilter } from "@/lib/articles"
 import { ChevronRight } from "lucide-react"
 import { Buildings, Clock, ArrowLeft, ArrowRight, Tag } from "@phosphor-icons/react/dist/ssr"
@@ -104,8 +104,12 @@ export default async function ArticlePage({ params }: Props) {
   // Increment view count (non-blocking)
   // 生 SQL で加算する: prisma.article.update だと @updatedAt も更新され、閲覧のたびに
   // 記事の「更新日」表示・構造化データの dateModified・サイトマップの lastmod が動いていた。
-  prisma.$executeRaw`UPDATE articles SET view_count = view_count + 1 WHERE id = ${article.id}::uuid`
-    .catch(() => {})
+  // 接続が逼迫している間は加算しない (無くても表示できる書き込みが接続待ちの列を
+  // 埋めて、復旧を遅らせるため)。
+  if (!isDbUnderPressure()) {
+    prisma.$executeRaw`UPDATE articles SET view_count = view_count + 1 WHERE id = ${article.id}::uuid`
+      .catch(() => {})
+  }
 
   // 13.4 trackEvent("view_article")
   void trackEvent({

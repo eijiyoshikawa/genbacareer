@@ -59,7 +59,10 @@ export default async function ScoutsInboxPage() {
 
   const scouts = await prisma.scoutMessage.findMany({
     where: { userId },
-    orderBy: [{ status: "asc" }, { sentAt: "desc" }],
+    // 新しい順に取る。以前は status の昇順 (declined → expired → read → sent) で
+    // 100 件に切っていたため、辞退・期限切れが 100 件たまると未読のスカウトが
+    // 1 件も表示されなくなった。
+    orderBy: { sentAt: "desc" },
     take: 100,
     select: {
       id: true,

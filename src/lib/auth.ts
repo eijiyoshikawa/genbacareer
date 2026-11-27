@@ -1,4 +1,4 @@
-import NextAuth from "next-auth"
+import NextAuth, { CredentialsSignin } from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import { awardSignupBonus } from "./points"
 import Google from "next-auth/providers/google"
@@ -10,6 +10,23 @@ import { checkRateLimit } from "./rate-limit"
 import { bindLineUserToAccount } from "./line-link"
 import { ensureSchema } from "./ensure-schema"
 import { createHash } from "node:crypto"
+
+/**
+ * ログイン失敗の理由をクライアントへ伝えるためのエラー。
+ *
+ * authorize から素の Error を投げると、Auth.js はそれを設定エラー扱いにして
+ * クライアントには error="Configuration" しか返さない。そのため企業ログイン画面は
+ * "TOTP_REQUIRED" を受け取れず、2 段階認証を有効にした企業には認証コードの入力欄が
+ * 一度も表示されなかった (= ログイン不能)。利用停止・試行回数超過も、すべて
+ * 「メールアドレスまたはパスワードが正しくありません」になっていた。
+ * CredentialsSignin の code はクライアントの signIn() の戻り値 (result.code) に載る。
+ */
+class AuthCodeError extends CredentialsSignin {
+  constructor(code: string) {
+    super(code)
+    this.code = code
+  }
+}
 
 /** 求職者セッションを DB と突き合わせ直す間隔 */
 const SEEKER_RECHECK_MS = 5 * 60 * 1000
@@ -49,7 +66,7 @@ function assertAuthRateLimit(req: Request | undefined, scope: string) {
     windowMs: 15 * 60 * 1000,
   })
   if (!rl.allowed) {
-    throw new Error("RATE_LIMITED")
+    throw new AuthCodeError("RATE_LIMITED")
   }
 }
 
@@ -172,10 +189,10 @@ providers.push(
 
         // 凍結 / 退会済アカウントはログイン拒否
         if (user.status === "suspended") {
-          throw new Error("ACCOUNT_SUSPENDED")
+          throw new AuthCodeError("ACCOUNT_SUSPENDED")
         }
         if (user.status === "deleted") {
-          throw new Error("ACCOUNT_DELETED")
+          throw new AuthCodeError("ACCOUNT_DELETED")
         }
 
         const isValid = await compare(
@@ -246,7 +263,7 @@ providers.push(
           const code = (credentials.totp as string | undefined)?.trim()
           if (!code) {
             // フロント側で 2 段目フォームを表示するためのシグナル
-            throw new Error("TOTP_REQUIRED")
+            throw new AuthCodeError("TOTP_REQUIRED")
           }
           const { verifyTotp, consumeRecoveryCode } = await import("@/lib/totp")
           const ok = verifyTotp(code, companyUser.totpSecret)
@@ -257,7 +274,7 @@ providers.push(
               companyUser.totpRecoveryCodes
             )
             if (!consumed) {
-              throw new Error("TOTP_INVALID")
+              throw new AuthCodeError("TOTP_INVALID")
             }
             // CAS: 読み取り時点の一覧と一致する場合のみ書き込む。
             // 同一コードでの並行ログインが両方とも検証を通過してしまい、
@@ -271,7 +288,7 @@ providers.push(
               data: { totpRecoveryCodes: consumed.remaining },
             })
             if (cas.count === 0) {
-              throw new Error("TOTP_INVALID")
+              throw new AuthCodeError("TOTP_INVALID")
             }
           }
         }

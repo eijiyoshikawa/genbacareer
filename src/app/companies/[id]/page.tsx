@@ -5,6 +5,7 @@ import Image from "next/image"
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { JobCard } from "@/components/jobs/job-card"
+import { cachedQuery } from "@/lib/cached-query"
 import { CompanyFollowButton } from "@/components/companies/follow-button"
 import { CompanyGbizSection } from "@/components/companies/gbiz-section"
 import { ReportButton } from "@/components/reports/report-button"
@@ -150,8 +151,13 @@ export default async function CompanyDetailPage({ params }: Props) {
       ])
     : [false, false]
 
+  // 誰が見ても同じ内容なので 5 分キャッシュする。以前は表示のたびに 7 本を並列で
+  // 実行しており (1 インスタンスの接続は 10 本)、クローラーが企業ページを 2 件同時に
+  // 開くだけで接続を使い切って他のページを巻き込んでいた。
+  // 失敗は空の結果としてキャッシュに残さない (中では catch せず、外で受ける)。
   const [jobs, followerCount, applicationCount, hiredCount, relatedCompanies, reviews, reviewStats] =
-    await Promise.all([
+    await cachedQuery(["company-public", company.id], 300, () =>
+      Promise.all([
       prisma.job
         .findMany({
           where: { companyId: company.id, status: "active" },
@@ -173,13 +179,10 @@ export default async function CompanyDetailPage({ params }: Props) {
           },
           orderBy: { publishedAt: "desc" },
           take: 30,
-        })
-        .catch(() => []),
-      prisma.companyFollow.count({ where: { companyId: company.id } }).catch(() => 0),
-      prisma.application.count({ where: { companyId: company.id } }).catch(() => 0),
-      prisma.application
-        .count({ where: { companyId: company.id, status: "hired" } })
-        .catch(() => 0),
+        }),
+      prisma.companyFollow.count({ where: { companyId: company.id } }),
+      prisma.application.count({ where: { companyId: company.id } }),
+      prisma.application.count({ where: { companyId: company.id, status: "hired" } }),
       // 関連企業: 同 industry / 同 prefecture から 3 件 (自分は除外)
       prisma.company
         .findMany({
@@ -202,8 +205,7 @@ export default async function CompanyDetailPage({ params }: Props) {
           },
           orderBy: { createdAt: "desc" },
           take: 3,
-        })
-        .catch(() => []),
+        }),
       // 12.2 口コミ: 公開済みの最新 5 件
       prisma.companyReview
         .findMany({
@@ -221,17 +223,27 @@ export default async function CompanyDetailPage({ params }: Props) {
             displayName: true,
             createdAt: true,
           },
-        })
-        .catch(() => []),
+        }),
       // 集計 (平均評価・件数)
       prisma.companyReview
         .aggregate({
           where: { companyId: company.id, status: "approved" },
           _avg: { rating: true },
           _count: { _all: true },
-        })
-        .catch(() => ({ _avg: { rating: null }, _count: { _all: 0 } })),
+        }),
     ])
+    ).catch(
+      () =>
+        [
+          [],
+          0,
+          0,
+          0,
+          [],
+          [],
+          { _avg: { rating: null }, _count: { _all: 0 } },
+        ] as never
+    )
 
   // 13.4 独自イベントトラッキング (view_company)
   void trackEvent({
@@ -566,7 +578,7 @@ export default async function CompanyDetailPage({ params }: Props) {
                   <span>·</span>
                   <span>{r.displayName ?? "建設業界の方"}</span>
                   <span>·</span>
-                  <span>{r.createdAt.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}</span>
+                  <span>{new Date(r.createdAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}</span>
                 </div>
                 {r.title && (
                   <p className="font-bold text-gray-900">{r.title}</p>

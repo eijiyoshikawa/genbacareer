@@ -2,10 +2,10 @@ import { AlertTriangle } from "lucide-react"
 
 interface HwApiUnavailableProps {
   reason: "not-configured" | "upstream-error"
-  message?: string
 }
 
-export function HwApiUnavailable({ reason, message }: HwApiUnavailableProps) {
+// エラーの詳細 (DB の接続先やクエリを含む例外メッセージ) は画面に出さない。
+export function HwApiUnavailable({ reason }: HwApiUnavailableProps) {
   const headline =
     reason === "not-configured"
       ? "公共求人サービスは現在準備中です"
@@ -22,9 +22,6 @@ export function HwApiUnavailable({ reason, message }: HwApiUnavailableProps) {
         <div>
           <p className="text-sm font-semibold text-amber-900">{headline}</p>
           <p className="mt-1 text-xs text-amber-800">{body}</p>
-          {message && (
-            <p className="mt-2 text-xs text-amber-700/80">詳細: {message}</p>
-          )}
         </div>
       </div>
     </div>

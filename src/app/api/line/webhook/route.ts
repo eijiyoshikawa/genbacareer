@@ -182,6 +182,20 @@ async function tryAutoBind(
   if (candidates.length === 0) return null
   const lead = candidates[0]
 
+  // この LINE アカウントが配信停止を希望済みか。停止の記録はフォロワー用の行にしか
+  // 無いことがあり、下でその行を消すと記録ごと失われて、紐付けた応募の行
+  // (配信停止なし) を通じて次の一斉配信が届いてしまっていた。紐付け先へ引き継ぐ。
+  // 確認できないときは紐付けない (停止の記録を消すより、次の機会に回す)。
+  let priorOptOut: { optedOutAt: Date | null; optedOutSource: string | null } | null
+  try {
+    priorOptOut = await prisma.lineLead.findFirst({
+      where: { lineUserId: userId, optedOut: true },
+      select: { optedOutAt: true, optedOutSource: true },
+    })
+  } catch {
+    return null
+  }
+
   try {
     await prisma.lineLead.update({
       where: { id: lead.id },
@@ -189,6 +203,13 @@ async function tryAutoBind(
         lineUserId: userId,
         lineDisplayName: displayName,
         status: "line_added",
+        ...(priorOptOut
+          ? {
+              optedOut: true,
+              optedOutAt: priorOptOut.optedOutAt ?? new Date(),
+              optedOutSource: priorOptOut.optedOutSource ?? "webhook",
+            }
+          : {}),
       },
     })
   } catch {

@@ -14,6 +14,7 @@ export function SaveSearchButton({
   employmentType,
   salaryMin,
   source,
+  tags,
 }: {
   loggedIn: boolean
   defaultName: string
@@ -24,6 +25,7 @@ export function SaveSearchButton({
   employmentType?: string
   salaryMin?: number
   source?: string
+  tags?: string[]
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -48,6 +50,7 @@ export function SaveSearchButton({
           employmentType: employmentType || null,
           salaryMin: salaryMin ?? null,
           source: source || null,
+          ...(tags && tags.length > 0 ? { tags } : {}),
           alertEnabled: true,
         }),
       })

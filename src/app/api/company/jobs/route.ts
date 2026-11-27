@@ -3,7 +3,7 @@ import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { CONSTRUCTION_CATEGORY_VALUES } from "@/lib/categories"
-import { requireCompanyAuth, isCompanyAuthError } from "@/lib/company-auth"
+import { requireCompanyAuth, isCompanyAuthError, getPlanExpiredError } from "@/lib/company-auth"
 import { revalidateAfterJobChange } from "@/lib/revalidate-public"
 import { computeDisplayPriority } from "@/lib/job-display-priority"
 
@@ -114,6 +114,13 @@ export async function POST(request: NextRequest) {
       { error: "給与の下限は上限以下で入力してください" },
       { status: 400 }
     )
+  }
+
+  if (data.status === "active") {
+    const planExpired = await getPlanExpiredError(ctx.companyId)
+    if (planExpired) {
+      return Response.json({ error: planExpired, code: "PLAN_EXPIRED" }, { status: 403 })
+    }
   }
 
   const job = await prisma.job.create({

@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { getSuspendedCompanyError } from "@/lib/company-auth"
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -16,6 +17,13 @@ export async function GET(request: NextRequest) {
   const companyId = (session.user as { companyId?: string }).companyId
   if (!companyId) {
     return Response.json({ error: "企業情報が見つかりません" }, { status: 403 })
+  }
+
+  // 運営が利用停止にした企業には応募者の氏名・連絡先を返さない
+  // (書き出しと選考操作は停止済みだったが、一覧の取得だけ残っていた)
+  const suspended = await getSuspendedCompanyError(companyId)
+  if (suspended) {
+    return Response.json({ error: suspended }, { status: 403 })
   }
 
   const { searchParams } = request.nextUrl

@@ -12,7 +12,8 @@
  * @module import-batch
  */
 
-import { Prisma, PrismaClient } from "@prisma/client"
+import type { Prisma } from "@prisma/client"
+import { prisma } from "@/lib/db"
 import type { CategoryValue } from "@/lib/categories"
 import {
   cleanTitle,
@@ -60,18 +61,39 @@ interface ImportError {
 // Prisma クライアント
 // ========================================
 
+// アプリ共通のクライアント (lib/db) を使う。以前はここで素の PrismaClient を別に
+// 作っていたため、connection_limit / pool_timeout の指定が効かない 2 つ目の接続
+// プールを取り込みの関数が抱えていた (接続枯渇の一因)。
+
+/** 運営が登録した除外キーワード (/admin/blocklists) */
+type BlocklistRule = { id: string; keyword: string; scope: string }
+
 /**
- * シングルトン Prisma クライアント。
- * Next.js の Hot Reload でコネクションが増殖するのを防ぐ。
+ * 求人が除外キーワードに一致するか。一致した最初のルールを返す。
+ * scope: title | description | company | any (大文字小文字は区別しない)
  */
-const globalForPrisma = globalThis as unknown as {
-  importPrisma: PrismaClient | undefined
-}
-
-const prisma = globalForPrisma.importPrisma ?? new PrismaClient()
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.importPrisma = prisma
+export function matchBlocklist(
+  job: { title: string; description?: string | null; companyName?: string | null },
+  rules: ReadonlyArray<BlocklistRule>
+): BlocklistRule | null {
+  if (rules.length === 0) return null
+  const title = (job.title ?? "").toLowerCase()
+  const description = (job.description ?? "").toLowerCase()
+  const company = (job.companyName ?? "").toLowerCase()
+  for (const rule of rules) {
+    const kw = rule.keyword.trim().toLowerCase()
+    if (!kw) continue
+    const hit =
+      rule.scope === "title"
+        ? title.includes(kw)
+        : rule.scope === "description"
+          ? description.includes(kw)
+          : rule.scope === "company"
+            ? company.includes(kw)
+            : title.includes(kw) || description.includes(kw) || company.includes(kw)
+    if (hit) return rule
+  }
+  return null
 }
 
 // ========================================
@@ -757,14 +779,27 @@ export async function importHelloworkJobs(
     }
   }
 
+  // 運営が /admin/blocklists に登録した除外キーワード。管理画面には「取り込み時に
+  // 自動で除外する」と表示していたが、取り込み側が一度も読んでおらず、登録しても
+  // 該当求人が掲載され続けていた。読めないときは除外なしで取り込みを続ける。
+  const blocklistRules: BlocklistRule[] = await prisma.blocklist
+    .findMany({
+      where: { enabled: true },
+      select: { id: true, keyword: true, scope: true },
+    })
+    .catch(() => [])
+  const blocklistHits = new Map<string, number>()
+
   for (const job of jobs) {
     try {
+      const blockedBy = matchBlocklist(job, blocklistRules)
+      if (blockedBy) {
+        blocklistHits.set(blockedBy.id, (blocklistHits.get(blockedBy.id) ?? 0) + 1)
+      }
       // 建設業 9 カテゴリのいずれにも該当しないジョブは取り込まない
-      const category = inferCategory(
-        job.title,
-        job.description,
-        job.occupationCategoryName
-      )
+      const category = blockedBy
+        ? null
+        : inferCategory(job.title, job.description, job.occupationCategoryName)
       if (category === null) {
         skipped++
         // 以前は建設業と判定されて取り込み済みの求人が、判定の見直しや HW 側の
@@ -895,6 +930,15 @@ export async function importHelloworkJobs(
       console.error(
         `[import-batch] エラー: ${job.helloworkId} - ${message}`
       )
+    }
+  }
+
+  // 除外キーワードごとの除外件数を記録 (管理画面の「除外件数」)
+  if (!dryRun) {
+    for (const [ruleId, count] of blocklistHits) {
+      await prisma.blocklist
+        .update({ where: { id: ruleId }, data: { hitCount: { increment: count } } })
+        .catch(() => {})
     }
   }
 

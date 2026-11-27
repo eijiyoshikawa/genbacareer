@@ -49,7 +49,7 @@ export default async function HwJobDetailPage({ params }: PageProps) {
       <div className="mx-auto max-w-3xl px-4 py-8">
         <BackLink />
         <div className="mt-4">
-          <HwApiUnavailable reason={result.reason as "not-configured" | "upstream-error"} message={result.message} />
+          <HwApiUnavailable reason={result.reason as "not-configured" | "upstream-error"} />
         </div>
       </div>
     )

@@ -9,6 +9,7 @@ import { HwLastSynced } from "@/components/hw-jobs/hw-last-synced"
 import { HwEmptyState } from "@/components/hw-jobs/hw-empty-state"
 import { HwApiUnavailable } from "@/components/hw-jobs/hw-api-unavailable"
 import { auth } from "@/lib/auth"
+import { cachedQuery } from "@/lib/cached-query"
 import { GUEST_LIMIT } from "@/lib/guest-job-access"
 import {
   GuestSignupCta,
@@ -18,16 +19,32 @@ import {
 // auth() で cookie を読むため、自動的に dynamic レンダリングになる。
 export const dynamic = "force-dynamic"
 
+type RawSearchParams = Record<string, string | string[] | undefined>
 type SearchParams = Record<string, string | undefined>
 
+/**
+ * 検索パラメータを 1 つの短い文字列にそろえる。
+ * ?q=a&q=b (配列) や %00 (NUL) をそのまま Prisma に渡すと例外になり、長い検索語は
+ * 説明文の部分一致検索 (全件走査) をさらに重くする。/jobs と同じ扱いにする。
+ */
+function normalizeParams(raw: RawSearchParams): SearchParams {
+  const out: SearchParams = {}
+  for (const [k, v] of Object.entries(raw)) {
+    const first = Array.isArray(v) ? v[0] : v
+    const cleaned = first?.replace(/\u0000/g, "").trim().slice(0, 60)
+    out[k] = cleaned || undefined
+  }
+  return out
+}
+
 interface PageProps {
-  searchParams: Promise<SearchParams>
+  searchParams: Promise<RawSearchParams>
 }
 
 const DEFAULT_LIMIT = 20
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
-  const params = await searchParams
+  const params = normalizeParams(await searchParams)
   const parts: string[] = []
   if (params.prefecture) parts.push(params.prefecture)
   if (params.jobType) parts.push(params.jobType)
@@ -43,7 +60,7 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
 }
 
 export default async function HwJobsPage({ searchParams }: PageProps) {
-  const params = await searchParams
+  const params = normalizeParams(await searchParams)
 
   // 求職者ログイン時のみ全件閲覧可。未ログインは GUEST_LIMIT (15) 件で固定。
   // offset / limit パラメータも無視して 1 ページ目を返す。
@@ -54,16 +71,30 @@ export default async function HwJobsPage({ searchParams }: PageProps) {
     ? clampInt(params.limit, DEFAULT_LIMIT, DEFAULT_LIMIT)
     : GUEST_LIMIT
 
+  // 給与の下限は INT の範囲に収める (1e20 などは Prisma が例外にする)
+  const minSalaryRaw = params.minSalary ? Number(params.minSalary) : NaN
+  const minSalary =
+    Number.isFinite(minSalaryRaw) && minSalaryRaw > 0
+      ? Math.min(Math.trunc(minSalaryRaw), 100_000_000)
+      : undefined
+  const query = {
+    prefecture: params.prefecture,
+    jobType: params.jobType,
+    employmentType: params.employmentType,
+    minSalary,
+    q: params.q,
+    offset,
+    limit,
+  }
+  // 未ログインの結果は誰が見ても同じなので 2 分キャッシュし、同時実行も絞る。
+  // 1 表示で 3 本のクエリ (うち q は説明文の全件走査) を毎回流しており、/jobs で
+  // 接続枯渇を起こしたのと同じ形のまま残っていた。
   const result = await safeFetch(() =>
-    listHwJobs({
-      prefecture: params.prefecture,
-      jobType: params.jobType,
-      employmentType: params.employmentType,
-      minSalary: params.minSalary ? Number(params.minSalary) : undefined,
-      q: params.q,
-      offset,
-      limit,
-    }),
+    loggedIn
+      ? listHwJobs(query)
+      : cachedQuery(["hw-jobs-guest", JSON.stringify(query)], 120, () =>
+          listHwJobs(query)
+        ),
   )
 
   return (
@@ -103,7 +134,7 @@ export default async function HwJobsPage({ searchParams }: PageProps) {
           <HwApiUnavailable reason="not-configured" />
         )}
         {!result.ok && result.reason === "upstream-error" && (
-          <HwApiUnavailable reason="upstream-error" message={result.message} />
+          <HwApiUnavailable reason="upstream-error" />
         )}
         {!result.ok && result.reason === "not-found" && <HwEmptyState />}
 

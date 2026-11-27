@@ -28,6 +28,7 @@
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { getSuspendedCompanyError } from "@/lib/company-auth"
 import {
   computeRefundParams,
   isEligibleForRefund,
@@ -61,6 +62,11 @@ export async function POST(request: Request) {
   const me = await requireCompanyUser()
   if (!me) {
     return Response.json({ error: "認証が必要です" }, { status: 401 })
+  }
+  // 運営が利用停止にした企業からの返金申請は受け付けない
+  const suspended = await getSuspendedCompanyError(me.companyId)
+  if (suspended) {
+    return Response.json({ error: suspended }, { status: 403 })
   }
 
   let raw: unknown

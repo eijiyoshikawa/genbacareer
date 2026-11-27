@@ -48,7 +48,6 @@ export default async function HwEmployerPage({ params, searchParams }: PageProps
         <div className="mt-4">
           <HwApiUnavailable
             reason={result.reason as "not-configured" | "upstream-error"}
-            message={result.message}
           />
         </div>
       </div>

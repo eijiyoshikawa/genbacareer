@@ -6,6 +6,7 @@
  */
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { isPlanActive } from "@/lib/plans"
 
 export type CompanyAuthContext = {
   companyId: string
@@ -95,6 +96,33 @@ export async function getSuspendedCompanyError(
   if (!company) return "企業情報が見つかりません"
   if (company.status === "rejected") {
     return "申し訳ございません。本アカウントではご利用いただくことができません。詳細は info@let-inc.net までお問い合わせください。"
+  }
+  return null
+}
+
+/**
+ * 月額 / SNS プランの契約期間が切れている企業かどうか。切れていれば表示用の文言を返す。
+ *
+ * 期限切れの cron (expire-plans) は掲載順位 (planTier) を下げるだけで、求人の新規公開は
+ * 止めていなかった。月額プランは採用時の成果報酬が発生しないため、更新しないまま
+ * 求人を公開し続ければ無料で採用まで進められた。新しく公開する操作だけを止める
+ * (掲載中の求人と下書きの保存には影響しない)。
+ * 期限のないプラン (success_fee / campaign_free) や未知の planType は対象外。
+ */
+export async function getPlanExpiredError(
+  companyId: string
+): Promise<string | null> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { planType: true, planPaidUntil: true },
+  })
+  if (!company) return "企業情報が見つかりません"
+  const termPlan =
+    company.planType === "monthly_12" ||
+    company.planType === "monthly_24" ||
+    company.planType === "sns_client"
+  if (termPlan && !isPlanActive(company)) {
+    return "ご契約プランの期間が終了しているため、求人を新しく公開できません。更新をご希望の場合は info@let-inc.net までお問い合わせください。"
   }
   return null
 }
